@@ -45,3 +45,7 @@
   .review-side{align-items:flex-start}
   .review-counts{flex-wrap:wrap}
 }
+
+.review-scope { display: flex; gap: 8px; margin: 12px 0 0; }
+.review-scope button { border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 7px 14px; font-size: 12px; color: var(--sub); }
+.review-scope button.on { background: #151519; border-color: #151519; color: #fff; font-weight: 600; }

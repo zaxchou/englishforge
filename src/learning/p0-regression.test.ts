@@ -3,7 +3,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   applyQuestionReview, buildTodayQueue, buildSkillQueue, buildReviewQueue,
-  makeQueueItem, insertVariantDrill, softenQueue, eligible, dueQuestions, recordSpeak,
+  makeQueueItem, insertVariantDrill, softenQueue, eligible, dueQuestions, recordSpeak, recommendSkill,
 } from './scheduler'
 import { buildEvidence } from './evidence'
 import { gradeChoice, gradeSequence, gradeTap } from './grading'
@@ -473,5 +473,43 @@ describe('口语题排程（回归：反复出现且清不掉）', () => {
     recordSpeak(p, q.id, 'independent-self', true, 1000)
     expect(p.questionStates[q.id].total).toBe(1)
     expect(p.questionStates[q.id].correct).toBe(1)
+  })
+})
+
+describe('推荐知识点：循序渐进（回归：总跳回同一课）', () => {
+  const mk = (id: string, skill: string) => adaptQuestion({ id, skill, type: 'choice', prompt: 'p', explain: 'e', options: ['A', 'B'], answer: 'A' })
+  it('先推第一个还没练完的知识点，练完就前进', () => {
+    const p = defaultProgressV2()
+    const pool = [mk('a1', 's1'), mk('a2', 's1'), mk('b1', 's2'), mk('c1', 's3')]
+    const order = ['s1', 's2', 's3']
+    expect(recommendSkill(p, pool, order)).toBe('s1')
+    p.questionStates['a1'] = { stage: 1, dueAt: 9e15, correct: 1, total: 1 }
+    expect(recommendSkill(p, pool, order)).toBe('s1')          // 还有 a2 没答对过
+    p.questionStates['a2'] = { stage: 1, dueAt: 9e15, correct: 1, total: 1 }
+    expect(recommendSkill(p, pool, order)).toBe('s2')          // s1 练完 → 前进
+  })
+
+  it('答错过的题不算练完（stage 仍为 0），但不会因为"曾经错过"就永远黏住', () => {
+    const p = defaultProgressV2()
+    const pool = [mk('a1', 's1'), mk('b1', 's2')]
+    const order = ['s1', 's2']
+    // a1 错过一次：lastFailureAt 被写入，旧逻辑会永远把 s1 排在前面
+    p.questionStates['a1'] = { stage: 0, dueAt: Date.now(), correct: 0, total: 1, lastFailureAt: Date.now() }
+    expect(recommendSkill(p, pool, order)).toBe('s1')          // 没答对过 → 还是它
+    p.questionStates['a1'] = { stage: 1, dueAt: 9e15, correct: 1, total: 2, lastFailureAt: 1 }
+    expect(recommendSkill(p, pool, order)).toBe('s2')          // 答对过一次后就让位
+  })
+
+  it('全部练完时回到最久没碰的知识点，不返回空', () => {
+    const p = defaultProgressV2()
+    const pool = [mk('a1', 's1'), mk('b1', 's2')]
+    for (const id of ['a1', 'b1']) p.questionStates[id] = { stage: 1, dueAt: 9e15, correct: 1, total: 1, lastIndependentSuccessAt: id === 'a1' ? 100 : 200 }
+    expect(recommendSkill(p, pool, ['s1', 's2'])).toBe('s1')
+  })
+
+  it('没有题目的知识点会被跳过', () => {
+    const p = defaultProgressV2()
+    const pool = [mk('c1', 's3')]
+    expect(recommendSkill(p, pool, ['s1', 's2', 's3'])).toBe('s3')
   })
 })

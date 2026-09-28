@@ -137,3 +137,9 @@
 .result-errors li b { color: var(--sub); font-weight: 500; }
 .result-errors li p { margin: 0; flex-basis: 100%; color: #4c5165; line-height: 1.8; }
 .result-errors-note { font-size: 12px; color: var(--sub); margin: 12px 0 0; line-height: 1.8; }
+
+/* 知识点的练习进度条（驱动"练完升级"的那个数） */
+.skill-progress { display: flex; align-items: center; gap: 10px; margin-top: 8px; font-size: 11px; color: var(--sub); }
+.skill-bar { flex: 1; max-width: 160px; height: 5px; border-radius: 99px; background: #e7e4ee; overflow: hidden; }
+.skill-bar i { display: block; height: 100%; background: #879d35; }
+.skill-done { color: #4c6b1f; font-weight: 600; }

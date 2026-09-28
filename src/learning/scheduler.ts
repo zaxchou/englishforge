@@ -169,32 +169,46 @@ export function dueQuestions(
   return out
 }
 
-/** 推荐"当前知识点"：最近有活动、未毕业的技能；否则课程顺序里第一个有新题的技能 */
+/** 推荐"当前知识点"：按课程顺序找第一个**还没练完**的。
+ *
+ *  为什么不再用"最近有活动的"：那会长期黏住同一个知识点——`lastFailureAt` 一旦写入就永不清除，
+ *  于是只要你在某个知识点错过一次，它就永远算"有活动"，推荐每次都回到它。
+ *  用户感受就是"继续下一课总跳回同一课、没法循序渐进"。
+ *
+ *  练完 = 该知识点的**每道可用题**都至少独立答对过一次（stage ≥ 1）。
+ *  练完的知识点从此只靠间隔复习回访，主推进让给下一个——这就是"掌握了就升级"。
+ */
 export function recommendSkill(
   p: ProgressV2,
   pool: AdaptedQuestion[],
   skillOrder: string[],
 ): string | null {
-  const lastActivity = new Map<string, number>()
-  const qidToSkill = new Map(pool.map((q) => [q.id, q.skill]))
-  for (const [qid, st] of Object.entries(p.questionStates)) {
-    const skill = qidToSkill.get(qid)
-    if (!skill) continue
-    const t = Math.max(st.lastFailureAt ?? 0, st.lastIndependentSuccessAt ?? 0)
-    if ((st.stage > 0 && st.stage < 5) || st.lastFailureAt) {
-      lastActivity.set(skill, Math.max(lastActivity.get(skill) ?? 0, t))
+  const byskill = new Map<string, AdaptedQuestion[]>()
+  for (const q of pool) {
+    const list = byskill.get(q.skill)
+    if (list) list.push(q)
+    else byskill.set(q.skill, [q])
+  }
+  const spine = skillOrder.filter((sid) => (byskill.get(sid)?.length ?? 0) > 0)
+  if (!spine.length) return skillOrder[0] ?? null
+
+  // 第一个"还有没独立答对过的题"的知识点
+  for (const sid of spine) {
+    const qs = byskill.get(sid) ?? []
+    if (qs.some((q) => (p.questionStates[q.id]?.stage ?? 0) === 0)) return sid
+  }
+  // 全部练完：回到最久没碰的那个，保持复习手感
+  let oldest: string | null = null
+  let oldestT = Number.POSITIVE_INFINITY
+  for (const sid of spine) {
+    let last = 0
+    for (const q of byskill.get(sid) ?? []) {
+      const st = p.questionStates[q.id]
+      last = Math.max(last, st?.lastIndependentSuccessAt ?? 0, st?.lastFailureAt ?? 0)
     }
+    if (last < oldestT) { oldestT = last; oldest = sid }
   }
-  let best: string | null = null
-  let bestT = 0
-  for (const [skill, t] of lastActivity) {
-    if (t > bestT) { bestT = t; best = skill }
-  }
-  if (best) return best
-  for (const skill of skillOrder) {
-    if (pool.some((q) => q.skill === skill && (p.questionStates[q.id]?.total ?? 0) === 0)) return skill
-  }
-  return skillOrder[0] ?? null
+  return oldest ?? spine[0]
 }
 
 /**

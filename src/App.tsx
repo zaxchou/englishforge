@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { lessons, questionsOfSkill, allQuestions, skillOrder } from './data/course'
+import { applyReviewMarks, loadReviewMarks, type ReviewMarks } from './content/reviewMarks'
 import {
   loadProgress, saveProgress, resetProgress, getSkillProgress,
   recordSkillPractice, commitSession, recordSession, localDateStr,
@@ -8,7 +9,7 @@ import {
   pushAttempt, exportSave, applyImport, previewImport, clearSaveError, hadSaveError,
 } from './store/migrations'
 import type { LoadNotice } from './store/migrations'
-import type { ActiveSession, Attempt, ProgressV2, QuizRuntime, SessionKind } from './types'
+import type { ActiveSession, AdaptedQuestion, Attempt, ProgressV2, QuizRuntime, SessionKind } from './types'
 import { Quiz, type SessionResult, type QuizAttempt, type QuizEntry } from './components/Quiz'
 import { Confetti } from './components/fx'
 import { Dashboard, Sidebar } from './components/Dashboard'
@@ -21,7 +22,6 @@ import {
 } from './learning/scheduler'
 import { isMuted, setMuted, sfx } from './sound'
 
-const questionById = new Map(allQuestions.map((q) => [q.id, q]))
 const allSkillList = Object.values(lessons).flatMap((l) => l.skills)
 
 type View =
@@ -48,7 +48,11 @@ export default function App() {
     return () => { window.clearInterval(timer); window.removeEventListener('focus', refresh) }
   }, [])
 
-  const pool = useMemo(() => eligible(allQuestions), [])
+  // 审核标记会改变信任级别，从而决定"这次练习算不算能力证据"——所以它必须驱动题目池
+  const [marks, setMarks] = useState<ReviewMarks>(() => loadReviewMarks())
+  const reviewed = useMemo(() => applyReviewMarks(allQuestions, marks), [marks])
+  const pool = useMemo(() => eligible(reviewed), [reviewed])
+  const questionById = useMemo(() => new Map(reviewed.map((q) => [q.id, q])), [reviewed])
   const evidence: EvidenceReport = useMemo(() => buildEvidence(progress, pool), [progress, pool])
   const dueList = useMemo(
     () => dueQuestions(progress, pool, clock, evidence.openErrorQids),
@@ -112,7 +116,7 @@ export default function App() {
       if (q) out.push({ q, item })
     }
     return out
-  }, [progress.activeSession])
+  }, [progress.activeSession, questionById])
 
   function conceptCardsFor(a: ActiveSession): { skillId: string; title: string; body: string[]; example: string; exampleNote: string }[] {
     if (a.kind === 'review') return []   // 先检索后讲解：复习不预放微课（保护延迟保持证据）
@@ -391,13 +395,15 @@ export default function App() {
         )}
         {view.name === 'review' && (
           <ContentReview
-            questions={pool.filter((q) => q.reviewStatus === 'draft' && /(tatoeba|ud-en-ewt):/.test(q.sourceRef ?? ''))}
+            questions={pool.filter((q) => q.reviewStatus === 'draft')}
+            marks={marks}
+            onMarks={setMarks}
             onExit={() => setView({ name: 'home' })}
           />
         )}
         {view.name !== 'review' && <div className={`narrow ${view.name === 'practice' ? 'quiz-center' : ''}`}>
         {view.name === 'lesson' && (
-          <LessonPage lessonId={view.lessonId} progress={progress} evidence={evidence} onStartSkill={(skillId) => { setStartError(null); if (!startSession('skill', skillId)) setStartError('这个思维点还没有题目——题库正在建设中。') }} onBack={() => setView({ name: 'home' })} />
+          <LessonPage lessonId={view.lessonId} progress={progress} evidence={evidence} pool={pool} onStartSkill={(skillId) => { setStartError(null); if (!startSession('skill', skillId)) setStartError('这个思维点还没有题目——题库正在建设中。') }} onBack={() => setView({ name: 'home' })} />
         )}
         {view.name === 'practice' && progress.activeSession && (
           <Quiz
@@ -452,9 +458,18 @@ function countStates(e: EvidenceReport) {
 }
 
 // ---------------- 课程页（思维点小关） ----------------
-function LessonPage({ lessonId, progress, evidence, onStartSkill, onBack }: {
+/** 某知识点的练习进度：每道可用题独立答对过一次（stage ≥ 1）才算练过。
+ *  这个数直接驱动"练完就升级"的推荐逻辑，所以必须让用户看得见。 */
+function practiceProgress(p: ProgressV2, pool: AdaptedQuestion[], skillId: string) {
+  const qs = pool.filter((q) => q.skill === skillId)
+  const done = qs.filter((q) => (p.questionStates[q.id]?.stage ?? 0) >= 1).length
+  return { done, total: qs.length }
+}
+
+function LessonPage({ lessonId, progress, evidence, pool, onStartSkill, onBack }: {
   lessonId: string
   progress: ProgressV2
+  pool: AdaptedQuestion[]
   evidence: EvidenceReport
   onStartSkill: (skillId: string) => void
   onBack: () => void
@@ -473,6 +488,7 @@ function LessonPage({ lessonId, progress, evidence, onStartSkill, onBack }: {
           const ev = evidence.bySkill[s.id]
           const state = ev?.state ?? 'unseen'
           const stats = skillStats(progress, s.id)
+          const prog = practiceProgress(progress, pool, s.id)
           return (
             <button key={s.id} className="skill-card" onClick={() => onStartSkill(s.id)}>
               <div className="skill-icon">{s.icon}</div>
@@ -489,6 +505,14 @@ function LessonPage({ lessonId, progress, evidence, onStartSkill, onBack }: {
                       : '未练习 · 先看微课卡'}
                 </div>
                 <div className="skill-meta dim">{stats.total > 0 ? `累计练习 ${stats.total} 题 · 历史首发答对 ${stats.correct}` : ''}</div>
+                {/* 练习进度：这是驱动"掌握了就升级"的那个数——每道题独立答对过一次才算练过 */}
+                <div className="skill-progress">
+                  <div className="skill-bar" aria-hidden="true">
+                    <i style={{ width: `${prog.total ? Math.round((prog.done / prog.total) * 100) : 0}%` }} />
+                  </div>
+                  <span>{prog.total ? `已练 ${prog.done}/${prog.total} 题` : '本知识点暂无题目'}</span>
+                  {prog.done === prog.total && prog.total > 0 && <b className="skill-done">练完 · 主推进已交给下一个知识点</b>}
+                </div>
               </div>
               <div className="skill-go">{getSkillProgress(progress, s.id).conceptSeen ? '▶' : '🎯'}</div>
             </button>
