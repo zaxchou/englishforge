@@ -176,6 +176,13 @@ CREATE VIEW IF NOT EXISTS v_item_stats AS
 SELECT account_id, skill, source, review_status, COUNT(*) AS n
 FROM items GROUP BY account_id, skill, source, review_status;
 
+-- 全局设置（模型名等）。放库里而不是 .env：用户能在界面上改，不用碰别的项目的配置文件。
+CREATE TABLE IF NOT EXISTS settings (
+  key        TEXT PRIMARY KEY,
+  value      TEXT NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
 -- 题库目录：仓库里自带的那批题（随代码发布）的**元数据镜像**。
 -- 为什么要有它：系统要能自己检查自己的内容（查重、找缺逐项纠正的题、让模型补全），
 -- 而题面原本只存在于前端编译产物里，服务端看不见。客户端启动时把目录推上来（幂等 upsert）。
@@ -776,6 +783,26 @@ export function itemStats(accountId) {
   }
 }
 
+// ---------------------------------------------------------------- 设置
+
+export function getSetting(key) {
+  const r = getDb().prepare('SELECT value FROM settings WHERE key = ?').get(key)
+  return r?.value ?? null
+}
+
+export function setSetting(key, value) {
+  getDb().prepare(`INSERT INTO settings (key, value, updated_at) VALUES (?,?,?)
+    ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`)
+    .run(String(key), String(value), nowMs())
+  return { key, value }
+}
+
+export function allSettings() {
+  const out = {}
+  for (const r of getDb().prepare('SELECT * FROM settings').all()) out[r.key] = r.value
+  return out
+}
+
 // ---------------------------------------------------------------- 题库目录与系统自检
 
 /** 客户端把仓库题库的目录推上来（幂等）：服务端从此"看得见"自己的内容 */
@@ -826,7 +853,15 @@ export function normText(v) {
 export function audit(accountId) {
   const db = getDb()
   if (!db.prepare('SELECT 1 FROM accounts WHERE id = ?').get(accountId)) throw new ApiError(404, '账户不存在：' + accountId)
-  const rows = db.prepare('SELECT * FROM questions ORDER BY skill, id').all()
+  // 已经毙掉的题**不再计入自检**：否则用户点完「自动毙掉多余的」，数字一动不动，
+  // 看起来就像"点了没用"（实测就是这个观感）。毙掉的题也不该再花 AI 调用去补纠正。
+  const killed = new Set([
+    ...db.prepare("SELECT question_id FROM content_reviews WHERE account_id = ? AND verdict = 'kill'")
+      .all(accountId).map((r) => r.question_id),
+    ...db.prepare("SELECT item_id FROM items WHERE account_id = ? AND review_status = 'quarantined'")
+      .all(accountId).map((r) => r.item_id),
+  ])
+  const rows = db.prepare('SELECT * FROM questions ORDER BY skill, id').all().filter((r) => !killed.has(r.id))
 
   // 分组的依据是 content_key（题型+题干+句子）。**不能只用题干**：听力题题干统一是
   // 「🎧 听一听」，跟读题的 answer 是占位符 'speak' —— 只用题干会把 25 道听力题算成打架（实测过）。
@@ -859,6 +894,8 @@ export function audit(accountId) {
 
   return {
     catalog: rows.length,
+    /** 这个账户已经毙掉的题数（已从上面各项里排除） */
+    quarantined: killed.size,
     duplicates,
     conflicts,
     missingCause: { count: missingCause.length, sample: missingCauseList.slice(0, 30) },

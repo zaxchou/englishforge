@@ -534,12 +534,17 @@ export default function App() {
             onExit={() => setView({ name: 'home' })}
             audit={db.audit}
             ai={db.ai}
-            onKillDuplicates={(ids) => {
-              // 重复题：每组保留第一道，其余标「毙掉」→ 退出抽题
+            onKillDuplicates={async (ids) => {
+              // 重复题：每组保留第一道，其余标「毙掉」→ 退出抽题。
+              // 顺序很重要：先本地标记 → 立刻把审核结论推上去（否则服务端还不知道） → 再重新自检。
+              // 之前只做了第一步，用户点完"毙掉"数字一动不动，看起来像没生效（实测）。
               const next: ReviewMarks = { ...marksRef.current }
               for (const id of ids) next[id] = { ...(next[id] ?? {}), verdict: 'kill' }
               handleMarks(next)
+              await db.flush({ reason: 'kill-duplicates' })
+              await db.runAudit()
             }}
+            onModel={(model: string) => db.changeModel(model)}
             onEnrich={async (limit) => {
               const r = await db.enrichNow(limit)
               // 补完立刻刷新题目池（逐项纠正并进去后，练习与结算页马上能用）

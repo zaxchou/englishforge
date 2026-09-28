@@ -79,3 +79,11 @@
 .dupg-keep b{font-size:10px;background:#eaf5cd;color:#39471d;border-radius:999px;padding:2px 8px;margin-right:6px}
 .dupg-extra{color:var(--sub);font-size:11px;margin-top:4px;padding-left:10px}
 .sysaudit-msg.is-dim{color:var(--sub)}
+
+/* 系统 AI 徽标：点开可以换模型 */
+.ai-wrap{display:inline-flex;flex-direction:column;align-items:flex-end;gap:8px}
+button.ai-pill{border:0;cursor:pointer}
+.ai-model-form{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.ai-model-form input{border:1px solid var(--line);border-radius:999px;padding:9px 14px;font-size:12px;background:#f7f6f9;color:var(--ink);min-width:170px}
+.ai-lock{font-size:11px;color:#963d32}
+.review-notice{font-size:12px;color:var(--brand);line-height:1.8;margin:10px 0 0}

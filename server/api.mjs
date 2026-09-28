@@ -4,12 +4,13 @@
 // 一个纯函数 + 一个中间件就够了，也能直接在测试里调用（不起 HTTP）。
 import {
   ApiError, addItems, audit, createAccount, dbInfo, deleteItem, ensureDefaultAccount, getAccount,
-  itemStats, listAccounts, listBatches, listEnrichments, listItems, listSnapshots, loadProgress,
-  queryAttempts, renameAccount, replaceState, resetAccount, restoreSnapshot, saveEnrichment,
-  setItemReview, stats, syncAccount, touchAccount, upsertCatalog, writeSnapshot, getDb,
+  itemStats, listAccounts, listBatches, listEnrichments, listItems, listSnapshots,
+  loadProgress, queryAttempts, renameAccount, replaceState, resetAccount, restoreSnapshot,
+  saveEnrichment, setItemReview, setSetting, stats, syncAccount, touchAccount, upsertCatalog,
+  writeSnapshot, getDb,
 } from './db.mjs'
 import { enrichCauses } from './content-ai.mjs'
-import { llmStatus } from './llm.mjs'
+import { invalidateLlmConfig, llmStatus, DEFAULT_MODEL } from './llm.mjs'
 
 const MAX_BODY = 64 * 1024 * 1024   // 首次把浏览器里的整份进度搬进库时会有一次大包
 
@@ -81,7 +82,15 @@ const ROUTES = [
   ['GET', '/api/accounts/:id/batches', (ctx) => ({ batches: listBatches(ctx.params.id) })],
 
   // ---- 系统自检与自我修复（用户的明确要求：纠正要由系统自己的 AI 跑，不靠人） ----
-  ['GET', '/api/ai/status', () => ({ ai: llmStatus() })],
+  ['GET', '/api/ai/status', () => ({ ai: { ...llmStatus(), defaultModel: DEFAULT_MODEL, envLocked: !!process.env.ENGLISHFORGE_AI_MODEL } })],
+  /** 换模型：存库即时生效（不用改任何 .env）。环境变量 ENGLISHFORGE_AI_MODEL 优先级更高。 */
+  ['POST', '/api/ai/model', (ctx) => {
+    const model = body_str(ctx, 'model').trim()
+    if (!/^[A-Za-z0-9._:-]{2,64}$/.test(model)) throw new HttpError(400, '模型名不合法')
+    setSetting('ai_model', model)
+    invalidateLlmConfig()
+    return { ok: true, ai: llmStatus() }
+  }],
   ['POST', '/api/catalog', (ctx) => {
     const rows = ctx.body?.questions
     if (!Array.isArray(rows)) throw new HttpError(400, 'questions 必须是数组')

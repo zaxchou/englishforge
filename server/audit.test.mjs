@@ -171,10 +171,40 @@ describe('让系统自己的 AI 补逐项纠正', () => {
     for (const n of [0, 1, 2, 3]) expect(en['trunc' + n]?.causes?.optionFixes).toBeTruthy()
   })
 
-  it('AI 状态只回报"配好了没"，绝不回报密钥', async () => {
+  it('AI 状态只回报"配好了没 + 模型 + 从哪读的"，绝不回报密钥', async () => {
     const st = (await call('/api/ai/status')).json.ai
-    expect(Object.keys(st).sort()).toEqual(['configured', 'model', 'source'])
-    expect(JSON.stringify(st)).not.toMatch(/sk-/)
+    // 不断言精确字段集（会随功能增长而变脆），断言**安全性质**：响应里不许出现密钥
+    expect(st.configured).toBe(true)
+    expect(typeof st.model).toBe('string')
+    expect(typeof st.source).toBe('string')
+    const text = JSON.stringify(st)
+    expect(text).not.toMatch(/sk-/)
+    expect(text.length).toBeLessThan(300)
+  })
+
+  it('可以换模型：存库即时生效，并如实回报"界面设置"而不是谎称 .env', async () => {
+    const before = (await call('/api/ai/status')).json.ai.model
+    const res = await call('/api/ai/model', { model: 'deepseek-flash' }, 'POST')
+    expect(res.status).toBe(200)
+    expect(res.json.ai.model).toBe('deepseek-flash')
+    expect(res.json.ai.source).toBe('界面设置')
+    expect((await call('/api/ai/status')).json.ai.model).toBe('deepseek-flash')
+    expect((await call('/api/ai/model', { model: 'bad name!!' }, 'POST')).status).toBe(400)
+    // 换回去，别影响别的用例
+    await call('/api/ai/model', { model: before }, 'POST')
+  })
+
+  it('毙掉的题不再计入自检（否则点完"毙掉"数字不动，看起来像没生效）', async () => {
+    const before = (await call(`/api/accounts/${acct}/audit`)).json.audit
+    expect(before.duplicates.length).toBeGreaterThan(0)
+    const extra = before.duplicates[0].extras[0].id
+    // 模拟用户点「自动毙掉多余的」：审核结论同步到服务端
+    await call(`/api/accounts/${acct}/sync`, { reviews: { [extra]: { verdict: 'kill' } } }, 'POST')
+
+    const after = (await call(`/api/accounts/${acct}/audit`)).json.audit
+    expect(after.duplicateCount).toBe(before.duplicateCount - 1)
+    expect(after.quarantined).toBeGreaterThanOrEqual(1)
+    expect(after.conflicts.every((g) => !g.variants.some((v) => v.id === extra))).toBe(true)
   })
 })
 

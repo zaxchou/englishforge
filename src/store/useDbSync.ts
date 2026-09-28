@@ -10,7 +10,7 @@ import {
   bootstrap, createAccount, currentAccountId, decideBoot, fetchAccounts, fetchAiStatus, fetchAudit,
   fetchEnrichments, fetchItemBatches, fetchItems, fetchStats, getDbError, getDbState, lastSyncedAt,
   pullProgress, pushCatalog, renameAccount, resetRemote, runEnrichCauses, setCurrentAccountId,
-  setItemVerdict, subscribeDbState, syncProgress, unionProgress,
+  setAiModel, setItemVerdict, subscribeDbState, syncProgress, unionProgress,
   type AiStatus, type CatalogRow, type DbAccount, type DbAudit, type DbItem, type DbItemBatch,
   type DbItemStats, type DbState, type DbStats, type EnrichmentMap, type PullResult,
 } from './db'
@@ -50,6 +50,8 @@ export interface DbSyncApi {
   syncCatalog: (rows: CatalogRow[]) => Promise<void>
   /** 刷新自检结果 */
   runAudit: () => Promise<void>
+  /** 换模型（存库即时生效） */
+  changeModel: (model: string) => Promise<boolean>
   /** 让系统自己的 AI 补一批逐项纠正 */
   enrichNow: (limit?: number) => Promise<{ enriched: number; rejected: number; truncated: number; remaining: number; error: string | null } | null>
   /** 状态变了：安排一次落库 */
@@ -216,6 +218,14 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
     await runAudit()
     return { enriched: res.enriched, rejected: res.rejected, truncated: res.truncated, remaining: res.remaining, error: res.error }
   }, [runAudit])
+
+  const changeModel = useCallback(async (model: string) => {
+    const ai = await setAiModel(model)
+    if (!ai) return false
+    setAi(ai)
+    setNotice({ kind: 'ok', text: `系统 AI 已切换为 ${ai.model}。` })
+    return true
+  }, [])
 
   const patchItemVerdict = useCallback(async (itemId: string, verdict: 'ok' | 'fix' | 'kill') => {
     const id = accountRef.current?.id
@@ -389,7 +399,7 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
     dismissNotice: () => setNotice(null),
     note: (text, kind = 'ok') => setNotice({ kind, text }),
     items, itemStats, itemBatches, itemsCached, reloadItems, patchItemVerdict,
-    audit, enrichments, ai, syncCatalog, runAudit, enrichNow,
+    audit, enrichments, ai, syncCatalog, runAudit, enrichNow, changeModel,
     schedule, flush, refreshStats, rename, newAccount, switchTo, resetCurrent, reloadFromDb,
   }
 }

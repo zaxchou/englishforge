@@ -13,18 +13,22 @@ import type { AiStatus, DbAudit } from '../store/db'
 interface Props {
   audit: DbAudit | null
   ai: AiStatus | null
-  /** 一键把重复题的"多余那些"毙掉（每组保留第一道） */
-  onKillDuplicates: (ids: string[]) => void
+  /** 一键把重复题的"多余那些"毙掉（每组保留第一道）。**会等自检重新跑完**，否则数字不动、看起来像没生效 */
+  onKillDuplicates: (ids: string[]) => Promise<void>
+  /** 换模型（存库即时生效） */
+  onModel: (model: string) => Promise<boolean>
   /** 让系统 AI 补一批 */
   onEnrich: (limit: number) => Promise<{ enriched: number; rejected: number; truncated: number; remaining: number; error: string | null } | null>
 }
 
-export function SystemAudit({ audit, ai, onKillDuplicates, onEnrich }: Props) {
+export function SystemAudit({ audit, ai, onKillDuplicates, onEnrich, onModel }: Props) {
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
   const [progress, setProgress] = useState('')
   const [showDup, setShowDup] = useState(false)
   const [showConflict, setShowConflict] = useState(false)
+  const [modelDraft, setModelDraft] = useState('')
+  const [modelOpen, setModelOpen] = useState(false)
 
   const dup = audit?.duplicates ?? []
   const conflicts = audit?.conflicts ?? []
@@ -77,25 +81,47 @@ export function SystemAudit({ audit, ai, onKillDuplicates, onEnrich }: Props) {
     return e.length > 60 ? e.slice(0, 60) + '…' : e
   }
 
-  function killDuplicates() {
+  async function killDuplicates() {
     const ids = dup.flatMap((g) => g.extras.map((e) => e.id))
     if (!ids.length) return
-    if (!confirm(`把 ${ids.length} 道重复题标为「毙掉」？（每组保留一道，毙掉的退出抽题）`)) return
-    onKillDuplicates(ids)
-    setMsg(`已毙掉 ${ids.length} 道重复题。`)
+    if (!confirm(`把 ${ids.length} 道重复题标为「毙掉」？（每组保留一道，毙掉的退出抽题，并不再计入自检）`)) return
+    setBusy(true)
+    setMsg('正在毙掉，并重新自检…')
+    await onKillDuplicates(ids)
+    setBusy(false)
+    setMsg(`已毙掉 ${ids.length} 道重复题（已退出抽题，也不再计入下面的统计）。`)
   }
 
   return (
     <section className="sysaudit">
       <div className="sysaudit-head">
         <h2>系统自检</h2>
-        <span className={`ai-pill ${ai?.configured ? 'is-on' : 'is-off'}`}>
-          {ai?.configured ? `系统 AI 已就绪 · ${ai.model}（读自${ai.source}）` : '系统 AI 未配置（在 molin-wiki/backend/.env 放 DEEPSEEK_API_KEY）'}
+        <span className="ai-wrap">
+          <button className={`ai-pill ${ai?.configured ? 'is-on' : 'is-off'}`} onClick={() => { setModelDraft(ai?.model ?? ''); setModelOpen(!modelOpen) }}>
+            {ai?.configured ? `系统 AI 已就绪 · ${ai.model}（${ai.source}）` : '系统 AI 未配置（在 molin-wiki/backend/.env 放 DEEPSEEK_API_KEY）'}
+          </button>
+          {modelOpen && ai?.configured && (
+            <form
+              className="ai-model-form"
+              onSubmit={async (e) => {
+                e.preventDefault()
+                if (!modelDraft.trim()) return
+                const ok = await onModel(modelDraft.trim())
+                setMsg(ok ? `已切换为 ${modelDraft.trim()}` : '切换失败：数据库未连接。')
+                setModelOpen(false)
+              }}
+            >
+              <input value={modelDraft} onChange={(e) => setModelDraft(e.target.value)} placeholder="例如 deepseek-flash" aria-label="模型名" />
+              <button className="secondary" type="submit" disabled={ai.envLocked}>换模型</button>
+              {ai.envLocked && <span className="ai-lock">环境变量锁定了模型名，界面改不动</span>}
+            </form>
+          )}
         </span>
       </div>
       <p className="sysaudit-note">
         这三项都由系统自己查、自己修，不需要人在仓库外跑脚本。补出来的逐项纠正会存进你的账户，
         做错题时立刻就能看到「你选的那条等于在说什么意思」。
+        {!!audit?.quarantined && <b>（你已经毙掉 {audit.quarantined} 道题，它们已退出抽题、也不再计入下面的统计。）</b>}
       </p>
 
       <div className="sysaudit-grid">
@@ -104,7 +130,7 @@ export function SystemAudit({ audit, ai, onKillDuplicates, onEnrich }: Props) {
           <b>{dup.length} 组</b>
           <small>{audit?.duplicateCount ?? 0} 道是多余的（题干与答案完全相同，只是标点/空格不同）</small>
           <div className="sysaudit-actions">
-            <button className="secondary" onClick={killDuplicates} disabled={!dup.length}>自动毙掉多余的</button>
+            <button className="secondary" onClick={() => void killDuplicates()} disabled={busy || !dup.length}>自动毙掉多余的</button>
             {dup.length > 0 && <button className="text-button" onClick={() => setShowDup(!showDup)}>{showDup ? '收起' : '看看是哪些'}</button>}
           </div>
         </div>

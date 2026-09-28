@@ -10,6 +10,7 @@
 //   3) <zcode>/vgallery/.env.local
 // 本仓库是公开仓库：任何情况下都不要把密钥写进仓库内文件，也不要打印出来。
 import { readFileSync } from 'node:fs'
+import { getSetting } from './db.mjs'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { dirname } from 'node:path'
@@ -17,6 +18,9 @@ import { dirname } from 'node:path'
 const HERE = dirname(fileURLToPath(import.meta.url))
 const JUNENGLISH = resolve(HERE, '..', '..')        // .../JunEnglish
 const ZCODE = resolve(JUNENGLISH, '..')             // .../zcode
+
+/** 换模型后要让缓存失效 */
+export function invalidateLlmConfig() { cached = null }
 
 const ENV_FILES = [
   resolve(ZCODE, 'molin-wiki', 'backend', '.env'),
@@ -57,6 +61,8 @@ function readEnvFile(path) {
   }
 }
 
+/** 默认模型：用户说 deepseek-flash 是他们最新的 */
+export const DEFAULT_MODEL = 'deepseek-flash'
 let cached = null
 
 /** 解析出 { key, baseUrl, model, source }；没有可用密钥时返回 { configured: false } */
@@ -78,8 +84,14 @@ export function llmConfig({ refresh = false } = {}) {
       }
     }
   }
+  // 模型名的优先级：环境变量 > 界面里保存的设置 > 项目 .env > 默认。
+  // 放在库里而不是 .env，是为了让用户在自己的界面上换模型，不必去改别的项目的配置文件。
+  let saved = null
+  try { saved = getSetting('ai_model') } catch { /* 库还没就绪（比如离线脚本调用）就用 .env 的值 */ }
+  if (process.env.ENGLISHFORGE_AI_MODEL) { model = process.env.ENGLISHFORGE_AI_MODEL; source = 'env' }
+  else if (saved) { model = saved; source = '界面设置' }
   cached = key
-    ? { configured: true, key, baseUrl: (base || 'https://api.deepseek.com').replace(/\/+$/, ''), model: model || 'deepseek-chat', source }
+    ? { configured: true, key, baseUrl: (base || 'https://api.deepseek.com').replace(/\/+$/, ''), model: model || DEFAULT_MODEL, source }
     : { configured: false, key: '', baseUrl: '', model: '', source: '' }
   return cached
 }
@@ -90,7 +102,10 @@ export function llmStatus() {
   return {
     configured: c.configured,
     model: c.configured ? c.model : null,
-    source: c.configured ? (c.source === 'env' ? '环境变量' : '项目 .env（仓库外）') : null,
+    // 如实回报模型名是从哪来的：环境变量 / 界面设置 / 项目 .env（别把"界面设置"说成 .env）
+    source: c.configured
+      ? (c.source === 'env' ? '环境变量' : c.source === '界面设置' ? '界面设置' : '项目 .env（仓库外）')
+      : null,
   }
 }
 

@@ -455,6 +455,8 @@ export interface CatalogRow {
 export interface AuditQuestion { id: string; skill: string; prompt: string; answer?: string; type?: string; options?: string[]; tts?: string | null }
 export interface DbAudit {
   catalog: number
+  /** 这个账户已毙掉的题数（已从 duplicates/conflicts/missingCause 里排除） */
+  quarantined: number
   duplicates: { keep: AuditQuestion; extras: AuditQuestion[]; count: number }[]
   conflicts: { variants: AuditQuestion[]; count: number }[]
   missingCause: { count: number; sample: AuditQuestion[] }
@@ -466,7 +468,22 @@ export interface EnrichmentCauses { optionFixes?: Record<string, string>; option
 export interface Enrichment { causes?: EnrichmentCauses; model?: string | null; at?: number }
 export type EnrichmentMap = Record<string, Enrichment>
 
-export interface AiStatus { configured: boolean; model: string | null; source: string | null }
+export interface AiStatus {
+  configured: boolean
+  model: string | null
+  source: string | null
+  defaultModel?: string
+  /** 环境变量锁住了模型名（此时界面改不动） */
+  envLocked?: boolean
+}
+
+/** 换模型：存进数据库即时生效，不用改任何 .env */
+export async function setAiModel(model: string): Promise<AiStatus | null> {
+  const res = await attemptReq(() => req<{ ai: AiStatus }>('/ai/model', {
+    method: 'POST', body: JSON.stringify({ model }),
+  }))
+  return res?.ai ?? null
+}
 
 export async function pushCatalog(rows: CatalogRow[]): Promise<{ inserted: number; updated: number; total: number } | null> {
   const res = await attemptReq(() => req<{ inserted: number; updated: number; total: number }>('/catalog', {

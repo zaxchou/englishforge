@@ -10,19 +10,21 @@ import './content-review.css'
 
 const DIFF = ['', '基础', '进阶', '挑战']
 
-export function ContentReview({ questions, marks, onMarks, onExit, audit, ai, onKillDuplicates, onEnrich }: {
+export function ContentReview({ questions, marks, onMarks, onExit, audit, ai, onKillDuplicates, onModel, onEnrich }: {
   questions: AdaptedQuestion[]
   marks: ReviewMarks
   onMarks: (m: ReviewMarks) => void
   onExit: () => void
   audit: DbAudit | null
   ai: AiStatus | null
-  onKillDuplicates: (ids: string[]) => void
+  onKillDuplicates: (ids: string[]) => Promise<void>
+  onModel: (model: string) => Promise<boolean>
   onEnrich: (limit: number) => Promise<{ enriched: number; rejected: number; truncated: number; remaining: number; error: string | null } | null>
 }) {
   const drafts = useMemo(() => questions.filter((q) => q.reviewStatus === 'draft'), [questions])
   // 默认范围：还有待审核的就显示待审核；全审完了就显示全部（否则用户会以为"题不见了"）
   const [scope, setScope] = useState<'draft' | 'corpus' | 'all'>(() => (drafts.length ? 'draft' : 'all'))
+  const [notice, setNotice] = useState('')
   const corpus = useMemo(
     () => questions.filter((q) => /(tatoeba|ud-en-ewt):/.test(q.sourceRef ?? '')),
     [questions],
@@ -35,12 +37,18 @@ export function ContentReview({ questions, marks, onMarks, onExit, audit, ai, on
     saveReviewMarks(next)
   }
 
-  /** 批量通过：旧题是人工写的、不是机器生成，逐题点不现实 */
+  /** 批量通过：旧题是人工写的、不是机器生成，逐题点不现实。
+   *  **只作用于"还没标记"的题** —— 绝不能覆盖你已经做过的判断（尤其"毙掉"）。
+   *  实测踩过：批量通过把用户刚毙掉的重复题又改回"通过"，他就看到"点毙掉没有用"。 */
   function approveAll() {
-    if (!confirm(`把这 ${shown.length} 题全部标为「通过」？
-通过后它们会开始计入你的掌握度。`)) return
+    const pending = shown.filter((q) => !marks[q.id]?.verdict)
+    if (!pending.length) { setNotice('这些题都已经标记过了，批量通过不会覆盖你已有的判断。'); return }
+    const kept = shown.length - pending.length
+    if (!confirm(`把还没标记的 ${pending.length} 题标为「通过」？` +
+      (kept ? `\n（已有标记的 ${kept} 题保持原样，不会覆盖，包括你毙掉的）` : '') +
+      '\n通过后它们会开始计入你的掌握度。')) return
     const next: ReviewMarks = { ...marks }
-    for (const q of shown) next[q.id] = { ...(next[q.id] ?? {}), verdict: 'ok' }
+    for (const q of pending) next[q.id] = { ...(next[q.id] ?? {}), verdict: 'ok' }
     onMarks(next)
     saveReviewMarks(next)
   }
@@ -81,15 +89,17 @@ export function ContentReview({ questions, marks, onMarks, onExit, audit, ai, on
   return (
     <div className="review-page">
       {/* 系统自检放最上面：先让系统把自己能发现的毛病找出来，再逐题看 */}
-      <SystemAudit audit={audit} ai={ai} onKillDuplicates={onKillDuplicates} onEnrich={onEnrich} />
+      <SystemAudit audit={audit} ai={ai} onKillDuplicates={onKillDuplicates} onModel={onModel} onEnrich={onEnrich} />
       <header className="review-head">
         <div>
-          <h1>内容审核 · 语料派生题</h1>
+          <h1>内容审核 · 逐题核对</h1>
           <p>
             题库共 {questions.length} 道题。逐题看四件事：<b>句子像不像人话</b>、
             <b>干扰项是不是"错在该错的地方"</b>（你要能用"含义"排除它，而不是靠读着别扭）、
             <b>中文释义对不对</b>、<b>解析是不是张老师的口吻</b>（不该出现"三单规则"这类术语）。
+            这里的结论会决定题目算不算能力证据：<b>通过</b>才计入掌握度，<b>毙掉</b>则退出抽题（且不再出现在系统自检里）。
           </p>
+          {notice && <p className="review-notice">{notice}</p>}
           <div className="review-scope">
             <button className={scope === 'draft' ? 'on' : ''} onClick={() => setScope('draft')}>待审核（{drafts.length}）</button>
             <button className={scope === 'corpus' ? 'on' : ''} onClick={() => setScope('corpus')}>语料派生题（{corpus.length}）</button>
