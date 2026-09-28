@@ -11,7 +11,7 @@ import { adaptQuestion } from '../content/adapt'
 import { validateQuestions, errorsOf } from '../content/validation'
 import { defaultProgressV2 } from '../store/migrations'
 import { allQuestions } from '../data/course'
-import type { AdaptedQuestion, Attempt, Question, QueueItem } from '../types'
+import type { AdaptedQuestion, Attempt, Mode, ProgressV2, Question, QueueItem } from '../types'
 import { INTERVALS } from '../types'
 
 const DAY = 24 * 60 * 60 * 1000
@@ -476,40 +476,74 @@ describe('口语题排程（回归：反复出现且清不掉）', () => {
   })
 })
 
-describe('推荐知识点：循序渐进（回归：总跳回同一课）', () => {
-  const mk = (id: string, skill: string) => adaptQuestion({ id, skill, type: 'choice', prompt: 'p', explain: 'e', options: ['A', 'B'], answer: 'A' })
-  it('先推第一个还没练完的知识点，练完就前进', () => {
+describe('推荐知识点：以"掌握"为准（回归：总跳回同一课 / 逼着做完所有题）', () => {
+  // 三个知识点，各含 4 道题（覆盖 3 个变式组与 recognition/comprehension/construction 三种维度）
+  const qs = (skill: string, id: string): AdaptedQuestion[] => [
+    { id: `${id}a`, mode: 'recognition', variantGroupId: `${id}-v1` },
+    { id: `${id}b`, mode: 'comprehension', variantGroupId: `${id}-v2` },
+    { id: `${id}c`, mode: 'construction', variantGroupId: `${id}-v3` },
+    { id: `${id}d`, mode: 'recognition', variantGroupId: `${id}-v1` },
+  ].map((x) => adaptQuestion({
+    id: x.id, skill, type: 'choice', prompt: 'p', explain: 'e', options: ['A', 'B'], answer: 'A',
+    mode: x.mode as Mode, variantGroupId: x.variantGroupId, reviewStatus: 'reviewed',
+  }))
+  const pool = [...qs('s1', 'x'), ...qs('s2', 'y'), ...qs('s3', 'z')]
+  const order = ['s1', 's2', 's3']
+
+  /** 把某知识点的题做到"初步稳定"：跨 2 日、10 条合格记录、全对、覆盖 3 变式组与三类维度 */
+  function makeMastered(p: ProgressV2, skill: string) {
+    const mine = pool.filter((q) => q.skill === skill)
+    for (let i = 0; i < 10; i++) {
+      const q = mine[i % mine.length]
+      p.attempts.push(mkAttempt({
+        questionId: q.id, mode: q.mode, variantGroupId: q.variantGroupId,
+        localDate: i < 5 ? '2026-09-27' : '2026-09-28', sessionId: `s${i}`,
+      }))
+    }
+  }
+
+  it('先推第一个还没掌握的知识点', () => {
     const p = defaultProgressV2()
-    const pool = [mk('a1', 's1'), mk('a2', 's1'), mk('b1', 's2'), mk('c1', 's3')]
-    const order = ['s1', 's2', 's3']
     expect(recommendSkill(p, pool, order)).toBe('s1')
-    p.questionStates['a1'] = { stage: 1, dueAt: 9e15, correct: 1, total: 1 }
-    expect(recommendSkill(p, pool, order)).toBe('s1')          // 还有 a2 没答对过
-    p.questionStates['a2'] = { stage: 1, dueAt: 9e15, correct: 1, total: 1 }
-    expect(recommendSkill(p, pool, order)).toBe('s2')          // s1 练完 → 前进
   })
 
-  it('答错过的题不算练完（stage 仍为 0），但不会因为"曾经错过"就永远黏住', () => {
+  it('某个知识点达到"初步稳定"后即前进，不要求把它的题全做完', () => {
     const p = defaultProgressV2()
-    const pool = [mk('a1', 's1'), mk('b1', 's2')]
-    const order = ['s1', 's2']
-    // a1 错过一次：lastFailureAt 被写入，旧逻辑会永远把 s1 排在前面
-    p.questionStates['a1'] = { stage: 0, dueAt: Date.now(), correct: 0, total: 1, lastFailureAt: Date.now() }
-    expect(recommendSkill(p, pool, order)).toBe('s1')          // 没答对过 → 还是它
-    p.questionStates['a1'] = { stage: 1, dueAt: 9e15, correct: 1, total: 2, lastFailureAt: 1 }
-    expect(recommendSkill(p, pool, order)).toBe('s2')          // 答对过一次后就让位
+    makeMastered(p, 's1')
+    const mine = pool.filter((q) => q.skill === 's1')
+    // 只做了 10 次（题量远没做完）
+    expect([...new Set(p.attempts.map((a) => a.questionId))].length).toBeLessThan(mine.length * 2)
+    expect(buildEvidence(p, pool).bySkill.s1.state).toBe('early-stable')
+    expect(recommendSkill(p, pool, order)).toBe('s2')     // 已掌握 → 前进
   })
 
-  it('全部练完时回到最久没碰的知识点，不返回空', () => {
+  it('没掌握就继续留在它上面（跨日/维度不够也不前进）', () => {
     const p = defaultProgressV2()
-    const pool = [mk('a1', 's1'), mk('b1', 's2')]
-    for (const id of ['a1', 'b1']) p.questionStates[id] = { stage: 1, dueAt: 9e15, correct: 1, total: 1, lastIndependentSuccessAt: id === 'a1' ? 100 : 200 }
-    expect(recommendSkill(p, pool, ['s1', 's2'])).toBe('s1')
+    makeMastered(p, 's1')
+    p.attempts = p.attempts.filter((a) => a.localDate === '2026-09-27')   // 只剩 1 天 → 不够稳定
+    expect(buildEvidence(p, pool).bySkill.s1.state).toBe('building')
+    expect(recommendSkill(p, pool, order)).toBe('s1')
   })
 
-  it('没有题目的知识点会被跳过', () => {
+  it('防死锁：练了很多次仍达不到稳定（例如缺某类题型）也不把人卡死', () => {
     const p = defaultProgressV2()
-    const pool = [mk('c1', 's3')]
-    expect(recommendSkill(p, pool, ['s1', 's2', 's3'])).toBe('s3')
+    const mine = pool.filter((q) => q.skill === 's1')
+    for (let i = 0; i < 30; i++) {
+      const q = mine[i % mine.length]
+      p.attempts.push(mkAttempt({
+        questionId: q.id, mode: q.mode, variantGroupId: q.variantGroupId,
+        localDate: i % 2 ? '2026-09-27' : '2026-09-28', sessionId: `f${i}`,
+      }))
+    }
+    // 仍然只有 recognition/comprehension（缺 construction 的题）= 达不到稳定，但必须放行
+    p.attempts = p.attempts.filter((a) => a.mode !== 'construction')
+    expect(buildEvidence(p, pool).bySkill.s1.state).not.toBe('early-stable')
+    expect(recommendSkill(p, pool, order)).toBe('s2')
+  })
+
+  it('三个知识点都掌握后回到最久没碰的那个，不返回空', () => {
+    const p = defaultProgressV2()
+    for (const sid of order) makeMastered(p, sid)
+    expect(order).toContain(recommendSkill(p, pool, order))
   })
 })

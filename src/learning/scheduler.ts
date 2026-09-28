@@ -4,6 +4,7 @@ import type {
 } from '../types'
 import { INTERVALS } from '../types'
 import { seededShuffle, localDateStr } from '../store/progress'
+import { buildEvidence } from './evidence'
 
 const DAY = 24 * 60 * 60 * 1000
 export const QUEUE_SIZE = 10
@@ -169,15 +170,28 @@ export function dueQuestions(
   return out
 }
 
-/** 推荐"当前知识点"：按课程顺序找第一个**还没练完**的。
+/** 推荐"当前知识点"：按课程顺序找第一个**还没掌握**的。
  *
- *  为什么不再用"最近有活动的"：那会长期黏住同一个知识点——`lastFailureAt` 一旦写入就永不清除，
- *  于是只要你在某个知识点错过一次，它就永远算"有活动"，推荐每次都回到它。
- *  用户感受就是"继续下一课总跳回同一课、没法循序渐进"。
+ *  "掌握"用系统已有的证据判定（evidence.ts）：近 ≥10 次首发答对率 ≥80%、
+ *  跨 ≥2 个训练日、覆盖 ≥3 个变式组、识别/理解/表达三类证据齐全、且没有遗留错题。
  *
- *  练完 = 该知识点的**每道可用题**都至少独立答对过一次（stage ≥ 1）。
- *  练完的知识点从此只靠间隔复习回访，主推进让给下一个——这就是"掌握了就升级"。
+ *  为什么不用"每道题都答对过一次"：那是**覆盖度**不是掌握度。一个知识点 50 多道题，
+ *  已经证明理解了还逼学生把剩下的做完，是折磨而不是教学（用户明确指出）。
+ *  剩余题目不再作为"当前推进"出现，只留作复习素材。
+ *
+ *  防死锁：若某知识点练了很多次仍不达标（常见原因是该知识点的题目缺少某一类题型，
+ *  例如没有拼句题就拿不到"表达"证据），也不能把人永远卡在这里 —— 超过阈值即放行，
+ *  交给间隔复习回访。
  */
+const ADVANCE_ATTEMPT_FALLBACK = 20
+
+function firstAttemptCount(p: ProgressV2, pool: AdaptedQuestion[], sid: string): number {
+  const ids = new Set(pool.filter((q) => q.skill === sid).map((q) => q.id))
+  return p.attempts.filter(
+    (a) => ids.has(a.questionId) && a.firstAttempt && a.evaluator === 'deterministic' && a.outcome !== 'skipped',
+  ).length
+}
+
 export function recommendSkill(
   p: ProgressV2,
   pool: AdaptedQuestion[],
@@ -192,12 +206,14 @@ export function recommendSkill(
   const spine = skillOrder.filter((sid) => (byskill.get(sid)?.length ?? 0) > 0)
   if (!spine.length) return skillOrder[0] ?? null
 
-  // 第一个"还有没独立答对过的题"的知识点
+  const ev = buildEvidence(p, pool)
   for (const sid of spine) {
-    const qs = byskill.get(sid) ?? []
-    if (qs.some((q) => (p.questionStates[q.id]?.stage ?? 0) === 0)) return sid
+    const state = ev.bySkill[sid]?.state ?? 'unseen'
+    if (state === 'early-stable' || state === 'durable') continue        // 已掌握 → 前进
+    if (firstAttemptCount(p, pool, sid) >= ADVANCE_ATTEMPT_FALLBACK) continue  // 防死锁
+    return sid
   }
-  // 全部练完：回到最久没碰的那个，保持复习手感
+  // 全部掌握：回到最久没碰的那个，保持复习手感
   let oldest: string | null = null
   let oldestT = Number.POSITIVE_INFINITY
   for (const sid of spine) {

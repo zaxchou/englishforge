@@ -490,6 +490,8 @@ function LessonPage({ lessonId, progress, evidence, pool, onStartSkill, onBack }
           const state = ev?.state ?? 'unseen'
           const stats = skillStats(progress, s.id)
           const prog = practiceProgress(progress, pool, s.id)
+          // 优先展示"还差什么"：升级条件里已经满足的不必占版面
+          const gaps = (ev?.evidence ?? []).filter((t) => /还需|需跨|需覆盖|还缺|待/.test(t))
           return (
             <button key={s.id} className="skill-card" onClick={() => onStartSkill(s.id)}>
               <div className="skill-icon">{s.icon}</div>
@@ -498,9 +500,10 @@ function LessonPage({ lessonId, progress, evidence, pool, onStartSkill, onBack }
                   <span className={`state-chip st-${state.replace('-', '')}`}>{STATE_LABEL[state]}</span>
                 </div>
                 <div className="skill-tagline">{s.tagline}</div>
+                {/* 差哪一步 = 升级条件。推进以"掌握"为准，不是"把题做完" */}
                 <div className="skill-meta">
                   {ev && ev.evidence.length > 0
-                    ? ev.evidence[0]
+                    ? (gaps.length ? gaps : ev.evidence).slice(0, 3).join(' · ')
                     : ev?.legacyOnly
                       ? '有历史练习记录 · 尚无新的作答证据'
                       : '未练习 · 先看微课卡'}
@@ -511,8 +514,10 @@ function LessonPage({ lessonId, progress, evidence, pool, onStartSkill, onBack }
                   <div className="skill-bar" aria-hidden="true">
                     <i style={{ width: `${prog.total ? Math.round((prog.done / prog.total) * 100) : 0}%` }} />
                   </div>
-                  <span>{prog.total ? `已练 ${prog.done}/${prog.total} 题` : '本知识点暂无题目'}</span>
-                  {prog.done === prog.total && prog.total > 0 && <b className="skill-done">练完 · 主推进已交给下一个知识点</b>}
+                  <span>{prog.total ? `做过 ${prog.done}/${prog.total} 题` : '本知识点暂无题目'}</span>
+                  {(state === 'early-stable' || state === 'durable')
+                    ? <b className="skill-done">已掌握 · 主推进已前进到下一个知识点（剩余题目只作复习素材）</b>
+                    : <span>升级看"掌握"（下方条件），不必做完所有题</span>}
                 </div>
               </div>
               <div className="skill-go">{getSkillProgress(progress, s.id).conceptSeen ? '▶' : '🎯'}</div>
