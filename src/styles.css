@@ -1,0 +1,342 @@
+/* ============================================================================
+   「EnglishForge」v5 视觉：UWORK 参考图框架（Soft UI 实白卡 + 柔影）
+   · 整页 = 一张大圆角白卡（仪表盘 .dash 即壳）；练习/结算 = 单张大卡浮起
+   · UI 框架零大色块：颜色只出现在数据、选中态、小徽标；主操作 = 黑色 FAB
+   · 层级：白壳 → 白内嵌卡（靠投影）→ 凹槽 → 白胶囊；细线仅 hairline 一档
+   · 动画只 transform/opacity；hover 不改阴影；prefers-reduced-motion 全关
+   ============================================================================ */
+:root {
+  /* 环境：近白画布 + 角部静态彩洗（不用 blur，渐变自带衰减） */
+  --bg: #eef0f3;
+
+  /* 玻璃面板（每视口 ≤3 块） */
+  --glass-bg: rgba(250, 250, 252, 0.78);
+  --glass-edge: rgba(255, 255, 255, 0.85);
+  --glass-sheen: rgba(255, 255, 255, 0.5);
+  --glass-blur: 18px;
+
+  /* 内部细线：亮色主题必须深色（白细线压白底会消失） */
+  --hairline: rgba(24, 32, 60, 0.08);
+
+  /* 三层表面 */
+  --surface: rgba(24, 32, 60, 0.045);          /* 平面：小胶囊、容器 */
+  --raised: #ffffff;                            /* 浮起：按钮、卡片、选项 */
+  --sunken: rgba(24, 32, 60, 0.07);             /* 凹陷：输入框、凹槽 */
+  --sunken-2: rgba(24, 32, 60, 0.045);          /* 浅凹陷：展示块 */
+  --hover-soft: rgba(24, 32, 60, 0.05);
+
+  /* 光影三级 + 内外一对 */
+  --elev-1: 0 1px 2px rgba(32, 42, 78, 0.08);
+  --elev-2: 0 2px 5px rgba(32, 42, 78, 0.07), 0 10px 22px -12px rgba(32, 42, 78, 0.25);
+  --elev-3: 0 30px 64px -30px rgba(38, 48, 88, 0.30), 0 3px 12px rgba(38, 48, 88, 0.07);
+  --inset-top: inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  --inset-top-brand: inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  --trough: inset 0 1px 3px rgba(32, 42, 78, 0.10), inset 0 -1px 0 rgba(255, 255, 255, 0.85);
+
+  /* 文本 */
+  --ink: #16181f;
+  --sub: #5c5f6a;
+  --weak: #7d8089;
+
+  /* 品牌色（保留原识别） */
+  --card: var(--raised);
+  --line: var(--hairline);
+  --brand: #6f63e4;
+  --brand-deep: #5a4ed1;
+  --brand-soft: #e8e7f8;
+  --sky: #4aa3d9;
+  --sky-soft: #e7f2fb;
+  --sky-pale: #b0d5ec;
+  --peri: #9da9d7;
+  --olive: #99a85c;
+  --olive-soft: #f0f3e2;
+  --teal: #679899;
+  --ok: #2f9e6e;
+  --ok-soft: #e7f6ef;
+  --no: #e5484d;
+  --no-soft: #fdecec;
+  --gold: #f0b429;
+
+  --radius: 16px;
+  --shadow: var(--elev-2);
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  font-family: -apple-system, 'SF Pro Text', 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+html {
+  /* 中性近白环境：参考图语言——几乎无色，只留极淡的冷暖角洗 */
+  background:
+    radial-gradient(1000px 620px at 92% -6%, rgba(255, 186, 205, 0.10), transparent 55%),
+    radial-gradient(900px 600px at -6% 104%, rgba(168, 186, 255, 0.09), transparent 55%),
+    var(--bg);
+  color: var(--ink);
+}
+body { margin: 0; background: transparent; color: var(--ink); }
+#root { min-height: 100vh; }
+
+.app { max-width: 720px; margin: 0 auto; padding: 0 16px 64px; min-height: 100vh; display: flex; flex-direction: column; }
+main { flex: 1; }
+
+/* ---------- 顶栏（练习/结算页唯一浮层之一） ---------- */
+.topbar {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 14px 0 12px; position: sticky; top: 0; z-index: 10;
+  background: linear-gradient(var(--bg) 55%, rgba(238, 240, 243, 0.86) 82%, transparent);
+}
+.brand { font-weight: 800; font-size: 19px; letter-spacing: .2px; }
+.brand span { color: var(--brand); font-weight: 800; }
+.stats { display: flex; gap: 10px; align-items: center; }
+.stats-btn {
+  background: var(--raised); border: none; border-radius: 999px;
+  padding: 7px 12px; cursor: pointer; font-size: 14px; line-height: 1;
+  box-shadow: var(--elev-1), var(--inset-top);
+  transition: transform .42s var(--ease);
+}
+.stats-btn:hover { transform: scale(1.04); }
+
+.foot { text-align: center; color: var(--weak); font-size: 12px; padding: 20px 0; }
+.linkish { background: none; border: none; color: var(--sub); text-decoration: underline; cursor: pointer; font-size: 12px; padding: 6px 8px; }
+
+/* ---------- KPI 卡（保留语义色块，去线加内受光） ---------- */
+.kpi-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 16px 0 8px; }
+.kpi {
+  position: relative; border-radius: var(--radius); padding: 15px 15px 13px;
+  overflow: hidden; box-shadow: var(--elev-1), var(--inset-top);
+}
+.kpi-value { font-size: 30px; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.kpi-label { color: var(--sub); font-size: 12px; margin-top: 4px; }
+.kpi-badge {
+  position: absolute; top: 10px; right: 10px; width: 30px; height: 30px;
+  border-radius: 10px; display: flex; align-items: center; justify-content: center;
+  font-size: 15px;
+}
+.kpi-cyan { background: var(--sunken-2); }
+.kpi-cyan .kpi-badge { background: var(--sky-pale); }
+.kpi-cyan .kpi-value { color: #1f7fb8; }
+.kpi-green { background: var(--sunken-2); }
+.kpi-green .kpi-badge { background: #dbe3ba; }
+.kpi-green .kpi-value { color: #6f7c33; }
+.kpi-purple { background: var(--sunken-2); }
+.kpi-purple .kpi-badge { background: #cfcaf6; }
+.kpi-purple .kpi-value { color: var(--brand); }
+
+/* ---------- 首页 ---------- */
+.hero { padding: 20px 4px 6px; }
+.hero h1 { margin: 0 0 6px; font-size: 26px; letter-spacing: .2px; }
+.hero p { margin: 0; color: var(--sub); line-height: 1.6; }
+.due-row { margin-top: 14px; }
+
+.due-btn {
+  background: #1d1d24 !important; color: #fff;
+  box-shadow: 0 10px 24px -10px rgba(29, 29, 36, 0.5), var(--inset-top-brand);
+}
+
+.module { margin-top: 26px; }
+.module-head h2 {
+  margin: 0; font-size: 16px; display: flex; align-items: center; gap: 8px;
+}
+.module-head h2::before { content: ''; width: 8px; height: 18px; border-radius: 4px; background: var(--brand); }
+.module-head p { margin: 5px 0 12px 16px; color: var(--sub); font-size: 13px; }
+.locked-row {
+  color: var(--sub); font-size: 13px; background: var(--sunken-2);
+  border: none; border-radius: var(--radius); padding: 16px; box-shadow: var(--inset-top);
+}
+
+.lesson-card {
+  width: 100%; display: flex; align-items: center; gap: 14px; text-align: left;
+  background: var(--raised); border: none; border-radius: var(--radius);
+  padding: 18px 16px; margin-bottom: 12px; cursor: pointer;
+  box-shadow: var(--elev-2), var(--inset-top);
+  transition: transform .45s var(--ease);
+}
+.lesson-card:hover { transform: translateY(-2px) scale(1.01); }
+.lesson-no {
+  font-weight: 800; color: var(--brand); font-size: 13px; white-space: nowrap;
+  background: var(--brand-soft); border-radius: 10px; padding: 10px 8px; text-align: center; min-width: 54px;
+}
+.lesson-info { flex: 1; }
+.lesson-info h3 { margin: 0 0 2px; font-size: 16px; }
+.lesson-info p { margin: 0 0 8px; color: var(--sub); font-size: 12px; }
+.lesson-meta { color: var(--sub); font-size: 11px; margin-top: 4px; }
+.lesson-go {
+  color: #fff; background: #1d1d24; width: 34px; height: 34px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; font-size: 14px; flex: none;
+  box-shadow: 0 6px 14px -4px rgba(29, 29, 36, 0.45);
+}
+
+.minibar { height: 7px; background: var(--sunken); border-radius: 999px; overflow: hidden; box-shadow: var(--trough); }
+.minibar > div { height: 100%; background: linear-gradient(90deg, var(--peri), var(--brand)); border-radius: 999px; transition: width .4s; }
+
+/* ---------- 课程页 ---------- */
+.page { padding: 14px 0 32px; }
+.page.center { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 60vh; text-align: center; }
+.lesson-title h1 { font-size: 23px; margin: 12px 0 4px; }
+.lesson-title p { color: var(--sub); margin: 0 0 18px; font-size: 13px; }
+.skill-list { display: flex; flex-direction: column; gap: 12px; }
+.skill-card {
+  display: flex; align-items: center; gap: 14px; text-align: left; width: 100%;
+  background: var(--raised); border: none; border-radius: var(--radius);
+  padding: 16px 16px; cursor: pointer;
+  box-shadow: var(--elev-2), var(--inset-top);
+  transition: transform .45s var(--ease);
+}
+.skill-card:hover { transform: translateY(-2px) scale(1.01); }
+.skill-icon {
+  font-size: 24px; width: 44px; height: 44px; flex: none;
+  background: var(--brand-soft); border-radius: 13px;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: var(--inset-top);
+}
+.skill-info { flex: 1; min-width: 0; }
+.skill-name { font-weight: 700; font-size: 15px; }
+.skill-tagline { color: var(--sub); font-size: 12px; margin: 2px 0 8px; }
+.skill-meta { color: var(--sub); font-size: 11px; margin-top: 4px; }
+.skill-go { color: var(--brand); font-weight: 700; }
+
+.empty { color: var(--sub); margin-bottom: 16px; }
+
+/* ---------- 练习 ---------- */
+.quiz { padding-top: 6px; }
+.quiz.flash { animation: flash .5s; }
+@keyframes flash { 0% { background: #efeefc; } 100% { background: transparent; } }
+.quiz-top { display: flex; align-items: center; gap: 12px; padding: 12px 0 20px; }
+.progress-track { flex: 1; height: 10px; background: var(--sunken); border-radius: 999px; overflow: hidden; box-shadow: var(--trough); }
+.progress-fill { height: 100%; background: linear-gradient(90deg, var(--peri), var(--brand)); transition: width .3s; }
+.combo { font-weight: 800; color: var(--brand); white-space: nowrap; }
+.retry-banner {
+  background: var(--brand-soft); color: var(--brand-deep); border-radius: 12px;
+  padding: 10px 14px; font-size: 13px; margin-bottom: 14px; text-align: center; font-weight: 600;
+  box-shadow: var(--inset-top);
+}
+
+/* 练习主卡 = 实白浮起（参考图语言：白卡 + 柔影，无玻璃无描边） */
+.qview {
+  background: #fff;
+  border: none;
+  border-radius: 26px; padding: 24px;
+  box-shadow: var(--elev-3), var(--inset-top);
+}
+.prompt { font-size: 18px; font-weight: 700; margin: 0 0 18px; line-height: 1.65; }
+.tts-row { display: flex; align-items: center; gap: 8px; margin: 0 0 14px; }
+.tts-row code { background: var(--brand-soft); color: var(--brand-deep); padding: 8px 12px; border-radius: 10px; font-size: 14px; box-shadow: var(--inset-top); }
+.speaker { border: none; background: var(--raised); border-radius: 10px; cursor: pointer; font-size: 15px; padding: 7px 10px; box-shadow: var(--elev-1), var(--inset-top); transition: transform .42s var(--ease); }
+.speaker:hover { transform: scale(1.05); }
+
+.options { display: flex; flex-direction: column; gap: 11px; }
+.opt {
+  text-align: left; padding: 15px 16px; font-size: 15px; border-radius: 14px;
+  border: none; background: var(--raised); cursor: pointer;
+  font-weight: 500; box-shadow: var(--elev-1), var(--inset-top);
+  transition: transform .42s var(--ease), background-color .2s ease;
+}
+.opt:hover:not(:disabled) { transform: scale(1.015); background: var(--brand-soft); }
+.opt.picked { background: var(--brand-soft); box-shadow: var(--elev-2), var(--inset-top); }
+.opt.correct { background: var(--ok-soft); font-weight: 700; box-shadow: var(--elev-2), var(--inset-top); }
+.opt.wrong { background: var(--no-soft); box-shadow: var(--elev-1), var(--inset-top); }
+.opt.dim { opacity: .45; }
+
+.tap-sentence { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.token {
+  border: none; background: var(--raised); border-radius: 12px;
+  padding: 10px 14px; font-size: 15px; cursor: pointer; font-weight: 500;
+  box-shadow: var(--elev-1), var(--inset-top);
+  transition: transform .42s var(--ease), background-color .2s ease;
+}
+.token:hover:not(:disabled) { transform: scale(1.04); background: var(--brand-soft); }
+.token.picked { background: var(--brand-soft); box-shadow: var(--elev-2), var(--inset-top); }
+.token.correct { background: var(--ok-soft); font-weight: 700; }
+.token.wrong { background: var(--no-soft); }
+.token.dim { opacity: .45; }
+
+/* 词块答案区 = 凹陷（去掉虚线描边，凹陷本身就是"放这里"的语义） */
+.tiles-answer {
+  min-height: 60px; border: none; border-radius: 14px;
+  padding: 10px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 12px;
+  background: var(--sunken); box-shadow: var(--trough);
+}
+.tiles-answer.correct { background: var(--ok-soft); box-shadow: var(--inset-top); }
+.tiles-answer.wrong { background: var(--no-soft); box-shadow: var(--inset-top); }
+.tiles-placeholder { color: var(--weak); font-size: 13px; padding: 4px 8px; }
+.tiles-pool { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+
+.feedback { border-radius: 14px; padding: 15px 17px; margin-top: 14px; animation: rise .25s; box-shadow: var(--inset-top); }
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.feedback.ok { background: var(--ok-soft); }
+.feedback.no { background: var(--no-soft); }
+.feedback-title { font-weight: 800; margin-bottom: 4px; font-size: 14px; }
+.feedback-body { font-size: 14px; line-height: 1.75; color: #35322f; }
+
+.primary {
+  width: 100%; padding: 15px; font-size: 16px; font-weight: 700; cursor: pointer;
+  border: none; border-radius: 999px; background: #1d1d24; color: #fff;
+  transition: transform .45s var(--ease); margin-top: 16px;
+  box-shadow: 0 10px 24px -10px rgba(29, 29, 36, 0.5), var(--inset-top-brand);
+}
+.primary:hover:not(:disabled) { transform: scale(1.015); }
+.primary:disabled { opacity: .4; cursor: not-allowed; box-shadow: none; }
+.ghost {
+  background: var(--raised); border: none; border-radius: 999px;
+  padding: 7px 14px; cursor: pointer; color: var(--sub); font-size: 13px;
+  box-shadow: var(--elev-1), var(--inset-top);
+  transition: transform .42s var(--ease), color .2s ease;
+}
+.ghost:hover { transform: scale(1.04); color: var(--brand); }
+
+/* 微课卡 = 实白浮起 */
+.concept-card {
+  background: #fff;
+  border: none;
+  border-radius: 26px; padding: 26px; margin-bottom: 16px;
+  box-shadow: var(--elev-3), var(--inset-top);
+}
+.concept-tag { color: var(--brand); font-size: 12px; font-weight: 800; margin-bottom: 8px; letter-spacing: .5px; }
+.concept-card h2 { margin: 0 0 10px; font-size: 19px; }
+.concept-card p { font-size: 14px; line-height: 1.85; color: #35322f; }
+.concept-example { background: var(--brand-soft); border-radius: 12px; padding: 14px 16px; margin-top: 14px; box-shadow: var(--inset-top); }
+.concept-example code { font-size: 14px; font-weight: 700; color: var(--brand-deep); }
+.concept-note { color: var(--sub); font-size: 12px; margin-top: 6px; }
+
+.spark { position: fixed; top: 30%; left: 50%; transform: translateX(-50%); font-size: 40px; animation: pop .65s; pointer-events: none; z-index: 50; }
+@keyframes pop { 0% { transform: translateX(-50%) scale(.4); opacity: 0; } 40% { transform: translateX(-50%) scale(1.2); opacity: 1; } 100% { transform: translateX(-50%) scale(1); opacity: 0; } }
+
+.confetti { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 40; }
+.confetti span { position: absolute; top: -12px; width: 9px; height: 14px; border-radius: 2px; animation: fall 2.6s linear forwards; }
+@keyframes fall { to { transform: translateY(105vh) rotate(720deg); opacity: .6; } }
+
+/* ---------- 结算（实白浮起卡） ---------- */
+.result-card .kpi-badge { width: 24px; height: 24px; font-size: 12px; top: 8px; right: 8px; border-radius: 8px; }
+.result-card .kpi-value { font-size: 24px; padding-right: 28px; }
+.result-card .kpi { padding: 12px 12px 10px; background: var(--sunken-2); box-shadow: none; }
+.result-card .kpi-label { font-size: 11px; }
+.result-card {
+  background: #fff;
+  border: none;
+  border-radius: 28px; padding: 32px 26px; max-width: 480px;
+  width: 100%; box-shadow: var(--elev-3), var(--inset-top);
+}
+.result-emoji { font-size: 46px; }
+.result-card h1 { font-size: 22px; margin: 8px 0 16px; }
+.perf-strip {
+  display: flex; gap: 5px; align-items: flex-end; height: 54px;
+  background: var(--sunken-2); border-radius: 12px; padding: 10px 12px; margin: 6px 0 14px;
+  box-shadow: var(--trough);
+}
+.perf-strip .bar { flex: 1; border-radius: 4px 4px 2px 2px; min-height: 8px; }
+.perf-strip .bar-c { background: var(--brand); opacity: .85; }
+.perf-strip .bar-w { background: var(--no); opacity: .55; }
+.perf-strip .bar-r { background: var(--peri); opacity: .8; }
+.result-note { color: var(--sub); font-size: 13px; line-height: 1.7; }
+.result-next { font-weight: 800; margin: 10px 0 16px; color: var(--brand); }
+
+/* ---------- 动效纪律（技能 §3.6） ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+/* ============================================================================
+   性能预算（实测 2026-09-28，__uiBench 150 帧）
+   v4 玻璃版：p50 4.2ms / over32=0（backdrop-filter 每视口 ≤3）。
+   v5（参考图重构）：按 UWORK 参考语言改为实白卡+柔影，移除全部 backdrop-filter，
+   语法仍为三层表面+三级光影；若未来重新引入玻璃，先看 v4 报告的实测再动手。
+   ============================================================================ */

@@ -1,0 +1,544 @@
+import { useEffect, useMemo, useState } from 'react'
+import { lessons, questionsOfSkill, allQuestions, skillOrder } from './data/course'
+import {
+  loadProgress, saveProgress, resetProgress, getSkillProgress,
+  recordSkillPractice, commitSession, recordSession, localDateStr,
+} from './store/progress'
+import {
+  pushAttempt, exportSave, applyImport, previewImport, clearSaveError,
+} from './store/migrations'
+import type { LoadNotice } from './store/migrations'
+import type { ActiveSession, Attempt, ProgressV2, QuizRuntime, SessionKind } from './types'
+import { Quiz, type SessionResult, type QuizAttempt, type QuizEntry } from './components/Quiz'
+import { Confetti } from './components/fx'
+import { Dashboard } from './components/Dashboard'
+import { buildEvidence, STATE_LABEL, type EvidenceReport } from './learning/evidence'
+import {
+  applyQuestionReview, recordSpeak, buildTodayQueue, buildSkillQueue, buildReviewQueue,
+  insertVariantDrill, softenQueue, eligible, dueQuestions, recommendSkill, QUEUE_SIZE,
+} from './learning/scheduler'
+import { isMuted, setMuted, sfx } from './sound'
+
+const questionById = new Map(allQuestions.map((q) => [q.id, q]))
+const allSkillList = Object.values(lessons).flatMap((l) => l.skills)
+
+type View =
+  | { name: 'home' }
+  | { name: 'lesson'; lessonId: string }
+  | { name: 'practice' }
+  | { name: 'result'; results: SessionResult[]; comboBest: number; xpGain: number; kind: SessionKind; dueTomorrow: number }
+
+export default function App() {
+  const [loaded] = useState(() => loadProgress())
+  const [progress, setProgress] = useState<ProgressV2>(loaded.progress)
+  const [notice, setNotice] = useState<LoadNotice>(loaded.notice)
+  const [saveErr, setSaveErr] = useState(false)
+  const [view, setView] = useState<View>({ name: 'home' })
+  const [soundOn, setSoundOn] = useState(() => !isMuted())
+  const [startError, setStartError] = useState<string | null>(null)
+
+  const pool = useMemo(() => eligible(allQuestions), [])
+  const evidence: EvidenceReport = useMemo(() => buildEvidence(progress, pool), [progress, pool])
+  const dueList = useMemo(
+    () => dueQuestions(progress, pool, Date.now(), evidence.openErrorQids),
+    [progress, pool, evidence],
+  )
+
+  /** 保存 + 同步状态；写失败时亮横幅（用例 12） */
+  function sync(p: ProgressV2 = progress) {
+    const ok = saveProgress(p)
+    setSaveErr(!ok)
+    setProgress({ ...p })
+    return ok
+  }
+
+  // ---------- 会话 ----------
+  const active = progress.activeSession && !progress.activeSession.committed ? progress.activeSession : null
+
+  function startSession(kind: SessionKind, skillId?: string): boolean {
+    const p = progress
+    // 1. 「开始今天的练习」优先恢复未完成会话（§5.4.1）；
+    //    明确点开某思维点/复习 = 新意图，用新队列替换（已答事件都在存档里）
+    if (kind === 'today' && p.activeSession && !p.activeSession.committed) {
+      setView({ name: 'practice' })
+      return true
+    }
+    const sessionId = `${kind}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+    let queue
+    if (kind === 'today') {
+      queue = buildTodayQueue(p, pool, sessionId, { skillOrder, criticalQids: evidence.openErrorQids })
+    } else if (kind === 'review') {
+      queue = buildReviewQueue(p, pool, sessionId, evidence.openErrorQids)
+    } else {
+      const sp = getSkillProgress(p, skillId!)
+      queue = buildSkillQueue(p, questionsOfSkill(skillId!), sessionId, sp.box)
+    }
+    if (queue.length === 0) return false
+    const newActive: ActiveSession = {
+      sessionId, kind, skillId, queue, runtime: null, createdAt: Date.now(), committed: false,
+      wrongStreaks: {}, note: undefined,
+    }
+    p.activeSession = newActive
+    sync(p)
+    setView({ name: 'practice' })
+    return true
+  }
+
+  function resumeSession(): boolean {
+    if (active) { setView({ name: 'practice' }); return true }
+    return startSession('today')
+  }
+
+  // 练习会话的题与冻结 UI 顺序
+  const entries: QuizEntry[] = useMemo(() => {
+    const a = progress.activeSession
+    if (!a) return []
+    const out: QuizEntry[] = []
+    for (const item of a.queue) {
+      const q = questionById.get(item.qid)
+      if (q) out.push({ q, item })
+    }
+    return out
+  }, [progress.activeSession])
+
+  function conceptCardsFor(a: ActiveSession): { skillId: string; title: string; body: string[]; example: string; exampleNote: string }[] {
+    if (a.kind === 'review') return []   // 先检索后讲解：复习不预放微课（保护延迟保持证据）
+    const sid = a.kind === 'skill' ? a.skillId : recommendSkill(progress, pool, skillOrder)
+    if (!sid) return []
+    if (getSkillProgress(progress, sid).conceptSeen) return []
+    const sk = allSkillList.find((s) => s.id === sid)
+    return sk ? [{ skillId: sk.id, title: sk.concept.title, body: sk.concept.body, example: sk.concept.example, exampleNote: sk.concept.exampleNote }] : []
+  }
+
+  /** 每次提交：一条事件 + 复习规则 + 立即落盘（幂等键 = sessionId:qid:首发/重试） */
+  function handleAttempt(a: QuizAttempt) {
+    const p = progress
+    const ses = p.activeSession
+    if (!ses || ses.committed) return
+    const attemptId = `${ses.sessionId}:${a.qid}:${a.firstAttempt ? 'f' : 'r'}`
+    if (p.attempts.some((x) => x.attemptId === attemptId)) return   // 刷新重答/重复回调：只记一次（用例 5）
+
+    const q = questionById.get(a.qid)
+    const wasDue = (p.questionStates[a.qid]?.dueAt ?? 0) <= Date.now()
+
+    if (a.evaluator === 'deterministic') {
+      applyQuestionReview(p, a.qid, {
+        firstAttempt: a.firstAttempt,
+        outcome: a.outcome,
+        independent: a.firstAttempt && a.outcome === 'correct',
+        wasDue,
+      })
+    } else if (q?.mode === 'oral') {
+      const completed = a.outcome === 'correct' || a.outcome === 'uncertain'
+      if (completed) {
+        const independent = a.supportUsed === 0 && a.outcome !== 'uncertain'
+        recordSpeak(p, a.qid, independent ? 'independent-self' : 'prompted', independent)
+      }
+    }
+
+    const attempt: Attempt = {
+      attemptId,
+      sessionId: ses.sessionId,
+      questionId: a.qid,
+      contentVersion: q?.contentVersion ?? 1,
+      objectiveId: q?.objectiveId ?? a.qid,
+      variantGroupId: q?.variantGroupId ?? a.qid,
+      mode: q?.mode ?? 'recognition',
+      timestamp: Date.now(),
+      localDate: localDateStr(),
+      firstAttempt: a.firstAttempt,
+      supportUsed: a.supportUsed,
+      answer: a.given.slice(0, 160),
+      outcome: a.outcome,
+      evaluator: a.evaluator,
+      responseMs: a.responseMs,
+      isDueReview: a.isDueReview,
+    }
+    const { saved } = pushAttempt(p, attempt)
+
+    // §3.3 错误处理：变式补练 / 连续三次首错降难
+    if (a.firstAttempt && q) {
+      const streaks = ses.wrongStreaks ?? {}
+      if (a.outcome === 'incorrect' && a.evaluator === 'deterministic') {
+        const n = (streaks[q.skill] ?? 0) + 1
+        streaks[q.skill] = n
+        ses.wrongStreaks = streaks
+        const cursor = ses.queue.findIndex((it) => it.qid === a.qid) + 1
+        if (n >= 3) {
+          softenQueue(ses.queue, cursor, q.skill, pool, ses.sessionId)
+          ses.note = '这个知识点连续三题首发没对——停下加难，换成更基础的对比任务，慢慢来。'
+        } else {
+          insertVariantDrill(ses.queue, cursor, a.qid, pool, ses.sessionId)
+        }
+      } else if (a.outcome === 'correct' || a.outcome === 'uncertain') {
+        if (streaks[q.skill]) { streaks[q.skill] = 0; ses.wrongStreaks = streaks }
+      }
+    }
+
+    if (!saved) setSaveErr(true)
+    sync(p)
+  }
+
+  /** 断点快照：每次状态转移后落盘 */
+  function handleRuntime(rt: QuizRuntime) {
+    const p = progress
+    if (!p.activeSession || p.activeSession.committed) return
+    p.activeSession.runtime = rt
+    sync(p)
+  }
+
+  /** 结算：XP、技能历史、会话日志、清除断点（保留 XP 与历史记录，P0-04） */
+  function handleFinish(results: SessionResult[], comboBest: number) {
+    const p = progress
+    const ses = p.activeSession
+    if (!ses || ses.committed) return
+    const perFull = ses.kind === 'review' ? 8 : 10
+    let xpGain = 0
+    for (const r of results) {
+      recordSkillPractice(p, r.q.skill, r.firstTryCorrect)
+      xpGain += r.firstTryCorrect ? perFull : 2
+    }
+    xpGain += Math.floor(comboBest / 3) * 5
+
+    // 微课看过即记
+    const markSid = ses.kind === 'skill' ? ses.skillId : recommendSkill(progress, pool, skillOrder)
+    if (markSid && p.skills[markSid]) p.skills[markSid].conceptSeen = true
+
+    const firstTry = results.filter((r) => r.firstTryCorrect).length
+    const label = ses.kind === 'review'
+      ? `复习 · ${ses.queue.length} 个到期任务`
+      : ses.kind === 'today'
+        ? `今日训练 · ${ses.queue.length} 个任务`
+        : (() => {
+            const les = Object.values(lessons).find((l) => l.skills.some((k) => k.id === ses.skillId))
+            const sk = allSkillList.find((s) => s.id === ses.skillId)
+            return `${les ? '第 ' + les.no + ' 课' : ''} · ${sk?.name ?? ''}`
+          })()
+    recordSession(p, {
+      label,
+      lessonNo: ses.kind === 'review' ? '复习' : ses.kind === 'today' ? '今日' : (Object.values(lessons).find((l) => l.skills.some((k) => k.id === ses.skillId))?.no ?? ''),
+      acc: results.length ? Math.round((firstTry / results.length) * 100) : 0,
+      xp: xpGain,
+      total: results.length,
+      firstTry,
+    })
+    const kind = ses.kind
+    commitSession(p, xpGain, comboBest)
+    p.activeSession = null
+    const ok = saveProgress(p)
+    setSaveErr(!ok)
+    setProgress({ ...p })
+
+    const now = Date.now()
+    const dueTomorrow = Object.values(p.questionStates)
+      .filter((st) => st.total > 0 && st.dueAt > now && st.dueAt <= now + 24 * 60 * 60 * 1000).length
+    setView({ name: 'result', results, comboBest, xpGain, kind, dueTomorrow })
+  }
+
+  function handleQuit() {
+    sync()   // runtime 已由 Quiz 落盘；这里确保 UI 状态一致
+    setView({ name: 'home' })
+  }
+
+  function handleReset() {
+    if (confirm('确定清空全部学习进度？（当前存档会先备份到本地）')) {
+      resetProgress()
+      clearSaveError()
+      const r = loadProgress()
+      setProgress(r.progress)
+      setNotice(null)
+      setSaveErr(false)
+      setView({ name: 'home' })
+    }
+  }
+
+  // ---------- 存档导入导出 ----------
+  function doExportSave() {
+    const blob = new Blob([exportSave()], { type: 'application/json' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `EnglishForge-存档-${localDateStr()}.json`
+    a.click()
+    URL.revokeObjectURL(a.href)
+  }
+  function doImportSave() {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.accept = '.json,application/json'
+    input.onchange = () => {
+      const file = input.files?.[0]
+      if (!file) return
+      const reader = new FileReader()
+      reader.onload = () => {
+        const text = String(reader.result ?? '')
+        const preview = previewImport(text)
+        if ('error' in preview) { alert('导入失败：' + preview.error); return }
+        const msg = [
+          '确认导入这份存档？（当前存档会先自动备份）',
+          '',
+          `XP：${preview.xp} · 连续：${preview.streak} 天`,
+          `作答事件：${preview.attempts} 条 · 练习记录：${preview.sessions} 条`,
+          `含未完成会话：${preview.activeSession ? '是（导入后可继续）' : '否'}`,
+        ].join('\n')
+        if (!confirm(msg)) return
+        const res = applyImport(text)
+        if (!res.ok) { alert('导入失败：' + res.error); return }
+        const r = loadProgress()
+        setProgress(r.progress)
+        setSaveErr(false)
+        setView({ name: 'home' })
+      }
+      reader.readAsText(file)
+    }
+    input.click()
+  }
+
+  // 结果页如因刷新丢失（不应发生），回首页
+  useEffect(() => {
+    if (view.name === 'practice' && !progress.activeSession) setView({ name: 'home' })
+  }, [view, progress.activeSession])
+
+  const todayBrief = useMemo(() => {
+    const sid = recommendSkill(progress, pool, skillOrder)
+    const sk = allSkillList.find((s) => s.id === sid)
+    const dueTake = dueList.length <= 4 ? dueList.length : Math.min(dueList.length, 7)
+    return {
+      skillName: sk ? sk.name : null,
+      skillLesson: sk ? (Object.values(lessons).find((l) => l.skills.some((k) => k.id === sk.id))?.no ?? '') : '',
+      dueCount: dueList.length,
+      dueTake,
+      hasResume: !!active,
+      queueLen: active?.queue.length ?? QUEUE_SIZE,
+      stateCounts: countStates(evidence),
+    }
+  }, [progress, pool, dueList, evidence, active])
+
+  return (
+    <div className="app">
+      {saveErr && (
+        <div className="sys-banner err">
+          ⚠️ 上次保存失败——进度可能没存上。<button className="linkish" onClick={doExportSave}>立即导出存档</button>
+          <button className="linkish" onClick={() => setSaveErr(false)}>知道了</button>
+        </div>
+      )}
+      {notice && (
+        <div className="sys-banner">
+          {notice === 'migrated'
+            ? '✅ 已从旧版进度迁移到 v2 存档（原 v1 数据保留未删除）。'
+            : '🔧 检测到存档损坏——已备份损坏副本并从旧版数据恢复。'}
+          <button className="linkish" onClick={() => setNotice(null)}>知道了</button>
+        </div>
+      )}
+      {startError && (
+        <div className="sys-banner">
+          {startError}
+          <button className="linkish" onClick={() => setStartError(null)}>知道了</button>
+        </div>
+      )}
+      {view.name !== 'home' && (
+        <header className="topbar">
+          <button className="brand brand-btn" onClick={() => setView({ name: 'home' })}>← EnglishForge</button>
+          <div className="stats">
+            <button
+              className="stats-btn"
+              title={soundOn ? '点击关闭音效' : '点击开启音效'}
+              onClick={() => { setMuted(soundOn); setSoundOn(!soundOn) }}
+            >{soundOn ? '🔊' : '🔇'}</button>
+          </div>
+        </header>
+      )}
+      <main>
+        {view.name === 'home' && (
+          <Dashboard
+            progress={progress}
+            evidence={evidence}
+            todayBrief={todayBrief}
+            soundOn={soundOn}
+            saveErr={saveErr}
+            onToggleSound={() => { setMuted(soundOn); setSoundOn(!soundOn) }}
+            onOpenLesson={(id) => setView({ name: 'lesson', lessonId: id })}
+            onStartToday={() => { setStartError(null); if (!startSession('today')) setStartError('今天没有可抽的题目——题库正在建设中。') }}
+            onResume={() => { if (!resumeSession()) setStartError('没有找到未完成的会话。') }}
+            onStartReview={() => { setStartError(null); if (!startSession('review')) setStartError('今天没有到期的复习——去打新铁吧！') }}
+            onExportSave={doExportSave}
+            onImportSave={doImportSave}
+            onReset={handleReset}
+          />
+        )}
+        <div className={`narrow ${view.name === 'practice' ? 'quiz-center' : ''}`}>
+        {view.name === 'lesson' && (
+          <LessonPage lessonId={view.lessonId} progress={progress} evidence={evidence} onStartSkill={(skillId) => { setStartError(null); if (!startSession('skill', skillId)) setStartError('这个思维点还没有题目——题库正在建设中。') }} onBack={() => setView({ name: 'home' })} />
+        )}
+        {view.name === 'practice' && progress.activeSession && (
+          <Quiz
+            key={progress.activeSession.sessionId}
+            entries={entries}
+            conceptCards={conceptCardsFor(progress.activeSession)}
+            resume={progress.activeSession.runtime}
+            sessionNote={progress.activeSession.note ?? null}
+            onAttempt={handleAttempt}
+            onRuntime={handleRuntime}
+            onFinish={handleFinish}
+            onQuit={handleQuit}
+          />
+        )}
+        {view.name === 'practice' && !progress.activeSession && (
+          <div className="page center">
+            <div className="empty">🌤️ 没有进行中的练习。</div>
+            <button className="primary" onClick={() => setView({ name: 'home' })}>回地图</button>
+          </div>
+        )}
+        {view.name === 'result' && (
+          <ResultPage
+            results={view.results}
+            comboBest={view.comboBest}
+            xpGain={view.xpGain}
+            progress={progress}
+            kind={view.kind}
+            dueTomorrow={view.dueTomorrow}
+            onHome={() => setView({ name: 'home' })}
+            onAgain={() => setView({ name: 'home' })}
+          />
+        )}
+        </div>
+      </main>
+      {view.name !== 'home' && <footer className="foot">
+        <span>素材来自张俊杰老师课程逐字稿 · 本地存档 · </span>
+        <button className="linkish" onClick={handleReset}>清空进度</button>
+      </footer>}
+    </div>
+  )
+}
+
+function countStates(e: EvidenceReport) {
+  let unseen = 0, building = 0, early = 0, durable = 0
+  for (const s of Object.values(e.bySkill)) {
+    if (s.state === 'unseen') unseen++
+    else if (s.state === 'building') building++
+    else if (s.state === 'early-stable') early++
+    else durable++
+  }
+  return { unseen, building, early, durable, total: unseen + building + early + durable }
+}
+
+// ---------------- 课程页（思维点小关） ----------------
+function LessonPage({ lessonId, progress, evidence, onStartSkill, onBack }: {
+  lessonId: string
+  progress: ProgressV2
+  evidence: EvidenceReport
+  onStartSkill: (skillId: string) => void
+  onBack: () => void
+}) {
+  const les = lessons[lessonId]
+  if (!les) return <div className="page">课程不存在</div>
+  return (
+    <div className="page narrow-wide">
+      <button className="ghost" onClick={onBack}>← 地图</button>
+      <div className="lesson-title">
+        <h1>第 {les.no} 课 · {les.title}</h1>
+        <p>{les.subtitle}</p>
+      </div>
+      <div className="skill-list">
+        {les.skills.map((s, i) => {
+          const ev = evidence.bySkill[s.id]
+          const state = ev?.state ?? 'unseen'
+          const stats = skillStats(progress, s.id)
+          return (
+            <button key={s.id} className="skill-card" onClick={() => onStartSkill(s.id)}>
+              <div className="skill-icon">{s.icon}</div>
+              <div className="skill-info">
+                <div className="skill-name">{i + 1}. {s.name}
+                  <span className={`state-chip st-${state.replace('-', '')}`}>{STATE_LABEL[state]}</span>
+                </div>
+                <div className="skill-tagline">{s.tagline}</div>
+                <div className="skill-meta">
+                  {ev && ev.evidence.length > 0
+                    ? ev.evidence[0]
+                    : ev?.legacyOnly
+                      ? '有历史练习记录 · 尚无新的作答证据'
+                      : '未练习 · 先看微课卡'}
+                </div>
+                <div className="skill-meta dim">{stats.total > 0 ? `累计练习 ${stats.total} 题 · 历史首发答对 ${stats.correct}` : ''}</div>
+              </div>
+              <div className="skill-go">{getSkillProgress(progress, s.id).conceptSeen ? '▶' : '🎯'}</div>
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function skillStats(p: ProgressV2, skillId: string): { total: number; correct: number } {
+  let total = 0, correct = 0
+  for (const q of questionsOfSkill(skillId)) {
+    const st = p.questionStates[q.id]
+    if (st) { total += st.total; correct += st.correct }
+  }
+  return { total, correct }
+}
+
+// ---------------- 结算页 ----------------
+function ResultPage({ results, comboBest, xpGain, progress, kind, dueTomorrow, onHome }: {
+  results: SessionResult[]
+  comboBest: number
+  xpGain: number
+  progress: ProgressV2
+  kind: SessionKind
+  dueTomorrow: number
+  onHome: () => void
+  onAgain: () => void
+}) {
+  const firstTry = results.filter((r) => r.firstTryCorrect).length
+  const retried = results.filter((r) => r.retriedCorrect === true).length
+  const skipped = results.filter((r) => r.outcome === 'skipped').length
+  const total = results.length
+  const acc = total ? Math.round((firstTry / total) * 100) : 0
+  useEffect(() => { sfx.finish() }, [])
+  return (
+    <div className="page center result">
+      {acc >= 80 && <Confetti />}
+      <div className="result-card">
+        <div className="result-emoji">{acc >= 90 ? '🏆' : acc >= 70 ? '🔥' : '💪'}</div>
+        <h1>{acc >= 90 ? '铁打好了！' : acc >= 70 ? '手感不错！' : '回炉再打，不着急。'}</h1>
+        <div className="kpi-row">
+          <div className="kpi kpi-cyan">
+            <div className="kpi-badge">🎯</div>
+            <div className="kpi-value">{firstTry}</div>
+            <div className="kpi-label">首发答对</div>
+          </div>
+          <div className="kpi kpi-green">
+            <div className="kpi-badge">📊</div>
+            <div className="kpi-value">{acc}%</div>
+            <div className="kpi-label">首发正确率{retried > 0 ? ` · 二攻 ${retried}` : ''}{skipped > 0 ? ` · 跳过 ${skipped}` : ''}</div>
+          </div>
+          <div className="kpi kpi-purple">
+            <div className="kpi-badge">✨</div>
+            <div className="kpi-value">+{xpGain}</div>
+            <div className="kpi-label">本关 XP</div>
+          </div>
+        </div>
+        <div className="perf-strip" title="本关每题表现（绿=首发对 / 蓝=二攻对 / 红=未对）">
+          {results.map((r, i) => (
+            <span
+              key={i}
+              className={`bar ${r.retriedCorrect === true ? 'bar-r' : r.firstTryCorrect ? 'bar-c' : 'bar-w'}`}
+              style={{ height: r.firstTryCorrect || r.retriedCorrect === true ? '100%' : '45%' }}
+            />
+          ))}
+        </div>
+        <p className="result-note">
+          {kind === 'review'
+            ? '复习完成——先检索后讲解，这些知识点又往脑子里沉了一层。'
+            : acc >= 80
+              ? '这些思维点已经进了复习队列，明天来巩固，直到变成肌肉记忆。'
+              : '错了没关系——首次错误已保留，明天会换场景再考你。'}
+        </p>
+        <div className="result-next">
+          ⏰ 明天预计复习 {dueTomorrow} 道题 · ⭐ {progress.xp} XP · 🔥 {progress.streak} 天连续 · 本关连击 {comboBest}
+        </div>
+        <button className="primary" onClick={onHome}>回地图</button>
+      </div>
+    </div>
+  )
+}

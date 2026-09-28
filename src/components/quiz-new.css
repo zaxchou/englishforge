@@ -1,0 +1,109 @@
+/* ================= v4：新题型（Soft Glass 表面语法） =================
+   选项/词块的浮起、凹陷由 styles.css 统一供给；这里只管
+   听力 / 配对 / 分类 / 跟读 / 徽章的表面归类与去描边。 */
+.listen-row { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
+.listen-btn {
+  border: none; background: var(--raised); color: var(--brand);
+  border-radius: 999px; padding: 11px 19px; font-size: 15px; font-weight: 700; cursor: pointer;
+  box-shadow: var(--elev-1), var(--inset-top);
+  transition: transform .42s var(--ease), background-color .2s ease;
+}
+.listen-btn:hover { transform: scale(1.04); background: var(--brand-soft); }
+.listen-tip { color: var(--sub); font-size: 12px; }
+
+.match-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+.match-col { display: flex; flex-direction: column; gap: 9px; }
+.match-col .token { text-align: center; padding: 12px; font-size: 15px; }
+
+.sort-counter { color: var(--sub); font-size: 12px; margin-bottom: 6px; }
+.sort-word {
+  font-size: 28px; font-weight: 800; text-align: center; padding: 28px 0;
+  background: var(--sunken-2); border: none; border-radius: var(--radius); margin-bottom: 16px;
+  box-shadow: var(--trough);
+}
+.sort-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.sort-btns .opt { text-align: center; padding: 16px; font-weight: 700; }
+
+.diff-tag { display: inline-block; font-size: 11px; font-weight: 700; border-radius: 999px; padding: 3px 9px; margin-left: 8px; vertical-align: 2px; }
+.diff-1 { background: #e7f5ee; color: #0b7285; }
+.diff-2 { background: #fff3db; color: #b8860b; }
+.diff-3 { background: #ffe9e9; color: var(--no); }
+
+/* 破惯性题：玻璃卡内的品牌柔光浮起，去虚线描边 */
+.myth-q {
+  background: linear-gradient(180deg, rgba(232, 231, 248, 0.9), rgba(255, 255, 255, 0.6));
+  border: none;
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: var(--elev-1), var(--inset-top);
+}
+.myth-badge {
+  display: inline-block; background: var(--brand); color: #fff;
+  font-size: 12px; font-weight: 800; border-radius: 999px;
+  padding: 3px 9px; margin-right: 8px; vertical-align: 2px;
+  box-shadow: 0 4px 10px -3px rgba(111, 99, 228, 0.5);
+}
+
+/* 产出跟读 */
+.speak-target {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--brand-soft); border: none; border-radius: var(--radius);
+  padding: 15px 17px; margin-bottom: 10px;
+  box-shadow: var(--inset-top);
+}
+.speak-target code { font-size: 17px; font-weight: 700; flex: 1; }
+.speak-hint { color: var(--sub); font-size: 13px; margin-bottom: 14px; }
+.speak-actions { display: flex; flex-direction: column; gap: 10px; align-items: center; margin-bottom: 12px; }
+.mic-btn {
+  border: none; border-radius: 999px; padding: 15px 32px;
+  font-size: 16px; font-weight: 800; cursor: pointer;
+  background: #e03131; color: #fff;
+  box-shadow: 0 10px 24px -8px rgba(224, 49, 49, 0.5), var(--inset-top-brand);
+  transition: filter .15s, transform .42s var(--ease);
+}
+.mic-btn:hover:not(:disabled) { transform: scale(1.03); }
+.mic-btn.rec { background: #c92a2a; animation: pulse 1s infinite; }
+@keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(224,49,49,.5); } 50% { box-shadow: 0 0 0 12px rgba(224,49,49,0); } }
+.speak-result {
+  background: var(--sunken-2); border: none;
+  border-radius: var(--radius); padding: 13px 15px; margin-bottom: 12px;
+  font-size: 14px; box-shadow: var(--trough);
+}
+
+.stats-btn {
+  background: var(--raised); border: none; border-radius: 999px;
+  padding: 5px 11px; cursor: pointer; font-size: 14px; line-height: 1;
+  box-shadow: var(--elev-1), var(--inset-top);
+}
+.stats-btn:hover { transform: scale(1.05); }
+
+.speak-actions.row { flex-direction: row; gap: 10px; width: 100%; }
+.speak-actions.row .opt { flex: 1; text-align: center; }
+.retry-btn { background: var(--raised); color: var(--brand); font-weight: 700; }
+.next-inline { flex: 2; }
+.speak-ratio { color: var(--sub); font-size: 12px; margin-left: 8px; }
+
+/* ---- v2：会话提示 / 隐藏原句 / 语音反馈边界（去描边，表面化） ---- */
+.session-note {
+  background: #fff7e6; border: none; border-radius: 12px;
+  padding: 10px 15px; margin-bottom: 10px; font-size: 13.5px; color: #874d00;
+  box-shadow: var(--inset-top);
+}
+.speak-hidden { margin-bottom: 6px; }
+.speak-hidden-box {
+  border: none; border-radius: var(--radius);
+  background: var(--sunken-2); padding: 18px; text-align: center;
+  color: var(--sub); font-size: 14px; margin-bottom: 12px;
+  box-shadow: var(--trough);
+}
+.speak-hidden .speak-actions { margin-bottom: 0; }
+.sr-note {
+  margin-top: 9px; padding-top: 9px; border-top: 1px solid var(--hairline);
+  font-size: 12px; color: var(--sub);
+}
+.sr-badge {
+  display: inline-block; background: var(--raised); color: #4b41b8;
+  border-radius: 999px; padding: 6px 15px; font-size: 13px; font-weight: 700;
+  margin-bottom: 12px; box-shadow: var(--elev-1), var(--inset-top);
+}
+.sr-badge.muted { background: var(--surface); color: var(--sub); font-weight: 600; box-shadow: none; }

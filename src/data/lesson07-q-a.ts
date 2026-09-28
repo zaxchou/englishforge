@@ -1,0 +1,76 @@
+import type { Question } from '../types'
+
+/** 第 7 课题库（上）：s1~s5 */
+export const questionsA: Question[] = [
+  // ===== s1 单复数是两个词 =====
+  { id: 's1q1', skill: 's1', type: 'choice', prompt: '"我有一本书。"', options: ['I have a book.', 'I have two books.', 'I have book.', 'I has a book.'], answer: 'I have a book.', explain: '一本书：a book。a 本身就带着"一"的含义。', tts: 'I have a book.' },
+  { id: 's1q2', skill: 's1', type: 'choice', prompt: '"我有两本书。"', options: ['I have two books.', 'I have two book.', 'I have a book.', 'I has two books.'], answer: 'I have two books.', explain: 'books 不是 book 加了个 s——含义从"一本"变成"多本"，它就是另一个词。', tts: 'I have two books.' },
+  { id: 's1q3', skill: 's1', type: 'choice', prompt: '中文里"书"能指一本也能指多本。英语里"多本书"必须写成？', options: ['books', 'book', 'bookes', 'book\'s'], answer: 'books', explain: '一个含义对应一个形式：多本书的含义，就得有 books 这个形式。' },
+  { id: 's1q4', skill: 's1', type: 'tap', prompt: '你想说"我喜欢苹果（泛指苹果们）"。点出句中形式不对的词：', tokens: ['I', 'like', 'apple', '.'], answer: 'apple', fix: 'apples', explain: '你喜欢的不是一个苹果，是苹果们——apples。含义变了，形式就得变。', tts: 'I like apples.' },
+  { id: 's1q5', skill: 's1', type: 'choice', prompt: 'apple 和 apples 是同一个词吗？', options: ['不是——含义不同就是两个词', '是——就差一个 s 而已', '是——读法差不多', '看语境心情'], answer: '不是——含义不同就是两个词', explain: '张老师原话：它就俩词，因为它俩含义不同。别再当成"同一个词的变化"了。' },
+  { id: 's1q6', skill: 's1', type: 'tiles', prompt: '拼出："我有两本书。"', order: ['I', 'have', 'two', 'books', '.'], tokens: ['books', 'I', 'is', 'have', '.', 'two'], explain: 'I have two books. 主语 I + 动作 have + 数量 two + books。' , tts: 'I have two books.' },
+  { id: 's1q7', skill: 's1', type: 'choice', prompt: '"我喜欢苹果（泛指）"——喜欢的是？', options: ['apples（苹果们）', 'apple（一个苹果）', 'a apple', 'the apple'], answer: 'apples（苹果们）', explain: '泛指喜欢苹果，含义是"苹果们"——apples。' },
+  { id: 's1q8', skill: 's1', type: 'choice', prompt: '老外为什么非要区分 book / books？', options: ['为了区分含义：一本和多本不是一回事', '为了好看', '为了让外国人难学', '习惯而已，没有原因'], answer: '为了区分含义：一本和多本不是一回事', explain: '一切词形变化都是为了区分含义——听到形式就知道数量。' },
+  { id: 's1q9', skill: 's1', type: 'choice', prompt: '"桌上有十本书"——"书"用哪个形式？', options: ['books', 'book', 'a book', 'book\'s'], answer: 'books', explain: '十本还是"多本"的含义，形式还是 books——含义没变，形式就不变。' },
+  { id: 's1q10', skill: 's1', type: 'tap', prompt: '点出句中形式不对的词："他有两本书。"', tokens: ['He', 'has', 'two', 'book', '.'], answer: 'book', fix: 'books', explain: '两本 → books。含义是多本，就不能用单本的形式。', tts: 'He has two books.' },
+  { id: 's1q11', skill: 's1', type: 'choice', prompt: '所有词形变化的根本目的是？', options: ['区分含义', '让句子好看', '增加难度', '音节好听'], answer: '区分含义', explain: '记住这句话：所有词形变化都是为了区分含义。' },
+  { id: 's1q12', skill: 's1', type: 'choice', prompt: '中文一个"书"字包打天下，英语为什么不行？', options: ['老外直线型思维：含义不同必须形式不同', '英语词汇少', '历史巧合', '老外记性差'], answer: '老外直线型思维：含义不同必须形式不同', explain: '直线型思维：每一种含义必须有一种独特的、与众不同的表达形式。' },
+
+  // ===== s2 主格宾格：两个人 =====
+  { id: 's2q1', skill: 's2', type: 'choice', prompt: '"我打他。"', options: ['I beat him.', 'I beat he.', 'Me beat him.', 'I beats him.'], answer: 'I beat him.', explain: '打人的是我（主体，主格 I），挨打的是他（对象，宾格 him）。', tts: 'I beat him.' },
+  { id: 's2q2', skill: 's2', type: 'choice', prompt: '"他打我。"', options: ['He beats me.', 'He beats I.', 'Him beats me.', 'He beat I.'], answer: 'He beats me.', explain: '反过来：他是主体（He），我是挨揍的（me）。谁爽谁疼，形式分得清清楚楚。', tts: 'He beats me.' },
+  { id: 's2q3', skill: 's2', type: 'choice', prompt: '做动作的人（动作主体）用什么格？', options: ['主格：I / he / she', '宾格：me / him / her', '都用主格', '随便用'], answer: '主格：I / he / she', explain: '动作主体 = 主格。这是"谁干的"的那个谁。' },
+  { id: 's2q4', skill: 's2', type: 'choice', prompt: '挨动作的人（动作对象）用什么格？', options: ['宾格：me / him / her', '主格：I / he / she', '都用宾格', '都用原形'], answer: '宾格：me / him / her', explain: '动作对象 = 宾格。挨揍的那个。' },
+  { id: 's2q5', skill: 's2', type: 'choice', prompt: '张老师说主格宾格的区别，一个是"感觉爽的"，一个是？', options: ['感觉疼的（挨动作的）', '个子高的', '先说话的', '声音大的'], answer: '感觉疼的（挨动作的）', explain: '一个爽一个疼：做动作用主格，挨动作用宾格——两种感受，两个形式。' },
+  { id: 's2q6', skill: 's2', type: 'tap', prompt: '点出句中用错的词："他打我。"', tokens: ['Him', 'beats', 'me', '.'], answer: 'Him', fix: 'He', explain: '打人的是主体，要用主格 He。Him 是挨揍的那个。', tts: 'He beats me.' },
+  { id: 's2q7', skill: 's2', type: 'tiles', prompt: '拼出："他打我。"', order: ['He', 'beats', 'me', '.'], tokens: ['me', 'He', 'him', 'beats', '.'], explain: 'He（打的，主格）beats me（挨的，宾格）。谁爽谁疼一眼分明。', tts: 'He beats me.' },
+  { id: 's2q8', skill: 's2', type: 'choice', prompt: '同一个人，打人时和挨打时，形式一样吗？', options: ['不一样：I 打人，me 挨打', '一样，都是 I', '一样，都是 me', '看句子长短'], answer: '不一样：I 打人，me 挨打', explain: '同一张三，打人时是主格，挨打时是宾格——身份变了，形式就得变。' },
+  { id: 's2q9', skill: 's2', type: 'choice', prompt: '"他昨天打了我。"（beat 的过去式还是 beat）', options: ['He beat me.', 'He beated me.', 'He beaten me.', 'He hits me.'], answer: 'He beat me.', explain: 'beat 的过去式还是 beat——老外定的形式，它就是这么区分的。', tts: 'He beat me.' },
+  { id: 's2q10', skill: 's2', type: 'choice', prompt: '为什么英语必须区分"打人的"和"挨打的"？', options: ['他们是两个不同的人，含义不同', '显得正式', '区分长短句', '没有为什么'], answer: '他们是两个不同的人，含义不同', explain: '含义不同 → 形式必不同。主格宾格就是给"谁干的"和"谁挨的"各发一个身份牌。' },
+  { id: 's2q11', skill: 's2', type: 'tap', prompt: '点出句中用错的词："我喜欢苹果。"', tokens: ['Me', 'like', 'apples', '.'], answer: 'Me', fix: 'I', explain: '喜欢这个动作的主体是"我"，用主格 I。', tts: 'I like apples.' },
+  { id: 's2q12', skill: 's2', type: 'choice', prompt: 'him 是什么格？什么时候用？', options: ['宾格——做动作对象时', '主格——做动作主体时', '所有格——表示拥有', '随便用'], answer: '宾格——做动作对象时', explain: 'him 是"他"挨动作时的形式：beat him、call him。' },
+  { id: 's2q13', skill: 's2', type: 'tiles', prompt: '拼出："我打他。"', order: ['I', 'beat', 'him', '.'], tokens: ['I', 'him', 'he', 'beat', '.'], explain: 'I（主体）beat him（对象）。他挨打，就用宾格 him。', tts: 'I beat him.' },
+
+  // ===== s3 my / mine =====
+  { id: 's3q1', skill: 's3', type: 'choice', prompt: '"这是我的书。"', options: ['This is my book.', 'This is mine book.', 'This is me book.', 'This is I book.'], answer: 'This is my book.', explain: '后面有名词 book，用 my。my + 名词。', tts: 'This is my book.' },
+  { id: 's3q2', skill: 's3', type: 'choice', prompt: '"那本书是我的。"（book 上文说过，被省略）', options: ['That book is mine.', 'That book is my.', 'That book is me.', 'That book is your.'], answer: 'That book is mine.', explain: 'mine = my + book：book 被省略，s 代替上文中提过的东西。', tts: 'That book is mine.' },
+  { id: 's3q3', skill: 's3', type: 'choice', prompt: 'yours 的完整含义是？', options: ['你的某某某（你的那个东西）', '就是"你的"两个字', '你本人', '你们'], answer: '你的某某某（你的那个东西）', explain: '张老师：yours 不翻译成"你的"，而是"你的叉叉叉"——名词被省略了。' },
+  { id: 's3q4', skill: 's3', type: 'tap', prompt: '点出句中用错的词：', tokens: ['This', 'is', 'mine', 'book', '.'], answer: 'mine', fix: 'my', explain: '后面有名词 book，就不能用 mine——mine 自己就是"my + 名词"，后面不再跟名词。', tts: 'This is my book.' },
+  { id: 's3q5', skill: 's3', type: 'choice', prompt: '"那个包是你的。"（包上文说过）', options: ['That bag is yours.', 'That bag is your.', 'That bag is you.', 'That bag is my.'], answer: 'That bag is yours.', explain: 'yours = your + bag。名词被省略，用名词性物主代词。', tts: 'That bag is yours.' },
+  { id: 's3q6', skill: 's3', type: 'tiles', prompt: '拼出："那本书是我的。"', order: ['That', 'book', 'is', 'mine', '.'], tokens: ['mine', 'That', 'my', 'book', 'is', '.'], explain: 'That book is mine. — my book 被压缩成 mine。', tts: 'That book is mine.' },
+  { id: 's3q7', skill: 's3', type: 'choice', prompt: 'my 后面必须跟什么？', options: ['名词（我的书 my book）', '什么都不跟', '动词', '形容词'], answer: '名词（我的书 my book）', explain: 'my 是形容词性的——它要修饰一个名词。' },
+  { id: 's3q8', skill: 's3', type: 'choice', prompt: '什么时候轮到 mine 出场？', options: ['后面的名词上文说过、被省略时', '想显得正式时', '句子开头时', '永远和 my 随机换'], answer: '后面的名词上文说过、被省略时', explain: '别背"形容词性/名词性"的概念——含义决定：名词还在用 my，名词被省略用 mine。' },
+  { id: 's3q9', skill: 's3', type: 'choice', prompt: '中文"我的"一个词，英语为什么有 my 和 mine 两个？', options: ['含义不同：my+名词 vs 名词被省略', '拼写喜好', '一个美式一个英式', '没有区别'], answer: '含义不同：my+名词 vs 名词被省略', explain: '又是直线型思维：两种含义，两个形式，不会混淆。' },
+  { id: 's3q10', skill: 's3', type: 'tap', prompt: '点出句中用错的词：', tokens: ['Mine', 'bag', 'is', 'blue', '.'], answer: 'Mine', fix: 'My', explain: 'Mine bag ✗ —— mine 后面不能再跟名词。要说 My bag is blue.', tts: 'My bag is blue.' },
+  { id: 's3q11', skill: 's3', type: 'choice', prompt: 'hers 的含义是？', options: ['她的某某某（her + 上文的名词）', '就是"她的"', '她本人', '她的所有物总数'], answer: '她的某某某（her + 上文的名词）', explain: '同一条规律：hers = her + 名词（被省略）。' },
+  { id: 's3q12', skill: 's3', type: 'choice', prompt: '"我的书"和"我的（那个）"——哪个用 mine？', options: ['"我的（那个）"——名词被省略', '"我的书"——my book', '都用 my', '都用 mine'], answer: '"我的（那个）"——名词被省略', explain: '名词还在 → my book；名词被省略 → mine。含义不同，形式不同。' },
+
+  // ===== s4 三单：含义不同 =====
+  { id: 's4q1', skill: 's4', type: 'choice', prompt: '"我喜欢苹果。"', options: ['I like apples.', 'I likes apples.', 'Me like apples.', 'I liking apples.'], answer: 'I like apples.', explain: '我喜欢 → like。"喜欢"这个词长什么样，由"谁喜欢"决定。', tts: 'I like apples.' },
+  { id: 's4q2', skill: 's4', type: 'choice', prompt: '"他喜欢苹果。"', options: ['He likes apples.', 'He like apples.', 'Him likes apples.', 'He liking apples.'], answer: 'He likes apples.', explain: 'likes 不是 like 加 s——"他喜欢"和"我喜欢"含义不同，就是两个词。', tts: 'He likes apples.' },
+  { id: 's4q3', skill: 's4', type: 'choice', prompt: '能说 I likes apples 吗？', options: ['不能——"我他喜欢"逻辑错乱', '能，口语里常见', '能，正式场合', '看情况'], answer: '不能——"我他喜欢"逻辑错乱', explain: 'I（我）+ likes（他喜欢）= 我他喜欢苹果，不通顺，逻辑错乱。' },
+  { id: 's4q4', skill: 's4', type: 'choice', prompt: '能说 He like apples 吗？', options: ['不能——"他我喜欢"逻辑错乱', '能，过去式', '能，否定句里', '看情况'], answer: '不能——"他我喜欢"逻辑错乱', explain: 'He（他）+ like（我喜欢）= 他我喜欢苹果，同样错乱。' },
+  { id: 's4q5', skill: 's4', type: 'tap', prompt: '点出句中用错的词："他喜欢苹果。"', tokens: ['He', 'like', 'apples', '.'], answer: 'like', fix: 'likes', explain: '主体是他 → likes。含义决定形式。', tts: 'He likes apples.' },
+  { id: 's4q6', skill: 's4', type: 'tap', prompt: '点出句中用错的词："我喜欢苹果。"', tokens: ['I', 'likes', 'apples', '.'], answer: 'likes', fix: 'like', explain: '主体是我 → like。' },
+  { id: 's4q7', skill: 's4', type: 'tiles', prompt: '拼出："他喜欢苹果。"', order: ['He', 'likes', 'apples', '.'], tokens: ['likes', 'He', 'like', 'apples', '.'], explain: 'He likes apples. — 他喜欢，用 likes。', tts: 'He likes apples.' },
+  { id: 's4q8', skill: 's4', type: 'choice', prompt: '三单 s 的本质是什么？', options: ['动作主体不同，含义不同', '好看的后缀', '复数标记', '过去式标记'], answer: '动作主体不同，含义不同', explain: '别背"三单规则"——就是含义问题：谁喜欢，决定用哪个词。' },
+  { id: 's4q9', skill: 's4', type: 'choice', prompt: '"他们喜欢苹果。"用哪个？', options: ['They like apples.', 'They likes apples.', 'Them like apples.', 'They liking apples.'], answer: 'They like apples.', explain: '他们 ≠ 三单主体（他/她/它），还是"喜欢"→ like。', tts: 'They like apples.' },
+  { id: 's4q10', skill: 's4', type: 'choice', prompt: '背"三单加 s"口诀和理解含义，区别在哪？', options: ['理解含义后不用背，含义对了形式自然对', '口诀更科学', '没区别', '理解了还得背'], answer: '理解含义后不用背，含义对了形式自然对', explain: '张老师：你不需要去背什么三单不三单的概念，就是含义问题。' },
+  { id: 's4q11', skill: 's4', type: 'choice', prompt: '"她说英语。"', options: ['She speaks English.', 'She speak English.', 'Her speaks English.', 'She speaking English.'], answer: 'She speaks English.', explain: '她说 → speaks。', tts: 'She speaks English.' },
+  { id: 's4q12', skill: 's4', type: 'tap', prompt: '点出句中用错的词："我爸爸在学校工作。"', tokens: ['My', 'father', 'work', 'in', 'a', 'school', '.'], answer: 'work', fix: 'works', explain: '爸爸 = 他，一个人喜欢/工作 → works。', tts: 'My father works in a school.' },
+
+  // ===== s5 「是」三个词 =====
+  { id: 's5q1', skill: 's5', type: 'choice', prompt: '"昨天我是开心的。"', options: ['I was happy.', 'I am happy.', 'I will be happy.', 'I were happy.'], answer: 'I was happy.', explain: '昨天 → 曾经是 → was。', tts: 'I was happy.' },
+  { id: 's5q2', skill: 's5', type: 'choice', prompt: '"现在我是开心的。"', options: ['I am happy.', 'I was happy.', 'I will be happy.', 'I be happy.'], answer: 'I am happy.', explain: '现在 → 是 → am。', tts: 'I am happy.' },
+  { id: 's5q3', skill: 's5', type: 'choice', prompt: '"明天我会是开心的。"', options: ['I will be happy.', 'I am happy.', 'I was happy.', 'I will am happy.'], answer: 'I will be happy.', explain: '明天 → 将是 → will be。', tts: 'I will be happy.' },
+  { id: 's5q4', skill: 's5', type: 'choice', prompt: 'was / am / will be 是"同一个词的三种变化"吗？', options: ['不是——它们是三个不同的词', '是，一个词变来变去', '是，拼写游戏', '课本上说是就是'], answer: '不是——它们是三个不同的词', explain: '张老师：不要认为它们都叫 be 动词就一样——曾经是、现在是、将是，三个词含义不同。' },
+  { id: 's5q5', skill: 's5', type: 'choice', prompt: '"我以前是个老师。"', options: ['I was a teacher.', 'I am a teacher.', 'I will be a teacher.', 'I be a teacher.'], answer: 'I was a teacher.', explain: '以前 → 曾是 → was。想说以前的事，was 直接出来。', tts: 'I was a teacher.' },
+  { id: 's5q6', skill: 's5', type: 'choice', prompt: '"我现在是个医生。"', options: ['I am a doctor.', 'I was a doctor.', 'I will be a doctor.', 'I were a doctor.'], answer: 'I am a doctor.', explain: '现在 → 是 → am。', tts: 'I am a doctor.' },
+  { id: 's5q7', skill: 's5', type: 'tiles', prompt: '拼出："我以前是个老师。"', order: ['I', 'was', 'a', 'teacher', '.'], tokens: ['was', 'I', 'am', 'a', 'teacher', '.'], explain: 'I was a teacher. — 以前 → was。', tts: 'I was a teacher.' },
+  { id: 's5q8', skill: 's5', type: 'tap', prompt: '点出句中用错的词："昨天我很开心。"', tokens: ['I', 'am', 'happy', 'yesterday', '.'], answer: 'am', fix: 'was', explain: 'yesterday 提示"曾经是"——was。', tts: 'I was happy yesterday.' },
+  { id: 's5q9', skill: 's5', type: 'choice', prompt: 'will be 的含义是？', options: ['将是（以后是）', '曾经是', '现在是', '可能是'], answer: '将是（以后是）', explain: 'will be = 将是。将来时说的事，用它。' },
+  { id: 's5q10', skill: 's5', type: 'choice', prompt: '"我现在是个医生，但我以前是个老师。"两个"是"分别是？', options: ['am / was', 'was / am', 'will be / am', 'am / will be'], answer: 'am / was', explain: '现在是 am，以前是 was——一句话里两个"是"，形式各自分明。' },
+  { id: 's5q11', skill: 's5', type: 'choice', prompt: '中文"是"永远不变，英语为什么要变？', options: ['时间含义不同，形式必须不同', '发音方便', '句 子 长 度', '老外喜欢变化'], answer: '时间含义不同，形式必须不同', explain: '一个含义（时间）对应一个形式——这就是为什么 张嘴就能说对。' },
+  { id: 's5q12', skill: 's5', type: 'tap', prompt: '点出句中用错的词："明天我会是开心的。"', tokens: ['Tomorrow', 'I', 'am', 'happy', '.'], answer: 'am', fix: 'will be', explain: '明天 → 将是 → will be。', tts: 'Tomorrow I will be happy.' },
+  { id: 's5q13', skill: 's5', type: 'tiles', prompt: '拼出："明天我会是开心的。"', order: ['I', 'will', 'be', 'happy', '.'], tokens: ['will', 'I', 'am', 'be', 'happy', '.'], explain: 'I will be happy. — 将是 → will be。', tts: 'I will be happy.' },
+]

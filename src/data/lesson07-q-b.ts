@@ -1,0 +1,76 @@
+import type { Question } from '../types'
+
+/** 第 7 课题库（下）：s6~s10 */
+export const questionsB: Question[] = [
+  // ===== s6 one / first =====
+  { id: 's6q1', skill: 's6', type: 'choice', prompt: '"我有一本书。"（强调数量：就一本）', options: ['I have one book.', 'I have first book.', 'I have a one book.', 'I have the one book.'], answer: 'I have one book.', explain: '强调数量"一"，用 one。a book 不强调数量，one book 强调就一本。', tts: 'I have one book.' },
+  { id: 's6q2', skill: 's6', type: 'choice', prompt: '"我是第一名。"', options: ['I am the first.', 'I am the one.', 'I am first one.', 'I am a first.'], answer: 'I am the first.', explain: '名次的第一 → first。顺序含义，用序数词。', tts: 'I am the first.' },
+  { id: 's6q3', skill: 's6', type: 'choice', prompt: 'one 和 first 是同一个意思吗？', options: ['不是：one=数量一，first=顺序第一', '是，可互换', 'one 更高级', 'first 是 one 的过去式'], answer: '不是：one=数量一，first=顺序第一', explain: '中文都写"一"，英语是两个词——含义不同，形式必不同。' },
+  { id: 's6q4', skill: 's6', type: 'choice', prompt: 'a 和 one 都能表示"一"，区别是？', options: ['a 不强调数量，one 强调数量', '完全一样', 'a 用于过去', 'one 用于复数'], answer: 'a 不强调数量，one 强调数量', explain: 'I have a book：重心在 book；I have one book：重心在"就一本"。' },
+  { id: 's6q5', skill: 's6', type: 'tiles', prompt: '拼出："我是第一名。"', order: ['I', 'am', 'the', 'first', '.'], tokens: ['the', 'I', 'one', 'am', 'first', '.'], explain: 'I am the first. — 名次用 first。', tts: 'I am the first.' },
+  { id: 's6q6', skill: 's6', type: 'choice', prompt: '"第二"用英语说？', options: ['second', 'twoth', 'two', 'twice'], answer: 'second', explain: 'first → second → third，顺序一家子。' },
+  { id: 's6q7', skill: 's6', type: 'choice', prompt: '"第三"用英语说？', options: ['third', 'three', 'threeth', 'thirty'], answer: 'third', explain: 'third = 第三。' },
+  { id: 's6q8', skill: 's6', type: 'tap', prompt: '点出句中用错的词："我是班里第一名。"', tokens: ['I', 'am', 'one', 'in', 'my', 'class', '.'], answer: 'one', fix: 'first', explain: '名次 → first。one 是数量"一"。', tts: 'I am the first in my class.' },
+  { id: 's6q9', skill: 's6', type: 'choice', prompt: '中文"一"一横搞定，英语为什么要两个词？', options: ['数量与顺序是两种含义', '老外数学差', 'one 更常用', 'first 更礼貌'], answer: '数量与顺序是两种含义', explain: '你词形不变代表不同含义，老外就觉得讲不清——直线型思维。' },
+  { id: 's6q10', skill: 's6', type: 'choice', prompt: '基数词和序数词的本质区别？', options: ['表示数量 vs 表示顺序', '大数 vs 小数', '古代 vs 现代', '美式 vs 英式'], answer: '表示数量 vs 表示顺序', explain: '含义使然：one/two/three 管数量，first/second/third 管顺序。' },
+
+  // ===== s7 slow / slowly =====
+  { id: 's7q1', skill: 's7', type: 'choice', prompt: '"他跑得慢。"', options: ['He runs slowly.', 'He runs slow.', 'He is slowly.', 'He slow runs.'], answer: 'He runs slowly.', explain: '慢修饰的是"跑"这个动作 → 副词 slowly。', tts: 'He runs slowly.' },
+  { id: 's7q2', skill: 's7', type: 'choice', prompt: '"他很慢。"（说这个人）', options: ['He is slow.', 'He is slowly.', 'He slow.', 'He runs slow.'], answer: 'He is slow.', explain: '慢修饰的是他这个主体 → 形容词 slow。', tts: 'He is slow.' },
+  { id: 's7q3', skill: 's7', type: 'choice', prompt: 'slowly 修饰的是？', options: ['动词（跑、走、游）', '名词（人、动物）', '句子', '标点'], answer: '动词（跑、走、游）', explain: '副词的任务就是修饰动作。' },
+  { id: 's7q4', skill: 's7', type: 'choice', prompt: 'slow 修饰的是？', options: ['名词/主体（人、物）', '动词', '副词', '介词'], answer: '名词/主体（人、物）', explain: '形容词修饰主体：他很慢 → He is slow。' },
+  { id: 's7q5', skill: 's7', type: 'tap', prompt: '点出句中用错的词："他跑得慢。"', tokens: ['He', 'runs', 'slow', '.'], answer: 'slow', fix: 'slowly', explain: '修饰"跑"这个动作 → slowly。修饰对象是动作，形式就得变。', tts: 'He runs slowly.' },
+  { id: 's7q6', skill: 's7', type: 'tap', prompt: '点出句中用错的词："他很慢。"', tokens: ['He', 'is', 'slowly', '.'], answer: 'slowly', fix: 'slow', explain: '修饰"他"这个主体 → slow。', tts: 'He is slow.' },
+  { id: 's7q7', skill: 's7', type: 'tiles', prompt: '拼出："他跑得慢。"', order: ['He', 'runs', 'slowly', '.'], tokens: ['slowly', 'He', 'slow', 'runs', '.'], explain: 'He runs slowly. — 修饰跑，用 slowly。', tts: 'He runs slowly.' },
+  { id: 's7q8', skill: 's7', type: 'choice', prompt: '形容词和副词的分工是？', options: ['一个修饰名词/主体，一个修饰动作', '一个长一个短', '一个过去一个现在', '没分工'], answer: '一个修饰名词/主体，一个修饰动作', explain: '作用都不同了，当然得是两个词——直线型思维。' },
+  { id: 's7q9', skill: 's7', type: 'choice', prompt: '中文"慢"一个字搞定，英语为什么分两个词？', options: ['修饰对象不同，含义不同', 'slow 是英式，slowly 是美式', 'random', 'slowly 更正式'], answer: '修饰对象不同，含义不同', explain: '你一个修饰人、一个修饰动作——它已经完全不是一个东西了。' },
+  { id: 's7q10', skill: 's7', type: 'choice', prompt: '"乌龟游得慢。"游 → swim，用哪个"慢"？', options: ['swims slowly', 'swims slow', 'is slowly', 'swim slow'], answer: 'swims slowly', explain: '修饰游（动作）→ slowly。', tts: 'The turtle swims slowly.' },
+  { id: 's7q11', skill: 's7', type: 'choice', prompt: 'quickly 用来修饰？', options: ['动词', '名词', '代词', '冠词'], answer: '动词', explain: 'quickly = 快地，修饰动作：run quickly。' },
+  { id: 's7q12', skill: 's7', type: 'choice', prompt: '"这只乌龟很慢。"', options: ['The turtle is slow.', 'The turtle is slowly.', 'The turtle slow.', 'The turtle runs slowly.'], answer: 'The turtle is slow.', explain: '说乌龟这个主体 → is slow。', tts: 'The turtle is slow.' },
+
+  // ===== s8 -er = 更，-est = 最 =====
+  { id: 's8q1', skill: 's8', type: 'choice', prompt: '"我很高。"', options: ['I am tall.', 'I am taller.', 'I am tallest.', 'I am the tall.'], answer: 'I am tall.', explain: '就是"高"，没有比较含义 → tall。', tts: 'I am tall.' },
+  { id: 's8q2', skill: 's8', type: 'choice', prompt: '"他更高。"', options: ['He is taller.', 'He is tall.', 'He is tallest.', 'He is more tall.'], answer: 'He is taller.', explain: '-er 就是"更"：更高 → taller。', tts: 'He is taller.' },
+  { id: 's8q3', skill: 's8', type: 'choice', prompt: '"你最高。"', options: ['You are the tallest.', 'You are taller.', 'You are tall.', 'You are most tall.'], answer: 'You are the tallest.', explain: '-est 就是"最"：最高 → the tallest。', tts: 'You are the tallest.' },
+  { id: 's8q4', skill: 's8', type: 'choice', prompt: '后缀 -er 自带什么含义？', options: ['更……', '最……', '过去', '复数'], answer: '更……', explain: '看到 -er 就想"更"——后缀本身有含义。' },
+  { id: 's8q5', skill: 's8', type: 'choice', prompt: '后缀 -est 自带什么含义？', options: ['最……', '更……', '否定', '进行'], answer: '最……', explain: '看到 -est 就想"最"。' },
+  { id: 's8q6', skill: 's8', type: 'tap', prompt: '点出句中用错的词："他比我高。"', tokens: ['He', 'is', 'tall', 'than', 'me', '.'], answer: 'tall', fix: 'taller', explain: '比 → 更高 → taller。', tts: 'He is taller than me.' },
+  { id: 's8q7', skill: 's8', type: 'tiles', prompt: '拼出："他更高。"', order: ['He', 'is', 'taller', '.'], tokens: ['taller', 'He', 'tallest', 'is', '.'], explain: 'He is taller. — 更 → -er。', tts: 'He is taller.' },
+  { id: 's8q8', skill: 's8', type: 'choice', prompt: '为什么"高"不能一个 tall 用到底？', options: ['高/更高/最高是三种含义', '考试要考', '老外记性好', '发音习惯'], answer: '高/更高/最高是三种含义', explain: '三种含义三个形式——绝不让你混淆。' },
+  { id: 's8q9', skill: 's8', type: 'choice', prompt: '"更慢"怎么说？', options: ['slower', 'slowest', 'more slow', 'slowly'], answer: 'slower', explain: 'slow + er = 更慢。' },
+  { id: 's8q10', skill: 's8', type: 'choice', prompt: '"最快的"怎么说？', options: ['the fastest', 'faster', 'fast', 'the faster'], answer: 'the fastest', explain: 'fast + est = 最快。' },
+  { id: 's8q11', skill: 's8', type: 'tap', prompt: '点出句中用错的词："我是班里最高的。"', tokens: ['I', 'am', 'the', 'taller', 'in', 'my', 'class', '.'], answer: 'taller', fix: 'tallest', explain: '班里范围内比，是"最" → tallest。', tts: 'I am the tallest in my class.' },
+  { id: 's8q12', skill: 's8', type: 'choice', prompt: '张老师说"它所有的变化都是有含义的"——加 -er/-est 的含义是？', options: ['更 / 最', '过去 / 将来', '单数 / 复数', '主动 / 被动'], answer: '更 / 最', explain: '比较级最高级不是死规则，是含义需求。' },
+
+  // ===== s9 do 的四张脸 =====
+  { id: 's9q1', skill: 's9', type: 'choice', prompt: '"我喜欢做作业。"（喜欢的是这件事）like 后面接？', options: ['doing', 'do', 'to doing', 'done'], answer: 'doing', explain: '喜欢的是"做作业这件事"——把动作变成一件事，用 doing。', tts: 'I like doing homework.' },
+  { id: 's9q2', skill: 's9', type: 'choice', prompt: '"我想要去做作业。"want 后面接？', options: ['to do', 'doing', 'do', 'done'], answer: 'to do', explain: '想要的是"去做"——to 是个箭头，指向去做。', tts: 'I want to do homework.' },
+  { id: 's9q3', skill: 's9', type: 'choice', prompt: '"我正在做作业。"', options: ['I am doing homework.', 'I do homework.', 'I done homework.', 'I to do homework.'], answer: 'I am doing homework.', explain: '正在做 → am doing（现在分词：正在做）。', tts: 'I am doing homework.' },
+  { id: 's9q4', skill: 's9', type: 'choice', prompt: '"我已经做完作业了。"（用 have + ___）', options: ['done', 'doing', 'do', 'to do'], answer: 'done', explain: '已经做 → done。has done = 已经做了。', tts: 'I have done my homework.' },
+  { id: 's9q5', skill: 's9', type: 'choice', prompt: 'do homework 里的 do 表达什么含义？', options: ['做（动作本身）', '一件事', '去做', '已经做'], answer: '做（动作本身）', explain: 'do 的本脸：就是"做"。' },
+  { id: 's9q6', skill: 's9', type: 'tap', prompt: '点出句中用错的词："我喜欢做作业。"', tokens: ['I', 'like', 'do', 'homework', '.'], answer: 'do', fix: 'doing', explain: '喜欢的是一件事 → doing。含义需求创造了 doing 这个形式。', tts: 'I like doing homework.' },
+  { id: 's9q7', skill: 's9', type: 'tap', prompt: '点出句中用错的词："我想要去做作业。"', tokens: ['I', 'want', 'doing', 'homework', '.'], answer: 'doing', fix: 'to do', explain: '想要的是"去做" → to do。', tts: 'I want to do homework.' },
+  { id: 's9q8', skill: 's9', type: 'tiles', prompt: '拼出："我喜欢做作业。"', order: ['I', 'like', 'doing', 'homework', '.'], tokens: ['I', 'doing', 'to', 'like', 'homework', '.'], explain: 'I like doing homework. — 喜欢"这件事"。', tts: 'I like doing homework.' },
+  { id: 's9q9', skill: 's9', type: 'choice', prompt: 'like doing 里的 doing 把动作变成了什么？', options: ['一件事（名词属性）', '一个形容词', '一个问句', '一个数字'], answer: '一件事（名词属性）', explain: '喜欢一件事才通顺——doing 让动作变成事情。' },
+  { id: 's9q10', skill: 's9', type: 'choice', prompt: 'to do 里的 to 表达什么？', options: ['方向/箭头——"去做"', '过去', '复数', '礼貌'], answer: '方向/箭头——"去做"', explain: '张老师：to 就是一个箭头，表示方向。' },
+  { id: 's9q11', skill: 's9', type: 'choice', prompt: 'done 表达什么？', options: ['已经做了', '正在做', '去做', '喜欢做'], answer: '已经做了', explain: 'done = 已做。表达"已经完成"的含义时用它。' },
+  { id: 's9q12', skill: 's9', type: 'choice', prompt: '古英语里，"正在做"和"做这件事"长得一样吗？', options: ['不一样（-ende / -ung），后来被人为统一成 doing', '一模一样', '古英语没有动词', '都是 done'], answer: '不一样（-ende / -ung），后来被人为统一成 doing', explain: '现在分词加 -ende，动名词加 -ung——是历史上有人把它们统一了，偶尔才需要辨析。' },
+  { id: 's9q13', skill: 's9', type: 'tap', prompt: '点出句中用错的词："他已经做完作业了。"', tokens: ['He', 'has', 'do', 'his', 'homework', '.'], answer: 'do', fix: 'done', explain: '已经做 → done。has done。', tts: 'He has done his homework.' },
+  { id: 's9q14', skill: 's9', type: 'tiles', prompt: '拼出："我正在做作业。"', order: ['I', 'am', 'doing', 'homework', '.'], tokens: ['doing', 'I', 'done', 'am', 'homework', '.'], explain: 'I am doing homework. — 正在做。', tts: 'I am doing homework.' },
+  { id: 's9q15', skill: 's9', type: 'choice', prompt: '"我喜欢喝水。"（drink 喝）', options: ['I like drinking water.', 'I like drink water.', 'I like to drinking water.', 'I like done water.'], answer: 'I like drinking water.', explain: '喜欢"喝水这件事" → drinking。', tts: 'I like drinking water.' },
+  { id: 's9q16', skill: 's9', type: 'choice', prompt: '为什么 like 后面不能直接加 do？', options: ['喜欢的是一件事，要把动作变成事情', 'do 太短', 'like 是过去式', '老外的怪癖'], answer: '喜欢的是一件事，要把动作变成事情', explain: '含义是需求：需要"一件事"的含义，才创造出 doing。' },
+
+  // ===== s10 直线型思维 · 综合 =====
+  { id: 's10q1', skill: 's10', type: 'choice', prompt: '"我以前跑得快。"', options: ['I ran fast.', 'I run fast.', 'I will run fast.', 'I running fast.'], answer: 'I ran fast.', explain: '以前跑 → ran；fast 修饰跑（副词）。时间含义+修饰对象一次分清。', tts: 'I ran fast.' },
+  { id: 's10q2', skill: 's10', type: 'choice', prompt: '"我现阶段跑得快。"', options: ['I run fast.', 'I ran fast.', 'I will run fast.', 'I runs fast.'], answer: 'I run fast.', explain: '现阶段 → run。', tts: 'I run fast.' },
+  { id: 's10q3', skill: 's10', type: 'choice', prompt: '"那本书是我的。"（强调归属）', options: ['That book is mine.', 'That book is my.', 'That is mine book.', 'That book is me.'], answer: 'That book is mine.', explain: 'my book 被省略成 mine。', tts: 'That book is mine.' },
+  { id: 's10q4', skill: 's10', type: 'tap', prompt: '点出句中用错的词："她喜欢书。"', tokens: ['She', 'like', 'books', '.'], answer: 'like', fix: 'likes', explain: '她喜欢 → likes。', tts: 'She likes books.' },
+  { id: 's10q5', skill: 's10', type: 'tiles', prompt: '拼出："我以前是个老师。"', order: ['I', 'was', 'a', 'teacher', '.'], tokens: ['I', 'am', 'was', 'will', 'a', 'teacher', '.'], explain: '以前 → was。am 是现在，will 是将来——别混。', tts: 'I was a teacher.' },
+  { id: 's10q6', skill: 's10', type: 'choice', prompt: '"我想要去做作业。"', options: ['I want to do homework.', 'I want doing homework.', 'I want do homework.', 'I want done homework.'], answer: 'I want to do homework.', explain: '想做的是"去做" → to do。', tts: 'I want to do homework.' },
+  { id: 's10q7', skill: 's10', type: 'choice', prompt: '"乌龟很慢，但兔子跑得快。"哪个句子对？', options: ['The turtle is slow, but the rabbit runs fast.', 'The turtle is slowly, but the rabbit runs fastly.', 'The turtle is slow, but the rabbit runs fastly.', 'The turtle slowly, but the rabbit fast.'], answer: 'The turtle is slow, but the rabbit runs fast.', explain: '慢修饰乌龟（slow），快修饰跑（fast）——各自修饰谁，形式就定谁。', tts: 'The turtle is slow, but the rabbit runs fast.' },
+  { id: 's10q8', skill: 's10', type: 'tap', prompt: '点出句中用错的词："我有一本书。"（强调就一本）', tokens: ['I', 'have', 'first', 'book', '.'], answer: 'first', fix: 'one', explain: '数量"一" → one。first 是名次。', tts: 'I have one book.' },
+  { id: 's10q9', skill: 's10', type: 'choice', prompt: '直线型思维，一句话总结？', options: ['一个含义对应一个形式', '多背单词多刷题', '语法规则至上', '跟着感觉走'], answer: '一个含义对应一个形式', explain: '这就是整套课的第一性原理。' },
+  { id: 's10q10', skill: 's10', type: 'choice', prompt: '中文靠"悟"，英语靠什么？', options: ['逻辑——形式把含义分清楚', '背诵', '语感天赋', '翻译'], answer: '逻辑——形式把含义分清楚', explain: '英语是纯逻辑语言：形式摆在那，一听就懂，不需要悟。' },
+  { id: 's10q11', skill: 's10', type: 'choice', prompt: '"我已经做完了。"', options: ['I have done it.', 'I have do it.', 'I have doing it.', 'I have to do it.'], answer: 'I have done it.', explain: '已经做 → done。', tts: 'I have done it.' },
+  { id: 's10q12', skill: 's10', type: 'tiles', prompt: '拼出："他打了我。"', order: ['He', 'beat', 'me', '.'], tokens: ['He', 'him', 'beat', 'me', '.'], explain: 'He（主体）beat me（对象）。挨打的是我 → me。', tts: 'He beat me.' },
+]
