@@ -4,18 +4,22 @@
 // 具体问题：进度到底存进库了没有（可验证）、万一丢了我能不能拿回来（快照可恢复）。
 // 它只出现在「回顾」页里，不挡在推进路径上。
 import { useState } from 'react'
-import type { DbAccount, DbState, DbStats, SnapshotInfo } from '../store/db'
+import type { DbAccount, DbItemBatch, DbItemStats, DbState, DbStats, SnapshotInfo } from '../store/db'
 import { fetchSnapshots, makeSnapshot, restoreSnapshot } from '../store/db'
+// 这个文件同时提供账户切换器（AccountSwitcher）的样式，所以必须被静态 import ——
+// 否则整块面板与模态都是无样式的裸 DOM（踩过：只验证了文字内容，没验证观感）
+import './account-panel.css'
 
 export interface DbPanelProps {
   account: DbAccount | null
   accounts: DbAccount[]
   dbState: DbState
   stats: DbStats | null
+  itemStats: DbItemStats | null
+  itemBatches: DbItemBatch[]
+  itemsCached: boolean
   syncedAt: number
-  onRename: (name: string) => void
-  onNewAccount: (name: string) => void
-  onSwitch: (id: string) => void
+  onOpenSwitcher: () => void
   onSyncNow: () => void
   onReload: () => void
   onRefreshStats: () => void
@@ -31,13 +35,9 @@ function pct(part: number, whole: number): string {
 }
 
 export function AccountPanel({
-  account, accounts, dbState, stats, syncedAt,
-  onRename, onNewAccount, onSwitch, onSyncNow, onReload, onRefreshStats,
+  account, accounts, dbState, stats, itemStats, itemBatches, itemsCached, syncedAt,
+  onOpenSwitcher, onSyncNow, onReload, onRefreshStats,
 }: DbPanelProps) {
-  const [renaming, setRenaming] = useState(false)
-  const [draft, setDraft] = useState('')
-  const [creating, setCreating] = useState(false)
-  const [newName, setNewName] = useState('')
   const [snap, setSnap] = useState<{ accountId: string; list: SnapshotInfo[] } | null>(null)
   const [msg, setMsg] = useState('')
 
@@ -91,49 +91,15 @@ export function AccountPanel({
       </div>
 
       <div className="account-row">
-        {account ? (
-          renaming ? (
-            <form
-              className="account-form"
-              onSubmit={(e) => { e.preventDefault(); if (draft.trim()) { onRename(draft.trim()); setRenaming(false) } }}
-            >
-              <input value={draft} onChange={(e) => setDraft(e.target.value)} maxLength={30} autoFocus aria-label="账户名" />
-              <button className="secondary" type="submit">保存</button>
-              <button className="text-button" type="button" onClick={() => setRenaming(false)}>取消</button>
-            </form>
-          ) : (
-            <>
-              <span className="account-chip"><b>{account.name}</b><code>{account.id}</code></span>
-              <button className="text-button" onClick={() => { setDraft(account.name); setRenaming(true) }}>改名</button>
-            </>
-          )
-        ) : (
-          <span className="account-chip"><b>尚未连接</b><code>离线模式</code></span>
-        )}
-        {accounts.length > 1 && account && (
-          <label className="account-switch">
-            切换账户
-            <select value={account.id} onChange={(e) => onSwitch(e.target.value)} aria-label="切换账户">
-              {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}（{a.attempts} 条记录）</option>)}
-            </select>
-          </label>
-        )}
+        {account
+          ? <span className="account-chip"><b>{account.name}</b><code>{account.id}</code></span>
+          : <span className="account-chip"><b>尚未连接</b><code>离线模式</code></span>}
+        <span className="account-hint">账户把「进度 + 题库 + 审核结论」整包分开；本机使用，没有密码。</span>
         <div className="account-actions">
+          <button className="secondary" onClick={onOpenSwitcher}>{accounts.length > 1 ? '切换账户' : '管理账户'}（{accounts.length}）</button>
           <button className="secondary" onClick={onSyncNow} disabled={!account}>立即写入</button>
           <button className="secondary" onClick={onReload} disabled={!account}>按数据库重载</button>
           <button className="secondary" onClick={() => { onRefreshStats(); void loadSnapshots() }} disabled={!account}>刷新</button>
-          {creating ? (
-            <form
-              className="account-form"
-              onSubmit={(e) => { e.preventDefault(); if (newName.trim()) { onNewAccount(newName.trim()); setCreating(false); setNewName('') } }}
-            >
-              <input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="新账户名" maxLength={30} autoFocus aria-label="新账户名" />
-              <button className="secondary" type="submit">创建并切换</button>
-              <button className="text-button" type="button" onClick={() => setCreating(false)}>取消</button>
-            </form>
-          ) : (
-            <button className="text-button" onClick={() => setCreating(true)} disabled={dbState === 'offline'}>新建账户</button>
-          )}
         </div>
       </div>
 
@@ -171,6 +137,35 @@ export function AccountPanel({
             </div>
           )}
         </>
+      )}
+
+      {account && (
+        <div className="account-items">
+          <h3>
+            题库（账户内容）
+            <span>
+              共 {itemStats?.total ?? 0} 道 · {itemBatches.length} 个批次
+              {itemsCached && ' · 离线缓存'}
+            </span>
+          </h3>
+          {itemStats && itemStats.bySkill.length > 0
+            ? <ul>{itemStats.bySkill.map((s) => (
+              <li key={s.skill}>
+                <span className="obj-id">{s.skill}</span>
+                <span>{s.total} 道</span>
+                <span>已通过 {s.reviewed} · 待审 {s.draft}{s.quarantined ? ` · 已毙 ${s.quarantined}` : ''}</span>
+                <span>{Object.entries(s.sources).map(([k, n]) => `${k} ${n}`).join(' · ')}</span>
+              </li>
+            ))}</ul>
+            : <p className="account-empty">账户题库还是空的。用 <code>python scripts/push-items.py</code> 把 out/ 里生成好的题导进来（幂等，重复导入只更新）。</p>}
+          {itemBatches.length > 0 && (
+            <p className="account-batch">
+              最近批次：{timeOf(itemBatches[0].createdAt)} · {itemBatches[0].generator ?? itemBatches[0].source} · {itemBatches[0].itemCount} 道
+              {itemBatches[0].note ? ` · ${itemBatches[0].note}` : ''}
+            </p>
+          )}
+          <p className="account-note-inline">逐题定版在「题目审核」页；题目的信任级别决定它算不算能力证据（draft 可练但不认证）。</p>
+        </div>
       )}
 
       <div className="account-snapshots">

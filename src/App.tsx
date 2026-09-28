@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { lessons, questionsOfSkill, allQuestions, skillOrder } from './data/course'
 import { applyReviewMarks, loadReviewMarks, saveReviewMarks, type ReviewMarks } from './content/reviewMarks'
+import { adaptAll } from './content/adapt'
 import {
   loadProgress, saveProgress, resetProgress, getSkillProgress,
   recordSkillPractice, commitSession, recordSession, localDateStr,
@@ -15,6 +16,7 @@ import { Quiz, type SessionResult, type QuizAttempt, type QuizEntry } from './co
 import { Confetti } from './components/fx'
 import { Dashboard, Sidebar, type NavTarget } from './components/Dashboard'
 import { ContentReview } from './components/ContentReview'
+import { AccountSwitcher } from './components/AccountSwitcher'
 import { PathHome } from './components/PathHome'
 import { buildEvidence, STATE_LABEL, type EvidenceReport } from './learning/evidence'
 import { summarizeTags, tagLabel, TAG_FIX } from './learning/errorTags'
@@ -68,6 +70,8 @@ export default function App() {
   }
   const [soundOn, setSoundOn] = useState(() => !isMuted())
   const [startError, setStartError] = useState<string | null>(null)
+  /** 账户切换器（点左侧栏底部的账户卡打开） */
+  const [acctOpen, setAcctOpen] = useState(false)
   const [clock, setClock] = useState(() => Date.now())
   useEffect(() => {
     const refresh = () => setClock(Date.now())
@@ -89,9 +93,17 @@ export default function App() {
     applyMarks: (m) => { marksRef.current = m; setMarks(m); saveReviewMarks(m) },
   })
 
-  const reviewed = useMemo(() => applyReviewMarks(allQuestions, marks), [marks])
+  /** 账户题库 = 数据库里属于这个账户的内容（语料派生的题、将来即时生成的题） */
+  const accountPool = useMemo(() => adaptAll(db.items.map((it) => it.question)), [db.items])
+
+  const reviewed = useMemo(
+    () => applyReviewMarks([...allQuestions, ...accountPool], marks),
+    [accountPool, marks],
+  )
   const pool = useMemo(() => eligible(reviewed), [reviewed])
   const questionById = useMemo(() => new Map(reviewed.map((q) => [q.id, q])), [reviewed])
+  /** 账户题库里的题 id：审核结论要写回数据库，而不是只留本地标记 */
+  const accountItemIds = useMemo(() => new Set(db.items.map((it) => it.itemId)), [db.items])
   const evidence: EvidenceReport = useMemo(() => buildEvidence(progress, pool), [progress, pool])
   const dueList = useMemo(
     () => dueQuestions(progress, pool, clock, evidence.openErrorQids),
@@ -332,8 +344,16 @@ export default function App() {
   }
 
   // ---------- 存档导入导出 ----------
-  /** 审核标记也是用户的工作成果：本地存一份，同时推进数据库 */
+  /** 审核标记也是用户的工作成果：本地存一份，同时推进数据库。
+   *  账户题库里的题（id 在 accountItemIds 里）额外把结论写回数据库那一行 —— 换浏览器也不丢；
+   *  仓库自带的老题没有库行，继续走本地标记。只推**变化**的那几条，避免一次点击发几百个请求。 */
   function handleMarks(m: ReviewMarks) {
+    const prev = marksRef.current
+    for (const [qid, mark] of Object.entries(m)) {
+      if (!mark?.verdict || !accountItemIds.has(qid)) continue
+      if (prev[qid]?.verdict === mark.verdict) continue
+      void db.patchItemVerdict(qid, mark.verdict)
+    }
     marksRef.current = m
     setMarks(m)
     saveReviewMarks(m)
@@ -410,6 +430,7 @@ export default function App() {
         onNavigate={handleNav}
         onReview={() => { if (!startSession('review')) setStartError('目前没有到期复习，可以继续课程练习。') }}
         onReviewContent={() => setView({ name: 'review' })}
+        onOpenAccount={() => setAcctOpen(true)}
       />
       {saveErr && (
         <div className="sys-banner err">
@@ -482,10 +503,11 @@ export default function App() {
               accounts: db.accounts,
               dbState: db.dbState,
               stats: db.stats,
+              itemStats: db.itemStats,
+              itemBatches: db.itemBatches,
+              itemsCached: db.itemsCached,
               syncedAt: db.syncedAt,
-              onRename: (name) => { void db.rename(name) },
-              onNewAccount: (name) => { void db.newAccount(name) },
-              onSwitch: (id) => { void db.switchTo(id) },
+              onOpenSwitcher: () => setAcctOpen(true),
               onSyncNow: () => { void db.flush({ reason: 'manual' }) },
               onReload: () => { void db.reloadFromDb() },
               onRefreshStats: () => db.refreshStats(true),
@@ -537,6 +559,17 @@ export default function App() {
         )}
         </div>}
       </main>
+      {acctOpen && (
+        <AccountSwitcher
+          account={db.account}
+          accounts={db.accounts}
+          dbState={db.dbState}
+          onClose={() => setAcctOpen(false)}
+          onSwitch={(id) => { void db.switchTo(id); setAcctOpen(false) }}
+          onCreate={(name) => { void db.newAccount(name); setAcctOpen(false) }}
+          onRename={(name) => { void db.rename(name) }}
+        />
+      )}
       <footer className="foot">
         <span>素材来自张俊杰老师课程逐字稿 · 进度存于浏览器与本地数据库 · </span>
         <span>按自己的节奏练习</span>

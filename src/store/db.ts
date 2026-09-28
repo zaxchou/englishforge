@@ -5,7 +5,10 @@
 //   · 作答事件按 attemptId 增量推（只增不改，服务端取并集，永远不会重复也不会丢）
 //   · 其余状态（XP / 题状态 / 断点 / 审核标记）整份覆盖
 // 服务端连不上就静默退回本地模式，界面只显示"数据库未连接"，练习照常。
-import type { Attempt, ProgressV2 } from '../types'
+//
+// 题库（items）走单独的接口、单独的缓存：它是**账户的内容**，不是进度 ——
+// 语料派生的题和将来即时生成的题都存在账户里，跟着账户走，可查询、可对照。
+import type { Attempt, ProgressV2, Question, ReviewStatus } from '../types'
 import type { ReviewMark, ReviewMarks } from '../content/reviewMarks'
 import { isProgressV2, normalizeProgress } from './migrations'
 
@@ -14,6 +17,7 @@ const ACCOUNT_KEY = 'sf-account-id'
 const revKey = (id: string) => `sf-db-rev:${id}`
 const cursorKey = (id: string) => `sf-db-cursor:${id}`
 const syncedKey = (id: string) => `sf-db-synced-at:${id}`
+const itemsKey = (id: string) => `sf-db-items:${id}`
 
 /** 推事件时若游标失效（事件被 5000 上限裁掉）最多回补多少条 */
 const BACKFILL = 500
@@ -31,6 +35,8 @@ export interface DbAccount {
   streak: number
   revision: number
   attempts: number
+  /** 这个账户的题库有多少道题（内容层，与进度分开） */
+  items: number
 }
 
 export interface DbStats {
@@ -59,6 +65,58 @@ export interface PullResult {
   revision: number
   reviews: ReviewMarks
   updatedAt: number
+}
+
+// ---------------------------------------------------------------- 题库（账户内容）
+
+/** 账户题库里的一道题：元数据在列上（可筛选、可统计），题面在 question 上（前端契约） */
+export interface DbItem {
+  itemId: string
+  skill: string
+  objectiveId: string
+  type: string
+  source: string
+  generator: string | null
+  batchId: string | null
+  sourceRef: string | null
+  contentVersion: number
+  reviewStatus: ReviewStatus
+  createdAt: number
+  updatedAt: number
+  question: Question
+}
+
+export interface DbItemSkillStats {
+  skill: string
+  total: number
+  reviewed: number
+  draft: number
+  quarantined: number
+  sources: Record<string, number>
+}
+
+export interface DbItemStats {
+  total: number
+  bySkill: DbItemSkillStats[]
+  batches: number
+}
+
+export interface DbItemBatch {
+  id: string
+  createdAt: number
+  skill: string | null
+  objectiveId: string | null
+  source: string
+  generator: string | null
+  note: string | null
+  itemCount: number
+}
+
+export interface DbItems {
+  items: DbItem[]
+  stats: DbItemStats
+  /** 是否是离线缓存（数据库没连上时的降级读） */
+  cached: boolean
 }
 
 export interface SyncResult {
@@ -283,6 +341,70 @@ export async function resetRemote(accountId: string, reason = 'user-reset'): Pro
 export async function fetchStats(accountId: string): Promise<DbStats | null> {
   const res = await attemptReq(() => req<{ stats: DbStats }>(`/accounts/${accountId}/stats`))
   return res?.stats ?? null
+}
+
+// ---------------------------------------------------------------- 题库读写
+
+function readItemCache(accountId: string): { items: DbItem[]; stats: DbItemStats } | null {
+  try {
+    const raw = localStorage.getItem(itemsKey(accountId))
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed?.items) ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+/** 题库缓存：不是权威数据，只为"数据库连不上时练习不中断"（否则账户题库会凭空消失） */
+function writeItemCache(accountId: string, data: { items: DbItem[]; stats: DbItemStats }) {
+  try {
+    localStorage.setItem(itemsKey(accountId), JSON.stringify(data))
+  } catch { /* 配额满就算了：库里那份才是权威 */ }
+}
+
+/**
+ * 读账户题库。数据库连不上时退回上次成功读到的缓存（`cached: true`）——
+ * 宁可标注"是缓存"，也不要让用户的题库在离线下整批消失。
+ */
+export async function fetchItems(accountId: string, params: { skill?: string; status?: string } = {}): Promise<DbItems | null> {
+  const qs = new URLSearchParams()
+  if (params.skill) qs.set('skill', params.skill)
+  if (params.status) qs.set('status', params.status)
+  const suffix = qs.toString() ? '?' + qs.toString() : ''
+  const res = await attemptReq(() => req<{ items: DbItem[]; stats: DbItemStats }>(`/accounts/${accountId}/items${suffix}`))
+  if (!res) {
+    const cached = readItemCache(accountId)
+    return cached ? { items: cached.items, stats: cached.stats, cached: true } : null
+  }
+  writeItemCache(accountId, { items: res.items, stats: res.stats })
+  return { items: res.items, stats: res.stats, cached: false }
+}
+
+/** 导入题目（幂等：同一 itemId 重复导入只更新） */
+export async function pushItems(
+  accountId: string,
+  items: Partial<DbItem>[],
+  batch: { source?: string; generator?: string; note?: string; skill?: string; objectiveId?: string } = {},
+): Promise<{ inserted: number; updated: number; skipped: number; batchId: string } | null> {
+  const res = await attemptReq(() => req<{ inserted: number; updated: number; skipped: number; batchId: string }>(
+    `/accounts/${accountId}/items`,
+    { method: 'POST', body: JSON.stringify({ items, batch }) },
+  ))
+  return res
+}
+
+/** 逐题定版：直接写进账户题库，换浏览器也不丢 */
+export async function setItemVerdict(accountId: string, itemId: string, verdict: 'ok' | 'fix' | 'kill'): Promise<boolean> {
+  const res = await attemptReq(() => req(`/accounts/${accountId}/items/${encodeURIComponent(itemId)}`, {
+    method: 'PATCH', body: JSON.stringify({ verdict }),
+  }))
+  return res !== null
+}
+
+export async function fetchItemBatches(accountId: string): Promise<DbItemBatch[] | null> {
+  const res = await attemptReq(() => req<{ batches: DbItemBatch[] }>(`/accounts/${accountId}/batches`))
+  return res?.batches ?? null
 }
 
 export interface SnapshotInfo { id: number; createdAt: number; reason: string; revision: number; bytes: number }

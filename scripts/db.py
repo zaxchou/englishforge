@@ -119,7 +119,9 @@ def cmd_summary(conn, args):
         print(f"   建库 {ts(a['created_at'])} · 最近活动 {ts(a['last_seen_at'])} · 状态版本 rev {meta['revision'] if meta else '—'}")
         print(f"   XP {meta['xp'] if meta else 0} · 连续 {meta['streak'] if meta else 0} 天 · 最近训练日 {fmt_day(meta['last_active_date'] if meta else '')}")
         print(f"   作答事件 {n_att} 条（首发 {n_first} · 首发答对 {n_ok} · 正确率 {rate}）")
+        n_items = conn.execute("SELECT COUNT(*) FROM items WHERE account_id = ?", (a["id"],)).fetchone()[0]
         print(f"   练过的题 {n_q} 道 · 当前到期 {due} 道 · 审核标记 {n_rev} 条 · 未完成会话 {'有' if active else '无'}")
+        print(f"   题库 {n_items} 道（账户内容，见 `items` 子命令）")
     print()
     print("提示：`python scripts/db.py objectives` 看知识点推进，`errors` 看错因，`sql \"...\"` 任意查询。")
 
@@ -259,6 +261,41 @@ def cmd_sql(conn, args):
     print(f"\n（{len(rows)} 行）")
 
 
+def cmd_items(conn, args):
+    acct = pick_account(conn, args.acct)
+    where = "account_id = ?"
+    params: list = [acct["id"]]
+    if args.skill:
+        where += " AND skill = ?"
+        params.append(args.skill)
+    rows = conn.execute(
+        f"""SELECT skill, source, review_status, COUNT(*) AS n, MIN(source_ref) AS sample
+            FROM items WHERE {where} GROUP BY skill, source, review_status
+            ORDER BY skill, source, review_status""", params).fetchall()
+    total = conn.execute(f"SELECT COUNT(*) FROM items WHERE {where}", params).fetchone()[0]
+    print(f"账户：{acct['name']} · 题库共 {total} 道")
+    if not rows:
+        print("（题库是空的：用 `python scripts/push-items.py` 把 out/ 里生成的题导进账户）")
+        return
+    print(table([{
+        "思维点": r["skill"], "来源": r["source"], "信任级别": r["review_status"],
+        "题数": r["n"], "示例出处": r["sample"] or "",
+    } for r in rows]))
+    print("\n信任级别：reviewed=计入掌握度 / draft=可练不认证 / quarantined=退出抽题")
+
+
+def cmd_batches(conn, args):
+    acct = pick_account(conn, args.acct)
+    rows = conn.execute(
+        "SELECT id, created_at, skill, source, generator, note, item_count FROM item_batches "
+        "WHERE account_id = ? ORDER BY created_at DESC LIMIT ?", (acct["id"], args.n)).fetchall()
+    print(f"账户：{acct['name']} · 题库批次（每导一次/生成一次留一条，便于对照）")
+    print(table([{
+        "批次": r["id"], "时间": ts(r["created_at"]), "思维点": r["skill"] or "",
+        "来源": r["source"], "生成方式": r["generator"] or "", "题数": r["item_count"], "备注": r["note"] or "",
+    } for r in rows]))
+
+
 def cmd_schema(conn, args):
     rows = conn.execute(
         "SELECT type, name FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY type, name").fetchall()
@@ -273,11 +310,12 @@ def main():
     p = argparse.ArgumentParser(description="EnglishForge 进度数据库查询（只读）")
     p.add_argument("cmd", nargs="?", default="summary",
                    choices=["summary", "accounts", "objectives", "errors", "days", "questions",
-                            "sessions", "snapshots", "attempts", "schema", "sql"])
+                            "sessions", "snapshots", "attempts", "items", "batches", "schema", "sql"])
     p.add_argument("query", nargs="?", help="sql 子命令的 SQL")
     p.add_argument("--acct", help="账户 id 或名称（默认第一个）")
     p.add_argument("-n", type=int, default=20, help="限制行数（默认 20）")
     p.add_argument("--objective", help="attempts 子命令：只看某个知识点")
+    p.add_argument("--skill", help="items 子命令：只看某个思维点（s2/s3/s4）")
     args = p.parse_args()
 
     conn = connect()
@@ -286,6 +324,7 @@ def main():
             "summary": cmd_summary, "accounts": cmd_accounts, "objectives": cmd_objectives,
             "errors": cmd_errors, "days": cmd_days, "questions": cmd_questions,
             "sessions": cmd_sessions, "snapshots": cmd_snapshots, "attempts": cmd_attempts,
+            "items": cmd_items, "batches": cmd_batches,
             "schema": cmd_schema, "sql": cmd_sql,
         }[args.cmd](conn, args)
     finally:

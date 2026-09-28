@@ -9,6 +9,25 @@
 .db-chip.is-off{background:#fff0ed;color:#963d32}
 .db-chip:hover{filter:brightness(.97)}
 
+/* ---- 账户切换器（模态） ---- */
+.modal-backdrop{position:fixed;inset:0;background:#17171b59;z-index:60;display:flex;align-items:center;justify-content:center;padding:24px}
+.modal{background:#fff;border-radius:28px;padding:26px 28px;width:min(560px,100%);max-height:86vh;overflow-y:auto}
+.modal-head{display:flex;justify-content:space-between;align-items:center;gap:16px}
+.modal-head h2{font-size:19px;letter-spacing:-.4px}
+.modal-note,.modal-foot{font-size:12px;color:var(--sub);line-height:1.95;margin-top:12px}
+.modal-note b{color:var(--ink)}
+.modal-warn{font-size:12px;color:#963d32;background:#fff0ed;border-radius:12px;padding:10px 14px;margin-top:12px;line-height:1.8}
+.modal-section{font-size:12px;font-weight:600;color:var(--sub);margin-top:22px}
+.acct-list{list-style:none;display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.acct-list li{display:flex;align-items:center;gap:12px;background:#f7f6f9;border-radius:16px;padding:12px 15px}
+.acct-list li.is-current{background:#eaf5cd}
+.acct-copy{flex:1;min-width:0}
+.acct-copy b{font-size:13px;display:flex;align-items:center;gap:8px}
+.acct-copy b em{font-style:normal;font-size:10px;background:#39471d;color:#eaf5cd;border-radius:999px;padding:2px 8px}
+.acct-copy small{display:block;font-size:11px;color:var(--sub);margin-top:4px}
+.acct-form{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.acct-form input{flex:1;min-width:150px;border:1px solid var(--line);border-radius:999px;padding:10px 15px;font-size:12px;background:#fff;color:var(--ink)}
+
 /* ---- 面板 ---- */
 .account-panel{padding:25px 28px;margin-top:12px;background:white;border-radius:26px}
 .account-head{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
@@ -57,3 +76,18 @@
   .account-actions{margin-left:0;width:100%}
   .account-objectives li{flex-wrap:wrap;gap:8px 14px}
 }
+
+/* 侧栏账户卡上的切换图标 */
+.acct-arrow{margin-left:auto;color:var(--sub);font-size:13px;flex-shrink:0}
+.account-hint{font-size:11px;color:var(--sub);line-height:1.7;flex:1;min-width:180px}
+
+/* 题库区块（账户内容） */
+.account-items{margin-top:22px}
+.account-items h3{font-size:12px;font-weight:600;color:var(--sub);display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.account-items h3 span{font-weight:400;color:var(--sub)}
+.account-items ul{list-style:none;display:flex;flex-direction:column;gap:6px;margin-top:10px}
+.account-items li{display:flex;gap:16px;align-items:center;font-size:12px;color:var(--sub);background:#f7f6f9;border-radius:14px;padding:10px 15px;flex-wrap:wrap}
+.account-items .obj-id{color:var(--ink);font-weight:600;flex:0 0 40px}
+.account-batch{font-size:11px;color:var(--sub);margin-top:10px;line-height:1.8}
+.account-note-inline{font-size:11px;color:var(--sub);margin-top:6px;line-height:1.8}
+.account-items code{background:#f0eef5;border-radius:6px;padding:1px 6px;font-size:11px}

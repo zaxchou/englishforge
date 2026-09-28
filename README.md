@@ -30,6 +30,7 @@ Windows 一键启动：双击 `start.bat`（npm install 判断 + preview + 自�
 - **能力证据**：未练习 / 建立中 / 初步稳定 / 持续巩固四状态，全部从作答事件推导，不用总分糊弄
 - **存档**：v2 版本化（`sf-progress-v2`），v1 自动迁移且保留原件；逐题落盘、断点恢复、幂等计分；支持存档导出/导入（导入前自动备份）
 - **账户 + 进度数据库**：进度同时写入 SQLite 数据库（`data/englishforge/englishforge.db`，默认在仓库外）。数据库不可用时自动退回纯本地模式，练习不受影响；覆盖/清空/导入前自动留快照，可回捞。查询：`python scripts/db.py`（详见 [docs/数据库与账户.md](docs/数据库与账户.md)）
+- **题库属于账户**（内容层，`items` 表）：语料派生的题由 `python scripts/push-items.py` 导进账户（幂等、带批次可对照），与仓库自带的老题一起进抽题池；审核结论写回题库，清空进度**不会**清掉题库。管线各段的连通性核对见 [docs/管线连通性-审查.md](docs/管线连通性-审查.md)
 - **语音**：浏览器 Web Speech API（免费）；**推荐 Edge 打开，自动换微软在线自然语音**
 
 ## 内容（M1 进行中）
@@ -62,7 +63,8 @@ server/
   db.mjs                 SQLite 数据层（schema / 聚合视图 / 快照）
   api.mjs                /api 路由（纯函数 handleApi，测试直接调它）
 vite-plugin-db.mjs       dev 与 preview 同进程挂载 /api
-scripts/db.py            进度数据库查询 CLI（只读）
+scripts/db.py            进度数据库查询 CLI（只读：summary/objectives/errors/items/batches/sql）
+scripts/push-items.py    把 out/ 里生成的题导进账户题库（幂等 + 批次）
 ```
 
 文档：`docs/数据库与账户.md`、`P0-交付说明-变更迁移与已知限制.md`、`UI-v5-参考图框架重构报告.md`、`SOFT-GLASS-UI-改版报告-v4.md`、`REVIEW-张老师视角x高级教师视角.md`、`design-v5/`（界面截图）。

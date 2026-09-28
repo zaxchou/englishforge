@@ -7,9 +7,10 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ProgressV2 } from '../types'
 import type { ReviewMarks } from '../content/reviewMarks'
 import {
-  bootstrap, createAccount, currentAccountId, decideBoot, fetchAccounts, fetchStats, getDbError,
-  getDbState, lastSyncedAt, pullProgress, renameAccount, resetRemote, setCurrentAccountId,
-  subscribeDbState, syncProgress, unionProgress, type DbAccount, type DbState, type DbStats,
+  bootstrap, createAccount, currentAccountId, decideBoot, fetchAccounts, fetchItemBatches, fetchItems,
+  fetchStats, getDbError, getDbState, lastSyncedAt, pullProgress, renameAccount, resetRemote,
+  setCurrentAccountId, setItemVerdict, subscribeDbState, syncProgress, unionProgress,
+  type DbAccount, type DbItem, type DbItemBatch, type DbItemStats, type DbState, type DbStats,
   type PullResult,
 } from './db'
 
@@ -30,6 +31,15 @@ export interface DbSyncApi {
   dismissNotice: () => void
   /** 往同一处提示条里写一句（App 侧清空/导入后也要说明数据库那边发生了什么） */
   note: (text: string, kind?: 'ok' | 'warn') => void
+  /** 账户题库（内容层）：语料派生的题与将来即时生成的题都存在这里 */
+  items: DbItem[]
+  itemStats: DbItemStats | null
+  itemBatches: DbItemBatch[]
+  /** 题库来自离线缓存（数据库没连上） */
+  itemsCached: boolean
+  reloadItems: () => Promise<void>
+  /** 逐题定版：写进账户题库 */
+  patchItemVerdict: (itemId: string, verdict: 'ok' | 'fix' | 'kill') => Promise<void>
   /** 状态变了：安排一次落库 */
   schedule: () => void
   /** 立刻落库（full = 整份替换，服务端先留快照） */
@@ -57,6 +67,11 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
   const [stats, setStats] = useState<DbStats | null>(null)
   const [syncedAt, setSyncedAt] = useState(0)
   const [notice, setNotice] = useState<DbSyncNotice | null>(null)
+  // 账户题库（内容层）：与进度分开，走自己的接口与缓存
+  const [items, setItems] = useState<DbItem[]>([])
+  const [itemStats, setItemStats] = useState<DbItemStats | null>(null)
+  const [itemBatches, setItemBatches] = useState<DbItemBatch[]>([])
+  const [itemsCached, setItemsCached] = useState(false)
 
   const accountRef = useRef<DbAccount | null>(null)
   const bootedRef = useRef(false)
@@ -146,6 +161,35 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
     refreshStats(true)
   }, [refreshStats])
 
+  /** 读账户题库（并顺手把"这批题怎么来的"一起取回来） */
+  const reloadItems = useCallback(async () => {
+    const id = accountRef.current?.id
+    if (!id) return
+    const res = await fetchItems(id)
+    if (!res) { setItems([]); setItemStats(null); setItemBatches([]); return }
+    setItems(res.items)
+    setItemStats(res.stats)
+    setItemsCached(res.cached)
+    const batches = await fetchItemBatches(id)
+    setItemBatches(batches ?? [])
+  }, [])
+
+  const patchItemVerdict = useCallback(async (itemId: string, verdict: 'ok' | 'fix' | 'kill') => {
+    const id = accountRef.current?.id
+    if (!id) return
+    const ok = await setItemVerdict(id, itemId, verdict)
+    if (!ok) {
+      setNotice({ kind: 'warn', text: '这条审核结论没能写进数据库（离线），已先记在本机。' })
+      return
+    }
+    // 本地状态跟着更新：界面立刻是对的，不用等下一次整批读
+    const status = verdict === 'ok' ? 'reviewed' : verdict === 'kill' ? 'quarantined' : 'draft'
+    setItems((prev) => prev.map((it) => (it.itemId === itemId
+      ? { ...it, reviewStatus: status as DbItem['reviewStatus'], question: { ...it.question, reviewStatus: status as DbItem['reviewStatus'] } }
+      : it)))
+    void fetchItems(id).then((res) => { if (res) { setItemStats(res.stats); setItemsCached(res.cached) } })
+  }, [])
+
   // ---------- 启动：拉库 → 决定谁接管谁 ----------
   useEffect(() => {
     if (bootedRef.current) return
@@ -184,6 +228,8 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
       }
       accountRef.current = acc
       setAccount(acc)
+      // 账户题库（内容层）与进度分开读：它决定"这个人能抽到哪些题"
+      void reloadItems()
 
       const decision = decideBoot(optsRef.current.progressRef.current, pulled)
       const localBefore = optsRef.current.progressRef.current
@@ -224,7 +270,7 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
       }
     })()
     return () => { dead = true }
-  }, [adopt, push, refreshStats])
+  }, [adopt, push, refreshStats, reloadItems])
 
   // 关页面 / 切后台前把最后一次写入补上（localStorage 已有全量，这里只是让库跟上）
   useEffect(() => {
@@ -254,8 +300,9 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
     setAccounts(list ?? [])
     setStats(null)
     adopt(pull)
+    void reloadItems()
     setNotice({ kind: 'ok', text: `已切换到「${target.name}」。` })
-  }, [adopt, push])
+  }, [adopt, push, reloadItems])
 
   const newAccount = useCallback(async (name: string) => {
     const acc = await createAccount(name)
@@ -296,6 +343,7 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
     account, accounts, dbState, stats, syncedAt, notice,
     dismissNotice: () => setNotice(null),
     note: (text, kind = 'ok') => setNotice({ kind, text }),
+    items, itemStats, itemBatches, itemsCached, reloadItems, patchItemVerdict,
     schedule, flush, refreshStats, rename, newAccount, switchTo, resetCurrent, reloadFromDb,
   }
 }

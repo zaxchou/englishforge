@@ -3,9 +3,10 @@
 // 刻意不引框架：整个后端只有「读一份存档」「合并一次写入」「查两组统计」三类需求，
 // 一个纯函数 + 一个中间件就够了，也能直接在测试里调用（不起 HTTP）。
 import {
-  ApiError, createAccount, dbInfo, ensureDefaultAccount, getAccount, listAccounts,
-  listSnapshots, loadProgress, queryAttempts, renameAccount, replaceState, resetAccount,
-  restoreSnapshot, stats, syncAccount, touchAccount, writeSnapshot, getDb,
+  ApiError, addItems, createAccount, dbInfo, deleteItem, ensureDefaultAccount, getAccount,
+  itemStats, listAccounts, listBatches, listItems, listSnapshots, loadProgress, queryAttempts,
+  renameAccount, replaceState, resetAccount, restoreSnapshot, setItemReview, stats, syncAccount,
+  touchAccount, writeSnapshot, getDb,
 } from './db.mjs'
 
 const MAX_BODY = 64 * 1024 * 1024   // 首次把浏览器里的整份进度搬进库时会有一次大包
@@ -55,6 +56,28 @@ const ROUTES = [
   })],
 
   ['GET', '/api/accounts/:id/stats', (ctx) => ({ stats: stats(ctx.params.id) })],
+
+  // 账户题库（内容，与进度分开）：语料派生的题、以及将来即时生成的题都存在这里
+  ['GET', '/api/accounts/:id/items', (ctx) => {
+    const items = listItems(ctx.params.id, {
+      skill: ctx.query.get('skill'),
+      source: ctx.query.get('source'),
+      status: ctx.query.get('status'),
+      limit: num(ctx.query.get('limit'), 20000),
+    })
+    return { items, count: items.length, stats: itemStats(ctx.params.id) }
+  }],
+  ['POST', '/api/accounts/:id/items', (ctx) => {
+    const body = ctx.body ?? {}
+    if (!Array.isArray(body.items)) throw new HttpError(400, 'items 必须是数组')
+    return { ok: true, ...addItems(ctx.params.id, { items: body.items, batch: body.batch ?? {} }) }
+  }],
+  ['PATCH', '/api/accounts/:id/items/:itemId', (ctx) => ({
+    ok: true, ...setItemReview(ctx.params.id, ctx.params.itemId, body_str(ctx, 'verdict'), body_str(ctx, 'note') || null),
+  })],
+  ['DELETE', '/api/accounts/:id/items/:itemId', (ctx) => ({ ok: true, ...deleteItem(ctx.params.id, ctx.params.itemId) })],
+  ['GET', '/api/accounts/:id/batches', (ctx) => ({ batches: listBatches(ctx.params.id) })],
+
   ['GET', '/api/accounts/:id/attempts', (ctx) => ({
     attempts: queryAttempts(ctx.params.id, {
       limit: num(ctx.query.get('limit'), 200),
@@ -82,7 +105,11 @@ const ROUTES = [
   }],
 ]
 
+/** 数字参数解析：**缺省时必须落到 fallback**。
+ *  坑：`Number(null) === 0` 且 0 是有限数，所以 `num(null, 200)` 曾返回 0，
+ *  被 `Math.max(1, ...)` 夹成 1 —— 列表接口会静默只返回一行（实测导致题库存取全错）。 */
 function num(v, fallback = 0) {
+  if (v === null || v === undefined || v === '') return fallback
   const n = Number(v)
   return Number.isFinite(n) ? n : fallback
 }

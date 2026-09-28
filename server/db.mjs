@@ -137,6 +137,45 @@ CREATE TABLE IF NOT EXISTS content_reviews (
   PRIMARY KEY (account_id, question_id)
 );
 
+-- 题库：**属于账户的内容**，不是进度。
+-- 为什么放库不放仓库：语料派生的题来自 CC BY 语料，进公开仓库要处理署名；
+-- 而且"定制的题"本来就该跟着账户走（谁练谁的），还能被查询、对照、逐题定版。
+CREATE TABLE IF NOT EXISTS item_batches (
+  id           TEXT PRIMARY KEY,
+  account_id   TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  created_at   INTEGER NOT NULL,
+  skill        TEXT,
+  objective_id TEXT,
+  source       TEXT NOT NULL,     -- corpus(语料派生) / generated(模型即时生成) / imported / manual
+  generator    TEXT,              -- 生成方式：脚本名、批次标签或模型名
+  note         TEXT,
+  item_count   INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS items (
+  account_id      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  item_id         TEXT NOT NULL,
+  skill           TEXT NOT NULL,
+  objective_id    TEXT NOT NULL,
+  type            TEXT NOT NULL,
+  payload         TEXT NOT NULL,   -- 整道题（与前端 Question 契约同形）
+  source          TEXT NOT NULL,
+  generator       TEXT,
+  batch_id        TEXT,
+  source_ref      TEXT,            -- 逐题出处（可追溯、可署名）
+  content_version INTEGER NOT NULL DEFAULT 1,
+  review_status   TEXT NOT NULL DEFAULT 'draft',
+  created_at      INTEGER NOT NULL,
+  updated_at      INTEGER NOT NULL,
+  PRIMARY KEY (account_id, item_id)
+);
+CREATE INDEX IF NOT EXISTS ix_items_skill  ON items(account_id, skill);
+CREATE INDEX IF NOT EXISTS ix_items_status ON items(account_id, review_status);
+
+CREATE VIEW IF NOT EXISTS v_item_stats AS
+SELECT account_id, skill, source, review_status, COUNT(*) AS n
+FROM items GROUP BY account_id, skill, source, review_status;
+
 -- 整份存档快照：覆盖 / 清空 / 导入前自动留一份，出问题能回捞
 CREATE TABLE IF NOT EXISTS snapshots (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -221,7 +260,8 @@ export function listAccounts() {
     `SELECT a.id, a.name, a.created_at, a.last_seen_at, a.note,
             COALESCE(m.xp, 0) AS xp, COALESCE(m.streak, 0) AS streak, COALESCE(m.revision, 0) AS revision,
             COALESCE(m.updated_at, 0) AS updated_at,
-            (SELECT COUNT(*) FROM attempts t WHERE t.account_id = a.id) AS attempts
+            (SELECT COUNT(*) FROM attempts t WHERE t.account_id = a.id) AS attempts,
+            (SELECT COUNT(*) FROM items i WHERE i.account_id = a.id) AS items
      FROM accounts a LEFT JOIN meta m ON m.account_id = a.id
      ORDER BY a.created_at ASC`,
   ).all().map((r) => ({
@@ -235,6 +275,7 @@ export function listAccounts() {
     revision: r.revision,
     updatedAt: r.updated_at,
     attempts: r.attempts,
+    items: r.items,
   }))
 }
 
@@ -553,7 +594,8 @@ export function resetAccount(accountId, { reason = 'reset' } = {}) {
   const nextRev = int(cur?.revision) + 1
   db.exec('BEGIN')
   try {
-    for (const t of ['attempts', 'skill_progress', 'question_states', 'practice_sessions', 'daily_xp', 'active_sessions', 'content_reviews']) {
+    // 只清进度：题库（items）与审核结论（content_reviews）属于"内容"，不该被清进度带走
+    for (const t of ['attempts', 'skill_progress', 'question_states', 'practice_sessions', 'daily_xp', 'active_sessions']) {
       db.prepare(`DELETE FROM ${t} WHERE account_id = ?`).run(accountId)
     }
     writeState(db, accountId, {}, nextRev, ts)
@@ -563,6 +605,141 @@ export function resetAccount(accountId, { reason = 'reset' } = {}) {
   } catch (err) {
     try { db.exec('ROLLBACK') } catch { /* ignore */ }
     throw err
+  }
+}
+
+// ---------------------------------------------------------------- 题库（账户内容）
+
+/** 题库读出来就是前端 Question 的对象：客户端直接并进抽题池，不需要第二套契约 */
+export function listItems(accountId, { skill = null, source = null, status = null, limit = 20000 } = {}) {
+  const db = getDb()
+  if (!db.prepare('SELECT 1 FROM accounts WHERE id = ?').get(accountId)) throw new ApiError(404, '账户不存在：' + accountId)
+  const where = ['account_id = ?']
+  const params = [accountId]
+  if (skill) { where.push('skill = ?'); params.push(skill) }
+  if (source) { where.push('source = ?'); params.push(source) }
+  if (status) { where.push('review_status = ?'); params.push(status) }
+  params.push(Math.max(1, Math.min(50000, int(limit, 20000))))
+  return db.prepare(
+    `SELECT * FROM items WHERE ${where.join(' AND ')} ORDER BY skill, item_id LIMIT ?`,
+  ).all(...params).map(rowToItem)
+}
+
+function rowToItem(r) {
+  const question = parseJson(r.payload) ?? {}
+  return {
+    itemId: r.item_id,
+    skill: r.skill,
+    objectiveId: r.objective_id,
+    type: r.type,
+    source: r.source,
+    generator: r.generator ?? null,
+    batchId: r.batch_id ?? null,
+    sourceRef: r.source_ref ?? null,
+    contentVersion: r.content_version,
+    reviewStatus: r.review_status,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+    // 库里存的是权威版本：题面字段以 payload 为准
+    question: { ...question, id: r.item_id, skill: r.skill, objectiveId: r.objective_id, reviewStatus: r.review_status, contentVersion: r.content_version },
+  }
+}
+
+/**
+ * 写入题（幂等）：同一 item_id 重复导入只更新，不产生副本。
+ * 这是"题库可以反复生成、对照、替换"的前提。
+ */
+export function addItems(accountId, { items = [], batch = {} } = {}) {
+  const db = getDb()
+  if (!db.prepare('SELECT 1 FROM accounts WHERE id = ?').get(accountId)) throw new ApiError(404, '账户不存在：' + accountId)
+  const ts = nowMs()
+  const batchId = batch.id || ('b_' + Math.random().toString(36).slice(2, 8) + ts.toString(36).slice(-4))
+  const ins = db.prepare(`INSERT INTO items
+    (account_id, item_id, skill, objective_id, type, payload, source, generator, batch_id,
+     source_ref, content_version, review_status, created_at, updated_at)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    ON CONFLICT(account_id, item_id) DO UPDATE SET
+      skill = excluded.skill, objective_id = excluded.objective_id, type = excluded.type,
+      payload = excluded.payload, source = excluded.source, generator = excluded.generator,
+      batch_id = excluded.batch_id, source_ref = excluded.source_ref,
+      content_version = excluded.content_version, updated_at = excluded.updated_at`)
+  let inserted = 0, updated = 0, skipped = 0
+  const skills = new Set()
+  db.exec('BEGIN')
+  try {
+    for (const it of items) {
+      const q = it?.question ?? it
+      const itemId = str(it?.itemId ?? q?.id)
+      const skill = str(it?.skill ?? q?.skill)
+      if (!itemId || !skill) { skipped++; continue }
+      const exists = db.prepare('SELECT 1 FROM items WHERE account_id = ? AND item_id = ?').get(accountId, itemId)
+      const row = [
+        accountId, itemId, skill, str(it?.objectiveId ?? q?.objectiveId, skill), str(it?.type ?? q?.type, 'choice'),
+        JSON.stringify({ ...q, id: itemId, skill }),
+        str(it?.source, 'imported'), it?.generator ?? null, batchId,
+        it?.sourceRef ?? q?.sourceRef ?? null,
+        int(it?.contentVersion ?? q?.contentVersion, 1),
+        str(it?.reviewStatus ?? q?.reviewStatus, 'draft'),
+        ts, ts,
+      ]
+      ins.run(...row)
+      if (exists) updated++; else inserted++
+      skills.add(skill)
+    }
+    db.prepare(`INSERT INTO item_batches (id, account_id, created_at, skill, objective_id, source, generator, note, item_count)
+      VALUES (?,?,?,?,?,?,?,?,?)`)
+      .run(batchId, accountId, ts, batch.skill ?? (skills.size === 1 ? [...skills][0] : null), batch.objectiveId ?? null,
+        str(batch.source, 'imported'), batch.generator ?? null, batch.note ?? null, inserted + updated)
+    touchAccount(accountId, ts)
+    db.exec('COMMIT')
+  } catch (err) {
+    try { db.exec('ROLLBACK') } catch { /* ignore */ }
+    throw err
+  }
+  return { batchId, inserted, updated, skipped, total: items.length }
+}
+
+const VERDICT_STATUS = { ok: 'reviewed', fix: 'draft', kill: 'quarantined' }
+
+/** 逐题定版（审核结论直接落在题库里，这样换浏览器也不丢） */
+export function setItemReview(accountId, itemId, verdict, note = null) {
+  const status = VERDICT_STATUS[verdict]
+  if (!status) throw new ApiError(400, 'verdict 只能是 ok / fix / kill')
+  const res = getDb().prepare('UPDATE items SET review_status = ?, updated_at = ? WHERE account_id = ? AND item_id = ?')
+    .run(status, nowMs(), accountId, itemId)
+  if (!res.changes) throw new ApiError(404, '账户里没有这道题：' + itemId)
+  return { itemId, reviewStatus: status, note }
+}
+
+export function deleteItem(accountId, itemId) {
+  const res = getDb().prepare('DELETE FROM items WHERE account_id = ? AND item_id = ?').run(accountId, itemId)
+  if (!res.changes) throw new ApiError(404, '账户里没有这道题：' + itemId)
+  return { deleted: 1 }
+}
+
+export function listBatches(accountId) {
+  return getDb().prepare('SELECT * FROM item_batches WHERE account_id = ? ORDER BY created_at DESC')
+    .all(accountId).map((r) => ({
+      id: r.id, createdAt: r.created_at, skill: r.skill ?? null, objectiveId: r.objective_id ?? null,
+      source: r.source, generator: r.generator ?? null, note: r.note ?? null, itemCount: r.item_count,
+    }))
+}
+
+/** 题库统计：按思维点/来源/信任级别聚合（"定制的、可对照的"就靠这个看） */
+export function itemStats(accountId) {
+  const db = getDb()
+  const rows = db.prepare('SELECT * FROM v_item_stats WHERE account_id = ? ORDER BY skill, source, review_status').all(accountId)
+  const bySkill = {}
+  for (const r of rows) {
+    const s = bySkill[r.skill] ?? (bySkill[r.skill] = { skill: r.skill, total: 0, reviewed: 0, draft: 0, quarantined: 0, sources: {} })
+    s.total += r.n
+    s[r.review_status] += r.n
+    s.sources[r.source] = (s.sources[r.source] ?? 0) + r.n
+  }
+  return {
+    total: rows.reduce((n, r) => n + r.n, 0),
+    bySkill: Object.values(bySkill).sort((a, b) => a.skill.localeCompare(b.skill)),
+    batches: listBatches(accountId).length,
   }
 }
 

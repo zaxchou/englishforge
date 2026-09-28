@@ -41,7 +41,7 @@ export type { NavTarget }
 
 /** 侧边栏在**所有视图**都由 App 渲染（首页也保留），所以它是唯一的一处导航。
  *  账户/数据库状态放在这里：用户要求"很多信息直接在左边显示就好，右边简单点"。 */
-export function Sidebar({ active = 'today', dueCount, account, dbState, onNavigate, onReview, onReviewContent }: {
+export function Sidebar({ active = 'today', dueCount, account, dbState, onNavigate, onReview, onReviewContent, onOpenAccount }: {
   active?: NavTarget
   dueCount: number
   account: DbAccount | null
@@ -49,6 +49,7 @@ export function Sidebar({ active = 'today', dueCount, account, dbState, onNaviga
   onNavigate: (target: NavTarget) => void
   onReview: () => void
   onReviewContent: () => void
+  onOpenAccount: () => void
 }) {
   // 左边栏那一行状态：账户名 + 进度到底进库了没有 + 条数
   const who = account?.name ?? '本机模式'
@@ -73,7 +74,7 @@ export function Sidebar({ active = 'today', dueCount, account, dbState, onNaviga
       <button onClick={onReviewContent}><NavIcon kind="check" />题目审核</button>
     </nav>
     <div className="sidebar-bottom"><div className="sidebar-focus"><span>✦ 每天，一点进步</span><p>让理解成为直觉</p><button onClick={() => onNavigate('today')}>回到今日练习 <span>↗</span></button></div><button className={active === 'settings' ? 'selected' : ''} onClick={() => onNavigate('settings')}><NavIcon kind="settings" />设置与存档</button>
-      <div className="sidebar-account"><span className="profile-circle">{initial}</span><div><b>{who}</b><small className={`db-mini is-${tone}`}><i aria-hidden="true" />{status}</small></div></div>
+      <button className="sidebar-account" onClick={onOpenAccount} title="点这里切换 / 新建账户"><span className="profile-circle">{initial}</span><div><b>{who}</b><small className={`db-mini is-${tone}`}><i aria-hidden="true" />{status}</small></div><span className="acct-arrow" aria-hidden="true">⇄</span></button>
     </div>
   </aside>
 }
