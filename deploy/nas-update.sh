@@ -44,7 +44,9 @@ PORT=$(grep -E '^ENGLISHFORGE_PORT=' "$ENV_FILE" | cut -d= -f2 | tr -d ' ')
 PORT=${PORT:-4173}
 i=0
 while [ $i -lt 60 ]; do
-  BODY=$(wget -qO- "http://127.0.0.1:$PORT/api/health" 2>/dev/null || true)
+  # 配了 TLS 打 https（自签证书要 --no-check-certificate），否则回退 http
+  BODY=$(wget -qO- --no-check-certificate "https://127.0.0.1:$PORT/api/health" 2>/dev/null \
+    || wget -qO- "http://127.0.0.1:$PORT/api/health" 2>/dev/null || true)
   case "$BODY" in
     *'"ok":true'*)
       echo "完成：健康检查通过，$VER 已上线（http://$(grep -E '^NAS_IP=' "$ENV_FILE" | cut -d= -f2):$PORT）"

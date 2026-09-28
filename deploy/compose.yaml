@@ -24,11 +24,18 @@ services:
       AI_API_KEY: "${AI_API_KEY:-}"
       AI_BASE_URL: "${AI_BASE_URL:-https://api.xiaomimimo.com/v1}"
       AI_MODEL: "${AI_MODEL:-mimo-v2.6-flash}"
+      # HTTPS（自签证书）：局域网明文 http 下浏览器禁用麦克风/语音识别（跟读题录不了音），
+      # 证书文件放生产目录 tls/（不进仓库）；不设这两个变量则回退纯 HTTP。
+      ENGLISHFORGE_TLS_KEY: "${ENGLISHFORGE_TLS_KEY:-}"
+      ENGLISHFORGE_TLS_CERT: "${ENGLISHFORGE_TLS_CERT:-}"
     volumes:
       # 生产数据库目录（NAS 本机真实路径，写在 .env）：与本地开发库相互独立
       - ${DATA_DIR}/englishforge-production:/app/data
+      # 自签证书（本目录 tls/，只读；相对路径按 compose 文件所在目录解析）
+      - ./tls:/app/tls:ro
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:4173/api/health >/dev/null 2>&1 || exit 1"]
+      # 有 TLS 时打 https，否则 http（两种都试，自签证书要 --no-check-certificate）
+      test: ["CMD-SHELL", "(wget -qO- --no-check-certificate https://127.0.0.1:4173/api/health 2>/dev/null || wget -qO- http://127.0.0.1:4173/api/health 2>/dev/null) >/dev/null 2>&1 || exit 1"]
       interval: 60s
       timeout: 8s
       start_period: 90s

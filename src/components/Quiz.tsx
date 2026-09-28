@@ -343,6 +343,10 @@ function SpeakQ({ q, onAnswered }: { q: AdaptedQuestion; onAnswered: (r: Session
   const [ratio, setRatio] = useState(0)
   const [tier, setTier] = useState<'ok' | 'close' | 'bad'>('bad')
   const [supported, setSupported] = useState(true)
+  // 浏览器只在**安全来源**（https 或 localhost）开放麦克风与语音识别：
+  // 局域网明文 http://（如 http://192.168.31.246:4173）下 navigator.mediaDevices 直接不存在、
+  // 语音识别一起就报 not-allowed。这不是权限问题，提示必须说清真实原因（用户实拍报过误诊）。
+  const insecure = typeof window !== 'undefined' && !window.isSecureContext
   const [firstOk, setFirstOk] = useState<boolean | null>(null)
   const [everOk, setEverOk] = useState(false)
   const [tries, setTries] = useState(0)
@@ -486,7 +490,11 @@ function SpeakQ({ q, onAnswered }: { q: AdaptedQuestion; onAnswered: (r: Session
           )}
           {(
             <>
-              <div className="listen-tip">{supported ? '也可以先自行练习，再记录感受：' : '语音识别暂不可用，请检查麦克风权限或网络，也可以自评：'}</div>
+              <div className="listen-tip">{supported
+                ? '也可以先自行练习，再记录感受：'
+                : insecure
+                  ? '当前是局域网 http:// 访问，浏览器出于安全限制禁用了麦克风与语音识别（不是权限问题）。改用 https:// 访问即可；也可以直接自评：'
+                  : '语音识别暂不可用，请检查麦克风权限或网络，也可以自评：'}</div>
               <div className="speak-actions row">
                 <button className="opt" onClick={() => selfRate(true)}>会了，读顺了</button>
                 <button className="opt" onClick={() => selfRate(false)}>还行，再来一次</button>
