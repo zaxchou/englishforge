@@ -40,37 +40,92 @@ def clean(text: str, max_tokens: int = 8) -> bool:
 
 
 def match_case(src_word: str, repl: str) -> str:
-    return repl.capitalize() if src_word[0].isupper() else repl
+    # 英语里 I 永远大写，哪怕在句中被换成小写形式
+    if repl == 'i':
+        return 'I'
+    return repl.capitalize() if src_word[:1].isupper() else repl
 
 
-def inflection_ok(subj: str, verb: str) -> bool:
-    """第三人称单数主语后面动词必须带 -s。Tatoeba 是众包语料，
-    'He miss me.' 这种不合法英语确实存在 —— attested ≠ correct，必须挡。"""
-    if subj in ('he', 'she'):
-        return verb.endswith('s') or verb in {'is', 'has', 'does', 'was'}
-    return True
+# 代词范式：宾语形式 → 三个干扰项（主格 / 物主 / 反身，均与该宾语形式不同形）。
+# her 的形容词性物主与宾格同形，所以这里用 ones 类物主 hers，避免选项撞车。
+PARADIGM = {
+    'me': ('I', 'my', 'myself'),
+    'him': ('he', 'his', 'himself'),
+    'her': ('she', 'hers', 'herself'),
+    'us': ('we', 'our', 'ourselves'),
+    'them': ('they', 'their', 'themselves'),
+    'you': ('your', 'yourself', 'yourselves'),
+}
+
+# 不规则/助动词不做"词元↔三单"推导（is/has/does 会被误当成某词元的三单形式）
+IRREGULAR = {'is', 'has', 'does', 'was', 'were', 'be', 'been', 'can', 'could',
+             'will', 'would', 'should', 'must', 'may', 'might'}
+
+
+def expected_third(lemma: str) -> str:
+    """词元 → 第三人称单数形式。"""
+    if lemma.endswith(('s', 'x', 'z', 'ch', 'sh', 'o')):
+        return lemma + 'es'
+    if len(lemma) > 1 and lemma.endswith('y') and lemma[-2] not in 'aeiou':
+        return lemma[:-1] + 'ies'
+    return lemma + 's'
+
+
+def base_of_third(verb: str) -> str | None:
+    """第三人称形式 → 词元；靠 expected_third(base) == verb 自校验，变形错的返回 None。
+
+    这一步是必需的：只按词尾判断会把 "miss" 当成三单形式（它本身就以 s 结尾），
+    于是 "He miss me." 这种不合法英语会被放行——实测就是这样漏进来的。
+    """
+    cands: list[str] = []
+    if verb.endswith('ies') and len(verb) > 3:
+        cands.append(verb[:-3] + 'y')
+    if verb.endswith('es') and len(verb) > 2:
+        cands.append(verb[:-2])
+    if verb.endswith('s'):
+        cands.append(verb[:-1])
+    for c in cands:
+        if c and expected_third(c) == verb:
+            return c
+    return None
 
 
 def build_pairs(eng: dict[int, str]):
-    """返回 [(sid_a, text_a, sid_b, text_b, verb, subj, obj, ok)]，A/B 互为镜像。
-    ok=False 表示变形可疑（如实测到的 'He miss me.'），留待人工复核。"""
-    groups: dict[tuple, dict] = defaultdict(dict)
+    """按**词元**配对，而不是按动词字符串配对。
+
+    返回 [(sid_a, text_a, sid_b, text_b, lemma, subj, obj, True)]，A/B 互为镜像。
+    旧实现要求两侧动词字符串相同，于是 "I miss him." 只能配上 "He miss me."（错误变形）；
+    正确的 "He misses me." 因为动词是 misses 而永远配不上。改为按词元配对后，
+    两侧的变形都由 expected_third 校验，不合法的句子根本进不来。
+    """
+    base_idx: dict[tuple, tuple] = {}
+    third_idx: dict[tuple, tuple] = {}
     for sid, text in eng.items():
         m = PRON_PAT.match(text.strip())
         if not m or not clean(text):
             continue
         subj, verb, obj, rest = m.group(1).lower(), m.group(2).lower(), m.group(3), m.group(4)
-        if subj == obj == 'you' or OBJ2SUBJ.get(obj) == subj or verb in FUNC:
+        if subj == obj == 'you' or OBJ2SUBJ.get(obj) == subj or verb in FUNC or verb in IRREGULAR:
             continue
-        groups[(verb, norm(rest))][(subj, obj)] = (sid, text.strip())
+        key_rest = norm(rest)
+        # 只有 her 与物主限定词同形（her invitation）。him/us/them/me 后面跟名词
+        # 不可能构成物主，所以这条限制只对 her 生效，别把其余句子的产出也砍掉。
+        if obj == 'her' and key_rest:
+            continue
+        if subj in ('he', 'she'):
+            lemma = base_of_third(verb)
+            if not lemma:
+                continue                        # 变形不合规（含 He miss），直接丢弃
+            third_idx[(lemma, key_rest, subj, obj)] = (sid, text.strip())
+        else:
+            base_idx[(verb, key_rest, subj, obj)] = (sid, text.strip())
 
     out = []
-    for (verb, _rest), forms in groups.items():
-        for (subj, obj), a in sorted(forms.items()):
-            b = forms.get((OBJ2SUBJ[obj], SUBJ2OBJ[subj]))
-            if b and a[0] < b[0]:
-                ok = inflection_ok(subj, verb) and inflection_ok(OBJ2SUBJ[obj], verb)
-                out.append((a[0], a[1], b[0], b[1], verb, subj, obj, ok))
+    for (lemma, rest, subj, obj), a in sorted(base_idx.items()):
+        b = third_idx.get((lemma, rest, OBJ2SUBJ[obj], SUBJ2OBJ[subj]))
+        # b 可以为 None：镜像句允许由真实句机械构造（见 main），不必在语料里存在
+        out.append((a[0], a[1], b[0] if b else None, b[1] if b else None,
+                    lemma, subj, obj, True))
     return out
 
 
@@ -168,6 +223,79 @@ def build_s4_third_person(eng: dict[int, str], limit: int) -> list[dict]:
     return items[:limit] if limit else items
 
 
+# ---- s3 v2：物主代词（my book / mine），用 Tatoeba 真实句 ----
+# 为什么换掉 UD_English-Pronouns：它是语言学测试句集（Hers accelerated.），
+# 模型判 24/40"结构合法但不像人话"。许可干净 ≠ 可用于教学，必须换真实语料。
+POSS_DET = {'my': 'mine', 'your': 'yours', 'his': 'his', 'her': 'hers',
+            'our': 'ours', 'their': 'theirs'}
+POSS_PRON = {v: k for k, v in POSS_DET.items()}
+DET_SENT = re.compile(r'^(It|This|That|These|Those)\s+(is|are)\s+'
+                      r'(my|your|his|her|our|their)\s+([A-Za-z]+)$', re.I)
+PRON_SENT = re.compile(r'^(It|This|That|These|Those)\s+(is|are)\s+'
+                       r'(mine|yours|his|hers|ours|theirs)$', re.I)
+
+
+def build_s3_possessive_v2(eng: dict[int, str], limit: int) -> list[dict]:
+    """`This is my book.` ⇄ `This is mine.` —— 同一句框架、同一人称，只差"名词在不在"。
+    这正是张老师讲的：my + 名词 / mine = my + 上文说过的东西。
+
+    限定词版必须来自 Tatoeba 真实句；代词版先找真实句，找不到就由该真实句机械改造
+    （只把 "my book" 换成 "mine"），并在 optionOrigin 里如实标注 transformed。
+    两个干扰项就是这组对立本身的典型错误：代词带名词（mine book）、限定词悬空（my.）。
+    注意 his 被排除：它限定词与代词同形，这组对立不成立（是另一个教学点）。
+    """
+    det: dict[tuple, tuple] = {}
+    pron: set[tuple] = set()
+    for sid, text in eng.items():
+        if NOISE.search(text) or not (2 <= len(WORD.findall(text)) <= 7):
+            continue
+        body = text.strip().rstrip('.!?').strip()
+        m = DET_SENT.match(text.strip().rstrip('.!?').strip())
+        if m:
+            det[(m.group(1).lower(), m.group(2).lower(), m.group(3).lower())] = \
+                (sid, body, m.group(4).lower())
+            continue
+        m = PRON_SENT.match(body)
+        if m:
+            pron.add((m.group(1).lower(), m.group(2).lower(), m.group(3).lower()))
+
+    items: list[dict] = []
+    for key, (sid_d, body_d, noun) in sorted(det.items()):
+        person = key[2]
+        if person == 'his':
+            continue
+        pron_word = POSS_DET[person]
+        pron_key = (key[0], key[1], pron_word)
+        attested = pron_key in pron
+        body_p = re.sub(rf'\b{person}\s+{noun}\b', pron_word, body_d, count=1)
+        if body_p == body_d:
+            continue
+        # 典型错误：代词带名词 / 限定词悬空
+        err_pron_noun = body_p.replace(pron_word, f'{pron_word} {noun}', 1)
+        err_det_alone = body_d.replace(f'{person} {noun}', person, 1)
+        if len({body_d, body_p, err_pron_noun, err_det_alone}) != 4:
+            continue
+        p_origin = 'attested' if attested else 'transformed'
+        for ans, other, a_origin, o_origin in (
+                (body_d + '.', body_p + '.', 'attested', p_origin),
+                (body_p + '.', body_d + '.', p_origin, 'attested')):
+            items.append({
+                'objectiveId': 's3', 'skill': 's3', 'type': 'choice', 'kind': 'meaning',
+                'prompt': '', 'promptNeedsGloss': True,
+                'options': [ans, other, err_pron_noun + '.', err_det_alone + '.'],
+                'answer': ans, 'tts': ans, 'explain': '',
+                'variantGroupId': f'poss:{key[0]}:{key[1]}:{person}:{noun}',
+                'optionOrigin': {ans: a_origin, other: o_origin,
+                                 err_pron_noun + '.': 'constructed',
+                                 err_det_alone + '.': 'constructed'},
+                'errorTags': {err_pron_noun + '.': ['pron-before-noun'],
+                              err_det_alone + '.': ['det-without-noun']},
+                'sourceId': {ans: f'tatoeba:{sid_d}'},
+                'reviewStatus': 'draft',
+            })
+    return items[:limit] if limit else items
+
+
 def write_items(path: Path, items: list[dict]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(items, ensure_ascii=False, indent=1), encoding='utf-8')
@@ -222,14 +350,26 @@ def main() -> int:
         return None
 
     items, with_zh = [], 0
-    ok_pairs = [p for p in pairs if p[7]]
-    suspect = len(pairs) - len(ok_pairs)
-    print(f'  变形可疑（如 He miss me.）：{suspect} 对 → 标记待复核，不默认入题')
-    for sid_a, text_a, sid_b, text_b, verb, subj, obj, _ok in ok_pairs[: args.limit]:
-        subj_w, obj_w = text_a.split()[0], text_a.split()[2].rstrip('.!?')
+    usable = [p for p in pairs if p[3] is not None]
+    print(f'  按词元配对 {len(pairs)} 组，其中有真实镜像句（可成题）{len(usable)} 组')
+    # 必须在切片之前过滤：pairs 里大量条目没有镜像句，先切片会把它筛得几乎为空
+    for sid_a, text_a, sid_b, text_b, verb, subj, obj, _ok in usable[: args.limit]:
+        # 用正则捕获的原始词形来做替换：按空格切分会被 "him," 这类标点带崩
+        m = PRON_PAT.match(text_a)
+        if not m:
+            continue
+        subj_w, obj_w = m.group(1), m.group(3)
+        # 镜像句必须在语料里真实存在。曾试过"由真实句机械构造镜像"，产出
+        # "She accepteds me invitation." 这类错句：Tatoeba 只有文本、没有词元与句法，
+        # 判断不了动词是原形还是过去式、her 是宾格还是物主限定词。结构判断交给有标注
+        # 的语料（EWT），这里只接受被证实存在的镜像。
+        if text_b is None:
+            continue
+        b_origin = 'attested-mirror'
         bad_subj = text_a.replace(subj_w, match_case(subj_w, SUBJ2OBJ[subj_w.lower()]), 1)
         bad_obj = text_a.replace(obj_w, match_case(obj_w, OBJ2SUBJ[obj_w.lower()]), 1)
-        if bad_obj == text_a:                      # you 没有变化形式，跳过
+        # 选项必须四个互不相同：you 的宾格与主格同形，会与答案撞车，这类直接跳过
+        if len({text_a, text_b, bad_subj, bad_obj}) != 4:
             continue
         vid = f'{verb}:{subj}-{obj}'
         gloss = zh_of(sid_a)
@@ -244,19 +384,24 @@ def main() -> int:
                 'tts': text_a,
                 'explain': f'做动作的是 {subj_w}（主体·主格），挨动作的是 {obj_w}（对象·宾格）；含义不同，形式就得不同。',
                 'variantGroupId': vid,
-                'optionOrigin': {text_a: 'attested', text_b: 'attested-mirror',
+                'optionOrigin': {text_a: 'attested', text_b: b_origin,
                                  bad_subj: 'constructed', bad_obj: 'constructed'},
                 'errorTags': {text_b: ['role-reversed'], bad_subj: ['case-form-subject'],
                               bad_obj: ['case-form-object']},
-                'sourceId': {'answer': f'tatoeba:{sid_a}', 'mirror': f'tatoeba:{sid_b}'},
+                'sourceId': {**{'answer': f'tatoeba:{sid_a}'},
+                             **({'mirror': f'tatoeba:{sid_b}'} if sid_b else {})},
                 'reviewStatus': 'draft',
             })
 
+        frame_opts = [obj_w, *PARADIGM.get(obj_w.lower(), ())]
+        if len(set(frame_opts)) != 4:
+            continue
         items.append({
             'objectiveId': 's2', 'skill': 's2', 'type': 'choice', 'kind': 'frame',
             'sentence': text_a,
             'prompt': text_a.replace(obj_w, '___', 1),
-            'options': [obj_w, OBJ2SUBJ[obj_w.lower()], obj_w.lower().replace(obj_w.lower(), subj_w.lower()) + 's', obj_w + 's'],
+            # 干扰项用代词范式（him/he/his/himself），不是 hims/is 这类造词
+            'options': frame_opts,
             'answer': obj_w,
             'tts': text_a,
             'explain': f'这里要"挨动作的那个"，用宾格 {obj_w}。',
@@ -268,8 +413,8 @@ def main() -> int:
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(items, ensure_ascii=False, indent=1), encoding='utf-8')
     print(f'\n写出 s2 主格/宾格 {len(items)} 题（其中 {with_zh} 题带中文意思）→ {out}')
-    print('s3 物主代词（UD_English-Pronouns 交替框架，CC BY-SA 4.0）：')
-    write_items(Path('out/items-s3-possessive.json'), build_s3_possessive(root, args.limit))
+    print('s3 物主代词（Tatoeba 真实 my+名词 / mine 对立）：')
+    write_items(Path('out/items-s3-possessive.json'), build_s3_possessive_v2(eng, args.limit))
     print('s4 三单（Tatoeba 真实对立）：')
     write_items(Path('out/items-s4-thirdperson.json'), build_s4_third_person(eng, args.limit))
     print('\n=== 样例 ===')
