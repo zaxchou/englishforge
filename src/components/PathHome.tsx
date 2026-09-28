@@ -1,8 +1,9 @@
-// 单一推进路径的首页。
+// 单一推进路径首页。
 //
 // 用户的要求（也是这个项目最初的方向）：界面上只回答一个问题——「下一步做什么」。
-// 所以这里只有：当前知识点 + 距离掌握还差什么 + 一个大按钮；章节、记录、设置全部退到
-// 「回顾」里。学习记录页仍保留（旧 Dashboard），只是不再挡在路上。
+// 所以这里只有：当前知识点 + 距离掌握还差什么 + 一个大按钮 + 一条路径。
+// 侧边栏（导航、账户与数据库状态）与顶栏由 App 统一渲染 —— 首页与内页同一套外壳，
+// 不再出现"点进去才有侧栏"的前后台不一致。
 import { useMemo } from 'react'
 import type { AdaptedQuestion, ProgressV2 } from '../types'
 import { lessons } from '../data/course'
@@ -15,21 +16,14 @@ interface Props {
   evidence: EvidenceReport
   todayBrief: TodayBrief
   pool: AdaptedQuestion[]
-  soundOn: boolean
-  /** 一行入库状态：进度是否已经写进数据库（null = 数据库还没连上） */
-  dbLine: string | null
-  onToggleSound: () => void
   onStartToday: () => void
   onResume: () => void
-  onStartReview: () => void
   onStartSkill: (skillId: string) => void
-  onOpenRecords: () => void
-  onReviewContent: () => void
 }
 
 export function PathHome({
-  progress, evidence, todayBrief: brief, pool, soundOn, dbLine, onToggleSound,
-  onStartToday, onResume, onStartReview, onStartSkill, onOpenRecords, onReviewContent,
+  progress, evidence, todayBrief: brief, pool,
+  onStartToday, onResume, onStartSkill,
 }: Props) {
   const skills = useMemo(() => Object.values(lessons).flatMap((l) => l.skills), [])
   const lessonOf = useMemo(() => {
@@ -58,13 +52,6 @@ export function PathHome({
 
   return (
     <div className="path-home">
-      <header className="path-top">
-        <span className="path-brand"><img className="path-mark" src="/icon-96.png" alt="" />EnglishForge</span>
-        <button className="sound-control" onClick={onToggleSound} aria-label={soundOn ? '关闭音效' : '开启音效'}>
-          {soundOn ? '音效 开' : '音效 关'}
-        </button>
-      </header>
-
       <main className="path-main">
         <section className="next-card">
           <div className="next-eyebrow">
@@ -117,13 +104,6 @@ export function PathHome({
           </div>
           <div className="path-here">当前：第 {path.findIndex((p) => p.isCurrent) + 1} 步 · {current.name}</div>
         </nav>
-
-        <div className="path-foot">
-          <button onClick={onOpenRecords}>回顾：全部课程与学习记录</button>
-          <button onClick={onStartReview}>只做到期复习{brief.dueCount ? `（${brief.dueCount}）` : ''}</button>
-          <button onClick={onReviewContent}>题目审核</button>
-        </div>
-        {dbLine && <div className="path-db">🗄️ {dbLine}</div>}
       </main>
     </div>
   )

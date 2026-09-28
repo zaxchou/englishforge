@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import type { AdaptedQuestion, ProgressV2 } from '../types'
 import { lessons } from '../data/course'
 import { recentDaysXp, todayStr } from '../store/progress'
+import type { DbAccount, DbState } from '../store/db'
 import type { EvidenceReport } from '../learning/evidence'
 import { AccountPanel, type DbPanelProps } from './AccountPanel'
 import './dashboard.css'
@@ -20,9 +21,7 @@ interface Props {
   progress: ProgressV2
   evidence: EvidenceReport
   todayBrief: TodayBrief
-  soundOn: boolean
   saveErr: boolean
-  onToggleSound: () => void
   onOpenLesson: (id: string) => void
   onStartToday: () => void
   onResume: () => void
@@ -38,32 +37,53 @@ interface Props {
 
 
 type NavTarget = 'today' | 'courses' | 'history' | 'settings'
-export function Sidebar({ active = 'today', dueCount, onNavigate, onReview }: {
-  active?: NavTarget; dueCount: number; onNavigate: (target: NavTarget) => void; onReview: () => void
+export type { NavTarget }
+
+/** 侧边栏在**所有视图**都由 App 渲染（首页也保留），所以它是唯一的一处导航。
+ *  账户/数据库状态放在这里：用户要求"很多信息直接在左边显示就好，右边简单点"。 */
+export function Sidebar({ active = 'today', dueCount, account, dbState, onNavigate, onReview, onReviewContent }: {
+  active?: NavTarget
+  dueCount: number
+  account: DbAccount | null
+  dbState: DbState
+  onNavigate: (target: NavTarget) => void
+  onReview: () => void
+  onReviewContent: () => void
 }) {
+  // 左边栏那一行状态：账户名 + 进度到底进库了没有 + 条数
+  const who = account?.name ?? '本机模式'
+  const initial = (who.replace(/[^\p{L}\p{N}]/gu, '') || '学').slice(0, 1)
+  const tone = !account ? 'wait' : dbState === 'offline' ? 'off' : dbState === 'connecting' ? 'wait' : 'on'
+  const status = !account
+    ? '数据库连接中…'
+    : dbState === 'offline'
+      ? `未连接数据库 · ${account.attempts} 条记录在本机`
+      : dbState === 'connecting'
+        ? '正在写入数据库…'
+        : `已存入数据库 · ${account.attempts} 条记录`
   return <aside className="forge-sidebar">
     <button className="forge-brand" onClick={() => onNavigate('today')} aria-label="EnglishForge 首页">
       <img className="forge-mark" src="/icon-96.png" alt="" /><span>EnglishForge<small>英语思维训练</small></span>
     </button>
-    <div className="sidebar-space"><span className="profile-circle">学</span><div>我的学习空间<small>循序渐进 · 自在表达</small></div></div><div className="nav-label">LEARNING SPACE</div><nav aria-label="主导航">
+    <div className="nav-label">LEARNING SPACE</div><nav aria-label="主导航">
       <button className={active === 'today' ? 'selected' : ''} onClick={() => onNavigate('today')}><NavIcon kind="home" />今日练习</button>
       <button className={active === 'courses' ? 'selected' : ''} onClick={() => onNavigate('courses')}><NavIcon kind="book" />全部课程</button>
       <button onClick={onReview}><NavIcon kind="review" />巩固复习{dueCount > 0 && <span className="nav-count">{dueCount}</span>}</button>
       <button className={active === 'history' ? 'selected' : ''} onClick={() => onNavigate('history')}><NavIcon kind="chart" />学习记录</button>
+      <button onClick={onReviewContent}><NavIcon kind="check" />题目审核</button>
     </nav>
     <div className="sidebar-bottom"><div className="sidebar-focus"><span>✦ 每天，一点进步</span><p>让理解成为直觉</p><button onClick={() => onNavigate('today')}>回到今日练习 <span>↗</span></button></div><button className={active === 'settings' ? 'selected' : ''} onClick={() => onNavigate('settings')}><NavIcon kind="settings" />设置与存档</button>
-      <div className="local-profile"><span className="profile-circle">学</span><div>本地学员<small>一步一步，让表达更自然</small></div></div>
+      <div className="sidebar-account"><span className="profile-circle">{initial}</span><div><b>{who}</b><small className={`db-mini is-${tone}`}><i aria-hidden="true" />{status}</small></div></div>
     </div>
   </aside>
 }
 function NavIcon({ kind }: { kind: string }) {
-  const paths: Record<string, string> = { home: 'M3 10 12 3l9 7v10h-6v-6H9v6H3Z', book: 'M12 5v15M3 4h5l4 2 4-2h5v15h-5l-4 2-4-2H3Z', review: 'M20 8A8 8 0 1 0 20 16M20 3v5h-5', chart: 'M4 20V12M10 20V5M16 20V9M22 20V2', settings: 'M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1' }
+  const paths: Record<string, string> = { home: 'M3 10 12 3l9 7v10h-6v-6H9v6H3Z', book: 'M12 5v15M3 4h5l4 2 4-2h5v15h-5l-4 2-4-2H3Z', review: 'M20 8A8 8 0 1 0 20 16M20 3v5h-5', chart: 'M4 20V12M10 20V5M16 20V9M22 20V2', settings: 'M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1', check: 'M4 12.5 9 17.5 20 6.5' }
   return <svg viewBox="0 0 24 24" aria-hidden="true"><path d={paths[kind]} />{kind === 'settings' && <circle cx="12" cy="12" r="5" />}</svg>
 }
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六']
-export function Dashboard({ progress, evidence, todayBrief: brief, soundOn, saveErr, onToggleSound, onOpenLesson, onStartToday, onResume, onStartReview, onExportSave, onImportSave, onReset, onReviewContent, pool, db }: Props) {
+export function Dashboard({ progress, evidence, todayBrief: brief, saveErr, onOpenLesson, onStartToday, onResume, onStartReview, onExportSave, onImportSave, onReset, onReviewContent, pool, db }: Props) {
   const [query, setQuery] = useState('')
-  const [section, setSection] = useState<NavTarget>('today')
   const [showMore, setShowMore] = useState(false)
   // 每个章节有多少道题：让用户知道题在哪（题库不在独立列表里，它藏在各思维点里）
   const poolByLesson = useMemo(() => {
@@ -99,16 +119,11 @@ export function Dashboard({ progress, evidence, todayBrief: brief, soundOn, save
   const now = new Date()
   const hour = now.getHours()
   const greeting = hour < 12 ? '早上好' : hour < 18 ? '下午好' : '晚上好'
-  function navigate(target: NavTarget) {
-    setSection(target)
-    document.getElementById(target === 'today' ? 'today' : target)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }
   return <div className="workspace">
-    <Sidebar active={section} dueCount={brief.dueCount} onNavigate={navigate} onReview={onStartReview} />
-    <header className="workspace-header"><div>学习空间 <span>/</span> <b>今日练习</b></div>
+    <header className="workspace-header"><div>学习空间 <span>/</span> <b>课程与记录</b></div>
       <div className="header-tools"><div className="search-wrap"><span aria-hidden="true">⌕</span><input aria-label="搜索课程或知识点" placeholder="搜索课程或知识点" value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => { if (e.key === 'Escape') setQuery('') }} />
         {query.trim() && <div className="search-results">{results.length ? results.map(l => <button key={l.id} onClick={() => { onOpenLesson(l.id); setQuery('') }}>第 {l.no} 课 · {l.title}<small>{l.subtitle}</small></button>) : <p>没有找到相关课程，试试“动词”或“07”。</p>}</div>}
-      </div><button className="sound-control" aria-label={soundOn ? '关闭音效' : '开启音效'} onClick={onToggleSound}>{soundOn ? '音效 开' : '音效 关'}</button><span className="profile-circle">学</span></div>
+      </div></div>
     </header>
     <div className="workspace-body" id="today">
       <div className="welcome"><div><h1>{greeting}，开始今天的练习</h1><p>每次练一点，让理解慢慢变成直觉。</p></div><div className="welcome-meta"><time>{now.getMonth()+1}月{now.getDate()}日 · 周{WEEKDAYS[now.getDay()]}</time><span className="attention-pill">{brief.dueCount ? `${brief.dueCount} 个任务待巩固` : '今天，也向前一步'}</span></div></div>

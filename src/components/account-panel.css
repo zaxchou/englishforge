@@ -9,9 +9,6 @@
 .db-chip.is-off{background:#fff0ed;color:#963d32}
 .db-chip:hover{filter:brightness(.97)}
 
-/* ---- 首页底部那一行入库状态 ---- */
-.path-db{text-align:center;font-size:11px;color:var(--sub);line-height:1.9;margin-top:14px}
-
 /* ---- 面板 ---- */
 .account-panel{padding:25px 28px;margin-top:12px;background:white;border-radius:26px}
 .account-head{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}

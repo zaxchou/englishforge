@@ -13,7 +13,7 @@ import { useDbSync } from './store/useDbSync'
 import type { ActiveSession, AdaptedQuestion, Attempt, ProgressV2, QuizRuntime, SessionKind } from './types'
 import { Quiz, type SessionResult, type QuizAttempt, type QuizEntry } from './components/Quiz'
 import { Confetti } from './components/fx'
-import { Dashboard, Sidebar } from './components/Dashboard'
+import { Dashboard, Sidebar, type NavTarget } from './components/Dashboard'
 import { ContentReview } from './components/ContentReview'
 import { PathHome } from './components/PathHome'
 import { buildEvidence, STATE_LABEL, type EvidenceReport } from './learning/evidence'
@@ -25,6 +25,16 @@ import {
 import { isMuted, setMuted, sfx } from './sound'
 
 const allSkillList = Object.values(lessons).flatMap((l) => l.skills)
+
+/** 顶栏中间那行字：你现在在哪 */
+const LOCATION: Record<View['name'], string> = {
+  home: '今日练习 · 完成这一步就前进',
+  lesson: '课程 / 知识点',
+  practice: '专注练习 · 按自己的节奏',
+  result: '本轮学习记录',
+  review: '内容审核 · 逐题核对',
+  records: '回顾 · 课程与记录',
+}
 
 type View =
   | { name: 'home' }
@@ -41,6 +51,21 @@ export default function App() {
   const [notice, setNotice] = useState<LoadNotice>(loaded.notice)
   const [saveErr, setSaveErr] = useState(hadSaveError)
   const [view, setView] = useState<View>({ name: 'home' })
+  /** 侧栏里被选中的那一项（首页与内页共用同一条侧栏） */
+  const [nav, setNav] = useState<NavTarget>('today')
+  const navActive: NavTarget = view.name === 'lesson' ? 'courses' : view.name === 'records' ? nav : 'today'
+
+  function handleNav(target: NavTarget) {
+    setNav(target)
+    if (target === 'today') {
+      setView({ name: 'home' })
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+      return
+    }
+    setView({ name: 'records' })
+    // 等回顾页渲染完再滚到对应区块
+    window.setTimeout(() => document.getElementById(target)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60)
+  }
   const [soundOn, setSoundOn] = useState(() => !isMuted())
   const [startError, setStartError] = useState<string | null>(null)
   const [clock, setClock] = useState(() => Date.now())
@@ -358,22 +383,6 @@ export default function App() {
     input.click()
   }
 
-  // 顶栏那个小徽标：一眼看出"进度到底进库了没有"，不占认知负担
-  const dbChip = (() => {
-    const time = db.syncedAt ? new Date(db.syncedAt).toLocaleTimeString('zh-CN', { hour12: false }) : ''
-    if (!db.account) {
-      return { tone: 'wait', text: '数据库连接中', title: '正在连接进度数据库' }
-    }
-    if (db.dbState === 'offline') {
-      return { tone: 'off', text: '数据库未连接', title: '进度仍保存在本机浏览器里；数据库恢复后会自动补写，不会丢。' }
-    }
-    return {
-      tone: 'on',
-      text: '已存入数据库',
-      title: `账户「${db.account.name}」· ${time ? '最近写入 ' + time : '尚未写入'}`,
-    }
-  })()
-
   const todayBrief = useMemo(() => {
     const sid = recommendSkill(progress, pool, skillOrder)
     const sk = allSkillList.find((s) => s.id === sid)
@@ -390,8 +399,18 @@ export default function App() {
   }, [progress, pool, dueList, evidence, active])
 
   return (
-    <div className={`app ${view.name === 'home' ? 'view-home' : 'view-inner'}`}>
-      {view.name !== 'home' && <Sidebar active={view.name === 'lesson' ? 'courses' : 'today'} dueCount={dueList.length} onNavigate={(target) => { const next: View = target === 'today' ? { name: 'home' } : { name: 'records' }; setView(next); window.setTimeout(() => document.getElementById(target)?.scrollIntoView({ behavior: 'smooth' }), 50) }} onReview={() => { if (!startSession('review')) setStartError('目前没有到期复习，可以继续课程练习。') }} />}
+    <div className="app shell view-inner">
+      {/* 外壳（侧栏 / 顶栏 / 页脚）对**所有视图**一致渲染：首页与内页不再有"有没有侧栏"的区别。
+          账户与数据库状态就在左侧栏底部，右边（内容区）保持简单。 */}
+      <Sidebar
+        active={navActive}
+        dueCount={dueList.length}
+        account={db.account}
+        dbState={db.dbState}
+        onNavigate={handleNav}
+        onReview={() => { if (!startSession('review')) setStartError('目前没有到期复习，可以继续课程练习。') }}
+        onReviewContent={() => setView({ name: 'review' })}
+      />
       {saveErr && (
         <div className="sys-banner err">
           ⚠️ 上次保存失败——进度可能没存上。<button className="linkish" onClick={doExportSave}>立即导出存档</button>
@@ -418,23 +437,19 @@ export default function App() {
           <button className="linkish" onClick={db.dismissNotice}>知道了</button>
         </div>
       )}
-      {view.name !== 'home' && (
-        <header className="topbar">
-          <button className="brand brand-btn" onClick={() => setView({ name: 'home' })}>← 返回学习空间</button><span className="inner-location">{view.name === 'lesson' ? '课程 / 知识点' : view.name === 'practice' ? '专注练习 · 按自己的节奏' : view.name === 'review' ? '内容审核 · 逐题核对' : view.name === 'records' ? '回顾 · 课程与记录' : '本轮学习记录'}</span>
-          <div className="stats">
-            <button
-              className={`db-chip is-${dbChip.tone}`}
-              title={dbChip.title}
-              onClick={() => setView({ name: 'records' })}
-            ><i aria-hidden="true" />{dbChip.text}</button>
-            <button
-              className="stats-btn"
-              title={soundOn ? '点击关闭音效' : '点击开启音效'}
-              onClick={() => { setMuted(soundOn); setSoundOn(!soundOn) }}
-            >{soundOn ? '🔊' : '🔇'}</button>
-          </div>
-        </header>
-      )}
+      <header className="topbar">
+        {view.name !== 'home' && (
+          <button className="brand brand-btn" onClick={() => setView({ name: 'home' })}>← 返回学习空间</button>
+        )}
+        <span className="inner-location">{LOCATION[view.name]}</span>
+        <div className="stats">
+          <button
+            className="stats-btn"
+            title={soundOn ? '点击关闭音效' : '点击开启音效'}
+            onClick={() => { setMuted(soundOn); setSoundOn(!soundOn) }}
+          >{soundOn ? '🔊' : '🔇'}</button>
+        </div>
+      </header>
       <main>
         {view.name === 'home' && (
           <PathHome
@@ -442,21 +457,9 @@ export default function App() {
             evidence={evidence}
             todayBrief={todayBrief}
             pool={pool}
-            soundOn={soundOn}
-            dbLine={db.account
-              ? db.dbState === 'offline'
-                ? `数据库未连接 · 进度仍存在本机（账户「${db.account.name}」保存了 ${db.account.attempts} 条作答记录）`
-                : `已存入数据库 · 账户「${db.account.name}」共 ${db.account.attempts} 条作答记录`
-              : db.dbState === 'offline'
-                ? '数据库未连接 · 进度保存在本机浏览器，重启应用后会自动补写进数据库'
-                : null}
-            onToggleSound={() => { setMuted(soundOn); setSoundOn(!soundOn) }}
             onStartToday={() => { setStartError(null); if (!startSession('today')) setStartError('今天没有可抽的题目——题库正在建设中。') }}
             onResume={() => { if (!resumeSession()) setStartError('没有找到未完成的会话。') }}
-            onStartReview={() => { setStartError(null); if (!startSession('review')) setStartError('今天没有到期的复习——去打新铁吧！') }}
             onStartSkill={(skillId) => { setStartError(null); if (!startSession('skill', skillId)) setStartError('这个思维点还没有题目——题库正在建设中。') }}
-            onOpenRecords={() => setView({ name: 'records' })}
-            onReviewContent={() => setView({ name: 'review' })}
           />
         )}
         {view.name === 'records' && (
@@ -464,9 +467,7 @@ export default function App() {
             progress={progress}
             evidence={evidence}
             todayBrief={todayBrief}
-            soundOn={soundOn}
             saveErr={saveErr}
-            onToggleSound={() => { setMuted(soundOn); setSoundOn(!soundOn) }}
             onOpenLesson={(id) => setView({ name: 'lesson', lessonId: id })}
             onStartToday={() => { setStartError(null); if (!startSession('today')) setStartError('今天没有可抽的题目——题库正在建设中。') }}
             onResume={() => { if (!resumeSession()) setStartError('没有找到未完成的会话。') }}
@@ -536,10 +537,10 @@ export default function App() {
         )}
         </div>}
       </main>
-      {view.name !== 'home' && <footer className="foot">
+      <footer className="foot">
         <span>素材来自张俊杰老师课程逐字稿 · 进度存于浏览器与本地数据库 · </span>
         <span>按自己的节奏练习</span>
-      </footer>}
+      </footer>
     </div>
   )
 }

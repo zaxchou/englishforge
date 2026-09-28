@@ -1,9 +1,7 @@
 /* 单一推进路径首页：只回答"下一步做什么"。
-   一块当前任务卡 + 一条路径 + 一行回顾入口。没有章节列表、没有仪表盘堆叠。 */
-.path-home { min-height: 100vh; padding: 26px 24px 40px; }
-.path-top { max-width: 720px; margin: 0 auto 26px; display: flex; align-items: center; justify-content: space-between; }
-.path-brand { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 750; color: var(--ink); letter-spacing: -.2px; }
-.path-mark { width: 30px; height: 30px; border-radius: 9px; object-fit: cover; }
+   一块当前任务卡 + 一条路径。侧栏/顶栏/页脚由 App 的统一外壳提供，
+   所以这里不再有品牌头与"回顾"一行（那些入口左侧栏已经有了）。 */
+.path-home { padding: 4px 32px 8px; }
 .path-main { max-width: 720px; margin: 0 auto; }
 
 /* ---- 当前任务卡：整屏的主角 ---- */
@@ -43,13 +41,10 @@
 .path-dot:disabled { opacity: .4; cursor: default; }
 .path-here { margin-top: 14px; font-size: 12px; color: var(--sub); }
 
-/* ---- 回顾入口：一行，安静的 ---- */
-.path-foot { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 18px; }
-.path-foot button { border: 0; background: none; color: var(--sub); font-size: 12px; padding: 8px 12px; border-radius: 999px; }
-.path-foot button:hover { background: #fff; color: var(--ink); }
+/* ---- 回顾入口：已移到左侧栏导航，这里不再重复 ---- */
 
 @media (max-width: 720px) {
-  .path-home { padding: 18px 14px 32px; }
+  .path-home { padding: 0 16px; }
   .next-card { padding: 24px 20px 22px; border-radius: 24px; }
   .next-card h1 { font-size: 26px; }
   .next-example { font-size: 16px; }
