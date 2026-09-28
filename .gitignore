@@ -34,3 +34,6 @@ data/
 *.db
 *.db-wal
 *.db-shm
+
+# NAS 生产部署（deploy/production/.env 含真实密钥，绝不进 git）
+deploy/production/

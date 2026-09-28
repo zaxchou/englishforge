@@ -1,0 +1,11 @@
+node_modules
+dist
+data
+out
+.git
+.playwright-mcp
+design-v*
+deploy/production
+*.log
+*.md
+!README.md
