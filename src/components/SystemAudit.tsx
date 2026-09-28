@@ -25,11 +25,9 @@ interface Props {
   onShowFlagged: () => void
   /** 把之前"批量通过"的旧结论作废，交给 AI 重审 */
   onReopenBulk: () => Promise<number>
-  /** 让系统 AI 补一批 */
-  onEnrich: (limit: number) => Promise<{ enriched: number; rejected: number; truncated: number; remaining: number; error: string | null } | null>
 }
 
-export function SystemAudit({ audit, ai, onKillDuplicates, onEnrich, onModel, onAiReview, pipelineNote, onShowFlagged, onReopenBulk }: Props) {
+export function SystemAudit({ audit, ai, onKillDuplicates, onModel, onAiReview, pipelineNote, onShowFlagged, onReopenBulk }: Props) {
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
   const [progress, setProgress] = useState('')
@@ -41,46 +39,6 @@ export function SystemAudit({ audit, ai, onKillDuplicates, onEnrich, onModel, on
   const dup = audit?.duplicates ?? []
   const conflicts = audit?.conflicts ?? []
   const missing = audit?.missingCause.count ?? 0
-
-  /** 一轮：让系统补 limit 道，返回本轮结果 */
-  async function enrich(limit: number) {
-    setBusy(true)
-    setMsg(`正在让系统 AI 补 ${limit} 道题…`)
-    setProgress('')
-    const r = await onEnrich(limit)
-    setBusy(false)
-    if (!r) { setMsg('调用失败：数据库未连接。'); return null }
-    setMsg(
-      `补好 ${r.enriched} 道，丢弃 ${r.rejected} 条不合规内容（宁缺勿错）` +
-      (r.truncated ? ` · ${r.truncated} 批输出过长已自动拆小重试` : '') +
-      (r.error ? ` · 有调用失败：${shortError(r.error)}` : '') +
-      ` · 还剩 ${r.remaining} 道`,
-    )
-    return r
-  }
-
-  /** 一键补完：连续跑，直到补完、或连续两轮没有进展（避免死循环烧调用） */
-  async function enrichAll() {
-    setBusy(true)
-    let total = 0, stale = 0, lastRemaining = missing
-    for (let i = 0; i < 200; i++) {
-      const r = await onEnrich(24)
-      if (!r) { setBusy(false); setMsg(`已补 ${total} 道 · 数据库断开，先停下。`); return }
-      total += r.enriched
-      const remaining = r.remaining
-      stale = r.enriched === 0 ? stale + 1 : 0
-      setProgress(`已补 ${total} 道 · 还剩 ${remaining} 道 · 第 ${i + 1} 批`)
-      if (remaining === 0) { setBusy(false); setProgress(''); setMsg(`全部补完：共补 ${total} 道。`); return }
-      if (stale >= 2) {
-        setBusy(false); setProgress('')
-        setMsg(`已补 ${total} 道 · 还剩 ${remaining} 道，连续两批没有进展，先停下（多半是模型调用不稳，过会儿再点）。`)
-        return
-      }
-      lastRemaining = remaining
-    }
-    setBusy(false); setProgress('')
-    setMsg(`已补 ${total} 道 · 还剩 ${lastRemaining} 道（跑满 200 批上限，可再点一次继续）`)
-  }
 
   /** 跑一遍全自动流水线（内部自己循环：审 → 改 → 复审，直到待办归零或没有进展） */
   async function aiReviewAll() {
@@ -220,15 +178,10 @@ export function SystemAudit({ audit, ai, onKillDuplicates, onEnrich, onModel, on
           <small>
             这些题答错时只能看到整体解析，看不到"你这条错在哪"。
             已补 {audit?.enrichedCount ?? 0} 道。
+            {missing > 0
+              ? <> 出题 AI 在后台自动补齐（开机接着流水线跑），<b>不需要任何人操作</b>。</>
+              : <> 已全部补齐。</>}
           </small>
-          <div className="sysaudit-actions">
-            <button className="secondary" onClick={() => void enrichAll()} disabled={busy || !missing || !ai?.configured}>
-              {busy ? '正在补…' : `一键补齐（还剩 ${missing} 道）`}
-            </button>
-            <button className="secondary" onClick={() => void enrich(24)} disabled={busy || !missing || !ai?.configured}>
-              只补一批（24 道）
-            </button>
-          </div>
         </div>
       </div>
 

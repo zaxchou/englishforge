@@ -557,12 +557,6 @@ export default function App() {
             onAiReview={(limit: number) => db.aiReviewNow(limit)}
             pipelineNote={db.pipelineNote}
             onReopenBulk={() => db.reopenBulkNow()}
-            onEnrich={async (limit) => {
-              const r = await db.enrichNow(limit)
-              // 补完立刻刷新题目池（逐项纠正并进去后，练习与结算页马上能用）
-              if (r?.enriched) void db.reloadItems()
-              return r
-            }}
           />
         )}
         {view.name !== 'review' && <div className={`narrow ${view.name === 'practice' ? 'quiz-center' : ''}`}>

@@ -10,7 +10,7 @@ import './content-review.css'
 
 const DIFF = ['', '基础', '进阶', '挑战']
 
-export function ContentReview({ questions, marks, onMarks, onExit, audit, ai, onKillDuplicates, onModel, onAiReview, pipelineNote, onReopenBulk, onEnrich }: {
+export function ContentReview({ questions, marks, onMarks, onExit, audit, ai, onKillDuplicates, onModel, onAiReview, pipelineNote, onReopenBulk }: {
   questions: AdaptedQuestion[]
   marks: ReviewMarks
   onMarks: (m: ReviewMarks) => void
@@ -23,7 +23,6 @@ export function ContentReview({ questions, marks, onMarks, onExit, audit, ai, on
   /** 最近一次自动流水线的结果（开机自动跑的那次也会显示） */
   pipelineNote?: string | null
   onReopenBulk: () => Promise<number>
-  onEnrich: (limit: number) => Promise<{ enriched: number; rejected: number; truncated: number; remaining: number; error: string | null } | null>
 }) {
   const drafts = useMemo(() => questions.filter((q) => q.reviewStatus === 'draft'), [questions])
   // 默认范围：还有待审核的就显示待审核；全审完了就显示全部（否则用户会以为"题不见了"）
@@ -105,7 +104,6 @@ export function ContentReview({ questions, marks, onMarks, onExit, audit, ai, on
         ai={ai}
         onKillDuplicates={onKillDuplicates}
         onModel={onModel}
-        onEnrich={onEnrich}
         onAiReview={onAiReview}
         pipelineNote={pipelineNote}
         onShowFlagged={() => { setScope('flagged') }}

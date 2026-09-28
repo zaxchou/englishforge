@@ -315,21 +315,45 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
     return { reviewed, killed, fixed, rewritten, remaining, reviewer, independent, error }
   }, [runAudit])
 
-  /** 开机即自动跑（只要还有待办）：每个会话自动触发一次，之后由内容变化/按钮驱动 */
+  /** 开机即自动维护：流水线（审→改→复审）跑到归零，接着补齐缺的逐项纠正 —— 全程无按钮
+   *  （用户拍板：生成新题后自动走自我纠正管线，「连按钮都不需要」，用户对这套流程无感知）。
+   *  每个会话自动触发一次；这里有待办才启动，归零后每次开机零调用。 */
   useEffect(() => {
     if (autoPipelineRef.current || !account || !audit || !ai?.review?.configured) return
-    if ((audit.pipelinePending ?? 0) <= 0) return
+    const pending = audit.pipelinePending ?? 0
+    const missing = audit.missingCause?.count ?? 0
+    if (pending <= 0 && missing <= 0) return
     autoPipelineRef.current = true
     void (async () => {
-      setPipelineNote('自动流水线启动：审 → 改 → 复审…')
+      setPipelineNote('后台自动维护启动：审 → 改 → 复审 → 补逐项纠正…')
+      const parts: string[] = []
       const r = await aiReviewNow()
-      setPipelineNote(!r
-        ? '自动流水线：数据库接口没有响应'
-        : r.remaining < 0
-          ? `自动流水线：有另一条正在跑，本轮没取到数（审 ${r.reviewed} · 改 ${r.rewritten} · 毙 ${r.killed}）${r.error ? ' · ' + r.error : ''}`
-          : `自动流水线${r.error ? '有调用失败' : '完成'}：审 ${r.reviewed} · 改写 ${r.rewritten} · 判毙 ${r.killed} · 还剩 ${Math.max(0, r.remaining)} 待机器处理${r.error ? `（${r.error}）` : ''}`)
+      if (!r) {
+        parts.push('流水线：数据库接口没有响应')
+      } else {
+        parts.push(r.remaining < 0
+          ? `流水线有另一条在跑（审 ${r.reviewed} · 改 ${r.rewritten} · 毙 ${r.killed}）`
+          : `流水线${r.error ? '有调用失败' : '完成'}：审 ${r.reviewed} · 改写 ${r.rewritten} · 判毙 ${r.killed} · 还剩 ${Math.max(0, r.remaining)}`)
+        if (r.error) parts.push(r.error)
+      }
+      // 出题人接着补逐项纠正：同样自动，跑到补完或连续没有进展（宁缺勿错的那部分会留下）
+      if (ai?.configured) {
+        let enriched = 0, lastRemaining = -1
+        for (let i = 0; i < 60; i++) {
+          const er = await enrichNow(24)
+          if (!er) break
+          enriched += er.enriched
+          lastRemaining = er.remaining
+          if (er.error || er.remaining <= 0 || er.enriched === 0) break
+        }
+        if (enriched > 0) {
+          void reloadItems()   // 新补的纠正要并进抽题池，练习页立刻能用
+          parts.push(`逐项纠正补了 ${enriched} 篇${lastRemaining > 0 ? `（还剩 ${lastRemaining}）` : '（已补齐）'}`)
+        }
+      }
+      setPipelineNote(parts.join(' · '))
     })()
-  }, [account, audit, ai, aiReviewNow])
+  }, [account, audit, ai, aiReviewNow, enrichNow, reloadItems])
 
   const reopenBulkNow = useCallback(async () => {
     const id = accountRef.current?.id
