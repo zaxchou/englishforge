@@ -103,8 +103,14 @@ export class LlmError extends Error {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
-/** 一次对话补全。仅 429/5xx/网络错误重试；4xx 立即失败（重试也没用）。 */
-export async function chat(messages, { maxTokens = 2000, temperature = 0.2, tries = 3 } = {}) {
+/**
+ * 一次对话补全，连**结束原因**一起返回。
+ * 为什么要 finishReason：max_tokens 太小会让模型把 JSON 写到一半就被切断，
+ * 那时文本看起来"就是坏的 JSON"，很容易误判成"模型不听话"（我上一版就误判了，
+ * 报错文案还甩锅给模型）。看到 `length` 就该知道是**输出预算不够**，正确反应是
+ * 把这一批拆小重试，而不是报告"模型没返回可解析的 JSON"。
+ */
+export async function chatWithMeta(messages, { maxTokens = 2000, temperature = 0.2, tries = 3 } = {}) {
   const cfg = llmConfig()
   if (!cfg.configured) throw new LlmError('模型未配置：在 molin-wiki/backend/.env 里放 DEEPSEEK_API_KEY（或设环境变量）')
   let last = null
@@ -128,7 +134,7 @@ export async function chat(messages, { maxTokens = 2000, temperature = 0.2, trie
         if (i < tries - 1) { last = new LlmError('模型返回空内容'); await sleep(800 * (i + 1)); continue }
         throw new LlmError('模型返回空内容')
       }
-      return text
+      return { text, finishReason: json?.choices?.[0]?.finish_reason ?? 'stop', usage: json?.usage ?? null }
     } catch (err) {
       if (err instanceof LlmError && err.status && err.status < 500 && err.status !== 429) throw err
       last = err
@@ -159,4 +165,51 @@ export function parseJsonLoose(text) {
 
 export async function chatJson(messages, opts) {
   return parseJsonLoose(await chat(messages, opts))
+}
+
+/** 只要文本的便捷版本（大多数场景用这个就够） */
+export async function chat(messages, opts) {
+  return (await chatWithMeta(messages, opts)).text
+}
+
+/**
+ * 从**被截断**的 JSON 里抢救出已写完整的对象。
+ *
+ * 做法：对每一个 `{` 起点都试着找出配对的 `}`（字符串内的括号不算），能 `JSON.parse` 成功就收下。
+ * 这样即使最外层的包裹对象没闭合（截断），里面已经写完整的一道题也能救回来。
+ * 每个对象的字段后面还要各自过闸门（选项必须真实存在、标签必须在词表里），所以抢救是安全的。
+ */
+export function salvageObjects(text) {
+  // 用字符码而不是字面量：反斜杠与引号在这个文件里被 shell/转义折腾过好几次了
+  const BACKSLASH = String.fromCharCode(92)
+  const QUOTE = String.fromCharCode(34)
+  const out = []
+  const seen = new Set()
+  for (let start = 0; start < text.length; start++) {
+    if (text[start] !== '{') continue
+    let depth = 0, inStr = false, esc = false, end = -1
+    for (let i = start; i < text.length; i++) {
+      const c = text[i]
+      if (esc) { esc = false; continue }
+      if (c === BACKSLASH) { esc = true; continue }
+      if (c === QUOTE) { inStr = !inStr; continue }
+      if (inStr) continue
+      if (c === '{') depth++
+      else if (c === '}') {
+        depth--
+        if (depth === 0) { end = i; break }
+      }
+    }
+    if (end < 0) continue
+    const slice = text.slice(start, end + 1)
+    if (seen.has(slice)) continue
+    try {
+      const obj = JSON.parse(slice)
+      if (obj && typeof obj === 'object' && !Array.isArray(obj) && 'i' in obj) {
+        seen.add(slice)
+        out.push(obj)
+      }
+    } catch { /* 这个片段不完整，继续往后找 */ }
+  }
+  return out
 }

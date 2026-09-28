@@ -16,12 +16,13 @@ interface Props {
   /** 一键把重复题的"多余那些"毙掉（每组保留第一道） */
   onKillDuplicates: (ids: string[]) => void
   /** 让系统 AI 补一批 */
-  onEnrich: (limit: number) => Promise<{ enriched: number; rejected: number; remaining: number; error: string | null } | null>
+  onEnrich: (limit: number) => Promise<{ enriched: number; rejected: number; truncated: number; remaining: number; error: string | null } | null>
 }
 
 export function SystemAudit({ audit, ai, onKillDuplicates, onEnrich }: Props) {
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
+  const [progress, setProgress] = useState('')
   const [showDup, setShowDup] = useState(false)
   const [showConflict, setShowConflict] = useState(false)
 
@@ -29,17 +30,51 @@ export function SystemAudit({ audit, ai, onKillDuplicates, onEnrich }: Props) {
   const conflicts = audit?.conflicts ?? []
   const missing = audit?.missingCause.count ?? 0
 
+  /** 一轮：让系统补 limit 道，返回本轮结果 */
   async function enrich(limit: number) {
     setBusy(true)
     setMsg(`正在让系统 AI 补 ${limit} 道题…`)
+    setProgress('')
     const r = await onEnrich(limit)
     setBusy(false)
-    if (!r) { setMsg('调用失败：数据库未连接。'); return }
+    if (!r) { setMsg('调用失败：数据库未连接。'); return null }
     setMsg(
       `补好 ${r.enriched} 道，丢弃 ${r.rejected} 条不合规内容（宁缺勿错）` +
-      (r.error ? ` · 中途出错：${r.error}` : '') +
+      (r.truncated ? ` · ${r.truncated} 批输出过长已自动拆小重试` : '') +
+      (r.error ? ` · 有调用失败：${shortError(r.error)}` : '') +
       ` · 还剩 ${r.remaining} 道`,
     )
+    return r
+  }
+
+  /** 一键补完：连续跑，直到补完、或连续两轮没有进展（避免死循环烧调用） */
+  async function enrichAll() {
+    setBusy(true)
+    let total = 0, stale = 0, lastRemaining = missing
+    for (let i = 0; i < 200; i++) {
+      const r = await onEnrich(24)
+      if (!r) { setBusy(false); setMsg(`已补 ${total} 道 · 数据库断开，先停下。`); return }
+      total += r.enriched
+      const remaining = r.remaining
+      stale = r.enriched === 0 ? stale + 1 : 0
+      setProgress(`已补 ${total} 道 · 还剩 ${remaining} 道 · 第 ${i + 1} 批`)
+      if (remaining === 0) { setBusy(false); setProgress(''); setMsg(`全部补完：共补 ${total} 道。`); return }
+      if (stale >= 2) {
+        setBusy(false); setProgress('')
+        setMsg(`已补 ${total} 道 · 还剩 ${remaining} 道，连续两批没有进展，先停下（多半是模型调用不稳，过会儿再点）。`)
+        return
+      }
+      lastRemaining = remaining
+    }
+    setBusy(false); setProgress('')
+    setMsg(`已补 ${total} 道 · 还剩 ${lastRemaining} 道（跑满 200 批上限，可再点一次继续）`)
+  }
+
+  /** 报错只显示人话；原始文本塞进 title（模型输出可能很长，不能整段铺在界面上） */
+  function shortError(e: string) {
+    if (/截断|length|没有返回可解析/.test(e)) return '模型输出被截断（已自动拆小重试）'
+    if (/429|503|502|500/.test(e)) return '模型服务暂时不可用'
+    return e.length > 60 ? e.slice(0, 60) + '…' : e
   }
 
   function killDuplicates() {
@@ -91,17 +126,18 @@ export function SystemAudit({ audit, ai, onKillDuplicates, onEnrich }: Props) {
             已补 {audit?.enrichedCount ?? 0} 道。
           </small>
           <div className="sysaudit-actions">
-            <button className="secondary" onClick={() => void enrich(8)} disabled={busy || !missing || !ai?.configured}>
-              {busy ? '正在补…' : '让系统补 8 道'}
+            <button className="secondary" onClick={() => void enrichAll()} disabled={busy || !missing || !ai?.configured}>
+              {busy ? '正在补…' : `一键补齐（还剩 ${missing} 道）`}
             </button>
             <button className="secondary" onClick={() => void enrich(24)} disabled={busy || !missing || !ai?.configured}>
-              {busy ? '…' : '一次补 24 道'}
+              只补一批（24 道）
             </button>
           </div>
         </div>
       </div>
 
       {msg && <p className="sysaudit-msg">{msg}</p>}
+      {progress && <p className="sysaudit-msg is-dim">{progress}</p>}
 
       {showDup && (
         <div className="sysaudit-list">

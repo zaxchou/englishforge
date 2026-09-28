@@ -78,3 +78,4 @@
 .dupg-keep{color:var(--ink)}
 .dupg-keep b{font-size:10px;background:#eaf5cd;color:#39471d;border-radius:999px;padding:2px 8px;margin-right:6px}
 .dupg-extra{color:var(--sub);font-size:11px;margin-top:4px;padding-left:10px}
+.sysaudit-msg.is-dim{color:var(--sub)}

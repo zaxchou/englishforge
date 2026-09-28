@@ -51,7 +51,7 @@ export interface DbSyncApi {
   /** 刷新自检结果 */
   runAudit: () => Promise<void>
   /** 让系统自己的 AI 补一批逐项纠正 */
-  enrichNow: (limit?: number) => Promise<{ enriched: number; rejected: number; remaining: number; error: string | null } | null>
+  enrichNow: (limit?: number) => Promise<{ enriched: number; rejected: number; truncated: number; remaining: number; error: string | null } | null>
   /** 状态变了：安排一次落库 */
   schedule: () => void
   /** 立刻落库（full = 整份替换，服务端先留快照） */
@@ -214,7 +214,7 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
     const res = await runEnrichCauses(id, limit)
     if (!res) return null
     await runAudit()
-    return { enriched: res.enriched, rejected: res.rejected, remaining: res.remaining, error: res.error }
+    return { enriched: res.enriched, rejected: res.rejected, truncated: res.truncated, remaining: res.remaining, error: res.error }
   }, [runAudit])
 
   const patchItemVerdict = useCallback(async (itemId: string, verdict: 'ok' | 'fix' | 'kill') => {

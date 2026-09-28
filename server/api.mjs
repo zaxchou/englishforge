@@ -95,7 +95,7 @@ const ROUTES = [
     const a = audit(ctx.params.id)
     const todo = a.missingCauseAll.slice(0, Math.max(1, Math.min(24, limit)))
     if (!todo.length) return { ok: true, requested: 0, enriched: 0, rejected: 0, remaining: 0, model: null }
-    const { results, rejected, model, error } = await enrichCauses(todo)
+    const { results, rejected, truncated, model, error } = await enrichCauses(todo)
     let saved = 0
     for (const [qid, payload] of Object.entries(results)) {
       saveEnrichment(ctx.params.id, qid, 'causes', payload, model)
@@ -103,7 +103,7 @@ const ROUTES = [
     }
     const after = audit(ctx.params.id)
     return {
-      ok: true, requested: todo.length, enriched: saved, rejected, model,
+      ok: true, requested: todo.length, enriched: saved, rejected, truncated, model,
       error: error ?? null, remaining: after.missingCause.count,
     }
   }],

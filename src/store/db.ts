@@ -485,7 +485,16 @@ export async function fetchEnrichments(accountId: string): Promise<EnrichmentMap
   return res?.enrichments ?? null
 }
 
-export interface EnrichRun { requested: number; enriched: number; rejected: number; remaining: number; model: string | null; error: string | null }
+export interface EnrichRun {
+  requested: number
+  enriched: number
+  rejected: number
+  /** 有几批因为输出太长被截断（已自动拆小重试） */
+  truncated: number
+  remaining: number
+  model: string | null
+  error: string | null
+}
 
 /** 让系统自己的 AI 补一批逐项纠正（可反复调用直到 remaining 为 0） */
 export async function runEnrichCauses(accountId: string, limit = 8): Promise<EnrichRun | null> {

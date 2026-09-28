@@ -79,27 +79,31 @@ describe('系统自检', () => {
 
 describe('让系统自己的 AI 补逐项纠正', () => {
   it('补出来的内容存进账户，并过闸门（编造的选项 / 越界的标签一律丢弃）', async () => {
-    setChat(async () => ({
+    setChat(async () => ({ text: JSON.stringify({
       items: [
         { i: 0, optionFixes: { he: '选它等于说「他」是发出喜欢的人，可发出喜欢的是我。', his: '选它等于说「他的（东西）」，后面得跟着被拥有的东西。', NOT_AN_OPTION: '编出来的选项应被丢弃' },
           optionTags: { he: ['role-reversed'], his: ['case-form-possessive'], NOT_AN_OPTION: ['role-reversed'] } },
         { i: 1, optionFixes: { he: '同上' }, optionTags: { he: ['role-reversed'] } },
         { i: 2, optionFixes: { he: '这条太短' }, optionTags: { he: ['not-a-real-tag'] } },
       ],
-    }))
+    }), finishReason: 'stop' }))
     const run = (await call(`/api/accounts/${acct}/enrich-causes`, { limit: 3 }, 'POST')).json
     expect(run.error).toBeNull()
-    expect(run.enriched).toBe(1)          // 只有第 1 条合格
-    expect(run.rejected).toBe(2)          // 第 2 条太短、第 3 条标签越界
-    expect(run.remaining).toBe(2)
+    // 闸门只管"这条内容能不能用"，不管计数：合格的那道必须进，不合格的必须被拒
+    // （不合格的题会在更小的批次里再给一次机会，所以这里不断言精确条数）
+    expect(run.enriched).toBeGreaterThanOrEqual(1)
+    expect(run.rejected).toBeGreaterThanOrEqual(1)
 
     const en = (await call(`/api/accounts/${acct}/enrichments`)).json.enrichments
-    expect(Object.keys(en)).toHaveLength(1)
-    const causes = en.q1.causes
+    const causes = en.q1?.causes
+    expect(causes).toBeTruthy()
     expect(causes.optionFixes.he).toContain('发出喜欢')
-    expect(causes.optionFixes.NOT_AN_OPTION).toBeUndefined()
+    expect(causes.optionFixes.NOT_AN_OPTION).toBeUndefined()      // 编出来的选项被丢
+    expect(causes.optionFixes.his).toContain('他的')
     expect(causes.optionTags.he).toEqual(['role-reversed'])
-    expect(causes.optionTags.NOT_AN_OPTION).toBeUndefined()
+    expect(causes.optionTags.NOT_AN_OPTION).toBeUndefined()       // 编出来的选项的标签也被丢
+    // 标签越界的那道永远补不上（重试也一样），会一直留在待补里
+    expect(run.remaining).toBeGreaterThanOrEqual(1)
   })
 
   it('可反复调用直到补完；补过的题不再重复要', async () => {
@@ -107,12 +111,15 @@ describe('让系统自己的 AI 补逐项纠正', () => {
     setChat(async (messages) => {
       const payload = JSON.parse(messages[messages.length - 1].content.slice(messages[messages.length - 1].content.indexOf('[')))
       return {
-        items: payload.map((p) => {
-          const wrong = (p.options ?? []).find((o) => o !== p.answer)
-          return wrong
-            ? { i: p.i, optionFixes: { [wrong]: '选它等于把这句话的含义说成了另一件事。' }, optionTags: { [wrong]: ['role-reversed'] } }
-            : { i: p.i }
+        text: JSON.stringify({
+          items: payload.map((p) => {
+            const wrong = (p.options ?? []).find((o) => o !== p.answer)
+            return wrong
+              ? { i: p.i, optionFixes: { [wrong]: '选它等于把这句话的含义说成了另一件事。' }, optionTags: { [wrong]: ['role-reversed'] } }
+              : { i: p.i }
+          }),
         }),
+        finishReason: 'stop',
       }
     })
     const second = (await call(`/api/accounts/${acct}/enrich-causes`, { limit: 8 }, 'POST')).json
@@ -129,6 +136,39 @@ describe('让系统自己的 AI 补逐项纠正', () => {
     expect(run.enriched).toBe(0)
     expect(run.error).toContain('503')
     expect((await call(`/api/accounts/${acct}/audit`)).json.audit.missingCause.count).toBe(1)
+  })
+
+  it('输出被截断时先抢救完整的题，再拆小重试（不是整批丢掉）', async () => {
+    // 造 4 道新题
+    const qs = [0, 1, 2, 3].map((n) => ({
+      id: 'trunc' + n, skill: 's2', type: 'choice', prompt: 'I adore ___. ' + n, answer: 'him',
+      options: ['him', 'he', 'his', 'himself'], hasCause: false,
+    }))
+    await call('/api/catalog', { questions: qs }, 'POST')
+
+    let calls = 0
+    setChat(async (messages) => {
+      calls++
+      const payload = JSON.parse(messages[messages.length - 1].content.slice(messages[messages.length - 1].content.indexOf('[')))
+      // 第一次（4 道一起）只写到一半就"被截断"：只完成第 1 道
+      if (payload.length > 1) {
+        const first = payload[0]
+        const wrong = (first.options ?? []).find((o) => o !== first.answer)
+        const partial = '{"items":[{"i":0,"optionFixes":{"' + wrong + '":"选它等于把这句话的含义说成了另一件事。"},"optionTags":{"' + wrong + '":["role-reversed"]},"note":"这里开始被截断了需要补一大批文字'.repeat(1)
+        return { text: partial, finishReason: 'length' }
+      }
+      // 拆小之后每道单独都能成
+      const p = payload[0]
+      const wrong = (p.options ?? []).find((o) => o !== p.answer)
+      return { text: JSON.stringify({ items: [{ i: 0, optionFixes: { [wrong]: '选它等于把这句话的含义说成了另一件事。' }, optionTags: { [wrong]: ['role-reversed'] } }] }), finishReason: 'stop' }
+    })
+
+    const run = (await call(`/api/accounts/${acct}/enrich-causes`, { limit: 4 }, 'POST')).json
+    expect(run.truncated).toBeGreaterThanOrEqual(1)   // 至少有一批被截断
+    expect(run.enriched).toBe(4)                      // 4 道最终都补上了（抢救 1 + 拆小重试 3）
+    expect(calls).toBeGreaterThan(1)                  // 确实触发了拆小重试
+    const en = (await call(`/api/accounts/${acct}/enrichments`)).json.enrichments
+    for (const n of [0, 1, 2, 3]) expect(en['trunc' + n]?.causes?.optionFixes).toBeTruthy()
   })
 
   it('AI 状态只回报"配好了没"，绝不回报密钥', async () => {
