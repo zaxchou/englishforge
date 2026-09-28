@@ -872,6 +872,12 @@ export function upsertCatalog(rows = []) {
       content_key = excluded.content_key,
       has_cause = excluded.has_cause, updated_at = excluded.updated_at`)
   let inserted = 0, updated = 0, skipped = 0
+  // 系统改过的稿（rewrite）是权威：客户端推上来的是仓库里的原始题面（旧解析），
+  // 不盖回去的话，每次启动一推送就把 AI 改好的内容冲掉了（旧标签页同理）。
+  const rewrites = new Map()
+  for (const r of db.prepare("SELECT question_id, payload FROM enrichments WHERE kind = 'rewrite'").all()) {
+    rewrites.set(r.question_id, parseJson(r.payload) ?? {})
+  }
   db.exec('BEGIN')
   try {
     for (const r of rows) {
@@ -879,10 +885,14 @@ export function upsertCatalog(rows = []) {
       const skill = str(r?.skill)
       if (!id || !skill) { skipped++; continue }
       const exists = db.prepare('SELECT 1 FROM questions WHERE id = ?').get(id)
-      const options = Array.isArray(r.options) ? JSON.stringify(r.options.map((o) => String(o).slice(0, 200))) : null
+      const rw = rewrites.get(id)
+      const prompt = rw?.prompt ?? str(r.prompt)
+      const optionsSrc = Array.isArray(rw?.options) ? rw.options : r.options
+      const explainSrc = rw?.explain ?? r.explain
+      const options = Array.isArray(optionsSrc) ? JSON.stringify(optionsSrc.map((o) => String(o).slice(0, 200))) : null
       ins.run(id, skill, r.mode ?? null, r.type ?? null, r.variantGroupId ?? null,
-        str(r.prompt).slice(0, 500), r.answer ?? null, options,
-        r.explain ? String(r.explain).slice(0, 600) : null,
+        prompt.slice(0, 500), r.answer ?? null, options,
+        explainSrc ? String(explainSrc).slice(0, 600) : null,
         r.aux ? JSON.stringify(r.aux).slice(0, 2000) : null, r.tts ?? null,
         int(r.contentVersion, 1), r.contentKey ? String(r.contentKey).slice(0, 600) : null, r.hasCause ? 1 : 0, ts)
       if (exists) updated++; else inserted++
@@ -971,6 +981,12 @@ export function audit(accountId) {
     const v = verdictOf.get(r.id)?.verdict
     return v === 'fix' || v === 'kill'
   })
+  // 自动流水线还剩多少道要机器过手（与 pipelineQueue 同一判据）：
+  // 人工/批量的结论机器也复核 —— 用户原话「完全不需要我审核」；kill 不进队列（人毙的不复活）
+  const pipelinePending = live.filter((r) => {
+    const v = verdictOf.get(r.id)
+    return !v || v.verdict === 'fix' || v.source === 'bulk' || v.source === 'human'
+  }).length
 
   const enriched = new Set(db.prepare("SELECT question_id FROM enrichments WHERE account_id = ? AND kind = 'causes'").all(accountId)
     .map((r) => r.question_id))
@@ -986,6 +1002,8 @@ export function audit(accountId) {
     unreviewed,
     /** 其中"批量通过"待重审的条数 */
     bulkPending: bulkCount,
+    /** 自动流水线的待办（含人工结论复核与 fix 复审）；归零 = 机器这边全处理完了 */
+    pipelinePending,
     /** 同一个句子被 2 道以上题目反复考的情况（上限 2） */
     sentenceReuse,
     /** AI 定过版的题数、以及现在处于"要改/已毙"的题数（这些才需要人过目） */
@@ -1054,26 +1072,58 @@ export function reopenIncompleteAi(accountId) {
   return { reopened: n }
 }
 
-/** 取一批"还没定过版"的题给审核员（目录里有什么就审什么，含仓库题与账户题） */
-export function catalogForReview(accountId, { skipReviewed = new Set(), limit = 60 } = {}) {
-  const db = getDb()
-  const killed = new Set([
+/** 已经出局的题：人毙的、机器毙的、账户题库里隔离的 —— 一律不再进任何送审队列 */
+function killedQuestionIds(db, accountId) {
+  return new Set([
     ...db.prepare("SELECT question_id FROM content_reviews WHERE account_id = ? AND verdict = 'kill'").all(accountId).map((r) => r.question_id),
     ...db.prepare("SELECT item_id FROM items WHERE account_id = ? AND review_status = 'quarantined'").all(accountId).map((r) => r.item_id),
   ])
+}
+
+/** 题库镜像行 → 审核/改稿要看的题目视图（各种题型都送审：非选择题的解析同样要查有没有用术语） */
+function reviewItemOf(r) {
+  const options = Array.isArray(parseJson(r.options)) ? parseJson(r.options) : []
+  const aux = parseJson(r.aux) ?? {}
+  return {
+    id: r.id, skill: r.skill, type: r.type, prompt: r.prompt, options, answer: r.answer,
+    explain: r.explain ?? null, tts: r.tts ?? null,
+    // 拼句/点词/跟读题的句子在这里，不给它审核员就没法判断答案对不对
+    tokens: aux.tokens ?? null, order: aux.order ?? null, target: aux.target ?? null, fix: aux.fix ?? null,
+  }
+}
+
+/** 取一批"还没定过版"的题给审核员（目录里有什么就审什么，含仓库题与账户题） */
+export function catalogForReview(accountId, { skipReviewed = new Set(), limit = 60 } = {}) {
+  const db = getDb()
+  const killed = killedQuestionIds(db, accountId)
   const out = []
   for (const r of db.prepare('SELECT * FROM questions ORDER BY skill, id').all()) {
     if (killed.has(r.id) || skipReviewed.has(r.id)) continue
-    // 各种题型都送审：拼句/点词/跟读虽然没有"干扰项"，但它们的**解析**同样要查
-    // "有没有用术语、自不自洽"（实测 46 条要改里绝大多数就是解析用了术语）
-    const options = Array.isArray(parseJson(r.options)) ? parseJson(r.options) : []
-    const aux = parseJson(r.aux) ?? {}
-    out.push({
-      id: r.id, skill: r.skill, type: r.type, prompt: r.prompt, options, answer: r.answer,
-      explain: r.explain ?? null, tts: r.tts ?? null,
-      // 拼句/点词/跟读题的句子在这里，不给它审核员就没法判断答案对不对
-      tokens: aux.tokens ?? null, order: aux.order ?? null, target: aux.target ?? null, fix: aux.fix ?? null,
-    })
+    out.push(reviewItemOf(r))
+    if (out.length >= limit) break
+  }
+  return out
+}
+
+/**
+ * 自动流水线的待办（用户拍板：「完全不需要我审核」——**人工的结论机器也复核**）。
+ * 进队列：没结论的 / 只是 bulk 盲批量的 / source=human 的（单点的也复核，AI 复核不亏）/ 已经是 fix 的（改完要复审）。
+ * 不进：AI 定过的 ok（不重复花钱）；任何 kill（人毙的不复活，机器毙的已出池）。
+ */
+export function pipelineQueue(accountId, { limit = 60 } = {}) {
+  const db = getDb()
+  const killed = killedQuestionIds(db, accountId)
+  const reviews = new Map(
+    db.prepare('SELECT question_id, verdict, source FROM content_reviews WHERE account_id = ?').all(accountId)
+      .map((r) => [r.question_id, r]),
+  )
+  const out = []
+  for (const r of db.prepare('SELECT * FROM questions ORDER BY skill, id').all()) {
+    if (killed.has(r.id)) continue
+    const v = reviews.get(r.id)
+    const needs = !v || v.verdict === 'fix' || v.source === 'bulk' || v.source === 'human'
+    if (!needs) continue
+    out.push(reviewItemOf(r))
     if (out.length >= limit) break
   }
   return out
@@ -1088,6 +1138,43 @@ export function saveEnrichment(accountId, questionId, kind, payload, model = nul
       payload = excluded.payload, model = excluded.model, created_at = excluded.created_at`)
     .run(accountId, questionId, kind, JSON.stringify(payload), model, nowMs())
   return { ok: true }
+}
+
+/**
+ * 采纳 AI 按审核意见改好的稿（解析/干扰项/释义）。写两份：
+ *   · enrichments(kind='rewrite') 是权威层 —— 练习界面从这里读，写回即生效；
+ *   · questions 镜像同步改掉 —— 下一轮复审从镜像读题面，否则审核员看的还是旧解析。
+ * 客户端每次启动都会把仓库题面**原样**推上来，upsertCatalog 会把 rewrite 盖回去，
+ * 所以旧标签页推旧内容也覆盖不掉系统改好的结果。
+ */
+export function saveRewrite(accountId, questionId, payload, model = null) {
+  const db = getDb()
+  if (!db.prepare('SELECT 1 FROM accounts WHERE id = ?').get(accountId)) throw new ApiError(404, '账户不存在：' + accountId)
+  const fresh = {}
+  if (typeof payload?.explain === 'string' && payload.explain.trim()) fresh.explain = payload.explain.trim().slice(0, 600)
+  if (Array.isArray(payload?.options)) fresh.options = payload.options.map((o) => String(o).slice(0, 200))
+  if (typeof payload?.prompt === 'string' && payload.prompt.trim()) fresh.prompt = payload.prompt.trim().slice(0, 500)
+  if (!Object.keys(fresh).length) return { saved: false }
+  // 字段级合并：这轮只改了题干，不能把上一轮改好的解析从权威层挤掉
+  const prevRow = db.prepare("SELECT payload FROM enrichments WHERE account_id = ? AND question_id = ? AND kind = 'rewrite'")
+    .get(accountId, questionId)
+  const merged = { ...(parseJson(prevRow?.payload) ?? {}), ...fresh }
+  db.prepare(`INSERT INTO enrichments (account_id, question_id, kind, payload, model, created_at)
+    VALUES (?,?,?,?,?,?)
+    ON CONFLICT(account_id, question_id, kind) DO UPDATE SET
+      payload = excluded.payload, model = excluded.model, created_at = excluded.created_at`)
+    .run(accountId, questionId, 'rewrite', JSON.stringify(merged), model, nowMs())
+  if (db.prepare('SELECT 1 FROM questions WHERE id = ?').get(questionId)) {
+    db.prepare(`UPDATE questions SET
+        explain = COALESCE(?, explain),
+        options = COALESCE(?, options),
+        prompt  = COALESCE(?, prompt),
+        updated_at = ?
+      WHERE id = ?`)
+      .run(fresh.explain ?? null, fresh.options ? JSON.stringify(fresh.options) : null,
+        fresh.prompt ?? null, nowMs(), questionId)
+  }
+  return { saved: true }
 }
 
 export function listEnrichments(accountId, kind = null) {

@@ -60,7 +60,10 @@ async function runBatched({ items, chunkSize, maxTokens, role, system, buildUser
         const parsed = parseJsonLoose(text)
         list = Array.isArray(parsed) ? parsed : (parsed?.items ?? null)
       } catch (err) {
-        notes.error = notes.error ?? '模型输出无法解析（' + String(err?.message ?? err).slice(0, 80) + '）'
+        // 有的模型把输出截断了却不报 length：解析失败时也先抢救一遍写完整的对象
+        const saved = salvageObjects(text)
+        if (saved.length) list = saved
+        else notes.error = notes.error ?? '模型输出无法解析（' + String(err?.message ?? err).slice(0, 80) + '）'
       }
     }
 
@@ -76,9 +79,15 @@ async function runBatched({ items, chunkSize, maxTokens, role, system, buildUser
     }
 
     const missing = chunk.filter((q) => !results[keyOf(q)])
-    const retryable = missing.length > 0 && depth < MAX_SPLIT && chunk.length > 1
-    if (!retryable) {
-      if (missing.length) notes.rejected += missing.length
+    if (!missing.length) return
+    if (chunk.length === 1) {
+      // 单题没拿到：没有"拆半"可走，原样再试两次（偶发坏输出很常见，一次就放弃会让队列永远卡住）
+      if (depth < 2) { await runChunk(chunk, depth + 1); return }
+      notes.rejected += missing.length
+      return
+    }
+    if (depth >= MAX_SPLIT) {
+      notes.rejected += missing.length
       return
     }
     // 整批都没拿到，或者只拿到一部分 → 把没拿到的那部分拆半重试
@@ -230,6 +239,115 @@ export async function reviewQuestions(questions) {
         options: it.options, answer: it.answer, explain: it.explain ?? null,
       })), null, 1),
     accept: acceptReview,
+    keyOf: (q) => q.id,
+  })
+  return { ...out, model: cfg.model, provider: cfg.provider }
+}
+
+// ---------------------------------------------------------------- 3) 改稿（出题人角色）
+
+/**
+ * 改出来的解析里**不许**再出现这些语法术语 —— 审核员的 explainOk 查的就是它们，
+ * 代码层先拦一道，省一轮"改完还是术语"的往返（模型自己说没问题不算数）。
+ */
+export const BANNED_IN_EXPLAIN = [
+  '主格', '宾格', '物主', '三单', '主语', '谓语', '宾语', '表语', '定语', '状语', '补语',
+  '从句', '时态', '语态', '语法', '单数', '复数', '比较级', '最高级', '不定式', '动名词',
+  '冠词', '代词', '同位语', '虚拟语气', '并列句', '倒装',
+]
+
+const REWRITE_SYSTEM = [
+  '你在给一套中国学生用的英语练习册**改稿**。另一个模型（审核员）指出了每道题的问题，你按它的意见改好。',
+  '',
+  '作者的教学主张（这就是标准，改出来的内容必须符合）：',
+  '  · 英语是直线型思维，含义决定形式；一个含义对应一个形式，形式变了是因为含义变了；',
+  '  · 含义不同，就是两个不同的词（book 和 books 是两个词）；',
+  '  · 讲句子不用语法术语，用"做动作的 / 挨动作的 / 他的（东西）"这种方式说。',
+  '',
+  '你能改的只有三样（审核员没指出的问题**一律不动**，不要整体重写）：',
+  '· explain —— 解析用了术语、自相矛盾、或**没让学生能直接核对答案**时重写：一句话说清"为什么这个答案才对"',
+  '  （配对题要说清哪两个配哪两个，别只列规则），12~80 个汉字，一句话，不分点、不客套、不复述题干；术语全部换成上面的讲法。',
+  '· options —— 只在审核员说"某个干扰项其实也成立 / 选项有问题"时改：',
+  '  正确答案**原样保留在原来的位置**，只换掉它指出的那个选项，换成同长度、按题干含义明显错的新选项；选项个数不变。',
+  '· prompt —— 审核员指出**题干本身**有问题时改（释义不准、题干里出现了语法术语）：只改它指出的那几个字，',
+  '  英文、题型要求、结构一个字都不许动。',
+  '  若某题带 `promptMustFix` 字段：这是**硬性要求** —— 这一轮必须输出改好的 prompt，不能只改解析就算完成。',
+  '',
+  '不许改：题型、正确答案、句子本身（tokens/order/target）。',
+  '审核员没提的字段不要输出。',
+  '',
+  '只输出 JSON，不要任何解释或 markdown 包装。格式：',
+  '{"items":[{"i":<题目序号>,"explain":"<重写后的解析>"}]}',
+].join('\n')
+
+/** 给测试用：改稿提示里必须一直保留"按本书主张改"的前提 */
+export const REWRITE_PROMPT = REWRITE_SYSTEM
+
+/**
+ * 改稿结果的代码闸门（不信模型的自述）：
+ * · 解析：非空、不短、**不含语法术语**（否则改了等于没改）；
+ * · 释义：长度必须与原题干接近（防"重写"顺手把题干换掉）；
+ * · 选项：个数不变、正确答案**留在原位**（客户端按位置生成选项 ID，换位会让判分错位）、
+ *   且改完不许出现两个重复选项（审核员挑的"d-s8-16"这类问题不能改完还在）。
+ */
+export function acceptRewrite(row, q) {
+  if (!row || typeof row !== 'object') return null
+  const out = {}
+  if (row.explain !== undefined && row.explain !== null) {
+    const s = String(row.explain).trim().slice(0, 600)
+    if (s.length < 8) return null
+    if (BANNED_IN_EXPLAIN.some((t) => s.includes(t))) return null
+    out.explain = s
+  }
+  if (row.prompt !== undefined && row.prompt !== null) {
+    const orig = String(q.prompt ?? '')
+    const s = String(row.prompt).trim().slice(0, 500)
+    if (!s || s.length < orig.length * 0.5 || s.length > orig.length * 1.5) return null
+    out.prompt = s
+  }
+  if (row.options !== undefined && row.options !== null) {
+    if (!Array.isArray(row.options)) return null
+    const orig = Array.isArray(q.options) ? q.options : []
+    const opts = row.options.map((o) => String(o).trim().slice(0, 200))
+    if (opts.length !== orig.length || opts.length < 2) return null
+    const answerIdx = orig.indexOf(String(q.answer))
+    if (answerIdx < 0 || opts[answerIdx] !== String(q.answer)) return null  // 答案必须原位
+    const norm = (s) => String(s).toLowerCase().replace(/[\s.,!?;:'"“”‘’（）()]/g, '')
+    if (new Set(opts.map(norm)).size !== opts.length) return null           // 不许留重复选项
+    out.options = opts
+  }
+  return Object.keys(out).length ? out : null
+}
+
+/**
+ * 按审核意见改一批题（**出题人角色** = 与审核员不同的一家模型）。
+ * 改完不直接采信：结果要再过一轮 reviewQuestions（复审），过了才算数。
+ */
+export async function rewriteQuestions(questions) {
+  if (!questions.length) return { results: {}, rejected: 0, truncated: 0, model: null, provider: null, error: null }
+  const cfg = llmConfig('generate')
+  if (!cfg.configured) throw new LlmError('模型未配置：系统 AI 不可用')
+  const out = await runBatched({
+    items: questions, chunkSize: CHUNK, maxTokens: MAX_TOKENS, role: 'generate',
+    system: REWRITE_SYSTEM,
+    buildUser: (chunk) => `共 ${chunk.length} 道题（每条附审核员的意见）：\n` + JSON.stringify(
+      chunk.map((it, i) => {
+        // 硬指令的两个条件都满足才下：**审核员把矛头指向题干** + 题干确实含术语。
+        // 只看术语会误伤"破惯性题"（题干引用的正是要被打碎的错误说法，如「复数就是加个 s」）。
+        const reasons = it.reasons ?? []
+        const reasonsPointAtPrompt = reasons.some((r) => /题干|题面|提示|释义/.test(String(r)))
+        const terms = reasonsPointAtPrompt
+          ? BANNED_IN_EXPLAIN.filter((t) => String(it.prompt ?? '').includes(t))
+          : []
+        return {
+          i, type: it.type, prompt: it.prompt, options: it.options, answer: it.answer,
+          explain: it.explain ?? null,
+          sentence: it.tokens ?? it.order ?? it.target ?? null,
+          reasons,
+          ...(terms.length ? { promptMustFix: `题干里出现了「${terms.join('」「')}」——必须改题干（只改这几个字），这一轮必须输出 prompt` } : {}),
+        }
+      }), null, 1),
+    accept: acceptRewrite,
     keyOf: (q) => q.id,
   })
   return { ...out, model: cfg.model, provider: cfg.provider }

@@ -9,7 +9,7 @@ import type { ReviewMarks } from '../content/reviewMarks'
 import {
   bootstrap, createAccount, currentAccountId, decideBoot, fetchAccounts, fetchAiStatus, fetchAudit,
   fetchEnrichments, fetchItemBatches, fetchItems, fetchStats, getDbError, getDbState, lastSyncedAt,
-  pullProgress, pushCatalog, renameAccount, reopenBulk as reopenBulkApi, resetRemote, runAiReview,
+  pullProgress, pushCatalog, renameAccount, reopenBulk as reopenBulkApi, resetRemote, runAiPipeline,
   runEnrichCauses, setCurrentAccountId,
   setAiModel, setItemVerdict, subscribeDbState, syncProgress, unionProgress,
   type AiStatus, type CatalogRow, type DbAccount, type DbAudit, type DbItem, type DbItemBatch,
@@ -55,8 +55,10 @@ export interface DbSyncApi {
   changeModel: (model: string) => Promise<boolean>
   /** 把"批量通过"的旧结论作废，交回待审 */
   reopenBulkNow: () => Promise<number>
-  /** 让系统审核题库（自动定版）：一次一批，结论并入本机标记 */
-  aiReviewNow: (limit?: number) => Promise<{ reviewed: number; killed: number; fixed: number; remaining: number; reviewer: string | null; independent: boolean; error: string | null } | null>
+  /** 全自动流水线：审（另一个模型）→ 按意见改稿 → 复审，循环到待办归零；结论并入本机标记 */
+  aiReviewNow: (limit?: number) => Promise<{ reviewed: number; killed: number; fixed: number; rewritten: number; remaining: number; reviewer: string | null; independent: boolean; error: string | null } | null>
+  /** 最近一次自动流水线的结果（系统自检页显示，不用人盯着跑） */
+  pipelineNote: string | null
   /** 让系统自己的 AI 补一批逐项纠正 */
   enrichNow: (limit?: number) => Promise<{ enriched: number; rejected: number; truncated: number; remaining: number; error: string | null } | null>
   /** 状态变了：安排一次落库 */
@@ -256,27 +258,65 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
     return { enriched: res.enriched, rejected: res.rejected, truncated: res.truncated, remaining: res.remaining, error: res.error }
   }, [runAudit])
 
-  /** 让系统审核一批（另一个模型）；结论并入本机标记，题目池立刻按新信任级别重算 */
-  const aiReviewNow = useCallback(async (limit = 20) => {
+  const [pipelineNote, setPipelineNote] = useState<string | null>(null)
+  const autoPipelineRef = useRef(false)
+
+  /**
+   * 全自动流水线：审（另一个模型）→ 按审核意见改稿 → 复审，**循环到待办归零**。
+   * 用户拍板「这个也自动化 完全不需要我审核」——人工不在这条链上的任何一环里。
+   * 结论并入本机标记（并入基线，不产生"待推送"的差异），改稿由 runAudit 重新拉取。
+   */
+  const aiReviewNow = useCallback(async (limit = 60) => {
     const id = accountRef.current?.id
     if (!id) return null
-    const res = await runAiReview(id, limit)
-    if (!res) return null
-    if (res.verdicts && Object.keys(res.verdicts).length) {
-      const { applyMarks: am, getMarks: gm } = optsRef.current
-      // 服务端已经写库了，本机跟着显示即可（并入基线，不产生"待推送"的差异）
-      const merged = { ...gm(), ...res.verdicts }
-      am(merged)
-      marksBaselineRef.current = merged
+    let reviewed = 0, killed = 0, fixed = 0, rewritten = 0, remaining = -1
+    let reviewer: string | null = null, independent = false, error: string | null = null
+    for (let round = 0; round < 6; round++) {
+      const res = await runAiPipeline(id, limit)
+      if (!res) { error = '流水线接口没有响应（服务可能在重启）'; break }
+      if (res.running) {
+        // 另一个标签页正在跑同一条流水线：等它一轮，不并发烧调用
+        await new Promise((r) => setTimeout(r, 3000))
+        continue
+      }
+      reviewed += res.reviewed
+      killed += res.killed
+      fixed += res.fixed
+      rewritten += res.rewritten
+      remaining = res.pending
+      if (res.reviewer) {
+        reviewer = `${res.reviewer.provider}/${res.reviewer.model}`
+        independent = !!res.reviewer.independent
+      }
+      if (res.verdicts && Object.keys(res.verdicts).length) {
+        const { applyMarks: am, getMarks: gm } = optsRef.current
+        const merged = { ...gm(), ...res.verdicts }
+        am(merged)
+        marksBaselineRef.current = merged
+      }
+      if (res.error) { error = res.error; break }
+      if (res.pending <= 0) break
+      if (!res.reviewed && !res.rewritten) break   // 一轮没有任何进展就停，不空烧调用
     }
     await runAudit()
-    return {
-      reviewed: res.reviewed, killed: res.killed, fixed: res.fixed, remaining: res.remaining,
-      reviewer: res.reviewer ? `${res.reviewer.provider}/${res.reviewer.model}` : null,
-      independent: !!res.reviewer?.independent,
-      error: res.error,
-    }
+    return { reviewed, killed, fixed, rewritten, remaining, reviewer, independent, error }
   }, [runAudit])
+
+  /** 开机即自动跑（只要还有待办）：每个会话自动触发一次，之后由内容变化/按钮驱动 */
+  useEffect(() => {
+    if (autoPipelineRef.current || !account || !audit || !ai?.review?.configured) return
+    if ((audit.pipelinePending ?? 0) <= 0) return
+    autoPipelineRef.current = true
+    void (async () => {
+      setPipelineNote('自动流水线启动：审 → 改 → 复审…')
+      const r = await aiReviewNow()
+      setPipelineNote(r
+        ? (r.error
+          ? `自动流水线中断：${r.error}（已处理 审 ${r.reviewed} · 改 ${r.rewritten} · 毙 ${r.killed}）`
+          : `自动流水线完成：审 ${r.reviewed} · 改写 ${r.rewritten} · 判毙 ${r.killed} · 待机器处理还剩 ${Math.max(0, r.remaining)}`)
+        : '自动流水线：数据库接口没有响应')
+    })()
+  }, [account, audit, ai, aiReviewNow])
 
   const reopenBulkNow = useCallback(async () => {
     const id = accountRef.current?.id
@@ -476,7 +516,7 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
     dismissNotice: () => setNotice(null),
     note: (text, kind = 'ok') => setNotice({ kind, text }),
     items, itemStats, itemBatches, itemsCached, reloadItems, patchItemVerdict,
-    audit, enrichments, ai, syncCatalog, runAudit, enrichNow, changeModel, aiReviewNow, reopenBulkNow,
+    audit, enrichments, ai, syncCatalog, runAudit, enrichNow, changeModel, aiReviewNow, pipelineNote, reopenBulkNow,
     schedule, flush, refreshStats, rename, newAccount, switchTo, resetCurrent, reloadFromDb,
   }
 }

@@ -469,6 +469,8 @@ export interface DbAudit {
   flagged: { count: number; sample: AuditQuestion[] }
   /** 只是"批量通过"、待 AI 重审的条数 */
   bulkPending: number
+  /** 自动流水线的待办（含人工结论复核与 fix 复审）；归零 = 机器这边全处理完了 */
+  pipelinePending: number
   /** 同一个句子被多道题反复考的情况（上限 2） */
   sentenceReuse: { cap: number; groupsOver: number; dropIfCapped: number }
   duplicates: { keep: AuditQuestion; extras: AuditQuestion[]; count: number }[]
@@ -479,7 +481,9 @@ export interface DbAudit {
 }
 
 export interface EnrichmentCauses { optionFixes?: Record<string, string>; optionTags?: Record<string, string[]> }
-export interface Enrichment { causes?: EnrichmentCauses; model?: string | null; at?: number }
+/** 系统 AI 按审核意见改好的稿（**纠正**，练习时覆盖原题面；与 causes 的"只补空缺"相反） */
+export interface EnrichmentRewrite { explain?: string; options?: string[]; prompt?: string }
+export interface Enrichment { causes?: EnrichmentCauses; rewrite?: EnrichmentRewrite; model?: string | null; at?: number }
 export type EnrichmentMap = Record<string, Enrichment>
 
 export interface AiStatus {
@@ -570,6 +574,22 @@ export async function runAiReview(accountId: string, limit = 20): Promise<AiRevi
     method: 'POST', body: JSON.stringify({ limit }),
   }, 180_000))
   return res
+}
+
+/** 全自动流水线的一轮：审 → 按审核意见改稿；`pending` 是剩下的待办（归零 = 处理完） */
+export interface AiPipelineRun extends AiReviewRun {
+  rewritten: number
+  rewriteRejected: number
+  pending: number
+  /** 同一账户已有流水线在跑（另一个标签页）；此时其它字段不返回 */
+  running?: boolean
+}
+
+/** 跑一轮全自动流水线（审 → 改 → 下一轮自动复审）。客户端循环调用直到 pending 归零。 */
+export async function runAiPipeline(accountId: string, limit = 60): Promise<AiPipelineRun | null> {
+  return attemptReq(() => req<AiPipelineRun>(`/accounts/${accountId}/ai-pipeline`, {
+    method: 'POST', body: JSON.stringify({ limit }),
+  }, 300_000))
 }
 
 /** 把"批量通过"的旧结论作废，交回待审（返回作废条数） */

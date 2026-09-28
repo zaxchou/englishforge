@@ -5,15 +5,18 @@
 import {
   ApiError, addItems, audit, createAccount, dbInfo, deleteItem, ensureDefaultAccount, getAccount,
   catalogForReview, itemStats, listAccounts, listBatches, listEnrichments, listItems,
-  listSnapshots, reopenBulk, reopenIncompleteAi, reviewQueue,
+  listSnapshots, pipelineQueue, reopenBulk, reopenIncompleteAi, reviewQueue,
   loadProgress, queryAttempts, renameAccount, replaceState, resetAccount, restoreSnapshot,
-  saveAiReview, saveEnrichment, setItemReview, setSetting, stats, syncAccount, touchAccount,
+  saveAiReview, saveEnrichment, saveRewrite, setItemReview, setSetting, stats, syncAccount, touchAccount,
   upsertCatalog, writeSnapshot, getDb,
 } from './db.mjs'
-import { enrichCauses, reviewQuestions } from './content-ai.mjs'
+import { enrichCauses, rewriteQuestions, reviewQuestions } from './content-ai.mjs'
 import { invalidateLlmConfig, llmStatus, DEFAULT_MODEL } from './llm.mjs'
 
 const MAX_BODY = 64 * 1024 * 1024   // 首次把浏览器里的整份进度搬进库时会有一次大包
+
+/** 同一账户同时只跑一条流水线（多标签页/重复点击防重） */
+const pipelineLock = new Set()
 
 export class HttpError extends Error {
   constructor(status, message) { super(message); this.status = status }
@@ -126,6 +129,64 @@ const ROUTES = [
       ok: true, requested: todo.length, reviewed: saved, killed, fixed, rejected, truncated, verdicts,
       remaining: after.unreviewed, reviewer: { provider, model, independent: llmStatus().independentReview },
       error: error ?? null,
+    }
+  }],
+
+  /**
+   * **全自动流水线的一轮**（用户拍板：「这个也自动化 完全不需要我审核」）：
+   *   审（MiMo 找问题）→ 改（DeepSeek 按审核意见改稿）→ 待办里留着的 fix 下一轮自动复审。
+   * 待办用 pipelineQueue：**人工的结论机器也复核**（单点的、批量的都算）；人毙的题不复活（kill 不进队列）。
+   * 客户端循环调用直到 `pending` 归零；同一账户同时只跑一条（并发请求回 running，不重复花钱）。
+   */
+  ['POST', '/api/accounts/:id/ai-pipeline', async (ctx) => {
+    const id = ctx.params.id
+    if (pipelineLock.has(id)) return { ok: true, running: true }
+    pipelineLock.add(id)
+    try {
+      const limit = Math.max(1, Math.min(60, num(ctx.body?.limit, 60)))
+      const todo = pipelineQueue(id, { limit })
+      if (!todo.length) {
+        return {
+          ok: true, requested: 0, reviewed: 0, killed: 0, fixed: 0, rewritten: 0,
+          rejected: 0, rewriteRejected: 0, pending: audit(id).pipelinePending, verdicts: {},
+          reviewer: null, error: null,
+        }
+      }
+      const { results, rejected, truncated, model, provider, error } = await reviewQuestions(todo)
+      const tag = provider ? `${provider}/${model}` : model
+      let killed = 0, fixed = 0, saved = 0
+      const verdicts = {}
+      for (const [qid, v] of Object.entries(results)) {
+        saveAiReview(id, qid, v.verdict, v.reasons, tag)
+        verdicts[qid] = { verdict: v.verdict, reasons: v.reasons, source: 'ai', model: tag }
+        saved++
+        if (v.verdict === 'kill') killed++
+        else if (v.verdict === 'fix') fixed++
+      }
+      // 审出"要改"的 → 出题人立刻改稿（改完的题仍在待办里，下一轮复审；单方结论不采信）
+      let rewritten = 0, rewriteRejected = 0, rewriteError = null
+      const fixQs = todo.filter((q) => results[q.id]?.verdict === 'fix')
+        .map((q) => ({ ...q, reasons: results[q.id].reasons }))
+      if (fixQs.length) {
+        try {
+          const rw = await rewriteQuestions(fixQs)
+          for (const [qid, payload] of Object.entries(rw.results)) {
+            if (saveRewrite(id, qid, payload, rw.model ? `${rw.provider}/${rw.model}` : null).saved) rewritten++
+          }
+          rewriteRejected = rw.rejected
+          rewriteError = rw.error
+        } catch (err) {
+          rewriteError = String(err?.message ?? err)
+        }
+      }
+      return {
+        ok: true, requested: todo.length, reviewed: saved, killed, fixed, rewritten,
+        rejected, rewriteRejected, truncated, pending: audit(id).pipelinePending, verdicts,
+        reviewer: { provider, model, independent: llmStatus().independentReview },
+        error: error ?? rewriteError,
+      }
+    } finally {
+      pipelineLock.delete(id)
     }
   }],
 

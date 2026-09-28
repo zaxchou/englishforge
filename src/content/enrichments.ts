@@ -5,6 +5,7 @@
 // 所以补完之后立刻生效，不需要改题面文件。
 //
 // 合并原则：**已有的内容不覆盖**（人写的、语料管线生成的都优先），只补空缺。
+// 例外：`rewrite` —— 系统 AI 按审核意见改的稿是**纠正**，覆盖原题面（否则"审出问题→改稿"永远不生效）。
 import type { AdaptedQuestion } from '../types'
 import type { EnrichmentMap } from '../store/db'
 
@@ -12,20 +13,35 @@ export function applyEnrichments(questions: AdaptedQuestion[], map: EnrichmentMa
   const ids = Object.keys(map)
   if (!ids.length) return questions
   return questions.map((q) => {
-    const e = map[q.id]?.causes
-    if (!e) return q
-    const mergeRecord = <T>(base: Record<string, T> | undefined, extra: Record<string, T> | undefined) => {
-      if (!extra) return base
-      const out: Record<string, T> = { ...(base ?? {}) }
+    const entry = map[q.id]
+    if (!entry) return q
+    // 先应用改写（纠正，覆盖题面），再在改完的题上补逐项纠正（只补空缺）
+    let base = q
+    const rw = entry.rewrite
+    if (rw) {
+      const patch: Partial<AdaptedQuestion> = {}
+      if (typeof rw.explain === 'string' && rw.explain && rw.explain !== q.explain) patch.explain = rw.explain
+      if (typeof rw.prompt === 'string' && rw.prompt && rw.prompt !== q.prompt) patch.prompt = rw.prompt
+      // 选项个数必须与原题一致：optionIds 按位置生成、判分按 ID，改稿闸门保证正确答案原位
+      if (Array.isArray(rw.options) && rw.options.length > 1 && rw.options.length === (q.options?.length ?? 0)) {
+        patch.options = rw.options
+      }
+      if (Object.keys(patch).length) base = { ...q, ...patch }
+    }
+    const e = entry.causes
+    if (!e) return base
+    const mergeRecord = <T>(prev: Record<string, T> | undefined, extra: Record<string, T> | undefined) => {
+      if (!extra) return prev
+      const out: Record<string, T> = { ...(prev ?? {}) }
       let added = false
       for (const [k, v] of Object.entries(extra)) {
         if (out[k] === undefined) { out[k] = v; added = true }
       }
-      return added ? out : base
+      return added ? out : prev
     }
-    const optionFeedback = mergeRecord(q.optionFeedback, e.optionFixes)
-    const optionTags = mergeRecord(q.optionTags, e.optionTags)
-    if (optionFeedback === q.optionFeedback && optionTags === q.optionTags) return q
-    return { ...q, optionFeedback, optionTags }
+    const optionFeedback = mergeRecord(base.optionFeedback, e.optionFixes)
+    const optionTags = mergeRecord(base.optionTags, e.optionTags)
+    if (optionFeedback === base.optionFeedback && optionTags === base.optionTags) return base
+    return { ...base, optionFeedback, optionTags }
   })
 }

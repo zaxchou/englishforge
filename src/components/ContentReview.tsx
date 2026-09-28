@@ -10,7 +10,7 @@ import './content-review.css'
 
 const DIFF = ['', '基础', '进阶', '挑战']
 
-export function ContentReview({ questions, marks, onMarks, onExit, audit, ai, onKillDuplicates, onModel, onAiReview, onReopenBulk, onEnrich }: {
+export function ContentReview({ questions, marks, onMarks, onExit, audit, ai, onKillDuplicates, onModel, onAiReview, pipelineNote, onReopenBulk, onEnrich }: {
   questions: AdaptedQuestion[]
   marks: ReviewMarks
   onMarks: (m: ReviewMarks) => void
@@ -19,7 +19,9 @@ export function ContentReview({ questions, marks, onMarks, onExit, audit, ai, on
   ai: AiStatus | null
   onKillDuplicates: (ids: string[]) => Promise<void>
   onModel: (model: string) => Promise<boolean>
-  onAiReview: (limit: number) => Promise<{ reviewed: number; killed: number; fixed: number; remaining: number; reviewer: string | null; independent: boolean; error: string | null } | null>
+  onAiReview: (limit: number) => Promise<{ reviewed: number; killed: number; fixed: number; rewritten: number; remaining: number; reviewer: string | null; independent: boolean; error: string | null } | null>
+  /** 最近一次自动流水线的结果（开机自动跑的那次也会显示） */
+  pipelineNote?: string | null
   onReopenBulk: () => Promise<number>
   onEnrich: (limit: number) => Promise<{ enriched: number; rejected: number; truncated: number; remaining: number; error: string | null } | null>
 }) {
@@ -105,6 +107,7 @@ export function ContentReview({ questions, marks, onMarks, onExit, audit, ai, on
         onModel={onModel}
         onEnrich={onEnrich}
         onAiReview={onAiReview}
+        pipelineNote={pipelineNote}
         onShowFlagged={() => { setScope('flagged') }}
         onReopenBulk={onReopenBulk}
       />

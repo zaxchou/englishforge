@@ -17,8 +17,10 @@ interface Props {
   onKillDuplicates: (ids: string[]) => Promise<void>
   /** 换模型（存库即时生效） */
   onModel: (model: string) => Promise<boolean>
-  /** 让系统审核题库（自动定版） */
-  onAiReview: (limit: number) => Promise<{ reviewed: number; killed: number; fixed: number; remaining: number; reviewer: string | null; independent: boolean; error: string | null } | null>
+  /** 跑一轮全自动流水线（审 → 改 → 复审，内部循环到待办归零） */
+  onAiReview: (limit: number) => Promise<{ reviewed: number; killed: number; fixed: number; rewritten: number; remaining: number; reviewer: string | null; independent: boolean; error: string | null } | null>
+  /** 最近一次自动流水线的结果（开机自动跑的那次也会显示在这里） */
+  pipelineNote?: string | null
   /** 只看"系统认为有问题、要人定"的题（把人工量压到最小） */
   onShowFlagged: () => void
   /** 把之前"批量通过"的旧结论作废，交给 AI 重审 */
@@ -27,7 +29,7 @@ interface Props {
   onEnrich: (limit: number) => Promise<{ enriched: number; rejected: number; truncated: number; remaining: number; error: string | null } | null>
 }
 
-export function SystemAudit({ audit, ai, onKillDuplicates, onEnrich, onModel, onAiReview, onShowFlagged, onReopenBulk }: Props) {
+export function SystemAudit({ audit, ai, onKillDuplicates, onEnrich, onModel, onAiReview, pipelineNote, onShowFlagged, onReopenBulk }: Props) {
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
   const [progress, setProgress] = useState('')
@@ -80,21 +82,18 @@ export function SystemAudit({ audit, ai, onKillDuplicates, onEnrich, onModel, on
     setMsg(`已补 ${total} 道 · 还剩 ${lastRemaining} 道（跑满 200 批上限，可再点一次继续）`)
   }
 
-  /** 一键审完：连续跑到审完，或连续两批没有进展就停 */
+  /** 跑一遍全自动流水线（内部自己循环：审 → 改 → 复审，直到待办归零或没有进展） */
   async function aiReviewAll() {
     setBusy(true)
-    let total = 0, killed = 0, fixed = 0, stale = 0
-    for (let i = 0; i < 200; i++) {
-      const r = await onAiReview(20)
-      if (!r) { setBusy(false); setMsg(`已审 ${total} 道 · 数据库断开，先停下。`); return }
-      total += r.reviewed; killed += r.killed; fixed += r.fixed
-      stale = r.reviewed === 0 ? stale + 1 : 0
-      setProgress(`已审 ${total} 道（判毙 ${killed} · 要改 ${fixed}）· 还剩 ${r.remaining} 道 · 第 ${i + 1} 批`)
-      if (r.remaining === 0) { setBusy(false); setProgress(''); setMsg(`审完了：共 ${total} 道，判毙 ${killed} 道、要改 ${fixed} 道（这些已列进"要你决定"）。`); return }
-      if (stale >= 2) { setBusy(false); setProgress(''); setMsg(`已审 ${total} 道 · 还剩 ${r.remaining} 道，连续两批没有进展，先停下。`); return }
-    }
-    setBusy(false); setProgress('')
-    setMsg(`已审 ${total} 道（跑满上限，可再点一次继续）`)
+    setProgress('流水线运行中：审 → 改 → 复审…')
+    const r = await onAiReview(60)
+    setBusy(false)
+    setProgress('')
+    if (!r) { setMsg('调用失败：数据库未连接。'); return }
+    setMsg(
+      `流水线跑完：审 ${r.reviewed} 道 · 改写 ${r.rewritten} 篇 · 判毙 ${r.killed} 道 · 待机器处理还剩 ${Math.max(0, r.remaining)}` +
+      (r.error ? ` · 中途出错：${shortError(r.error)}` : ''),
+    )
   }
 
   /** 报错只显示人话；原始文本塞进 title（模型输出可能很长，不能整段铺在界面上） */
@@ -144,16 +143,17 @@ export function SystemAudit({ audit, ai, onKillDuplicates, onEnrich, onModel, on
         </span>
       </div>
       <p className="sysaudit-note">
-        这些都是系统自己查、自己修，不需要你逐题去看：<b>AI 审核</b>让另一个模型把题定版，
-        <b>你只需要看它报出来的例外</b>（判毙的、要改的）。补出来的逐项纠正会存进你的账户，
-        做错题时立刻就能看到「你选的那条等于在说什么意思」。
+        这些都是系统自己查、自己修，<b>你完全不用逐题审</b>：<b>AI 流水线</b>把「审核（另一个模型）
+        → 按意见改稿 → 复审」串成一条自动链，开机有待办就自己跑，跑到归零为止；
+        人工的"通过/毙掉"结论机器也会复核（你之前说过"看都不看就全部通过"，所以不当数）。
+        补出来的逐项纠正会存进你的账户，做错题时立刻就能看到「你选的那条等于在说什么意思」。
         {!!audit?.quarantined && <b>（你已经毙掉 {audit.quarantined} 道题，它们已退出抽题、也不再计入下面的统计。）</b>}
       </p>
 
-      {/* AI 审核：让另一个模型把题库定版，人只看它报出来的例外 */}
+      {/* AI 流水线：审（另一个模型）→ 按意见改稿 → 复审，全自动，人不在链上 */}
       <div className="sysaudit-card is-wide is-ai">
-        <span>AI 审核（自动定版）</span>
-        <b>{audit ? `${audit.unreviewed} 道还没审` : '—'}</b>
+        <span>AI 流水线（审 → 改 → 复审 · 全自动）</span>
+        <b>{audit ? `${audit.pipelinePending ?? 0} 道待机器处理` : '—'}</b>
         <small>
           {ai?.review?.configured
             ? <>审核员：<b>{ai.review.providerLabel} · {ai.review.model}</b>
@@ -162,9 +162,9 @@ export function SystemAudit({ audit, ai, onKillDuplicates, onEnrich, onModel, on
                 : '（和出题人同一家，只能算自查 —— 建议在 molin-wiki/.env 里配上另一家的 KEY）'}
               </>
             : '审核模型未配置'}
-          {audit && audit.flagged.count > 0 && <> · 系统认为有问题的 <b>{audit.flagged.count}</b> 道，只有这些需要你过目</>}
+          {audit && audit.flagged.count > 0 && <> · 改了仍不过的 <b>{audit.flagged.count}</b> 道（流水线自动剩下，好奇再看）</>}
           {audit && audit.aiReviewed > 0 && <> · 已由 AI 定版 {audit.aiReviewed} 道</>}
-          {audit && audit.bulkPending > 0 && <> · 其中 <b>{audit.bulkPending}</b> 道只是"批量通过"（不算真审过，建议交回 AI 重审）</>}
+          {audit && audit.bulkPending > 0 && <> · 另有 {audit.bulkPending} 道旧"批量通过"（机器复核中，不用管）</>}
           {audit && audit.sentenceReuse.groupsOver > 0 && (
             <> · 另有 {audit.sentenceReuse.groupsOver} 个句子被 2 道以上题目反复考，
               已按"同一句最多 {audit.sentenceReuse.cap} 道"收口（抽题池少 {audit.sentenceReuse.dropIfCapped} 道，题库里仍保留）</>
@@ -183,14 +183,15 @@ export function SystemAudit({ audit, ai, onKillDuplicates, onEnrich, onModel, on
               交回 AI 重审（{audit.bulkPending}）
             </button>
           )}
-          <button className="secondary" onClick={() => void aiReviewAll()} disabled={busy || !audit?.unreviewed || !ai?.review?.configured}>
-            {busy ? '正在审…' : `一键审完（还剩 ${audit?.unreviewed ?? 0} 道）`}
+          <button className="secondary" onClick={() => void aiReviewAll()} disabled={busy || !audit?.pipelinePending || !ai?.review?.configured}>
+            {busy ? '流水线运行中…' : `跑一遍流水线（${audit?.pipelinePending ?? 0} 道待处理）`}
           </button>
-          <button className="secondary" onClick={async () => { setBusy(true); setMsg('正在审一批…'); const r = await onAiReview(20); setBusy(false); setMsg(r ? `审了 ${r.reviewed} 道（判毙 ${r.killed} · 要改 ${r.fixed}）· 还剩 ${r.remaining} 道` : '失败') }} disabled={busy || !audit?.unreviewed || !ai?.review?.configured}>
-            只审一批（20 道）
+          <button className="secondary" onClick={async () => { setBusy(true); setMsg('正在跑一批…'); const r = await onAiReview(20); setBusy(false); setMsg(r ? `审 ${r.reviewed} 道 · 改写 ${r.rewritten} 篇（判毙 ${r.killed} · 要改 ${r.fixed}）· 还剩 ${Math.max(0, r.remaining)} 道` : '失败') }} disabled={busy || !audit?.pipelinePending || !ai?.review?.configured}>
+            只跑一批（20 道）
           </button>
-          {!!audit?.flagged.count && <button className="text-button" onClick={onShowFlagged}>只看要我决定的（{audit.flagged.count}）</button>}
+          {!!audit?.flagged.count && <button className="text-button" onClick={onShowFlagged}>看流水线改了仍不过的（{audit.flagged.count}）</button>}
         </div>
+        {pipelineNote && <p className="sysaudit-note">{pipelineNote}</p>}
       </div>
 
       <div className="sysaudit-grid">

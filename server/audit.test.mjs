@@ -8,7 +8,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-let dir, handleApi, dbmod, closeDb, setChat, resetChat, ERROR_TAG_KEYS, REVIEW_PROMPT
+let dir, handleApi, dbmod, closeDb, setChat, resetChat, ERROR_TAG_KEYS, REVIEW_PROMPT, REWRITE_PROMPT, acceptRewrite
 
 beforeAll(async () => {
   dir = mkdtempSync(join(tmpdir(), 'ef-audit-'))
@@ -25,6 +25,8 @@ beforeAll(async () => {
   resetChat = ai.__resetChatJson
   ERROR_TAG_KEYS = llm.ERROR_TAG_KEYS
   REVIEW_PROMPT = ai.REVIEW_PROMPT
+  REWRITE_PROMPT = ai.REWRITE_PROMPT
+  acceptRewrite = ai.acceptRewrite
 })
 
 afterAll(() => {
@@ -321,6 +323,117 @@ describe('"批量通过"不算审过（用户自己说那种是看都不看）',
     expect(re.reopened).toBeGreaterThanOrEqual(1)  // bk3 也被交回
     const a = (await call(`/api/accounts/${acct}/audit`)).json.audit
     expect(a.bulkPending).toBeGreaterThanOrEqual(3)
+  })
+})
+
+describe('全自动流水线（审 → 改 → 复审，人不在链上）', () => {
+  it('取舍：人工/批量/要改的都进队列；AI 定过的 ok、任何 kill 不进', async () => {
+    const qs = ['pq1', 'pq2', 'pq3', 'pq4', 'pq5', 'pq6'].map((id) => ({
+      id, skill: 's9', type: 'choice', prompt: '流水线题' + id, answer: 'a', options: ['a', 'b'], contentKey: 'pq|' + id,
+    }))
+    await call('/api/catalog', { questions: qs }, 'POST')
+    await call(`/api/accounts/${acct}/sync`, {
+      reviews: {
+        pq1: { verdict: 'ok', source: 'human' },   // 人单点的：机器也要复核（用户：完全不需要我审核）
+        pq2: { verdict: 'ok', source: 'bulk' },    // 盲批量的：更不算数
+        pq6: { verdict: 'kill', source: 'human' }, // 人毙的：不复活
+      },
+    }, 'POST')
+    dbmod.saveAiReview(acct, 'pq3', 'ok', [], 'test/m')
+    dbmod.saveAiReview(acct, 'pq4', 'fix', ['解析用了术语'], 'test/m')
+    dbmod.saveAiReview(acct, 'pq5', 'kill', ['答案本身不正确'], 'test/m')
+
+    const ids = dbmod.pipelineQueue(acct, { limit: 200 }).map((q) => q.id)
+    expect(ids).toContain('pq1')
+    expect(ids).toContain('pq2')
+    expect(ids).toContain('pq4')      // fix：改完要复审
+    expect(ids).not.toContain('pq3')  // AI 定过的 ok：不重复花钱
+    expect(ids).not.toContain('pq5')  // 机器毙的
+    expect(ids).not.toContain('pq6')  // 人毙的
+
+    const a = (await call(`/api/accounts/${acct}/audit`)).json.audit
+    expect(typeof a.pipelinePending).toBe('number')
+    expect(a.pipelinePending).toBeGreaterThanOrEqual(3)
+  })
+
+  it('一轮跑通：审出"要改"→ 自动改稿（术语清零）→ 复审通过归零；旧题面推上来也盖不掉改写', async () => {
+    const raw = {
+      id: 'pqA', skill: 's9', type: 'choice', contentKey: 'pqA',
+      prompt: '改稿题：我喜欢 ___。（他）', answer: 'him', options: ['him', 'he', 'his', 'her'],
+      explain: '这里要用宾格，因为他在句中作宾语。',
+    }
+    await call('/api/catalog', { questions: [raw] }, 'POST')
+
+    // 替身分两个角色：审核员（找出问题）/ 改稿员（按意见改）；按题目内容给结论，拆半重试也不会错位
+    let targetReviewedAsFix = false
+    setChat(async (messages) => {
+      const system = messages[0].content
+      const payload = JSON.parse(messages[messages.length - 1].content.slice(messages[messages.length - 1].content.indexOf('[')))
+      if (system.includes('改稿')) {
+        return {
+          text: JSON.stringify({ items: payload.map((p) => ({ i: p.i, explain: '你选 he，等于在说做动作的是他；可这里他是被喜欢的那个（挨动作的），得用 him。' })) }),
+          finishReason: 'stop',
+        }
+      }
+      const items = payload.map((p) => {
+        if (p.prompt.includes('改稿题') && !targetReviewedAsFix) {
+          targetReviewedAsFix = true
+          return { i: p.i, answerOk: true, distractorOk: true, glossOk: true, explainOk: false, verdict: 'fix', reasons: ['解析用了「宾格/宾语」这些术语，与本书讲法不符'] }
+        }
+        return { i: p.i, answerOk: true, distractorOk: true, glossOk: true, explainOk: true, verdict: 'ok', reasons: [] }
+      })
+      return { text: JSON.stringify({ items }), finishReason: 'stop' }
+    })
+
+    const r1 = (await call(`/api/accounts/${acct}/ai-pipeline`, { limit: 60 }, 'POST')).json
+    expect(r1.killed).toBe(0)
+    expect(r1.fixed).toBeGreaterThanOrEqual(1)
+    expect(r1.rewritten).toBeGreaterThanOrEqual(1)
+    expect(r1.pending).toBe(1)   // 只剩 pqA 还是 fix（复审在下一轮）
+
+    // 改写写进权威层（练习界面读这里）+ 同步了镜像（下一轮复审看得到）
+    const en = (await call(`/api/accounts/${acct}/enrichments`)).json.enrichments
+    expect(en.pqA.rewrite.explain).toContain('him')
+    expect(en.pqA.rewrite.explain).not.toContain('宾格')
+    const mirror = () => dbmod.getDb().prepare('SELECT explain FROM questions WHERE id = ?').get('pqA').explain
+    expect(mirror()).toBe(en.pqA.rewrite.explain)
+
+    // 客户端启动会把仓库原始题面原样推上来 —— 改写不许被这次推送冲掉
+    await call('/api/catalog', { questions: [raw] }, 'POST')
+    expect(mirror()).toBe(en.pqA.rewrite.explain)
+
+    // 第二轮：复审通过 → 归零
+    const r2 = (await call(`/api/accounts/${acct}/ai-pipeline`, { limit: 60 }, 'POST')).json
+    expect(r2.pending).toBe(0)
+    expect(r2.verdicts.pqA.verdict).toBe('ok')
+    expect(r2.verdicts.pqA.source).toBe('ai')
+    const a = (await call(`/api/accounts/${acct}/audit`)).json.audit
+    expect(a.pipelinePending).toBe(0)
+    resetChat()
+  })
+})
+
+describe('改稿闸门（acceptRewrite：代码不信模型的自述）', () => {
+  const q = { id: 'x', prompt: '我喜欢 ___。（他）', answer: 'him', options: ['him', 'he', 'his', 'her'] }
+
+  it('解析带语法术语直接拒；正常解析照收', () => {
+    expect(acceptRewrite({ explain: '这里要用宾格，因为他在句中作宾语。' }, q)).toBeNull()
+    expect(acceptRewrite({ explain: '你选 he，等于在说做动作的是他。' }, q))
+      .toMatchObject({ explain: '你选 he，等于在说做动作的是他。' })
+  })
+
+  it('正确答案必须留在原位、不许留重复选项', () => {
+    expect(acceptRewrite({ options: ['he', 'him', 'his', 'her'] }, q)).toBeNull()      // 答案换位（选项 ID 按位置生成）
+    expect(acceptRewrite({ options: ['him', 'he', 'he', 'her'] }, q)).toBeNull()       // 重复选项没改掉
+    expect(acceptRewrite({ options: ['him', 'he', 'his', 'she'] }, q))                 // 换掉一个干扰项：收
+      .toMatchObject({ options: ['him', 'he', 'his', 'she'] })
+    expect(acceptRewrite({}, q)).toBeNull()                                            // 什么都没给
+  })
+
+  it('提示词写明"只许改三样、不许动答案"（防止改稿员顺手重写整道题）', () => {
+    expect(REWRITE_PROMPT).toContain('不许改')
+    expect(REWRITE_PROMPT).toContain('正确答案')
+    expect(REWRITE_PROMPT).toContain('含义决定形式')
   })
 })
 

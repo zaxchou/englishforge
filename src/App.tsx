@@ -555,6 +555,7 @@ export default function App() {
             }}
             onModel={(model: string) => db.changeModel(model)}
             onAiReview={(limit: number) => db.aiReviewNow(limit)}
+            pipelineNote={db.pipelineNote}
             onReopenBulk={() => db.reopenBulkNow()}
             onEnrich={async (limit) => {
               const r = await db.enrichNow(limit)
