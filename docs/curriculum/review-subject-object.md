@@ -12,15 +12,15 @@
 |---|---|---|---|
 | 1 | 框架填空 | adore | `tatoeba:8475763` |
 | 2 | 框架填空 | avoid | `tatoeba:8475766` |
-| 3 | 框架填空 | believe | `tatoeba:3919466` |
+| 3 | 框架填空 | believe | `tatoeba:3919467` |
 | 4 | 框架填空 | dislike | `tatoeba:8476441` |
 | 5 | 中文意思题 | feed | `ud-en-ewt:answers-20111108085945AAgJhOG_ans-0014` |
 | 6 | 框架填空 | hate | `tatoeba:3915672` |
 | 7 | 中文意思题 | have | `ud-en-ewt:answers-20111108092643AAXe4lD_ans-0017` |
 | 8 | 框架填空 | help | `tatoeba:3914957` |
-| 9 | 中文意思题 | know | `tatoeba:262783` |
+| 9 | 中文意思题 | know | `tatoeba:424848` |
 | 10 | 中文意思题 | like | `tatoeba:283629` |
-| 11 | 框架填空 | love | `tatoeba:261221` |
+| 11 | 中文意思题 | love | `tatoeba:261221` |
 | 12 | 框架填空 | miss | `tatoeba:2002712` |
 | 13 | 框架填空 | need | `tatoeba:3911847` |
 | 14 | 框架填空 | owe | `tatoeba:13862371` |
@@ -39,7 +39,7 @@
     - `he`　错因：case-form-subject　来源：constructed
     - `his`　错因：case-form-possessive　来源：constructed
     - `himself`　错因：case-form-reflexive　来源：constructed
-- **解析**：动词后面接的是被喜欢的那个人，用 him；he 是动作发出者，his 表所属，himself 指他自己。
+- **解析**：含义是「挨着喜欢的那个人是他」。动作落到谁身上，谁就得用挨动作的那个形式，所以是 him，不是做动作的 he。
 - **判定**：☐ 通过　☐ 要改　☐ 毙掉　（备注：　）
 
 ## 02 · 框架填空 · avoid
@@ -50,51 +50,52 @@
     - `she`　错因：case-form-subject　来源：constructed
     - `hers`　错因：case-form-possessive　来源：constructed
     - `herself`　错因：case-form-reflexive　来源：constructed
-- **解析**：动词后面接被躲的人，用 her；she 是动作发出者，hers 表所属，herself 指她自己。
+- **解析**：含义是「被躲开的那个人是她」。躲这个动作落到她身上，她就得用挨动作的形式 her，而不是做动作的 she。
 - **判定**：☐ 通过　☐ 要改　☐ 毙掉　（备注：　）
 
 ## 03 · 框架填空 · believe
 
-- **题干**：I believe ___.  （我相信他。）
-- **正确**：`him`  ·  来源 `tatoeba:3919466`（attested）
+- **题干**：I believe ___.  （我相信她。）
+- **正确**：`her`  ·  来源 `tatoeba:3919467`（attested）
 - **干扰项**：
-    - `he`　错因：case-form-subject　来源：constructed
-    - `his`　错因：case-form-possessive　来源：constructed
-    - `himself`　错因：case-form-reflexive　来源：constructed
-- **解析**：动词后面接被相信的人，用 him；he 是动作发出者，his 表所属，himself 指他自己。
+    - `she`　错因：case-form-subject　来源：constructed
+    - `hers`　错因：case-form-possessive　来源：constructed
+    - `herself`　错因：case-form-reflexive　来源：constructed
+- **解析**：含义是「被相信的那个人是她」。相信这个动作落到她身上，她就得用挨动作的形式 her，而不是做动作的 she。
 - **判定**：☐ 通过　☐ 要改　☐ 毙掉　（备注：　）
 
 ## 04 · 框架填空 · dislike
 
-- **题干**：I dislike ___.  （我不喜欢他。）
+- **题干**：I dislike ___.  （我讨厌他。）
 - **正确**：`him`  ·  来源 `tatoeba:8476441`（attested）
 - **干扰项**：
     - `he`　错因：case-form-subject　来源：constructed
     - `his`　错因：case-form-possessive　来源：constructed
     - `himself`　错因：case-form-reflexive　来源：constructed
-- **解析**：动词后面接被讨厌的人，用 him；he 是动作发出者，his 表所属，himself 指他自己。
+- **解析**：含义是「被讨厌的那个人是他」。讨厌这个动作落到他身上，他就得用挨动作的形式 him，而不是做动作的 he。
 - **判定**：☐ 通过　☐ 要改　☐ 毙掉　（备注：　）
 
 ## 05 · 中文意思题 · feed
 
-- **题干**：「反正我有时把它们喂给我的路。」
+- **题干**：「反正我有时候把它们喂给我的路。」
 - **正确**：`anyways I feed them to my road sometimes.`  ·  来源 `ud-en-ewt:answers-20111108085945AAgJhOG_ans-0014`（attested）
 - **干扰项**：
     - `anyways they feed me to my road sometimes.`　错因：role-reversed　来源：constructed-provable
     - `anyways me feed them to my road sometimes.`　错因：case-form-subject　来源：constructed
     - `anyways I feed they to my road sometimes.`　错因：case-form-object　来源：constructed
-- **解析**：feed 后面接动作承受者，用 them；I 是动作发出者，位置在动词前。
+- ⚠️ **干扰项另有错处**：干扰项 "anyways me feed them..." 本身不合法（me 不能做动作发出者），学生可能因语法错而非含义错来排除它。
+- **解析**：含义是「我」把「它们」喂出去，做动作的是我，挨动作的是它们。做动作的人用 I，挨动作的用 them，形式由含义定。
 - **判定**：☐ 通过　☐ 要改　☐ 毙掉　（备注：　）
 
 ## 06 · 框架填空 · hate
 
-- **题干**：I hate ___.  （我恨她。）
+- **题干**：I hate ___.  （我讨厌她。）
 - **正确**：`her`  ·  来源 `tatoeba:3915672`（attested）
 - **干扰项**：
     - `she`　错因：case-form-subject　来源：constructed
     - `hers`　错因：case-form-possessive　来源：constructed
     - `herself`　错因：case-form-reflexive　来源：constructed
-- **解析**：动词后面接被恨的人，用 her；she 是动作发出者，hers 表所属，herself 指她自己。
+- **解析**：含义是「她」挨了讨厌这个动作，是动作落到的那个人。动作落到谁身上，就用挨动作的那个形式 her，所以填 her。
 - **判定**：☐ 通过　☐ 要改　☐ 毙掉　（备注：　）
 
 ## 07 · 中文意思题 · have
@@ -105,7 +106,8 @@
     - `They still have me and they are doing well.`　错因：role-reversed　来源：constructed-provable
     - `Me still have them and they are doing well.`　错因：case-form-subject　来源：constructed
     - `I still have they and they are doing well.`　错因：case-form-object　来源：constructed
-- **解析**：have 后面是承受者，用 them；后半句 they 才是发出者，做主语。
+- ⚠️ **干扰项另有错处**：干扰项 "Me still have them..." 本身不合法（me 不能做动作发出者），学生可能因语法错而非含义错来排除它。
+- **解析**：含义是「我」留着「它们」，做动作的是我，挨动作的是它们。做动作的人用 I，挨动作的用 them，形式跟着含义走。
 - **判定**：☐ 通过　☐ 要改　☐ 毙掉　（备注：　）
 
 ## 08 · 框架填空 · help
@@ -116,18 +118,19 @@
     - `she`　错因：case-form-subject　来源：constructed
     - `hers`　错因：case-form-possessive　来源：constructed
     - `herself`　错因：case-form-reflexive　来源：constructed
-- **解析**：她是被帮的那个人，用 her；she 是帮人的一方，得放动词前。
+- **解析**：含义是「她」挨了帮这个动作，是动作落到的那个人。动作落到谁身上，就用挨动作的那个形式 her，所以填 her。
 - **判定**：☐ 通过　☐ 要改　☐ 毙掉　（备注：　）
 
 ## 09 · 中文意思题 · know
 
-- **题干**：「我们认识他。」
-- **正确**：`We know him.`  ·  来源 `tatoeba:262783`（attested）
+- **题干**：「我认识她。」
+- **正确**：`I know her.`  ·  来源 `tatoeba:424848`（attested）
 - **干扰项**：
-    - `He knows us.`　错因：role-reversed　来源：attested-mirror
-    - `Us know him.`　错因：case-form-subject　来源：constructed
-    - `We know he.`　错因：case-form-object　来源：constructed
-- **解析**：我们发出认识，他承受，所以是 We know him，语序和形式都对。
+    - `She knows me.`　错因：role-reversed　来源：attested-mirror
+    - `Me know her.`　错因：case-form-subject　来源：constructed
+    - `I know she.`　错因：case-form-object　来源：constructed
+- ⚠️ **干扰项另有错处**：Me know her. 和 I know she. 本身不合法：前者做动作的人用了挨动作的形式，后者挨动作的人用了做动作的形式。
+- **解析**：含义是「我」认识「她」：我做动作，她挨动作。做动作的位置用 I，挨动作的位置用 her，两个位置各归其位。
 - **判定**：☐ 通过　☐ 要改　☐ 毙掉　（备注：　）
 
 ## 10 · 中文意思题 · like
@@ -138,18 +141,18 @@
     - `He likes me.`　错因：role-reversed　来源：attested-mirror
     - `Me like him.`　错因：case-form-subject　来源：constructed
     - `I like he.`　错因：case-form-object　来源：constructed
-- **解析**：我喜欢他，我发出喜欢，他承受，所以是 I like him。
+- **解析**：含义是「我」去喜欢、「他」被喜欢。做动作的用 I，挨动作的用 him，两个位置各归其位，所以是 I like him.
 - **判定**：☐ 通过　☐ 要改　☐ 毙掉　（备注：　）
 
-## 11 · 框架填空 · love
+## 11 · 中文意思题 · love
 
-- **题干**：I love ___.  （我爱她。）
-- **正确**：`her`  ·  来源 `tatoeba:261221`（attested）
+- **题干**：「我爱她。」
+- **正确**：`I love her.`  ·  来源 `tatoeba:261221`（attested）
 - **干扰项**：
-    - `she`　错因：case-form-subject　来源：constructed
-    - `hers`　错因：case-form-possessive　来源：constructed
-    - `herself`　错因：case-form-reflexive　来源：constructed
-- **解析**：爱的是她，动作落到她身上，用 her，不用 she。
+    - `She loves me.`　错因：role-reversed　来源：attested-mirror
+    - `Me love her.`　错因：case-form-subject　来源：constructed
+    - `I love she.`　错因：case-form-object　来源：constructed
+- **解析**：含义是「我」发出爱，「她」被爱。发出动作的用 I，挨动作的用 her，所以是 I love her。
 - **判定**：☐ 通过　☐ 要改　☐ 毙掉　（备注：　）
 
 ## 12 · 框架填空 · miss
@@ -160,7 +163,7 @@
     - `she`　错因：case-form-subject　来源：constructed
     - `hers`　错因：case-form-possessive　来源：constructed
     - `herself`　错因：case-form-reflexive　来源：constructed
-- **解析**：miss 后面是思念的对象，用 her；she 只能做动作的发出者。
+- **解析**：含义是「她」挨着想念这个动作，是被想念的那个人。挨动作的人用 her 这个形式；she 是发出动作的人，hers 是「她的东西」，herself 是「她自己」，都不是这里要的含义。
 - **判定**：☐ 通过　☐ 要改　☐ 毙掉　（备注：　）
 
 ## 13 · 框架填空 · need
@@ -171,7 +174,7 @@
     - `she`　错因：case-form-subject　来源：constructed
     - `hers`　错因：case-form-possessive　来源：constructed
     - `herself`　错因：case-form-reflexive　来源：constructed
-- **解析**：need 后面接被需要的人，用 her；she 是发出动作的人，位置不对。
+- **解析**：含义是「她」被需要，是挨着需要这个动作的人。挨动作的人用 her；she 是发出动作的人，hers 是「她的东西」，herself 是「她自己」，含义都对不上。
 - **判定**：☐ 通过　☐ 要改　☐ 毙掉　（备注：　）
 
 ## 14 · 框架填空 · owe
@@ -182,7 +185,7 @@
     - `he`　错因：case-form-subject　来源：constructed
     - `his`　错因：case-form-possessive　来源：constructed
     - `himself`　错因：case-form-reflexive　来源：constructed
-- **解析**：owe 后面先接被欠的人，用 him；he 是发出动作的人，不能放这。
+- **解析**：含义是「他」挨了「欠」这个动作，是动作落到的那个人。动作落到谁，谁就用挨动作的形式 him，而不是做动作的 he。
 - **判定**：☐ 通过　☐ 要改　☐ 毙掉　（备注：　）
 
 ## 15 · 框架填空 · persecute
@@ -193,7 +196,7 @@
     - `he`　错因：case-form-subject　来源：constructed
     - `his`　错因：case-form-possessive　来源：constructed
     - `himself`　错因：case-form-reflexive　来源：constructed
-- **解析**：persecute 后面接被针对的人，用 him；he 只能当动作发出者。
+- **解析**：含义是「他」承受了迫害这个动作，是动作落到的那个人。动作落到谁，谁就用挨动作的形式 him。
 - **判定**：☐ 通过　☐ 要改　☐ 毙掉　（备注：　）
 
 ## 16 · 中文意思题 · recommend
@@ -204,7 +207,8 @@
     - `She highly recommends me.`　错因：role-reversed　来源：constructed-provable
     - `Me highly recommend her.`　错因：case-form-subject　来源：constructed
     - `I highly recommend she.`　错因：case-form-object　来源：constructed
-- **解析**：recommend 后面是承受者，用 her；I 是发出者，放动词前。
+- ⚠️ **干扰项另有错处**：干扰项 "Me highly recommend her." 本身不合法（me 不能做动作发出者），学生可能因语法错而非含义错来排除它。
+- **解析**：含义是「我」推荐「她」，做动作的是我，挨动作的是她。做动作的人用 I，挨动作的用 her，形式由含义定。
 - **判定**：☐ 通过　☐ 要改　☐ 毙掉　（备注：　）
 
 ## 17 · 框架填空 · respect
@@ -215,18 +219,18 @@
     - `he`　错因：case-form-subject　来源：constructed
     - `his`　错因：case-form-possessive　来源：constructed
     - `himself`　错因：case-form-reflexive　来源：constructed
-- **解析**：respect 后面接被尊重的人，用 him；he 是发出动作的人，不能放这。
+- **解析**：含义是「他」是尊重这个动作落到的那个人，尊重给出去落在他身上。动作落到谁，谁就用挨动作的形式 him。
 - **判定**：☐ 通过　☐ 要改　☐ 毙掉　（备注：　）
 
 ## 18 · 框架填空 · scare
 
-- **题干**：I scare ___.  （我吓唬她。）
+- **题干**：I scare ___.  （我把她吓着了。）
 - **正确**：`her`  ·  来源 `tatoeba:12205294`（attested）
 - **干扰项**：
     - `she`　错因：case-form-subject　来源：constructed
     - `hers`　错因：case-form-possessive　来源：constructed
     - `herself`　错因：case-form-reflexive　来源：constructed
-- **解析**：scare 后面接被吓的人，用 her；she 只能当动作发出者。
+- **解析**：含义是「她」被吓到，是吓这个动作落到的那个人。动作落到谁，谁就用挨动作的形式 her。
 - **判定**：☐ 通过　☐ 要改　☐ 毙掉　（备注：　）
 
 ## 19 · 框架填空 · support
@@ -237,7 +241,7 @@
     - `he`　错因：case-form-subject　来源：constructed
     - `his`　错因：case-form-possessive　来源：constructed
     - `himself`　错因：case-form-reflexive　来源：constructed
-- **解析**：支持的对象在动词后面，用 him；he 只能站在动词前面当发出者。
+- **解析**：含义是「我」发出支持这个动作，支持的对象是「他」，挨动作的人用 him；he 是发出动作的人，his 是「他的」，himself 是「他自己」，含义都不对。
 - **判定**：☐ 通过　☐ 要改　☐ 毙掉　（备注：　）
 
 ## 20 · 中文意思题 · trust
@@ -248,9 +252,9 @@
     - `He trusts me.`　错因：role-reversed　来源：attested-mirror
     - `Me trust him.`　错因：case-form-subject　来源：constructed
     - `I trust he.`　错因：case-form-object　来源：constructed
-- **解析**：中文说「我信任他」，发出者是我，所以用 I，不用 me 或 he。
+- **解析**：含义是「我」发出信任、对象是「他」。发出动作的人用 I，挨动作的人用 him，所以只有 I trust him. 同时满足这两个位置。
 - **判定**：☐ 通过　☐ 要改　☐ 毙掉　（备注：　）
 
 ---
 
-最后生成：2026-09-28 20:04
+最后生成：2026-09-28 20:25

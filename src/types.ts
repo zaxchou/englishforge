@@ -60,6 +60,9 @@ export interface Question {
   supportLevel?: number
   errorTags?: string[]
   optionFeedback?: Record<string, string>
+  /** 每个错误选项对应的错因标签（键 = 选项原文）。用于答错时给出具体错因、
+   *  写入作答事件、以及在结算页汇总"这一轮你反复错在哪"。 */
+  optionTags?: Record<string, string[]>
   /** 多个允许答案（按选项/词块 ID） */
   acceptedAnswers?: string[]
   sourceRef?: string

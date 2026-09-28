@@ -64,8 +64,9 @@ def main() -> int:
             continue
         if any(bad in ' '.join(it['options']) for bad in ILLEGAL):
             continue
-        if it.get('langCheck', {}).get('distractorIssue'):
-            continue                                   # 有歧义/污染告警的先不进种子
+        if it.get('langCheck', {}).get('ambiguous'):
+            continue            # 给定中文无法唯一确定答案 → 真歧义，不进种子
+        # multiError（干扰项本身不合语法）不直接丢弃：写进审核单让人判断
         key = (it['variantGroupId'], it.get('kind'))
         if key in seen:
             continue
@@ -103,12 +104,18 @@ def main() -> int:
         o = it['options']
         if it.get('kind') == 'frame':
             tags = [POSS_TAG[i] for i in (1, 2, 3)]
+            opt_tags = {o[i]: [POSS_TAG[i]] for i in (1, 2, 3)}
             fb = {o[i]: POSS_FB[i] for i in (1, 2, 3)}
             source = it['sourceId'].get('frame', '')
         else:
-            tags = sorted({t for v in it.get('errorTags', {}).values() for t in v})
-            fb = {opt: TAG_FB[t] for opt, v in it.get('errorTags', {}).items() for t in v if t in TAG_FB}
+            opt_tags = {k: list(v) for k, v in (it.get('errorTags') or {}).items() if k in o}
+            tags = sorted({t for v in opt_tags.values() for t in v})
+            fb = {opt: TAG_FB[t] for opt, v in opt_tags.items() for t in v if t in TAG_FB}
             source = it['sourceId'].get('answer', '')
+        # 逐项纠正：优先用模型生成的那句（说明"选它等于在说什么意思"），退回模板
+        fixes = {k: v for k, v in (it.get('optionFixes') or {}).items() if k in o and k != it['answer']}
+        for k, v in fixes.items():
+            fb[k] = v
         lines += [
             '  {',
             # 框架填空给了四个选项，本质是识别题 → diff 1；中文意思题要自己产出形式 → diff 2。
@@ -123,6 +130,7 @@ def main() -> int:
             f"    variantGroupId: {quote(it['variantGroupId'])},",
             f"    errorTags: [{', '.join(quote(t) for t in tags)}],",
             '    optionFeedback: {' + ', '.join(f'{quote(k)}: {quote(v)}' for k, v in fb.items()) + '},',
+            '    optionTags: {' + ', '.join(f'{quote(k)}: [{", ".join(quote(t) for t in v)}]' for k, v in opt_tags.items()) + '},',
             f"    sourceRef: {quote('张俊杰第7课16-22段 / ' + source)},",
             '    contentVersion: 1,',
             "    reviewStatus: 'draft',",
@@ -183,8 +191,8 @@ def write_review_sheet(picked: list[dict], path: Path) -> None:
                 tags_o = (it.get('errorTags') or {}).get(o, [])
             tag = '、'.join(tags_o) or '—'
             rows.append(f"    - `{o}`　错因：{tag}　来源：{origin.get(o, '—')}")
-        if it.get('distractorIssue'):
-            rows.append(f"- ⚠️ **模型告警**：{it['distractorIssue']}")
+        if it.get('langCheck', {}).get('multiError'):
+            rows.append(f"- ⚠️ **干扰项另有错处**：{it['langCheck'].get('note', '')}")
         if it.get('langCheck', {}).get('problem'):
             rows.append(f"- ⚠️ **语言问题**：{it['langCheck']['problem']}")
         rows += [

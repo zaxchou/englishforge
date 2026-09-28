@@ -4,6 +4,9 @@ import { Speaker, Spark } from './fx'
 import './quiz-new.css'
 import { sfx } from '../sound'
 import { gradeChoice, gradeSequence, gradeTap, normText, similarity, tierOfSpeak } from '../learning/grading'
+import { tagLabel } from '../learning/errorTags'
+
+const DIFF_NAME = ['', '基础', '进阶', '挑战']
 
 export type SessionResult = {
   q: AdaptedQuestion
@@ -272,9 +275,19 @@ export function Quiz({ entries, conceptCards, resume, sessionNote, onAttempt, on
       {isRetry && <div className="retry-banner">🔁 二次挑战 · 上次的错误已保留，这道题再练一次{entry.q.hint ? `——提示：${entry.q.hint}` : ''}</div>}
       {note && !isRetry && <div className="session-note">{note}</div>}
       {pending && pending.qid === entry.q.id ? <div className="qview">
-        <div className="prompt">{entry.q.prompt}</div>
+        {/* 这条路径是"重做 / 刷新后恢复反馈"态——纠错在这里最重要，不能只有题干和解析 */}
+        <div className="prompt">
+          {entry.q.prompt}
+          <span className={'diff-tag diff-' + (entry.q.diff ?? 1)}>{DIFF_NAME[entry.q.diff ?? 1]}</span>
+          {isCorpusDerived(entry.q) && <span className="corpus-tag" title={`语料出处：${entry.q.sourceRef}`}>语料</span>}
+        </div>
         {entry.q.type === 'choice' ? <div className="options">{frozenOptions(entry.q, entry.item).map(option => <button key={option.id} disabled className={`opt ${gradeChoice(entry.q, option.id) ? 'correct' : option.text === pending.given ? 'wrong' : 'dim'}`}>{option.text}</button>)}</div> : <div className="saved-answer">你的作答：{pending.given}</div>}
-        <Feedback ok={pending.firstTryCorrect} explain={entry.q.explain} />
+        <Feedback
+          ok={pending.firstTryCorrect}
+          explain={entry.q.explain}
+          tags={entry.q.optionTags?.[pending.given]}
+          correction={entry.q.optionFeedback?.[pending.given]}
+        />
         {entry.q.tts && <div className="tts-row"><code>{entry.q.tts}</code><Speaker text={entry.q.tts} /></div>}
         <button className="primary" onClick={() => handleAnswered({ ...pending, q: entry.q }, { outcome: pending.outcome ?? 'incorrect', evaluator: pending.evaluator ?? 'deterministic', supportUsed: pending.supportUsed ?? 0 }, isRetry)}>下一题 →</button>
       </div> : <QuestionView
@@ -757,8 +770,10 @@ function BasicQ({ q, item, onAnswered, onCheckpoint }: { q: AdaptedQuestion; ite
   }
 
   if (q.type === 'choice') {
-    const diffName = ['', '基础', '进阶', '挑战'][q.diff ?? 1]
+    const diffName = DIFF_NAME[q.diff ?? 1]
     const ok = selected !== null && gradeChoice(q, selected)
+    // 反馈文案按选项**文本**索引（选项 id 只用于判定）
+    const pickedText = options.find((o) => o.id === selected)?.text
     return (
       <div className={`qview ${q.myth ? 'myth-q' : ''}`}>
         <div className="prompt">
@@ -780,7 +795,14 @@ function BasicQ({ q, item, onAnswered, onCheckpoint }: { q: AdaptedQuestion; ite
             )
           })}
         </div>
-        {checked && <Feedback ok={ok} explain={q.explain} />}
+        {checked && (
+          <Feedback
+            ok={ok}
+            explain={q.explain}
+            tags={pickedText ? q.optionTags?.[pickedText] : undefined}
+            correction={pickedText ? q.optionFeedback?.[pickedText] : undefined}
+          />
+        )}
         {checked && q.tts && <div className="tts-row"><code>{q.tts}</code><Speaker text={q.tts} /></div>}
         {checked && <button className="primary" onClick={() => submit(ok ? 'correct' : 'incorrect')}>下一题 →</button>}
         <Spark show={spark} />
@@ -849,11 +871,25 @@ function BasicQ({ q, item, onAnswered, onCheckpoint }: { q: AdaptedQuestion; ite
   )
 }
 
-function Feedback({ ok, explain }: { ok: boolean; explain: string }) {
+function Feedback({ ok, explain, tags, correction }: {
+  ok: boolean
+  explain: string
+  tags?: string[]
+  correction?: string
+}) {
   return (
     <div className={`feedback ${ok ? 'ok' : 'no'}`}>
       <div className="feedback-title">{ok ? '✅ 对了！含义对了，形式就对。' : '❌ 差一点——看张老师怎么说：'}</div>
       <div className="feedback-body">{explain}</div>
+      {!ok && correction && (
+        <div className="feedback-fix">
+          <div className="fix-head">
+            <b>你选的这条错在哪</b>
+            {(tags ?? []).map((t) => <span key={t} className="fix-tag">{tagLabel(t)}</span>)}
+          </div>
+          <div className="fix-body">{correction}</div>
+        </div>
+      )}
     </div>
   )
 }

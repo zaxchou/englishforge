@@ -115,3 +115,25 @@
   padding: 1px 7px; margin-left: 6px; vertical-align: 2px;
   background: #fff; color: var(--sub);
 }
+
+/* 答错时的"你选的这条错在哪"：逐项纠正 + 错因标签（纠错闭环的显示层） */
+.feedback-fix {
+  margin-top: 12px; padding-top: 11px;
+  border-top: 1px solid var(--line);
+}
+.feedback-fix .fix-head { font-size: 12px; color: var(--ink); display: flex; align-items: center; gap: 7px; flex-wrap: wrap; margin-bottom: 7px; }
+.fix-tag {
+  display: inline-block; font-size: 10px; font-weight: 500;
+  border: 1px solid var(--line); border-radius: 999px;
+  padding: 1px 8px; background: #fff; color: var(--sub);
+}
+.feedback-fix .fix-body { font-size: 14px; color: #4c5165; line-height: 1.85; }
+
+/* 结算页「这一轮你错在哪」 */
+.result-errors { margin: 18px 0 4px; padding: 16px 18px; background: var(--surface); border-radius: 15px; text-align: left; }
+.result-errors h3 { font-size: 14px; margin: 0 0 12px; font-weight: 600; }
+.result-errors ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+.result-errors li { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; font-size: 13px; }
+.result-errors li b { color: var(--sub); font-weight: 500; }
+.result-errors li p { margin: 0; flex-basis: 100%; color: #4c5165; line-height: 1.8; }
+.result-errors-note { font-size: 12px; color: var(--sub); margin: 12px 0 0; line-height: 1.8; }

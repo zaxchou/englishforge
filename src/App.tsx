@@ -14,6 +14,7 @@ import { Confetti } from './components/fx'
 import { Dashboard, Sidebar } from './components/Dashboard'
 import { ContentReview } from './components/ContentReview'
 import { buildEvidence, STATE_LABEL, type EvidenceReport } from './learning/evidence'
+import { summarizeTags, tagLabel, TAG_FIX } from './learning/errorTags'
 import {
   applyQuestionReview, recordSpeak, buildTodayQueue, buildSkillQueue, buildReviewQueue,
   insertVariantDrill, softenQueue, eligible, dueQuestions, recommendSkill, QUEUE_SIZE,
@@ -170,6 +171,8 @@ export default function App() {
       supportUsed: a.supportUsed,
       answer: a.given.slice(0, 160),
       outcome: a.outcome,
+      // 错因标签来自所选选项（选项级 optionTags）。答错才记，答对不记。
+      errorTags: a.outcome === 'correct' ? undefined : q?.optionTags?.[a.given],
       evaluator: a.evaluator,
       responseMs: a.responseMs,
       isDueReview: wasReview && a.firstAttempt && !ses.queue.find(it => it.qid === a.qid)?.isVariantDrill,
@@ -516,6 +519,10 @@ function ResultPage({ results, comboBest, xpGain, progress, kind, dueTomorrow, o
   onHome: () => void
   onAgain: () => void
 }) {
+  // 这一轮的错因：从每题所选选项的标签汇总（答对不计）
+  const errTags = summarizeTags(
+    results.filter((r) => r.outcome !== 'correct').map((r) => r.q.optionTags?.[r.given]),
+  )
   const firstTry = results.filter((r) => r.firstTryCorrect).length
   const retried = results.filter((r) => r.retriedCorrect === true).length
   const skipped = results.filter((r) => r.outcome === 'skipped').length
@@ -554,6 +561,23 @@ function ResultPage({ results, comboBest, xpGain, progress, kind, dueTomorrow, o
             />
           ))}
         </div>
+        {errTags.length > 0 && (
+          <div className="result-errors">
+            <h3>这一轮你错在哪</h3>
+            <ul>
+              {errTags.slice(0, 3).map(({ tag, n }) => (
+                <li key={tag}>
+                  <span className="fix-tag">{tagLabel(tag)}</span>
+                  <b>×{n}</b>
+                  <p>{TAG_FIX[tag] ?? ''}</p>
+                </li>
+              ))}
+            </ul>
+            <p className="result-errors-note">
+              同类位置再遇到时，先想"这句话要表达什么含义"，再决定形式——不要凭手感。
+            </p>
+          </div>
+        )}
         <p className="result-note">
           {kind === 'review'
             ? '复习完成——先检索后讲解，这些知识点又往脑子里沉了一层。'

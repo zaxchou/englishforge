@@ -23,14 +23,24 @@ from llm import LLMError, chat_json
 # 张俊杰体系的判定纪律 —— 这段就是「宪法」，模型只许在它里面写文案
 SYSTEM = """你是给中文母语成年人（哑巴英语、正在练「英语是直线型思维」体系）出练习的助教。
 
-必须遵守张俊杰老师的判定纪律：
-1. 一切词形变化都是为了区分含义。解释要落到「含义不同 → 形式就得不同」，
-   禁止用「三单规则」「形容词性物主代词」这类术语去教学——那是学生要摆脱的学法。
-2. 只讲这一句为什么对、其他选项为什么不对，不引申别的知识点。
-3. 语气直接、口语化，像老师当面讲；解析限 20~40 个汉字。
-4. 中文释义要自然，是这句话的中文意思，不要逐字直译（I miss him. → 我想念他。）。
-5. 判英语是否合法：主谓一致、冠词、单复数、标点、是否地道。
-   志愿者语料里常有不合法英语（例如 He miss me. 应为 He misses me.），必须如实标出。
+**要的是张俊杰老师的思路与逻辑，不是他的语气腔调。** 不要模仿口语化的"来同学们"式说话，
+也不要写成课堂口头禅；要的是他那套推理方式，让学生读完能**自己推出**答案，而不是记住答案。
+
+他教法的核心链条（所有解释都必须走这条链）：
+  1. 先问：这句话要表达的**含义**是什么？
+  2. 含义决定**形式**：一个含义对应一个形式，含义不同形式就必须不同。
+  3. 所以这个形式不是"规则要求"，而是"这个含义的唯一载体"。
+  4. 错的形式不是"违规"，而是**它在表达另一个含义**——说清它到底在说什么。
+
+硬性要求：
+- 禁用术语教学：不出现「三单规则」「形容词性物主代词」「宾格」「主格」这类语法名词当解释。
+  要说"挨动作的那个""做动作的人""东西被省略了"，让学生从含义上理解。
+- 解析（explain）必须给出上面那条链，20~60 个汉字，写清"含义 → 形式"的推导。
+- 每条干扰项都要单独给一句**纠正**（optionFixes）：先说明"选它等于在说什么意思"，
+  再说明为什么这里不是那个意思。这是学生下次能自己纠错的关键，不能敷衍成"这样不对"。
+- 中文释义要自然，是这句话的中文意思，不要逐字直译。
+- 判英语是否合法：主谓一致、冠词、单复数、标点、自然度。志愿者语料里可能有不合法英语
+  （例如 He miss me. 应为 He misses me.），必须如实标出。
 
 逐条处理用户给的 JSON 数组，只输出 JSON，不要任何解释文字。"""
 
@@ -45,17 +55,24 @@ def ask(batch: list[dict], idx: list[int]) -> dict[int, dict]:
         for k, i in enumerate(idx)
     ]
     user = ('只返回 JSON 数组，不要任何解释文字，**不要把输入对象原样回传**。\n'
-            '每条形如：{"i":0,"ok":true,"problem":"","distractorIssue":"","gloss":"我想念他。","explain":"..."}\n'
+            '每条形如：{"i":0,"ok":true,"problem":"","ambiguous":false,"multiError":false,"note":"","gloss":"我想念他。",'
+            '"explain":"...","optionFixes":{"He miss me.":"选它等于说……"}}\n'
             '键名必须完全照写：ok / problem / distractorIssue / gloss / explain。'
             '中文释义的键名是 gloss——不要写成 zh 或 translation。\n'
             '  · ok：en 这句英语本身是否合法、是否像人话（主谓一致/冠词/单复数/标点/自然度）。'
             '像 "Hers accelerated." 这种语言学测试句虽然结构合法但不像人话，也要 ok=false。\n'
-            '  · distractorIssue：下列任一情况写一句说明，没有就给空字符串：\n'
-            '    (a) 某个干扰项"错得不止一个原因"（例如除了代词格，动词还缺 -s），'
-            '这会让学生用错误的理由排除它；\n'
-            '    (b) 干扰项本身也是合法英语（只差含义或人称），而给定中文意思不足以唯一确定答案'
-            '——这种必须写"释义不唯一"。\n'
-            '  · explain：20~40 个汉字。\n'
+            '  · ambiguous（布尔）：**只看给定的中文意思**，是不是恰好只有一个选项成立？\n'
+            '    只有一个成立 → false（正常，能出题）；两个以上都成立 → true（这题不能用）。\n'
+            '    ⚠️ 一个选项是合法英语、只是含义不同或人称不同，**不算** ambiguous ——'
+            '那正是本题要考的含义对比，不要误报。\n'
+            '  · multiError（布尔）：是否有干扰项**本身不合语法/不地道**（与本题的对比无关）？\n'
+            '    只有这种"错得不止一个原因、学生会用错误理由排除它"才算 true。'
+            '单纯含义不同或人称不同，一律 false。\n'
+            '  · note：如上面任一为 true，写一句说明；否则空字符串。\n'
+            '  · explain：走"含义→形式"的推导链，20~60 汉字，读的人能自己推出答案。\n'
+            '  · optionFixes：对象，键是**每个错误选项的原文**，值是那句纠正（先说明'
+            '"选它等于在说什么意思"，再说清这里要的是哪个含义、所以该用哪个形式）。\n'
+            '    所有错误选项都必须有，不能漏。\n'
             f'共 {len(payload)} 条：\n' + json.dumps(payload, ensure_ascii=False))
     raw = chat_json([{'role': 'system', 'content': SYSTEM},
                      {'role': 'user', 'content': user}],
@@ -111,7 +128,14 @@ def main() -> int:
                 continue
             it = items[i]
             it['langCheck'] = {'ok': r['ok'], 'problem': (r.get('problem') or '').strip(),
-                               'distractorIssue': (r.get('distractorIssue') or '').strip()}
+                               'ambiguous': bool(r.get('ambiguous')),
+                               'multiError': bool(r.get('multiError')),
+                               'note': (r.get('note') or '').strip()}
+            fixes = r.get('optionFixes')
+            if isinstance(fixes, dict):
+                # 只收真实存在于选项里的键，防止模型自造
+                it['optionFixes'] = {k: str(v).strip() for k, v in fixes.items()
+                                     if k in it['options'] and k != it['answer']}
             gloss = (r.get('gloss') or '').strip()
             explain = (r.get('explain') or '').strip()
             if not gloss:
