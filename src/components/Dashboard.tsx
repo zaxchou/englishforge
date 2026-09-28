@@ -38,7 +38,7 @@ export function Sidebar({ active = 'today', dueCount, onNavigate, onReview }: {
 }) {
   return <aside className="forge-sidebar">
     <button className="forge-brand" onClick={() => onNavigate('today')} aria-label="EnglishForge 首页">
-      <span className="forge-mark">E</span><span>EnglishForge<small>英语思维训练</small></span>
+      <img className="forge-mark" src="/icon.png" alt="" /><span>EnglishForge<small>英语思维训练</small></span>
     </button>
     <nav aria-label="主导航">
       <button className={active === 'today' ? 'selected' : ''} onClick={() => onNavigate('today')}><NavIcon kind="home" />今日练习</button>
