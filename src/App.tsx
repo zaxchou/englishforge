@@ -14,6 +14,7 @@ import { Quiz, type SessionResult, type QuizAttempt, type QuizEntry } from './co
 import { Confetti } from './components/fx'
 import { Dashboard, Sidebar } from './components/Dashboard'
 import { ContentReview } from './components/ContentReview'
+import { PathHome } from './components/PathHome'
 import { buildEvidence, STATE_LABEL, type EvidenceReport } from './learning/evidence'
 import { summarizeTags, tagLabel, TAG_FIX } from './learning/errorTags'
 import {
@@ -30,6 +31,7 @@ type View =
   | { name: 'practice' }
   | { name: 'result'; results: SessionResult[]; comboBest: number; xpGain: number; kind: SessionKind; dueTomorrow: number }
   | { name: 'review' }   // 内容审核（R1-03）：逐题核对语料派生题
+  | { name: 'records' }  // 回顾：章节列表、学习记录、设置（旧首页）
 
 export default function App() {
   const [loaded] = useState(() => loadProgress())
@@ -341,7 +343,7 @@ export default function App() {
 
   return (
     <div className={`app ${view.name === 'home' ? 'view-home' : 'view-inner'}`}>
-      {view.name !== 'home' && <Sidebar active={view.name === 'lesson' ? 'courses' : 'today'} dueCount={dueList.length} onNavigate={(target) => { setView({ name: 'home' }); window.setTimeout(() => document.getElementById(target)?.scrollIntoView({ behavior: 'smooth' }), 50) }} onReview={() => { if (!startSession('review')) setStartError('目前没有到期复习，可以继续课程练习。') }} />}
+      {view.name !== 'home' && <Sidebar active={view.name === 'lesson' ? 'courses' : 'today'} dueCount={dueList.length} onNavigate={(target) => { const next: View = target === 'today' ? { name: 'home' } : { name: 'records' }; setView(next); window.setTimeout(() => document.getElementById(target)?.scrollIntoView({ behavior: 'smooth' }), 50) }} onReview={() => { if (!startSession('review')) setStartError('目前没有到期复习，可以继续课程练习。') }} />}
       {saveErr && (
         <div className="sys-banner err">
           ⚠️ 上次保存失败——进度可能没存上。<button className="linkish" onClick={doExportSave}>立即导出存档</button>
@@ -364,7 +366,7 @@ export default function App() {
       )}
       {view.name !== 'home' && (
         <header className="topbar">
-          <button className="brand brand-btn" onClick={() => setView({ name: 'home' })}>← 返回学习空间</button><span className="inner-location">{view.name === 'lesson' ? '课程 / 知识点' : view.name === 'practice' ? '专注练习 · 按自己的节奏' : view.name === 'review' ? '内容审核 · 逐题核对' : '本轮学习记录'}</span>
+          <button className="brand brand-btn" onClick={() => setView({ name: 'home' })}>← 返回学习空间</button><span className="inner-location">{view.name === 'lesson' ? '课程 / 知识点' : view.name === 'practice' ? '专注练习 · 按自己的节奏' : view.name === 'review' ? '内容审核 · 逐题核对' : view.name === 'records' ? '回顾 · 课程与记录' : '本轮学习记录'}</span>
           <div className="stats">
             <button
               className="stats-btn"
@@ -376,6 +378,22 @@ export default function App() {
       )}
       <main>
         {view.name === 'home' && (
+          <PathHome
+            progress={progress}
+            evidence={evidence}
+            todayBrief={todayBrief}
+            pool={pool}
+            soundOn={soundOn}
+            onToggleSound={() => { setMuted(soundOn); setSoundOn(!soundOn) }}
+            onStartToday={() => { setStartError(null); if (!startSession('today')) setStartError('今天没有可抽的题目——题库正在建设中。') }}
+            onResume={() => { if (!resumeSession()) setStartError('没有找到未完成的会话。') }}
+            onStartReview={() => { setStartError(null); if (!startSession('review')) setStartError('今天没有到期的复习——去打新铁吧！') }}
+            onStartSkill={(skillId) => { setStartError(null); if (!startSession('skill', skillId)) setStartError('这个思维点还没有题目——题库正在建设中。') }}
+            onOpenRecords={() => setView({ name: 'records' })}
+            onReviewContent={() => setView({ name: 'review' })}
+          />
+        )}
+        {view.name === 'records' && (
           <Dashboard
             progress={progress}
             evidence={evidence}

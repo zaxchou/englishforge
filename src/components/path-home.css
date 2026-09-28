@@ -1,0 +1,57 @@
+/* 单一推进路径首页：只回答"下一步做什么"。
+   一块当前任务卡 + 一条路径 + 一行回顾入口。没有章节列表、没有仪表盘堆叠。 */
+.path-home { min-height: 100vh; padding: 26px 24px 40px; }
+.path-top { max-width: 720px; margin: 0 auto 26px; display: flex; align-items: center; justify-content: space-between; }
+.path-brand { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 750; color: var(--ink); letter-spacing: -.2px; }
+.path-mark { width: 30px; height: 30px; border-radius: 9px; object-fit: cover; }
+.path-main { max-width: 720px; margin: 0 auto; }
+
+/* ---- 当前任务卡：整屏的主角 ---- */
+.next-card { background: #fff; border-radius: 30px; padding: 34px 34px 28px; }
+.next-eyebrow { font-size: 12px; letter-spacing: .4px; color: var(--sub); margin-bottom: 14px; }
+.next-card h1 { font-size: 34px; letter-spacing: -1.2px; margin: 0 0 10px; font-weight: 650; line-height: 1.35; }
+.next-tagline { margin: 0 0 20px; font-size: 14px; color: var(--sub); line-height: 1.8; }
+.next-example { background: #f5f4f8; border-radius: 18px; padding: 16px 20px; font-size: 18px; font-weight: 500; color: #27242e; line-height: 1.6; overflow-wrap: anywhere; }
+.next-goal { margin: 20px 0 22px; padding: 16px 18px; border-radius: 16px; background: #f5f4f8; }
+.next-goal b { font-size: 13px; font-weight: 600; }
+.next-goal ul { margin: 10px 0 0; padding-left: 18px; }
+.next-goal li { font-size: 13px; color: #4c5165; line-height: 1.95; }
+.next-goal p { margin: 8px 0 0; font-size: 13px; color: #4c5165; line-height: 1.9; }
+.next-goal.done { background: #eaf5cd; }
+.next-goal.done b { color: #39471d; }
+.next-goal.done p { color: #4c6b1f; }
+.next-count { margin-top: 12px; font-size: 12px; color: var(--sub); }
+.next-btn { width: 100%; margin: 0; min-height: 58px; font-size: 17px; border-radius: 999px; display: flex; align-items: center; justify-content: center; gap: 16px; }
+.next-note { margin-top: 12px; text-align: center; font-size: 12px; color: var(--sub); line-height: 1.8; }
+
+/* ---- 路径：一条线，一个当前位置（序号点，不做文本截断） ---- */
+.path-strip { margin: 26px 0 0; padding: 18px 22px 16px; background: #fff; border-radius: 22px; }
+.path-caption { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+.path-caption b { font-size: 13px; font-weight: 600; }
+.path-caption span { font-size: 12px; color: var(--sub); }
+.path-dots { display: flex; flex-wrap: wrap; gap: 8px; }
+.path-dot { border: 0; background: none; padding: 0; cursor: pointer; }
+.path-dot i {
+  display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%;
+  background: #e7e4ee; color: #6c6879; font-size: 11px; font-style: normal; font-weight: 600;
+}
+.path-dot.st-building i { background: #cef34e; color: #39471d; }
+.path-dot.st-earlystable i, .path-dot.st-early-stable i { background: #8a8c70; color: #fff; }
+.path-dot.st-durable i { background: #151519; color: #fff; }
+.path-dot.current i { outline: 3px solid #151519; outline-offset: 3px; }
+.path-dot:hover:not(:disabled) i { transform: scale(1.08); }
+.path-dot:disabled { opacity: .4; cursor: default; }
+.path-here { margin-top: 14px; font-size: 12px; color: var(--sub); }
+
+/* ---- 回顾入口：一行，安静的 ---- */
+.path-foot { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 18px; }
+.path-foot button { border: 0; background: none; color: var(--sub); font-size: 12px; padding: 8px 12px; border-radius: 999px; }
+.path-foot button:hover { background: #fff; color: var(--ink); }
+
+@media (max-width: 720px) {
+  .path-home { padding: 18px 14px 32px; }
+  .next-card { padding: 24px 20px 22px; border-radius: 24px; }
+  .next-card h1 { font-size: 26px; }
+  .next-example { font-size: 16px; }
+  .path-dot { width: 64px; }
+}
