@@ -77,10 +77,16 @@
 }
 .stats-btn:hover { transform: scale(1.05); }
 
-.speak-actions.row { flex-direction: row; gap: 10px; width: 100%; }
+.speak-actions.row { flex-direction: row; gap: 10px; width: 100%; align-items: stretch; }
 .speak-actions.row .opt { flex: 1; text-align: center; }
 .retry-btn { background: var(--raised); color: var(--brand); font-weight: 700; }
 .next-inline { flex: 2; }
+/* 跟读结果行两枚按钮必须对齐（用户实拍报过）：theme.css 的 .primary{margin-top:24px} 是给
+   "整行单按钮"留的间距，在这一行会把「下一题」往下压 17px；且 .opt 的 padding 更大、高度差 9px。
+   这里把这一行的按钮统一：去掉上边距、同高（实测 55px）、内容居中。 */
+.speak-actions.row .primary { margin-top: 0; }
+.speak-actions.row .opt,
+.speak-actions.row .primary { min-height: 55px; display: inline-flex; align-items: center; justify-content: center; }
 .speak-ratio { color: var(--sub); font-size: 12px; margin-left: 8px; }
 
 /* ---- v2：会话提示 / 隐藏原句 / 语音反馈边界（去描边，表面化） ---- */
