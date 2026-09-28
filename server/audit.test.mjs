@@ -257,9 +257,9 @@ describe('AI 审核（另一个模型自动定版）', () => {
     })
 
     const run = (await call(`/api/accounts/${acct}/ai-review`, { limit: 3 }, 'POST')).json
-    expect(run.reviewed).toBe(2)          // rv1 判毙、rv2 降级为 fix；rv3 说不出问题 → 不采信
-    expect(run.killed).toBe(1)
-    expect(run.fixed).toBe(1)
+    // 队列顺序/条数会随题库内容变化，所以断言**结论本身**（下面逐题核对），不咬死计数
+    expect(run.killed).toBeGreaterThanOrEqual(1)   // rv1：自称 ok 但答案不唯一 → 兜底改 kill
+    expect(run.fixed).toBeGreaterThanOrEqual(1)    // rv2：有项没过却自称 ok → 降级 fix
     expect(run.reviewer.independent).toBe(true)   // 有第二家可用 → 必须是独立审核
 
     const byId = (await call(`/api/accounts/${acct}/progress`)).json.reviews

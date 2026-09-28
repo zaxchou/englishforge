@@ -103,6 +103,13 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
   const pushingRef = useRef(false)
   const queuedRef = useRef<{ full: boolean; reason: string } | null>(null)
   const statsAtRef = useRef(0)
+  /**
+   * 审核结论的"基线"：从服务端取回（或刚推成功）的那一份。
+   * 推送时**只发与基线不同的条目** —— 否则客户端会把整份旧标记推上去，
+   * 把服务端更新的（AI 审出来的）结论盖回去。实测踩过：浏览器开着不动，
+   * 它 21:47 那批盲通过的旧值把 61 条 AI 结论覆盖成了"通过"。
+   */
+  const marksBaselineRef = useRef<ReviewMarks | null>(null)
 
   // 最新值放进 ref：定时器与事件回调里必须看到当前进度，不能是闭包里的旧值
   // （在 effect 里同步，而不是渲染期间写 ref）
@@ -132,6 +139,20 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
     })
   }, [])
 
+  /** 只挑"与基线不同"的结论发给服务端（没基线时全量，用于首次迁移） */
+  const reviewDelta = useCallback((cur: ReviewMarks, full: boolean): ReviewMarks => {
+    const base = marksBaselineRef.current
+    if (full || !base) return cur
+    const out: ReviewMarks = {}
+    for (const [qid, m] of Object.entries(cur)) {
+      const b = base[qid]
+      if (!b || b.verdict !== m.verdict || (b.note ?? '') !== (m.note ?? '') || (b.source ?? '') !== (m.source ?? '')) {
+        out[qid] = m
+      }
+    }
+    return out
+  }, [])
+
   /** 真正发一次同步；并发时只排队一次，保证顺序不交叉 */
   const push = useCallback(async (full: boolean, reason: string): Promise<boolean> => {
     const id = accountRef.current?.id
@@ -143,8 +164,9 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
     pushingRef.current = true
     try {
       const { progressRef: pr, getMarks: gm } = optsRef.current
-      const res = await syncProgress(id, pr.current, { reviews: gm(), full, reason })
+      const res = await syncProgress(id, pr.current, { reviews: reviewDelta(gm(), full), full, reason })
       if (res.ok) {
+        marksBaselineRef.current = { ...gm() }   // 刚推上去的这份成为新基线
         setSyncedAt(Date.now())
         // 界面上的"N 条作答记录"要立刻跟上：服务端只回报新增了几条，加上去就是真实条数
         const cur = accountRef.current
@@ -162,7 +184,7 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
       queuedRef.current = null
       if (queued) void push(queued.full, queued.reason)
     }
-  }, [refreshStats])
+  }, [refreshStats, reviewDelta])
 
   const flush = useCallback((opts: { full?: boolean; reason?: string } = {}) => {
     if (timerRef.current) { window.clearTimeout(timerRef.current); timerRef.current = null }
@@ -175,12 +197,22 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
     timerRef.current = window.setTimeout(() => { timerRef.current = null; void push(false, 'save') }, DEBOUNCE_MS)
   }, [push])
 
-  /** 接管一份服务端存档；审核标记取并集（本地新标记优先，谁的审核结果都不丢） */
+  /** 接管一份服务端存档：**审核结论以服务端为准**（它更新、且带来源） */
   const adopt = useCallback((pull: PullResult) => {
     const { applyProgress: ap, applyMarks: am, getMarks: gm } = optsRef.current
     ap(pull.progress)
     const remote = pull.reviews ?? {}
-    if (Object.keys(remote).length) am({ ...remote, ...gm() })
+    const local = gm()
+    // 本地那些**没有 source** 的老标记（迁移前"全部通过"那批）不许盖回服务端更新的结论；
+    // 本地带 source 的（人在新界面里真点过的）才保留。
+    const keepLocal: ReviewMarks = {}
+    for (const [qid, m] of Object.entries(local)) {
+      if (remote[qid]) continue
+      if (m?.source) keepLocal[qid] = m
+    }
+    const merged = { ...remote, ...keepLocal }
+    if (Object.keys(merged).length) am(merged)
+    marksBaselineRef.current = merged
     setSyncedAt(Date.now())
     refreshStats(true)
   }, [refreshStats])
@@ -232,8 +264,10 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
     if (!res) return null
     if (res.verdicts && Object.keys(res.verdicts).length) {
       const { applyMarks: am, getMarks: gm } = optsRef.current
-      // 本机已有的判断优先（人不该被机器覆盖）；机器只补"人还没定过"的题
-      am({ ...res.verdicts, ...gm() })
+      // 服务端已经写库了，本机跟着显示即可（并入基线，不产生"待推送"的差异）
+      const merged = { ...gm(), ...res.verdicts }
+      am(merged)
+      marksBaselineRef.current = merged
     }
     await runAudit()
     return {

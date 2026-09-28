@@ -103,6 +103,8 @@ export default function App() {
     const rows = [...allQuestions, ...accountPool].map((q) => ({
       id: q.id, skill: q.skill, mode: q.mode, type: q.type, variantGroupId: q.variantGroupId,
       prompt: q.prompt, answer: q.answer, options: q.options, explain: q.explain, tts: q.tts,
+      // 句子词序/顺序/跟读目标：不给审核员，它看不见非选择题的句子
+      aux: { tokens: q.tokens, order: q.order, target: q.target, fix: q.fix },
       contentVersion: q.contentVersion, contentKey: contentKeyOf(q), hasCause: hasOwnCause(q),
     }))
     void db.syncCatalog(rows)

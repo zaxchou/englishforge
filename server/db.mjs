@@ -200,6 +200,7 @@ CREATE TABLE IF NOT EXISTS questions (
   answer            TEXT,
   options           TEXT,                          -- JSON 数组（模型补逐项纠正时要用）
   explain           TEXT,                          -- 解析（审核员要据此查"有没有用术语/自不自洽"）
+  aux               TEXT,                          -- JSON：tokens/order/target/fix（拼句/点词/跟读题的句子）
   tts               TEXT,
   content_version   INTEGER NOT NULL DEFAULT 1,
   content_key       TEXT,                          -- 题型+题干+句子（归一化）：查重的依据
@@ -271,7 +272,7 @@ function ensureColumns(conn, table) {
   const have = new Set(conn.prepare(`PRAGMA table_info(${table})`).all().map((r) => r.name))
   const spec = {
     content_reviews: [['source', "TEXT NOT NULL DEFAULT 'human'"], ['model', 'TEXT'], ['reasons', 'TEXT']],
-    questions: [['explain', 'TEXT']],
+    questions: [['explain', 'TEXT'], ['aux', 'TEXT']],
   }
   for (const [name, type] of spec[table] ?? []) {
     if (!have.has(name)) conn.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${type}`)
@@ -861,13 +862,13 @@ export function upsertCatalog(rows = []) {
   const db = getDb()
   const ts = nowMs()
   const ins = db.prepare(`INSERT INTO questions
-    (id, skill, mode, type, variant_group_id, prompt, answer, options, explain, tts, content_version, content_key, has_cause, updated_at)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    (id, skill, mode, type, variant_group_id, prompt, answer, options, explain, aux, tts, content_version, content_key, has_cause, updated_at)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     ON CONFLICT(id) DO UPDATE SET
       skill = excluded.skill, mode = excluded.mode, type = excluded.type,
       variant_group_id = excluded.variant_group_id, prompt = excluded.prompt,
       answer = excluded.answer, options = excluded.options, explain = excluded.explain,
-      tts = excluded.tts, content_version = excluded.content_version,
+      aux = excluded.aux, tts = excluded.tts, content_version = excluded.content_version,
       content_key = excluded.content_key,
       has_cause = excluded.has_cause, updated_at = excluded.updated_at`)
   let inserted = 0, updated = 0, skipped = 0
@@ -881,7 +882,8 @@ export function upsertCatalog(rows = []) {
       const options = Array.isArray(r.options) ? JSON.stringify(r.options.map((o) => String(o).slice(0, 200))) : null
       ins.run(id, skill, r.mode ?? null, r.type ?? null, r.variantGroupId ?? null,
         str(r.prompt).slice(0, 500), r.answer ?? null, options,
-        r.explain ? String(r.explain).slice(0, 600) : null, r.tts ?? null,
+        r.explain ? String(r.explain).slice(0, 600) : null,
+        r.aux ? JSON.stringify(r.aux).slice(0, 2000) : null, r.tts ?? null,
         int(r.contentVersion, 1), r.contentKey ? String(r.contentKey).slice(0, 600) : null, r.hasCause ? 1 : 0, ts)
       if (exists) updated++; else inserted++
     }
@@ -1036,6 +1038,22 @@ export function reopenBulk(accountId, { includeHumanOk = true } = {}) {
   return { reopened: res.changes }
 }
 
+/**
+ * 作废"输入数据不完整时下的" AI 结论：拼句/点词/跟读题需要 `aux`（句子词序）才能判断答案，
+ * 而第一轮审核时这些数据没推上来 —— 实测因此误杀了 4 道好题（说"答案不在句子里"，其实在）。
+ * 把它们的来源降级为 bulk，就会重新进待审队列、带着完整数据再审一遍。
+ */
+export function reopenIncompleteAi(accountId) {
+  const db = getDb()
+  const rows = db.prepare(
+    `SELECT r.question_id FROM content_reviews r JOIN questions q ON q.id = r.question_id
+     WHERE r.account_id = ? AND r.source = 'ai' AND q.type <> 'choice'`).all(accountId)
+  const upd = db.prepare("UPDATE content_reviews SET source = 'bulk' WHERE account_id = ? AND question_id = ?")
+  let n = 0
+  for (const r of rows) n += upd.run(accountId, r.question_id).changes
+  return { reopened: n }
+}
+
 /** 取一批"还没定过版"的题给审核员（目录里有什么就审什么，含仓库题与账户题） */
 export function catalogForReview(accountId, { skipReviewed = new Set(), limit = 60 } = {}) {
   const db = getDb()
@@ -1046,10 +1064,16 @@ export function catalogForReview(accountId, { skipReviewed = new Set(), limit = 
   const out = []
   for (const r of db.prepare('SELECT * FROM questions ORDER BY skill, id').all()) {
     if (killed.has(r.id) || skipReviewed.has(r.id)) continue
-    const options = parseJson(r.options)
-    // 只有选择题有"干扰项"可审；其它题型（拼句/点词/跟读）这轮不送审
-    if (!Array.isArray(options) || options.length < 2) continue
-    out.push({ id: r.id, skill: r.skill, type: r.type, prompt: r.prompt, options, answer: r.answer, explain: r.explain ?? null, tts: r.tts ?? null })
+    // 各种题型都送审：拼句/点词/跟读虽然没有"干扰项"，但它们的**解析**同样要查
+    // "有没有用术语、自不自洽"（实测 46 条要改里绝大多数就是解析用了术语）
+    const options = Array.isArray(parseJson(r.options)) ? parseJson(r.options) : []
+    const aux = parseJson(r.aux) ?? {}
+    out.push({
+      id: r.id, skill: r.skill, type: r.type, prompt: r.prompt, options, answer: r.answer,
+      explain: r.explain ?? null, tts: r.tts ?? null,
+      // 拼句/点词/跟读题的句子在这里，不给它审核员就没法判断答案对不对
+      tokens: aux.tokens ?? null, order: aux.order ?? null, target: aux.target ?? null, fix: aux.fix ?? null,
+    })
     if (out.length >= limit) break
   }
   return out

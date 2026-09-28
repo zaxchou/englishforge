@@ -446,6 +446,8 @@ export interface CatalogRow {
   options?: string[]
   /** 解析：审核员要据此判断"有没有用术语、自不自洽" */
   explain?: string
+  /** 非选择题的句子（词序/顺序/跟读目标/正确形式）—— 审核员判断答案要用 */
+  aux?: { tokens?: string[]; order?: string[]; target?: string; fix?: string }
   tts?: string
   contentVersion?: number
   /** 题目身份（题型+题干+句子，归一化）：服务端查重就靠它，不能只比题干 */

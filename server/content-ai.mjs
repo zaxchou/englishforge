@@ -161,6 +161,9 @@ const REVIEW_SYSTEM = [
   '对每道题逐项检查，回答 true/false：',
   '1) answerOk：标出的答案，在题干要求的含义下是不是**唯一正确**的？另一个选项也能成立 → false。',
   '2) distractorOk：每个错误选项是不是**确实错**（与题干要求的含义不符），且错得能用"含义"说清楚？有干扰项其实也成立 → false。',
+  '    （若这道题**没有选项**（拼句/点词/跟读这类），这一项不适用，填 true。）',
+  '    拼句/点词题会给出 `sentence`（题目展示给学生的词序）——判断 answerOk 前**必须先看这个**，',
+  '    答案必须是句子里真实存在的那个词/位置；说"答案不在句子里"之前请先确认 sentence 里确实找不到它。',
   '3) glossOk：题干里的中文提示/释义是否准确、不误导？没有中文释义就填 true。',
   '4) explainOk：解析是否自洽、且没有出现"主格/宾格/物主代词/三单规则"这类术语？',
   '',
@@ -189,9 +192,11 @@ export const REVIEW_PROMPT = REVIEW_SYSTEM
  */
 function acceptReview(row, q) {
   if (!row || typeof row !== 'object') return null
+  const hasOptions = Array.isArray(q.options) && q.options.length > 1
   const criteria = {
     answerOk: row.answerOk !== false,
-    distractorOk: row.distractorOk !== false,
+    // 没有选项的题不存在"干扰项"问题，这一项不参与判定（否则会凭空把这类题全判成要改）
+    distractorOk: !hasOptions || row.distractorOk !== false,
     glossOk: row.glossOk !== false,
     explainOk: row.explainOk !== false,
   }
@@ -218,7 +223,11 @@ export async function reviewQuestions(questions) {
     system: REVIEW_SYSTEM,
     buildUser: (chunk) => `共 ${chunk.length} 道题：\n` + JSON.stringify(
       chunk.map((it, i) => ({
-        i, type: it.type, prompt: it.prompt, options: it.options, answer: it.answer, explain: it.explain ?? null,
+        i, type: it.type, prompt: it.prompt,
+        // 句子在哪：选择题在选项里，拼句/点词/跟读在 tokens/order/target 里
+        // （不给句子，审核员会误判"答案不在句子里"—— 实测误杀了 4 道）
+        sentence: it.tokens ?? it.order ?? it.target ?? null,
+        options: it.options, answer: it.answer, explain: it.explain ?? null,
       })), null, 1),
     accept: acceptReview,
     keyOf: (q) => q.id,

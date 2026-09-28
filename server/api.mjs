@@ -5,7 +5,7 @@
 import {
   ApiError, addItems, audit, createAccount, dbInfo, deleteItem, ensureDefaultAccount, getAccount,
   catalogForReview, itemStats, listAccounts, listBatches, listEnrichments, listItems,
-  listSnapshots, reopenBulk, reviewQueue,
+  listSnapshots, reopenBulk, reopenIncompleteAi, reviewQueue,
   loadProgress, queryAttempts, renameAccount, replaceState, resetAccount, restoreSnapshot,
   saveAiReview, saveEnrichment, setItemReview, setSetting, stats, syncAccount, touchAccount,
   upsertCatalog, writeSnapshot, getDb,
@@ -135,6 +135,7 @@ const ROUTES = [
    */
   ['POST', '/api/accounts/:id/reopen-bulk', (ctx) => {
     const includeHumanOk = ctx.body?.includeHumanOk !== false
+    if (body_str(ctx, 'what') === 'ai-incomplete') return { ok: true, ...reopenIncompleteAi(ctx.params.id) }
     return { ok: true, ...reopenBulk(ctx.params.id, { includeHumanOk }) }
   }],
 
