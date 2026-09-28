@@ -27,3 +27,10 @@ dist-ssr
 out/
 __pycache__/
 *.pyc
+
+# 进度数据库（用户数据；本仓库是公开的，这类数据一律不进 git）
+# 默认落在仓库外的 JunEnglish/data/englishforge/，这里再兜一道底
+data/
+*.db
+*.db-wal
+*.db-shm

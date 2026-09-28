@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { lessons, questionsOfSkill, allQuestions, skillOrder } from './data/course'
-import { applyReviewMarks, loadReviewMarks, type ReviewMarks } from './content/reviewMarks'
+import { applyReviewMarks, loadReviewMarks, saveReviewMarks, type ReviewMarks } from './content/reviewMarks'
 import {
   loadProgress, saveProgress, resetProgress, getSkillProgress,
   recordSkillPractice, commitSession, recordSession, localDateStr,
@@ -9,6 +9,7 @@ import {
   pushAttempt, exportSave, applyImport, previewImport, clearSaveError, hadSaveError,
 } from './store/migrations'
 import type { LoadNotice } from './store/migrations'
+import { useDbSync } from './store/useDbSync'
 import type { ActiveSession, AdaptedQuestion, Attempt, ProgressV2, QuizRuntime, SessionKind } from './types'
 import { Quiz, type SessionResult, type QuizAttempt, type QuizEntry } from './components/Quiz'
 import { Confetti } from './components/fx'
@@ -52,6 +53,17 @@ export default function App() {
 
   // 审核标记会改变信任级别，从而决定"这次练习算不算能力证据"——所以它必须驱动题目池
   const [marks, setMarks] = useState<ReviewMarks>(() => loadReviewMarks())
+  const marksRef = useRef(marks)
+
+  // 进度数据库：浏览器存档继续当"当前工作的那一份"（离线也能练），
+  // 数据库是长期、可查询、不会丢的那一份。数据库不可用时整个应用退回纯本地模式。
+  const db = useDbSync({
+    progressRef,
+    applyProgress: persist,
+    getMarks: () => marksRef.current,
+    applyMarks: (m) => { marksRef.current = m; setMarks(m); saveReviewMarks(m) },
+  })
+
   const reviewed = useMemo(() => applyReviewMarks(allQuestions, marks), [marks])
   const pool = useMemo(() => eligible(reviewed), [reviewed])
   const questionById = useMemo(() => new Map(reviewed.map((q) => [q.id, q])), [reviewed])
@@ -61,12 +73,19 @@ export default function App() {
     [progress, pool, evidence, clock],
   )
 
-  /** 保存 + 同步状态；写失败时亮横幅（用例 12） */
-  function sync(p: ProgressV2 = progressRef.current) {
+  /** 落盘到浏览器（当前工作的那一份）；写失败时亮横幅（用例 12） */
+  function persist(p: ProgressV2) {
     progressRef.current = p
     const ok = saveProgress(p)
     setSaveErr(!ok)
     setProgress({ ...p, activeSession: p.activeSession ? { ...p.activeSession, queue: [...p.activeSession.queue] } : null })
+    return ok
+  }
+
+  /** 保存 + 安排一次落库 */
+  function sync(p: ProgressV2 = progressRef.current) {
+    const ok = persist(p)
+    db.schedule()
     return ok
   }
 
@@ -271,20 +290,31 @@ export default function App() {
     setView({ name: 'home' })
   }
 
-  function handleReset() {
-    if (confirm('确定清空全部学习进度？（当前存档会先备份到本地）')) {
-      resetProgress()
-      clearSaveError()
-      const r = loadProgress()
-      progressRef.current = r.progress
-      setProgress(r.progress)
-      setNotice(null)
-      setSaveErr(false)
-      setView({ name: 'home' })
-    }
+  async function handleReset() {
+    if (!confirm('确定清空全部学习进度？（清空前会自动在数据库里留一份快照）')) return
+    // 先清数据库：库里那份没清掉的话，下次启动会被重新接管回来
+    const remoteOk = await db.resetCurrent()
+    resetProgress()
+    clearSaveError()
+    const r = loadProgress()
+    progressRef.current = r.progress
+    setProgress(r.progress)
+    setNotice(null)
+    setSaveErr(false)
+    setView({ name: 'home' })
+    if (remoteOk) db.note('进度已清空（清空前的存档在数据库里留了一份快照，可在「回顾 → 账户与进度数据库」里回捞）。')
+    else db.note('数据库未连接：本机进度已清空，但数据库里那份还在，连上后可能被重新载入。', 'warn')
   }
 
   // ---------- 存档导入导出 ----------
+  /** 审核标记也是用户的工作成果：本地存一份，同时推进数据库 */
+  function handleMarks(m: ReviewMarks) {
+    marksRef.current = m
+    setMarks(m)
+    saveReviewMarks(m)
+    db.schedule()
+  }
+
   function doExportSave() {
     const blob = new Blob([exportSave(progress)], { type: 'application/json' })
     const a = document.createElement('a')
@@ -317,14 +347,32 @@ export default function App() {
         if (!res.ok) { alert('导入失败：' + res.error); return }
         const r = loadProgress()
         progressRef.current = r.progress
-      setProgress(r.progress)
+        setProgress(r.progress)
         setSaveErr(false)
+        // 导入是整份替换：数据库那份也要跟着换（服务端会先给旧的那份留快照）
+        void db.flush({ full: true, reason: 'import' })
         setView({ name: 'home' })
       }
       reader.readAsText(file)
     }
     input.click()
   }
+
+  // 顶栏那个小徽标：一眼看出"进度到底进库了没有"，不占认知负担
+  const dbChip = (() => {
+    const time = db.syncedAt ? new Date(db.syncedAt).toLocaleTimeString('zh-CN', { hour12: false }) : ''
+    if (!db.account) {
+      return { tone: 'wait', text: '数据库连接中', title: '正在连接进度数据库' }
+    }
+    if (db.dbState === 'offline') {
+      return { tone: 'off', text: '数据库未连接', title: '进度仍保存在本机浏览器里；数据库恢复后会自动补写，不会丢。' }
+    }
+    return {
+      tone: 'on',
+      text: '已存入数据库',
+      title: `账户「${db.account.name}」· ${time ? '最近写入 ' + time : '尚未写入'}`,
+    }
+  })()
 
   const todayBrief = useMemo(() => {
     const sid = recommendSkill(progress, pool, skillOrder)
@@ -364,10 +412,21 @@ export default function App() {
           <button className="linkish" onClick={() => setStartError(null)}>知道了</button>
         </div>
       )}
+      {db.notice && (
+        <div className={`sys-banner ${db.notice.kind === 'warn' ? 'err' : ''}`}>
+          {db.notice.kind === 'warn' ? '⚠️ ' : '🗄️ '}{db.notice.text}
+          <button className="linkish" onClick={db.dismissNotice}>知道了</button>
+        </div>
+      )}
       {view.name !== 'home' && (
         <header className="topbar">
           <button className="brand brand-btn" onClick={() => setView({ name: 'home' })}>← 返回学习空间</button><span className="inner-location">{view.name === 'lesson' ? '课程 / 知识点' : view.name === 'practice' ? '专注练习 · 按自己的节奏' : view.name === 'review' ? '内容审核 · 逐题核对' : view.name === 'records' ? '回顾 · 课程与记录' : '本轮学习记录'}</span>
           <div className="stats">
+            <button
+              className={`db-chip is-${dbChip.tone}`}
+              title={dbChip.title}
+              onClick={() => setView({ name: 'records' })}
+            ><i aria-hidden="true" />{dbChip.text}</button>
             <button
               className="stats-btn"
               title={soundOn ? '点击关闭音效' : '点击开启音效'}
@@ -384,6 +443,13 @@ export default function App() {
             todayBrief={todayBrief}
             pool={pool}
             soundOn={soundOn}
+            dbLine={db.account
+              ? db.dbState === 'offline'
+                ? `数据库未连接 · 进度仍存在本机（账户「${db.account.name}」保存了 ${db.account.attempts} 条作答记录）`
+                : `已存入数据库 · 账户「${db.account.name}」共 ${db.account.attempts} 条作答记录`
+              : db.dbState === 'offline'
+                ? '数据库未连接 · 进度保存在本机浏览器，重启应用后会自动补写进数据库'
+                : null}
             onToggleSound={() => { setMuted(soundOn); setSoundOn(!soundOn) }}
             onStartToday={() => { setStartError(null); if (!startSession('today')) setStartError('今天没有可抽的题目——题库正在建设中。') }}
             onResume={() => { if (!resumeSession()) setStartError('没有找到未完成的会话。') }}
@@ -410,13 +476,26 @@ export default function App() {
             onReset={handleReset}
             onReviewContent={() => setView({ name: 'review' })}
             pool={pool}
+            db={{
+              account: db.account,
+              accounts: db.accounts,
+              dbState: db.dbState,
+              stats: db.stats,
+              syncedAt: db.syncedAt,
+              onRename: (name) => { void db.rename(name) },
+              onNewAccount: (name) => { void db.newAccount(name) },
+              onSwitch: (id) => { void db.switchTo(id) },
+              onSyncNow: () => { void db.flush({ reason: 'manual' }) },
+              onReload: () => { void db.reloadFromDb() },
+              onRefreshStats: () => db.refreshStats(true),
+            }}
           />
         )}
         {view.name === 'review' && (
           <ContentReview
             questions={pool}
             marks={marks}
-            onMarks={setMarks}
+            onMarks={handleMarks}
             onExit={() => setView({ name: 'home' })}
           />
         )}
@@ -458,7 +537,7 @@ export default function App() {
         </div>}
       </main>
       {view.name !== 'home' && <footer className="foot">
-        <span>素材来自张俊杰老师课程逐字稿 · 本地存档 · </span>
+        <span>素材来自张俊杰老师课程逐字稿 · 进度存于浏览器与本地数据库 · </span>
         <span>按自己的节奏练习</span>
       </footer>}
     </div>

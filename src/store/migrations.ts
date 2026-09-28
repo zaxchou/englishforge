@@ -36,7 +36,8 @@ function result(value: unknown): boolean {
   return record(value) && typeof value.qid === 'string' && typeof value.firstTryCorrect === 'boolean' &&
     (value.retriedCorrect === null || typeof value.retriedCorrect === 'boolean') && typeof value.given === 'string'
 }
-function isV2(raw: unknown): raw is ProgressV2 {
+/** 存档结构校验：从数据库取回的整份存档也要过这一关，才允许接管本地进度 */
+export function isProgressV2(raw: unknown): raw is ProgressV2 {
   if (!record(raw) || raw.schemaVersion !== 2 || !number(raw.xp) || !number(raw.streak) ||
     !number(raw.comboBest) || typeof raw.lastActiveDate !== 'string' || !record(raw.skills) ||
     !record(raw.questionStates) || !Array.isArray(raw.attempts)) return false
@@ -105,7 +106,7 @@ export function loadProgressV2(): LoadResult {
   if (raw2) {
     try {
       const parsed = JSON.parse(raw2)
-      if (isV2(parsed)) return { progress: normalize(parsed), notice: null }
+      if (isProgressV2(parsed)) return { progress: normalize(parsed), notice: null }
       throw new Error('schema mismatch')
     } catch {
       // v2 损坏：先备份损坏副本，再尝试从 v1 恢复——不静默删除任何数据
@@ -124,7 +125,7 @@ export function loadProgressV2(): LoadResult {
     if (ok) {
       try {
         const back = JSON.parse(localStorage.getItem(V2_KEY) ?? 'null')
-        if (isV2(back)) return { progress: normalize(fromV1), notice: 'migrated' }
+        if (isProgressV2(back)) return { progress: normalize(fromV1), notice: 'migrated' }
       } catch { /* fallthrough */ }
     }
     // 回读失败：内存里继续用 v2，不报错，下次保存再试
@@ -144,6 +145,11 @@ function tryMigrateFromV1(): ProgressV2 | null {
   } catch {
     return null
   }
+}
+
+/** 归一化（连续天数清零、事件上限裁剪）：接管数据库存档前也走一遍 */
+export function normalizeProgress(p: ProgressV2): ProgressV2 {
+  return normalize(p)
 }
 
 function normalize(p: ProgressV2): ProgressV2 {
@@ -228,7 +234,7 @@ export interface ImportPreview {
 export function previewImport(text: string): ImportPreview | { error: string } {
   let parsed: unknown
   try { parsed = JSON.parse(text) } catch { return { error: '不是有效的 JSON 文件' } }
-  if (!isV2(parsed)) return { error: '不是 EnglishForge v2 存档（schemaVersion 需为 2）' }
+  if (!isProgressV2(parsed)) return { error: '不是 EnglishForge v2 存档（schemaVersion 需为 2）' }
   const p = parsed
   if (typeof p.xp !== 'number' || !p.skills || !Array.isArray(p.attempts)) {
     return { error: '存档字段不完整（xp / skills / attempts 缺失）' }

@@ -16,6 +16,8 @@ interface Props {
   todayBrief: TodayBrief
   pool: AdaptedQuestion[]
   soundOn: boolean
+  /** 一行入库状态：进度是否已经写进数据库（null = 数据库还没连上） */
+  dbLine: string | null
   onToggleSound: () => void
   onStartToday: () => void
   onResume: () => void
@@ -26,7 +28,7 @@ interface Props {
 }
 
 export function PathHome({
-  progress, evidence, todayBrief: brief, pool, soundOn, onToggleSound,
+  progress, evidence, todayBrief: brief, pool, soundOn, dbLine, onToggleSound,
   onStartToday, onResume, onStartReview, onStartSkill, onOpenRecords, onReviewContent,
 }: Props) {
   const skills = useMemo(() => Object.values(lessons).flatMap((l) => l.skills), [])
@@ -121,6 +123,7 @@ export function PathHome({
           <button onClick={onStartReview}>只做到期复习{brief.dueCount ? `（${brief.dueCount}）` : ''}</button>
           <button onClick={onReviewContent}>题目审核</button>
         </div>
+        {dbLine && <div className="path-db">🗄️ {dbLine}</div>}
       </main>
     </div>
   )

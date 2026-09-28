@@ -29,6 +29,7 @@ Windows 一键启动：双击 `start.bat`（npm install 判断 + preview + 自�
 - **题级复习调度**：首次独立正确 → 次日复习；未到期刷题不升级；首错保留原错、变式补练；连续三次首错自动降难
 - **能力证据**：未练习 / 建立中 / 初步稳定 / 持续巩固四状态，全部从作答事件推导，不用总分糊弄
 - **存档**：v2 版本化（`sf-progress-v2`），v1 自动迁移且保留原件；逐题落盘、断点恢复、幂等计分；支持存档导出/导入（导入前自动备份）
+- **账户 + 进度数据库**：进度同时写入 SQLite 数据库（`data/englishforge/englishforge.db`，默认在仓库外）。数据库不可用时自动退回纯本地模式，练习不受影响；覆盖/清空/导入前自动留快照，可回捞。查询：`python scripts/db.py`（详见 [docs/数据库与账户.md](docs/数据库与账户.md)）
 - **语音**：浏览器 Web Speech API（免费）；**推荐 Edge 打开，自动换微软在线自然语音**
 
 ## 内容（M1 进行中）
@@ -40,7 +41,7 @@ Windows 一键启动：双击 `start.bat`（npm install 判断 + preview + 自�
 ## 开发
 
 ```bash
-npm test        # vitest 回归（38 条：调度 / 证据 / 判定 / 迁移 / 题库结构）
+npm test        # vitest 回归（92 条：调度 / 证据 / 判定 / 迁移 / 题库结构 / 数据库 API）
 npm run lint    # oxlint
 ```
 
@@ -53,10 +54,17 @@ src/
   learning/evidence.ts   四维能力证据推导
   learning/grading.ts    按 ID 判定 + 跟读分档
   store/migrations.ts    v1→v2 迁移 / 逐题落盘 / 导入导出
+  store/db.ts            进度数据库客户端（增量推事件 / 取并集 / 离线回退）
+  store/useDbSync.ts     启动接管决策 + 防抖落库 + 账户切换
   data/                  课程注册表 + 各课题库
-  components/            Quiz / Dashboard / 图表与提示组件
+  components/            Quiz / PathHome / Dashboard / AccountPanel / 图表与提示组件
+server/
+  db.mjs                 SQLite 数据层（schema / 聚合视图 / 快照）
+  api.mjs                /api 路由（纯函数 handleApi，测试直接调它）
+vite-plugin-db.mjs       dev 与 preview 同进程挂载 /api
+scripts/db.py            进度数据库查询 CLI（只读）
 ```
 
-文档：`P0-交付说明-变更迁移与已知限制.md`、`UI-v5-参考图框架重构报告.md`、`SOFT-GLASS-UI-改版报告-v4.md`、`REVIEW-张老师视角x高级教师视角.md`、`design-v5/`（界面截图）。
+文档：`docs/数据库与账户.md`、`P0-交付说明-变更迁移与已知限制.md`、`UI-v5-参考图框架重构报告.md`、`SOFT-GLASS-UI-改版报告-v4.md`、`REVIEW-张老师视角x高级教师视角.md`、`design-v5/`（界面截图）。
 
 题库规则：所有解析都能追溯到张老师课稿的说法；不引入课外语法表述。

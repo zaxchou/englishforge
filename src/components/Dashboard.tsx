@@ -3,6 +3,7 @@ import type { AdaptedQuestion, ProgressV2 } from '../types'
 import { lessons } from '../data/course'
 import { recentDaysXp, todayStr } from '../store/progress'
 import type { EvidenceReport } from '../learning/evidence'
+import { AccountPanel, type DbPanelProps } from './AccountPanel'
 import './dashboard.css'
 
 export interface TodayBrief {
@@ -31,6 +32,8 @@ interface Props {
   onReset: () => void
   onReviewContent: () => void
   pool: AdaptedQuestion[]
+  /** 账户与进度数据库（面板自带样式，App 只负责接线） */
+  db: DbPanelProps
 }
 
 
@@ -58,7 +61,7 @@ function NavIcon({ kind }: { kind: string }) {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><path d={paths[kind]} />{kind === 'settings' && <circle cx="12" cy="12" r="5" />}</svg>
 }
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六']
-export function Dashboard({ progress, evidence, todayBrief: brief, soundOn, saveErr, onToggleSound, onOpenLesson, onStartToday, onResume, onStartReview, onExportSave, onImportSave, onReset, onReviewContent, pool }: Props) {
+export function Dashboard({ progress, evidence, todayBrief: brief, soundOn, saveErr, onToggleSound, onOpenLesson, onStartToday, onResume, onStartReview, onExportSave, onImportSave, onReset, onReviewContent, pool, db }: Props) {
   const [query, setQuery] = useState('')
   const [section, setSection] = useState<NavTarget>('today')
   const [showMore, setShowMore] = useState(false)
@@ -131,7 +134,8 @@ export function Dashboard({ progress, evidence, todayBrief: brief, soundOn, save
         <section className="side-panel"><div className="section-heading"><h2>我的学习足迹</h2><span>{progress.streak} 天连续</span></div><div className="week-strip">{days.map(d => <div key={d.date} className={d.date === todayStr() ? 'current' : ''} title={`${d.date} · ${d.xp} XP`}><span>周{WEEKDAYS[new Date(d.date+'T12:00:00').getDay()]}</span><i className={d.xp ? 'practiced' : ''} /></div>)}</div><div className="ability-list">{evidence.dims.map(d => <div key={d.mode}><span>{d.label}</span><b>{d.total ? `${d.correct}/${d.total} 次首次答对` : '待练习'}</b></div>)}<div><span>延迟保持</span><b>{evidence.dueSuccesses ? `${evidence.dueSuccesses} 次检索成功` : '待隔日检查'}</b></div><div><span>口头表达</span><b>{evidence.oral.independentAi ? '已有 AI 评价' : evidence.oral.independentSelf ? '已有自评记录' : evidence.oral.prompted ? '有提示练习' : '待尝试'}</b></div></div><p className="panel-note">记录来自实际练习，逐步积累，不急于打分。</p></section>
         <section className="quiet-note">更清晰地表达，<br />就是更自由地生活。<small>ENGLISHFORGE</small></section>
       </aside></div>
-      <section id="settings" className="settings-panel"><div><h2>设置与存档</h2><p>进度保存在当前浏览器。导出备份后，可以在其他设备恢复；「审核生成内容」用于逐题核对语料派生的题目。</p></div><div className="settings-actions"><button className="secondary" onClick={onReviewContent}>审核生成内容</button><button className="secondary" onClick={onExportSave}>导出存档</button><button className="secondary" onClick={onImportSave}>导入存档</button><button className="text-button danger" onClick={onReset}>清空进度</button></div></section>
+      <section id="settings" className="settings-panel"><div><h2>设置与存档</h2><p>进度同时保存在当前浏览器（离线也能练）与进度数据库（可查询、可回溯）。导出是另一道保险，可随时把整份存档带走；「审核生成内容」用于逐题核对语料派生的题目。</p></div><div className="settings-actions"><button className="secondary" onClick={onReviewContent}>审核生成内容</button><button className="secondary" onClick={onExportSave}>导出存档</button><button className="secondary" onClick={onImportSave}>导入存档</button><button className="text-button danger" onClick={onReset}>清空进度</button></div></section>
+      <AccountPanel {...db} />
     </div>
   </div>
 }

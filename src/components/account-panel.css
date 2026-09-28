@@ -1,0 +1,62 @@
+/* 账户与进度数据库面板 + 顶栏入库徽标（v7 语言：近黑、柠檬绿、大圆角、胶囊按钮） */
+
+/* ---- 顶栏那个小徽标：一眼看出进度进库了没有 ---- */
+.db-chip{display:inline-flex;align-items:center;gap:7px;border:0;background:#f1f0f5;border-radius:999px;padding:8px 14px;font-size:12px;color:var(--sub);white-space:nowrap}
+.db-chip i{width:7px;height:7px;border-radius:50%;background:#c3c1cc;flex-shrink:0}
+.db-chip.is-on i{background:#7f9a2f}
+.db-chip.is-off i{background:#c9603f}
+.db-chip.is-on{background:#eaf5cd;color:#3c4a18}
+.db-chip.is-off{background:#fff0ed;color:#963d32}
+.db-chip:hover{filter:brightness(.97)}
+
+/* ---- 首页底部那一行入库状态 ---- */
+.path-db{text-align:center;font-size:11px;color:var(--sub);line-height:1.9;margin-top:14px}
+
+/* ---- 面板 ---- */
+.account-panel{padding:25px 28px;margin-top:12px;background:white;border-radius:26px}
+.account-head{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
+.account-head h2{font-size:15px;font-weight:600;letter-spacing:-.3px}
+.db-dot{display:inline-flex;align-items:center;gap:8px;font-size:12px;color:var(--sub);line-height:1.7}
+.db-dot i{width:8px;height:8px;border-radius:50%;background:#c3c1cc;flex-shrink:0}
+.db-dot.is-on i{background:#7f9a2f}
+.db-dot.is-off i{background:#c9603f}
+
+.account-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:18px}
+.account-chip{display:inline-flex;align-items:baseline;gap:10px;background:#f4f3f7;border-radius:999px;padding:9px 16px;font-size:13px}
+.account-chip b{font-weight:600}
+.account-chip code{font-size:11px;color:var(--sub)}
+.account-form{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.account-form input{border:1px solid var(--line);border-radius:999px;padding:9px 14px;font-size:12px;background:#f7f6f9;color:var(--ink);min-width:150px}
+.account-actions{margin-left:auto;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.account-switch{display:inline-flex;align-items:center;gap:8px;font-size:12px;color:var(--sub)}
+.account-switch select{border:1px solid var(--line);border-radius:999px;padding:8px 12px;font-size:12px;background:#f7f6f9;color:var(--ink)}
+
+.account-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:10px;margin-top:20px}
+.account-grid>div{background:#f4f3f7;border-radius:18px;padding:14px 16px;display:flex;flex-direction:column;gap:3px}
+.account-grid span{font-size:11px;color:var(--sub)}
+.account-grid b{font-size:22px;font-weight:550;letter-spacing:-.5px;color:var(--ink)}
+.account-grid small{font-size:11px;color:var(--sub)}
+
+.account-objectives,.account-errors,.account-snapshots{margin-top:22px}
+.account-objectives h3,.account-errors h3,.account-snapshots h3{font-size:12px;font-weight:600;color:var(--sub)}
+.account-objectives ul{list-style:none;display:flex;flex-direction:column;gap:6px;margin-top:10px}
+.account-objectives li{display:flex;gap:16px;align-items:center;font-size:12px;color:var(--sub);background:#f7f6f9;border-radius:14px;padding:10px 15px}
+.account-objectives .obj-id{color:var(--ink);font-weight:600;flex:1;min-width:0;overflow-wrap:anywhere}
+.account-errors ul{list-style:none;display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.account-errors li{display:flex;gap:8px;align-items:center;background:#f7f6f9;border-radius:999px;padding:7px 14px;font-size:12px}
+.account-errors b{color:var(--no)}
+
+.snap-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.snap-actions{display:flex;align-items:center;gap:12px}
+.snap-list{list-style:none;margin-top:10px;display:flex;flex-direction:column;gap:6px}
+.snap-list li{display:flex;gap:14px;align-items:center;font-size:12px;color:var(--sub);background:#f7f6f9;border-radius:14px;padding:10px 15px}
+.snap-list .snap-reason{flex:1;color:var(--ink);overflow-wrap:anywhere}
+.account-empty,.account-msg{font-size:12px;color:var(--sub);line-height:1.9;margin-top:10px}
+.account-msg{color:var(--brand)}
+.account-note{font-size:12px;color:var(--sub);line-height:1.95;margin-top:18px;border-top:1px solid var(--line);padding-top:16px}
+
+@media(max-width:640px){
+  .account-panel{padding:22px}
+  .account-actions{margin-left:0;width:100%}
+  .account-objectives li{flex-wrap:wrap;gap:8px 14px}
+}
