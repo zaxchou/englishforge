@@ -3,7 +3,7 @@ import { lessons, questionsOfSkill, allQuestions, skillOrder } from './data/cour
 import { applyReviewMarks, loadReviewMarks, saveReviewMarks, type ReviewMarks } from './content/reviewMarks'
 import { adaptAll } from './content/adapt'
 import { applyEnrichments } from './content/enrichments'
-import { contentKeyOf, hasOwnCause } from './content/bank'
+import { capBySentence, contentKeyOf, hasOwnCause } from './content/bank'
 import {
   loadProgress, saveProgress, resetProgress, getSkillProgress,
   recordSkillPractice, commitSession, recordSession, localDateStr,
@@ -112,7 +112,10 @@ export default function App() {
     () => applyEnrichments(applyReviewMarks([...allQuestions, ...accountPool], marks), db.enrichments),
     [accountPool, marks, db.enrichments],
   )
-  const pool = useMemo(() => eligible(reviewed), [reviewed])
+  /** 已经练过的题：同一个句子限额时**不动它们**，否则历史作答会掉出证据窗口、进度倒退 */
+  const answeredIds = useMemo(() => new Set(progress.attempts.map((a) => a.questionId)), [progress.attempts])
+  // 同一个句子最多 2 道题（用户拍板）；其余留在题库里但不进抽题池
+  const pool = useMemo(() => capBySentence(eligible(reviewed), 2, answeredIds), [reviewed, answeredIds])
   const questionById = useMemo(() => new Map(reviewed.map((q) => [q.id, q])), [reviewed])
   /** 账户题库里的题 id：审核结论要写回数据库，而不是只留本地标记 */
   const accountItemIds = useMemo(() => new Set(db.items.map((it) => it.itemId)), [db.items])
@@ -550,6 +553,7 @@ export default function App() {
             }}
             onModel={(model: string) => db.changeModel(model)}
             onAiReview={(limit: number) => db.aiReviewNow(limit)}
+            onReopenBulk={() => db.reopenBulkNow()}
             onEnrich={async (limit) => {
               const r = await db.enrichNow(limit)
               // 补完立刻刷新题目池（逐项纠正并进去后，练习与结算页马上能用）

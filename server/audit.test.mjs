@@ -8,7 +8,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-let dir, handleApi, closeDb, setChat, resetChat, ERROR_TAG_KEYS, REVIEW_PROMPT
+let dir, handleApi, dbmod, closeDb, setChat, resetChat, ERROR_TAG_KEYS, REVIEW_PROMPT
 
 beforeAll(async () => {
   dir = mkdtempSync(join(tmpdir(), 'ef-audit-'))
@@ -16,6 +16,7 @@ beforeAll(async () => {
   process.env.ENGLISHFORGE_DB = join(dir, 'audit.db')
   const api = await import('./api.mjs')
   const db = await import('./db.mjs')
+  dbmod = db
   const ai = await import('./content-ai.mjs')
   const llm = await import('./llm.mjs')
   handleApi = api.handleApi
@@ -286,6 +287,55 @@ describe('AI 审核（另一个模型自动定版）', () => {
     // rv1/rv2 已经有结论了，不会出现在这一批里
     expect(run.verdicts.rv1).toBeUndefined()
     expect(run.verdicts.rv2).toBeUndefined()
+  })
+})
+
+describe('"批量通过"不算审过（用户自己说那种是看都不看）', () => {
+  it('批量通过的结论会被算进待审队列，且可一键交回重审', async () => {
+    const bulkQs = ['bk1', 'bk2', 'bk3'].map((id) => ({
+      id, skill: 's7', type: 'choice', prompt: '批量题' + id, answer: 'a', options: ['a', 'b'], contentKey: 'bk|' + id,
+    }))
+    await call('/api/catalog', { questions: bulkQs }, 'POST')
+    await call(`/api/accounts/${acct}/sync`, {
+      reviews: { bk1: { verdict: 'ok', source: 'bulk' }, bk2: { verdict: 'ok', source: 'bulk' }, bk3: { verdict: 'ok', source: 'human' } },
+    }, 'POST')
+
+    const a = (await call(`/api/accounts/${acct}/audit`)).json.audit
+    expect(a.bulkPending).toBe(2)                  // 两道是批量通过
+    expect(a.unreviewed).toBeGreaterThanOrEqual(2) // 批量通过的要算进"还没真审过"
+
+    // 送审队列直接用 db 层看（走 HTTP 会真的调用模型，这里只想知道"会不会送"）
+    const { solid } = dbmod.reviewQueue(acct)
+    const queue = dbmod.catalogForReview(acct, { skipReviewed: solid }).map((q) => q.id)
+    expect(queue).toContain('bk1')                 // 批量通过的：要重审
+    expect(queue).toContain('bk2')
+    expect(queue).not.toContain('bk3')             // 故意单点通过的：不再送审
+
+    const re = (await call(`/api/accounts/${acct}/reopen-bulk`, { includeHumanOk: false }, 'POST')).json
+    expect(re.reopened).toBe(2)                    // 只动 bulk 的那两条
+    expect((await call(`/api/accounts/${acct}/audit`)).json.audit.bulkPending).toBe(2)
+  })
+
+  it('includeHumanOk=true 时连"人点过的 ok"一起交回（用于清理迁移前的旧数据）', async () => {
+    const re = (await call(`/api/accounts/${acct}/reopen-bulk`, {}, 'POST')).json
+    expect(re.reopened).toBeGreaterThanOrEqual(1)  // bk3 也被交回
+    const a = (await call(`/api/accounts/${acct}/audit`)).json.audit
+    expect(a.bulkPending).toBeGreaterThanOrEqual(3)
+  })
+})
+
+describe('同一个句子被反复考的情况（上限 2）', () => {
+  it('自检会报告有多少句子超限、收口后抽题池会少几道', async () => {
+    const dupQs = ['sq1', 'sq2', 'sq3', 'sq4'].map((id, i) => ({
+      id, skill: 's8', type: i < 2 ? 'choice' : 'tiles', prompt: '同一句' + id,
+      answer: 'a', options: ['a', 'b'],
+      contentKey: (i < 2 ? 'choice' : 'tiles') + '|同一句|Ihaveabook',
+    }))
+    await call('/api/catalog', { questions: dupQs }, 'POST')
+    const a = (await call(`/api/accounts/${acct}/audit`)).json.audit
+    expect(a.sentenceReuse.cap).toBe(2)
+    expect(a.sentenceReuse.groupsOver).toBeGreaterThanOrEqual(1)
+    expect(a.sentenceReuse.dropIfCapped).toBeGreaterThanOrEqual(2)
   })
 })
 

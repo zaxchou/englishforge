@@ -21,11 +21,13 @@ interface Props {
   onAiReview: (limit: number) => Promise<{ reviewed: number; killed: number; fixed: number; remaining: number; reviewer: string | null; independent: boolean; error: string | null } | null>
   /** 只看"系统认为有问题、要人定"的题（把人工量压到最小） */
   onShowFlagged: () => void
+  /** 把之前"批量通过"的旧结论作废，交给 AI 重审 */
+  onReopenBulk: () => Promise<number>
   /** 让系统 AI 补一批 */
   onEnrich: (limit: number) => Promise<{ enriched: number; rejected: number; truncated: number; remaining: number; error: string | null } | null>
 }
 
-export function SystemAudit({ audit, ai, onKillDuplicates, onEnrich, onModel, onAiReview, onShowFlagged }: Props) {
+export function SystemAudit({ audit, ai, onKillDuplicates, onEnrich, onModel, onAiReview, onShowFlagged, onReopenBulk }: Props) {
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
   const [progress, setProgress] = useState('')
@@ -162,8 +164,25 @@ export function SystemAudit({ audit, ai, onKillDuplicates, onEnrich, onModel, on
             : '审核模型未配置'}
           {audit && audit.flagged.count > 0 && <> · 系统认为有问题的 <b>{audit.flagged.count}</b> 道，只有这些需要你过目</>}
           {audit && audit.aiReviewed > 0 && <> · 已由 AI 定版 {audit.aiReviewed} 道</>}
+          {audit && audit.bulkPending > 0 && <> · 其中 <b>{audit.bulkPending}</b> 道只是"批量通过"（不算真审过，建议交回 AI 重审）</>}
+          {audit && audit.sentenceReuse.groupsOver > 0 && (
+            <> · 另有 {audit.sentenceReuse.groupsOver} 个句子被 2 道以上题目反复考，
+              已按"同一句最多 {audit.sentenceReuse.cap} 道"收口（抽题池少 {audit.sentenceReuse.dropIfCapped} 道，题库里仍保留）</>
+          )}
         </small>
         <div className="sysaudit-actions">
+          {!!audit?.bulkPending && (
+            <button className="secondary" onClick={async () => {
+              if (!confirm(`把这 ${audit.bulkPending} 道「批量通过」的旧结论作废，交给 AI 重审？
+（你之前那种"全部通过"不算真审过；作废后 AI 会逐题给出结论与理由）`)) return
+              setBusy(true)
+              const n = await onReopenBulk()
+              setBusy(false)
+              setMsg(`已把 ${n} 道交回待审，点「一键审完」就会由 AI 逐题审。`)
+            }} disabled={busy}>
+              交回 AI 重审（{audit.bulkPending}）
+            </button>
+          )}
           <button className="secondary" onClick={() => void aiReviewAll()} disabled={busy || !audit?.unreviewed || !ai?.review?.configured}>
             {busy ? '正在审…' : `一键审完（还剩 ${audit?.unreviewed ?? 0} 道）`}
           </button>

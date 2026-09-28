@@ -465,6 +465,10 @@ export interface DbAudit {
   aiReviewed: number
   /** 现在处于"要改/已毙"的题（这些才需要人过目） */
   flagged: { count: number; sample: AuditQuestion[] }
+  /** 只是"批量通过"、待 AI 重审的条数 */
+  bulkPending: number
+  /** 同一个句子被多道题反复考的情况（上限 2） */
+  sentenceReuse: { cap: number; groupsOver: number; dropIfCapped: number }
   duplicates: { keep: AuditQuestion; extras: AuditQuestion[]; count: number }[]
   conflicts: { variants: AuditQuestion[]; count: number }[]
   missingCause: { count: number; sample: AuditQuestion[] }
@@ -564,6 +568,14 @@ export async function runAiReview(accountId: string, limit = 20): Promise<AiRevi
     method: 'POST', body: JSON.stringify({ limit }),
   }, 180_000))
   return res
+}
+
+/** 把"批量通过"的旧结论作废，交回待审（返回作废条数） */
+export async function reopenBulk(accountId: string): Promise<number | null> {
+  const res = await attemptReq(() => req<{ reopened: number }>(`/accounts/${accountId}/reopen-bulk`, {
+    method: 'POST', body: JSON.stringify({}),
+  }))
+  return res?.reopened ?? null
 }
 
 export async function fetchAiStatus(): Promise<AiStatus | null> {

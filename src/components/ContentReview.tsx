@@ -10,7 +10,7 @@ import './content-review.css'
 
 const DIFF = ['', '基础', '进阶', '挑战']
 
-export function ContentReview({ questions, marks, onMarks, onExit, audit, ai, onKillDuplicates, onModel, onAiReview, onEnrich }: {
+export function ContentReview({ questions, marks, onMarks, onExit, audit, ai, onKillDuplicates, onModel, onAiReview, onReopenBulk, onEnrich }: {
   questions: AdaptedQuestion[]
   marks: ReviewMarks
   onMarks: (m: ReviewMarks) => void
@@ -20,6 +20,7 @@ export function ContentReview({ questions, marks, onMarks, onExit, audit, ai, on
   onKillDuplicates: (ids: string[]) => Promise<void>
   onModel: (model: string) => Promise<boolean>
   onAiReview: (limit: number) => Promise<{ reviewed: number; killed: number; fixed: number; remaining: number; reviewer: string | null; independent: boolean; error: string | null } | null>
+  onReopenBulk: () => Promise<number>
   onEnrich: (limit: number) => Promise<{ enriched: number; rejected: number; truncated: number; remaining: number; error: string | null } | null>
 }) {
   const drafts = useMemo(() => questions.filter((q) => q.reviewStatus === 'draft'), [questions])
@@ -54,7 +55,9 @@ export function ContentReview({ questions, marks, onMarks, onExit, audit, ai, on
       (kept ? `\n（已有标记的 ${kept} 题保持原样，不会覆盖，包括你毙掉的）` : '') +
       '\n通过后它们会开始计入你的掌握度。')) return
     const next: ReviewMarks = { ...marks }
-    for (const q of pending) next[q.id] = { ...(next[q.id] ?? {}), verdict: 'ok' }
+    // 标成 bulk（批量通过），不是 human：这种"没细看"的通过不该被当成真审过，
+    // AI 审核有权把它拿回来重审（用户自己说"我可能看都不看就全部通过了"）
+    for (const q of pending) next[q.id] = { ...(next[q.id] ?? {}), verdict: 'ok', source: 'bulk' }
     onMarks(next)
     saveReviewMarks(next)
   }
@@ -103,6 +106,7 @@ export function ContentReview({ questions, marks, onMarks, onExit, audit, ai, on
         onEnrich={onEnrich}
         onAiReview={onAiReview}
         onShowFlagged={() => { setScope('flagged') }}
+        onReopenBulk={onReopenBulk}
       />
       <header className="review-head">
         <div>

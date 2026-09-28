@@ -9,7 +9,8 @@ import type { ReviewMarks } from '../content/reviewMarks'
 import {
   bootstrap, createAccount, currentAccountId, decideBoot, fetchAccounts, fetchAiStatus, fetchAudit,
   fetchEnrichments, fetchItemBatches, fetchItems, fetchStats, getDbError, getDbState, lastSyncedAt,
-  pullProgress, pushCatalog, renameAccount, resetRemote, runAiReview, runEnrichCauses, setCurrentAccountId,
+  pullProgress, pushCatalog, renameAccount, reopenBulk as reopenBulkApi, resetRemote, runAiReview,
+  runEnrichCauses, setCurrentAccountId,
   setAiModel, setItemVerdict, subscribeDbState, syncProgress, unionProgress,
   type AiStatus, type CatalogRow, type DbAccount, type DbAudit, type DbItem, type DbItemBatch,
   type DbItemStats, type DbState, type DbStats, type EnrichmentMap, type PullResult,
@@ -52,6 +53,8 @@ export interface DbSyncApi {
   runAudit: () => Promise<void>
   /** 换模型（存库即时生效） */
   changeModel: (model: string) => Promise<boolean>
+  /** 把"批量通过"的旧结论作废，交回待审 */
+  reopenBulkNow: () => Promise<number>
   /** 让系统审核题库（自动定版）：一次一批，结论并入本机标记 */
   aiReviewNow: (limit?: number) => Promise<{ reviewed: number; killed: number; fixed: number; remaining: number; reviewer: string | null; independent: boolean; error: string | null } | null>
   /** 让系统自己的 AI 补一批逐项纠正 */
@@ -241,6 +244,24 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
     }
   }, [runAudit])
 
+  const reopenBulkNow = useCallback(async () => {
+    const id = accountRef.current?.id
+    if (!id) return 0
+    const n = await reopenBulkApi(id)
+    if (n === null) return 0
+    // 本机的标记也要跟着降级，否则下次推送又把 human 推回去
+    const cur = optsRef.current.getMarks()
+    const next = { ...cur }
+    for (const [qid, m] of Object.entries(next)) {
+      if (m?.verdict === 'ok' && (m.source === 'bulk' || m.source === undefined || m.source === 'human')) {
+        next[qid] = { ...m, source: 'bulk' }
+      }
+    }
+    optsRef.current.applyMarks(next)
+    await runAudit()
+    return n
+  }, [runAudit])
+
   const changeModel = useCallback(async (model: string) => {
     const ai = await setAiModel(model)
     if (!ai) return false
@@ -421,7 +442,7 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
     dismissNotice: () => setNotice(null),
     note: (text, kind = 'ok') => setNotice({ kind, text }),
     items, itemStats, itemBatches, itemsCached, reloadItems, patchItemVerdict,
-    audit, enrichments, ai, syncCatalog, runAudit, enrichNow, changeModel, aiReviewNow,
+    audit, enrichments, ai, syncCatalog, runAudit, enrichNow, changeModel, aiReviewNow, reopenBulkNow,
     schedule, flush, refreshStats, rename, newAccount, switchTo, resetCurrent, reloadFromDb,
   }
 }

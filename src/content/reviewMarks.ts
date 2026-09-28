@@ -13,8 +13,11 @@ export type Verdict = 'ok' | 'fix' | 'kill'
 export interface ReviewMark {
   verdict?: Verdict
   note?: string
-  /** 谁定的：人还是系统 AI（界面上要能区分，人也才知道该复核哪些） */
-  source?: 'human' | 'ai'
+  /** 谁定的：人（故意单点）/ 批量通过 / 系统 AI。三者的信任度不同：
+   *  · human —— 逐个看过才点的，最可信；
+   *  · bulk  —— "全部通过"批量标的（用户承认这种他看都不看），**AI 有权重审**；
+   *  · ai    —— 机器审的，带理由。 */
+  source?: 'human' | 'bulk' | 'ai'
   /** AI 定的用哪家模型 */
   model?: string | null
   /** AI 给的理由（人复核时的依据） */

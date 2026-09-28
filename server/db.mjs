@@ -260,7 +260,22 @@ export function openDb(path = DB_PATH) {
   if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true })
   const conn = new DatabaseSync(path)
   conn.exec(SCHEMA)
+  // 老库的补列迁移：CREATE TABLE IF NOT EXISTS 不会给**已存在**的表加列
+  ensureColumns(conn, 'content_reviews')
+  ensureColumns(conn, 'questions')
   return conn
+}
+
+/** 缺列就补上。表名与列名都是本文件里的常量，不接受外部输入 */
+function ensureColumns(conn, table) {
+  const have = new Set(conn.prepare(`PRAGMA table_info(${table})`).all().map((r) => r.name))
+  const spec = {
+    content_reviews: [['source', "TEXT NOT NULL DEFAULT 'human'"], ['model', 'TEXT'], ['reasons', 'TEXT']],
+    questions: [['explain', 'TEXT']],
+  }
+  for (const [name, type] of spec[table] ?? []) {
+    if (!have.has(name)) conn.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${type}`)
+  }
 }
 
 export function getDb() {
@@ -572,7 +587,7 @@ function writeReviews(db, accountId, reviews, ts) {
     if (!qid || !m || !m.verdict) continue
     ins.run(accountId, qid, String(m.verdict),
       m.note ? String(m.note).slice(0, 500) : null,
-      m.source === 'ai' ? 'ai' : 'human',
+      m.source === 'ai' ? 'ai' : m.source === 'bulk' ? 'bulk' : 'human',
       m.model ? String(m.model).slice(0, 80) : null,
       Array.isArray(m.reasons) && m.reasons.length ? JSON.stringify(m.reasons.slice(0, 4)) : null,
       int(m.at, ts))
@@ -927,7 +942,28 @@ export function audit(accountId) {
   const reviewRows = db.prepare('SELECT question_id, verdict, source, reasons FROM content_reviews WHERE account_id = ?').all(accountId)
   const verdictOf = new Map(reviewRows.map((r) => [r.question_id, r]))
   const live = rows.filter((r) => !killed.has(r.id))
-  const unreviewed = live.filter((r) => !verdictOf.has(r.id)).length
+  // "还没审过" = 没有结论，或结论只是批量通过（bulk 不算审过 —— 用户自己说那种是"看都不看"）
+  const unreviewed = live.filter((r) => {
+    const v = verdictOf.get(r.id)
+    return !v || v.source === 'bulk'
+  }).length
+  const bulkCount = live.filter((r) => verdictOf.get(r.id)?.source === 'bulk').length
+
+  // 同一个句子被几道题反复考（用户拍板：最多 2 次）。身份去掉题型前缀 → 剩下的就是"题干+句子"
+  const sentenceKeyOf = (r) => (r.content_key ? r.content_key.split('|').slice(1).join('|') : normText(r.prompt) + '|' + normText(r.tts))
+  const bySentence = new Map()
+  for (const r of live) {
+    const k = r.skill + '::' + sentenceKeyOf(r)
+    if (bySentence.has(k)) bySentence.get(k).push(r); else bySentence.set(k, [r])
+  }
+  const over = [...bySentence.values()].filter((g) => g.length > 2)
+  const SENTENCE_CAP = 2
+  const sentenceReuse = {
+    cap: SENTENCE_CAP,
+    groupsOver: over.length,
+    /** 上限 2 之后会从抽题池里少掉多少道 */
+    dropIfCapped: over.reduce((n, g) => n + (g.length - SENTENCE_CAP), 0),
+  }
   const aiRows = reviewRows.filter((r) => r.source === 'ai')
   const flagged = live.filter((r) => {
     const v = verdictOf.get(r.id)?.verdict
@@ -944,8 +980,12 @@ export function audit(accountId) {
     catalog: rows.length,
     /** 这个账户已经毙掉的题数（已从上面各项里排除） */
     quarantined: killed.size,
-    /** 还没定过版的题数（AI 或人都没定过）—— 这就是"要机器去审"的队列 */
+    /** 还没真审过的题数（没有结论，或结论只是"批量通过"）—— 这就是"要机器去审"的队列 */
     unreviewed,
+    /** 其中"批量通过"待重审的条数 */
+    bulkPending: bulkCount,
+    /** 同一个句子被 2 道以上题目反复考的情况（上限 2） */
+    sentenceReuse,
     /** AI 定过版的题数、以及现在处于"要改/已毙"的题数（这些才需要人过目） */
     aiReviewed: aiRows.length,
     flagged: { count: flagged.length, sample: flagged.slice(0, 30).map(slim) },
@@ -969,6 +1009,31 @@ export function listReviews(accountId) {
     reasons: parseJson(r.reasons) ?? [],
     at: r.updated_at,
   }))
+}
+
+/**
+ * 取一批题给审核员。**「待审」的定义**：
+ *   · 还没有任何结论的；或
+ *   · 结论来源是 `bulk`（批量通过 —— 用户自己说过这种"看都不看"，不该当成已审）；
+ *   · 已有 `ai` 结论的、以及用户**故意单点**的 `human` 结论，都不再送审。
+ */
+export function reviewQueue(accountId) {
+  const db = getDb()
+  const rows = db.prepare('SELECT question_id, verdict, source FROM content_reviews WHERE account_id = ?').all(accountId)
+  const solid = new Set(rows.filter((r) => r.source === 'ai' || r.source === 'human').map((r) => r.question_id))
+  const bulk = rows.filter((r) => r.source === 'bulk').length
+  return { solid, bulk }
+}
+
+/** 把"批量通过"的结论降级为待审（用户要求：那批盲通过的应该重新让 AI 审） */
+export function reopenBulk(accountId, { includeHumanOk = true } = {}) {
+  const db = getDb()
+  if (!db.prepare('SELECT 1 FROM accounts WHERE id = ?').get(accountId)) throw new ApiError(404, '账户不存在：' + accountId)
+  const where = includeHumanOk
+    ? "account_id = ? AND verdict = 'ok' AND (source = 'bulk' OR source = 'human')"
+    : "account_id = ? AND verdict = 'ok' AND source = 'bulk'"
+  const res = db.prepare(`UPDATE content_reviews SET source = 'bulk' WHERE ${where}`).run(accountId)
+  return { reopened: res.changes }
 }
 
 /** 取一批"还没定过版"的题给审核员（目录里有什么就审什么，含仓库题与账户题） */

@@ -35,3 +35,54 @@ export function contentKeyOf(q: Pick<AdaptedQuestion, 'type' | 'prompt' | 'tts' 
 export function hasOwnCause(q: Pick<AdaptedQuestion, 'optionFeedback'>): boolean {
   return !!q.optionFeedback && Object.keys(q.optionFeedback).length > 0
 }
+
+/** 题型维度的先后（保留"两种不同维度"时按这个顺序挑） */
+const MODE_ORDER: Record<string, number> = { recognition: 0, comprehension: 1, construction: 2, oral: 3 }
+
+/**
+ * 同一个句子最多保留 `cap` 道题（用户拍板：**最多两次**）。
+ *
+ * 实测：396 道里有 44 个句子被 2~5 道题反复考（`I was a teacher.` 被选择题×2 + 拼句×2 + 跟读×1
+ * 考了 5 遍）——这就是用户感觉"题目重复"的真正来源。一个含义练几遍是刻意的，但同一句换四种题型
+ * 再考一遍，做起来就像同一道题做了四遍。
+ *
+ * 两个细节很重要：
+ *  · **挑哪两道**：优先题型/维度**不同**的一对（保住"识别 + 表达"这两类证据），同维度再挑更基础的；
+ *  · **已经练过的题一律保留**：题一旦离开抽题池，它的历史作答也会掉出证据窗口
+ *    （`objectiveAttempts` 只认池内的题），用户已有的进度会凭空倒退。所以只对没做过的题做取舍。
+ */
+export function capBySentence<T extends AdaptedQuestion>(
+  questions: T[],
+  cap = 2,
+  keep: Set<string> = new Set(),
+): T[] {
+  const groups = new Map<string, T[]>()
+  for (const q of questions) {
+    if (keep.has(q.id)) continue
+    const key = q.skill + '::' + normalizeText(sentenceOf(q))
+    const g = groups.get(key)
+    if (g) g.push(q)
+    else groups.set(key, [q])
+  }
+  const selected = new Set<string>()
+  for (const g of groups.values()) {
+    if (g.length <= cap) { for (const q of g) selected.add(q.id); continue }
+    const sorted = [...g].sort((a, b) =>
+      (MODE_ORDER[a.mode] ?? 9) - (MODE_ORDER[b.mode] ?? 9) ||
+      (a.diff ?? 2) - (b.diff ?? 2) ||
+      a.id.localeCompare(b.id))
+    const picked: T[] = []
+    const usedModes = new Set<string>()
+    for (const q of sorted) {          // 先按"每道题的维度都不同"挑一遍
+      if (picked.length >= cap) break
+      if (usedModes.has(q.mode)) continue
+      usedModes.add(q.mode); picked.push(q)
+    }
+    for (const q of sorted) {          // 维度不够多时补齐
+      if (picked.length >= cap) break
+      if (!picked.includes(q)) picked.push(q)
+    }
+    for (const q of picked) selected.add(q.id)
+  }
+  return questions.filter((q) => keep.has(q.id) || selected.has(q.id))
+}

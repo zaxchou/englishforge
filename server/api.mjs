@@ -5,7 +5,7 @@
 import {
   ApiError, addItems, audit, createAccount, dbInfo, deleteItem, ensureDefaultAccount, getAccount,
   catalogForReview, itemStats, listAccounts, listBatches, listEnrichments, listItems,
-  listReviews, listSnapshots,
+  listSnapshots, reopenBulk, reviewQueue,
   loadProgress, queryAttempts, renameAccount, replaceState, resetAccount, restoreSnapshot,
   saveAiReview, saveEnrichment, setItemReview, setSetting, stats, syncAccount, touchAccount,
   upsertCatalog, writeSnapshot, getDb,
@@ -106,8 +106,8 @@ const ROUTES = [
    */
   ['POST', '/api/accounts/:id/ai-review', async (ctx) => {
     const limit = num(ctx.body?.limit, 20)
-    const reviewed = new Set(listReviews(ctx.params.id).map((r) => r.questionId))
-    const todo = catalogForReview(ctx.params.id, { skipReviewed: reviewed })
+    const { solid } = reviewQueue(ctx.params.id)
+    const todo = catalogForReview(ctx.params.id, { skipReviewed: solid })
       .slice(0, Math.max(1, Math.min(60, limit)))
     if (!todo.length) return { ok: true, requested: 0, reviewed: 0, killed: 0, fixed: 0, remaining: 0, reviewer: null }
     const { results, rejected, truncated, model, provider, error } = await reviewQuestions(todo)
@@ -127,6 +127,15 @@ const ROUTES = [
       remaining: after.unreviewed, reviewer: { provider, model, independent: llmStatus().independentReview },
       error: error ?? null,
     }
+  }],
+
+  /**
+   * 把之前"批量通过"的结论降级为待审 —— 用户明确说过那种通过是"看都不看"，
+   * 不该当成已经审过（否则 AI 审核无从下手，数字也会骗人）。
+   */
+  ['POST', '/api/accounts/:id/reopen-bulk', (ctx) => {
+    const includeHumanOk = ctx.body?.includeHumanOk !== false
+    return { ok: true, ...reopenBulk(ctx.params.id, { includeHumanOk }) }
   }],
 
   /** 让系统自己的 AI 给缺逐项纠正的题补上（一次一批，可反复点，直到补完） */
