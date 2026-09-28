@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import type { ProgressV2 } from '../types'
+import type { AdaptedQuestion, ProgressV2 } from '../types'
 import { lessons } from '../data/course'
 import { recentDaysXp, todayStr } from '../store/progress'
 import type { EvidenceReport } from '../learning/evidence'
@@ -30,6 +30,7 @@ interface Props {
   onImportSave: () => void
   onReset: () => void
   onReviewContent: () => void
+  pool: AdaptedQuestion[]
 }
 
 
@@ -57,10 +58,24 @@ function NavIcon({ kind }: { kind: string }) {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><path d={paths[kind]} />{kind === 'settings' && <circle cx="12" cy="12" r="5" />}</svg>
 }
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六']
-export function Dashboard({ progress, evidence, todayBrief: brief, soundOn, saveErr, onToggleSound, onOpenLesson, onStartToday, onResume, onStartReview, onExportSave, onImportSave, onReset, onReviewContent }: Props) {
+export function Dashboard({ progress, evidence, todayBrief: brief, soundOn, saveErr, onToggleSound, onOpenLesson, onStartToday, onResume, onStartReview, onExportSave, onImportSave, onReset, onReviewContent, pool }: Props) {
   const [query, setQuery] = useState('')
   const [section, setSection] = useState<NavTarget>('today')
   const [showMore, setShowMore] = useState(false)
+  // 每个章节有多少道题：让用户知道题在哪（题库不在独立列表里，它藏在各思维点里）
+  const poolByLesson = useMemo(() => {
+    const skillToLesson = new Map<string, string>()
+    for (const l of Object.values(lessons)) for (const sk of l.skills) skillToLesson.set(sk.id, l.id)
+    const perLesson: Record<string, number> = {}
+    let total = 0
+    for (const q of pool) {
+      const lid = skillToLesson.get(q.skill)
+      if (!lid) continue
+      perLesson[lid] = (perLesson[lid] ?? 0) + 1
+      total += 1
+    }
+    return { total, perLesson }
+  }, [pool])
   const days = recentDaysXp(progress, 7)
   const sessions = progress.sessions ?? []
   const results = useMemo(() => {
@@ -101,12 +116,12 @@ export function Dashboard({ progress, evidence, todayBrief: brief, soundOn, save
           <div className="recommend-action"><button className="primary" onClick={brief.hasResume ? onResume : onStartToday}>{brief.hasResume ? '继续上次练习' : '开始练习'} <span>→</span></button><button className="lesson-preview-button" onClick={() => onOpenLesson(recommendedLesson.id)}>查看本课知识点 ↗</button><span>约 {brief.queueLen} 个短任务 · 随时可暂停</span></div></div>
         </section>
         <div className="learning-steps" aria-label="练习流程"><span><i>1</i>{brief.dueCount ? `先复习 ${brief.dueTake} 题` : '理解知识点'}</span><b /><span><i>2</i>练习新变化</span><b /><span><i>3</i>尝试表达</span></div>
-        <section className="course-section" id="courses"><div className="section-heading"><h2>按章节，稳步向前</h2><span>{Object.keys(lessons).length} 个可学章节</span></div><div className="course-list">
+        <section className="course-section" id="courses"><div className="section-heading"><h2>按章节，稳步向前</h2><span>{Object.keys(lessons).length} 个章节 · {Object.values(lessons).reduce((n, l) => n + l.skills.length, 0)} 个思维点 · {poolByLesson.total} 道题</span></div><div className="course-list">
           {Object.values(lessons).map(lesson => {
             const started = lesson.skills.filter(s => (progress.skills[s.id]?.total ?? 0) > 0 || (evidence.bySkill[s.id]?.state ?? 'unseen') !== 'unseen').length
             const stable = lesson.skills.filter(s => ['early-stable','durable'].includes(evidence.bySkill[s.id]?.state ?? '')).length
             const markTone = stable ? ' is-stable' : started ? ' is-started' : ''
-            return <button className="course-row" key={lesson.id} onClick={() => onOpenLesson(lesson.id)}><span className={`course-number${markTone}`}>{lesson.no}</span><div className="course-copy"><h3>{lesson.no === '07' ? '含义与形式' : lesson.no === '10' ? '动词与表达' : lesson.title}</h3><p>{lesson.subtitle}</p><small>{stable} / {lesson.skills.length} 个知识点达到初步稳定</small></div><span className="course-status">{started ? '继续学习' : '开始学习'}<span>→</span></span></button>
+            return <button className="course-row" key={lesson.id} onClick={() => onOpenLesson(lesson.id)}><span className={`course-number${markTone}`}>{lesson.no}</span><div className="course-copy"><h3>{lesson.no === '07' ? '含义与形式' : lesson.no === '10' ? '动词与表达' : lesson.title}</h3><p>{lesson.subtitle}</p><small>{stable} / {lesson.skills.length} 个知识点达到初步稳定 · {poolByLesson.perLesson[lesson.id] ?? 0} 道题</small></div><span className="course-status">{started ? '继续学习' : '开始学习'}<span>→</span></span></button>
           })}<div className="course-row forthcoming"><span className="course-number">···</span><div className="course-copy"><h3>后续课程</h3><p>更多句子结构与阅读练习</p></div><span>正在准备</span></div>
         </div></section>
         <section className="learning-overview" aria-label="学习概览"><div className="section-heading"><h2>每一步，都算数</h2><span className="period-label">最近 7 天</span></div><div className="overview-metrics"><div className="metric metric-dark"><span>练习足迹</span><strong>{weekXp}<small> XP</small></strong><small>最近 7 天积累</small></div><div className="metric"><span>连续学习</span><strong>{progress.streak}<small> 天</small></strong><small>保持自己的节奏</small></div><div className="metric"><span>待巩固任务</span><strong>{brief.dueCount}</strong><small>通过复习加深记忆</small></div><div className="metric"><span>已稳定知识点</span><strong>{brief.stateCounts.early + brief.stateCounts.durable}<small> / {brief.stateCounts.total}</small></strong><small>以实际练习证据为准</small></div></div><div className="knowledge-pipeline"><div><b>知识正在生长</b><span>理解 → 练熟 → 保持</span></div><div className="pipeline-track" aria-hidden="true">{states.filter(s => s.count > 0).map(s => <i key={s.tone} className={s.tone} style={{ flex: s.count }} />)}</div><div className="pipeline-legend">{states.map(s => <span key={s.tone}><i className={s.tone} /><b>{s.count}</b> {s.label}</span>)}</div></div></section>

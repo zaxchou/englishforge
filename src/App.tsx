@@ -391,11 +391,12 @@ export default function App() {
             onImportSave={doImportSave}
             onReset={handleReset}
             onReviewContent={() => setView({ name: 'review' })}
+            pool={pool}
           />
         )}
         {view.name === 'review' && (
           <ContentReview
-            questions={pool.filter((q) => q.reviewStatus === 'draft')}
+            questions={pool}
             marks={marks}
             onMarks={setMarks}
             onExit={() => setView({ name: 'home' })}

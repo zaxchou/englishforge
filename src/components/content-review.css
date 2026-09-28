@@ -49,3 +49,9 @@
 .review-scope { display: flex; gap: 8px; margin: 12px 0 0; }
 .review-scope button { border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 7px 14px; font-size: 12px; color: var(--sub); }
 .review-scope button.on { background: #151519; border-color: #151519; color: #fff; font-weight: 600; }
+
+/* 每题的当前信任级别：已通过才开始计入掌握度 */
+.review-status { font-size: 10px; border-radius: 999px; padding: 2px 9px; }
+.review-status.st-reviewed { background: #eaf5cd; color: #39471d; }
+.review-status.st-draft { background: #f4f3f7; color: var(--sub); }
+.review-status.st-quarantined { background: #151519; color: #fff; }

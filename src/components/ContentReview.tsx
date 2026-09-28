@@ -14,12 +14,14 @@ export function ContentReview({ questions, marks, onMarks, onExit }: {
   onMarks: (m: ReviewMarks) => void
   onExit: () => void
 }) {
-  const [scope, setScope] = useState<'corpus' | 'all'>('corpus')
+  const drafts = useMemo(() => questions.filter((q) => q.reviewStatus === 'draft'), [questions])
+  // 默认范围：还有待审核的就显示待审核；全审完了就显示全部（否则用户会以为"题不见了"）
+  const [scope, setScope] = useState<'draft' | 'corpus' | 'all'>(() => (drafts.length ? 'draft' : 'all'))
   const corpus = useMemo(
     () => questions.filter((q) => /(tatoeba|ud-en-ewt):/.test(q.sourceRef ?? '')),
     [questions],
   )
-  const shown = scope === 'corpus' ? corpus : questions
+  const shown = scope === 'corpus' ? corpus : scope === 'draft' ? drafts : questions
 
   function update(qid: string, patch: { verdict?: 'ok' | 'fix' | 'kill'; note?: string }) {
     const next: ReviewMarks = { ...marks, [qid]: { ...(marks[qid] ?? {}), ...patch } }
@@ -76,13 +78,14 @@ export function ContentReview({ questions, marks, onMarks, onExit }: {
         <div>
           <h1>内容审核 · 语料派生题</h1>
           <p>
-            共 {questions.length} 道待审核题（语料派生 {corpus.length} 道）。逐题看四件事：<b>句子像不像人话</b>、
+            题库共 {questions.length} 道题。逐题看四件事：<b>句子像不像人话</b>、
             <b>干扰项是不是"错在该错的地方"</b>（你要能用"含义"排除它，而不是靠读着别扭）、
             <b>中文释义对不对</b>、<b>解析是不是张老师的口吻</b>（不该出现"三单规则"这类术语）。
           </p>
           <div className="review-scope">
+            <button className={scope === 'draft' ? 'on' : ''} onClick={() => setScope('draft')}>待审核（{drafts.length}）</button>
             <button className={scope === 'corpus' ? 'on' : ''} onClick={() => setScope('corpus')}>语料派生题（{corpus.length}）</button>
-            <button className={scope === 'all' ? 'on' : ''} onClick={() => setScope('all')}>全部未审核题（{questions.length}）</button>
+            <button className={scope === 'all' ? 'on' : ''} onClick={() => setScope('all')}>全部题目（{questions.length}）</button>
           </div>
           <p className="review-hint">
             标记只存在本地。<b>点「通过」= 把它升为 reviewed，从此你的作答才开始计入掌握度</b>
@@ -117,6 +120,9 @@ export function ContentReview({ questions, marks, onMarks, onExit }: {
                 <span className="review-no">{String(i + 1).padStart(2, '0')}</span>
                 <span className="review-kind">{kind}</span>
                 <span className={'diff-tag diff-' + (q.diff ?? 1)}>{DIFF[q.diff ?? 1]}</span>
+                <span className={`review-status st-${q.reviewStatus}`}>
+                  {q.reviewStatus === 'reviewed' ? '✅ 已通过·计入掌握度' : q.reviewStatus === 'quarantined' ? '🚫 已毙掉' : '待审核'}
+                </span>
                 <code className="review-src">{q.sourceRef}</code>
               </div>
               <div className="review-prompt">
