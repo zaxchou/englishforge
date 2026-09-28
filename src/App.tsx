@@ -12,6 +12,7 @@ import type { ActiveSession, Attempt, ProgressV2, QuizRuntime, SessionKind } fro
 import { Quiz, type SessionResult, type QuizAttempt, type QuizEntry } from './components/Quiz'
 import { Confetti } from './components/fx'
 import { Dashboard, Sidebar } from './components/Dashboard'
+import { ContentReview } from './components/ContentReview'
 import { buildEvidence, STATE_LABEL, type EvidenceReport } from './learning/evidence'
 import {
   applyQuestionReview, recordSpeak, buildTodayQueue, buildSkillQueue, buildReviewQueue,
@@ -27,6 +28,7 @@ type View =
   | { name: 'lesson'; lessonId: string }
   | { name: 'practice' }
   | { name: 'result'; results: SessionResult[]; comboBest: number; xpGain: number; kind: SessionKind; dueTomorrow: number }
+  | { name: 'review' }   // 内容审核（R1-03）：逐题核对语料派生题
 
 export default function App() {
   const [loaded] = useState(() => loadProgress())
@@ -355,7 +357,7 @@ export default function App() {
       )}
       {view.name !== 'home' && (
         <header className="topbar">
-          <button className="brand brand-btn" onClick={() => setView({ name: 'home' })}>← 返回学习空间</button><span className="inner-location">{view.name === 'lesson' ? '课程 / 知识点' : view.name === 'practice' ? '专注练习 · 按自己的节奏' : '本轮学习记录'}</span>
+          <button className="brand brand-btn" onClick={() => setView({ name: 'home' })}>← 返回学习空间</button><span className="inner-location">{view.name === 'lesson' ? '课程 / 知识点' : view.name === 'practice' ? '专注练习 · 按自己的节奏' : view.name === 'review' ? '内容审核 · 逐题核对' : '本轮学习记录'}</span>
           <div className="stats">
             <button
               className="stats-btn"
@@ -381,9 +383,16 @@ export default function App() {
             onExportSave={doExportSave}
             onImportSave={doImportSave}
             onReset={handleReset}
+            onReviewContent={() => setView({ name: 'review' })}
           />
         )}
-        <div className={`narrow ${view.name === 'practice' ? 'quiz-center' : ''}`}>
+        {view.name === 'review' && (
+          <ContentReview
+            questions={pool.filter((q) => q.reviewStatus === 'draft' && /(tatoeba|ud-en-ewt):/.test(q.sourceRef ?? ''))}
+            onExit={() => setView({ name: 'home' })}
+          />
+        )}
+        {view.name !== 'review' && <div className={`narrow ${view.name === 'practice' ? 'quiz-center' : ''}`}>
         {view.name === 'lesson' && (
           <LessonPage lessonId={view.lessonId} progress={progress} evidence={evidence} onStartSkill={(skillId) => { setStartError(null); if (!startSession('skill', skillId)) setStartError('这个思维点还没有题目——题库正在建设中。') }} onBack={() => setView({ name: 'home' })} />
         )}
@@ -418,7 +427,7 @@ export default function App() {
             onAgain={() => setView({ name: 'home' })}
           />
         )}
-        </div>
+        </div>}
       </main>
       {view.name !== 'home' && <footer className="foot">
         <span>素材来自张俊杰老师课程逐字稿 · 本地存档 · </span>

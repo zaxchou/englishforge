@@ -7,7 +7,9 @@ html{background:var(--bg);scroll-behavior:smooth}body{background:var(--bg)}butto
 
 /* Reference redesign: opaque surfaces, no large-area blur or continuous animations.
    Motion budget: color transitions only; retain semantic answer feedback colors. */
-.app>.topbar{background:transparent;border:0;height:96px;padding:0 32px}
+/* 顶栏是 sticky 的：背景必须不透明，否则长页面滚动时内容会透过它显示、与文字重叠
+   （实测：内容审核页高 8700px，第一屏就撞上了）。用与画布同色，视觉上仍是无边框。 */
+.app>.topbar{background:var(--bg);border:0;height:96px;padding:0 32px}
 .app .narrow{max-width:980px}.app .quiz-center{max-width:880px}
 .skill-card{border:0;border-radius:22px;padding:24px;box-shadow:0 3px 0 #17171b03}.skill-card:hover{background:#faffee}.skill-icon{background:#edf3da;border-radius:15px;width:52px;height:52px}.skill-go{border-radius:50%;background:#f1f0f5;padding:10px}
 .qview,.concept-card,.result-card{border:0;border-radius:28px;padding:36px}.primary{border-radius:999px;background:#17171b;border-color:#17171b}.primary:hover:not(:disabled){background:#333339}.opt{border-radius:15px;background:#f7f6f9;border-color:#e4e2e9}.opt:hover:not(:disabled){background:#eff6de;border-color:#829e49}.token{border-radius:12px}.token.picked{background:#eaf5cd;border-color:#829e49}.concept-example{background:#eff4e3;border-radius:16px}.progress-track{height:9px;background:#dddae4}.progress-fill{background:#879d35}.ghost,.stats-btn,.speaker,.listen-btn{border-radius:999px}.result-card .kpi{border-radius:18px}.retry-banner,.session-note{border-radius:15px}.state-chip{border-radius:999px}.mic-btn{border-radius:999px}.lesson-title h1{font-size:32px}.foot{padding:24px 32px}.sys-banner{background:#eaf5cd;color:#35451b;border:0}.app .page{padding-top:16px}
