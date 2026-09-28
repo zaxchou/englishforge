@@ -202,12 +202,16 @@ export const REVIEW_PROMPT = REVIEW_SYSTEM
 function acceptReview(row, q) {
   if (!row || typeof row !== 'object') return null
   const hasOptions = Array.isArray(q.options) && q.options.length > 1
+  // **严格布尔校验**：缺字段、字符串 "false" 之类一律拒收（进 runBatched 的单题重试），
+  // 不许把"没检查"当"通过" —— 旧写法 `!== false` 会把 `{i, verdict:"ok"}` 判成四项全过（复核报告 #1）。
+  const required = hasOptions ? ['answerOk', 'distractorOk', 'glossOk', 'explainOk'] : ['answerOk', 'glossOk', 'explainOk']
+  for (const k of required) if (typeof row[k] !== 'boolean') return null
   const criteria = {
-    answerOk: row.answerOk !== false,
+    answerOk: row.answerOk,
     // 没有选项的题不存在"干扰项"问题，这一项不参与判定（否则会凭空把这类题全判成要改）
-    distractorOk: !hasOptions || row.distractorOk !== false,
-    glossOk: row.glossOk !== false,
-    explainOk: row.explainOk !== false,
+    distractorOk: hasOptions ? row.distractorOk : true,
+    glossOk: row.glossOk,
+    explainOk: row.explainOk,
   }
   const allOk = Object.values(criteria).every(Boolean)
   let verdict = ['ok', 'fix', 'kill'].includes(row.verdict) ? row.verdict : 'fix'

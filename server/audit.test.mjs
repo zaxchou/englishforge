@@ -110,16 +110,21 @@ describe('让系统自己的 AI 补逐项纠正', () => {
     expect(run.remaining).toBeGreaterThanOrEqual(1)
   })
 
-  it('可反复调用直到补完；补过的题不再重复要', async () => {
-    // 替身要做对一件事：只给**错误选项**写纠正（正确答案不能被"纠正"，会被闸门丢掉）
+  it('可反复调用直到补完；补全的题不再重复要（部分覆盖 = 还没补完）', async () => {
+    // 替身要做对两件事：① 只给**错误选项**写纠正（正确答案不能被"纠正"，会被闸门丢掉）；
+    // ② 覆盖**全部**错误选项 —— "缺逐项纠正"按当前错项逐个算，只补一个不算完（复核报告 #6）
     setChat(async (messages) => {
       const payload = JSON.parse(messages[messages.length - 1].content.slice(messages[messages.length - 1].content.indexOf('[')))
       return {
         text: JSON.stringify({
           items: payload.map((p) => {
-            const wrong = (p.options ?? []).find((o) => o !== p.answer)
-            return wrong
-              ? { i: p.i, optionFixes: { [wrong]: '选它等于把这句话的含义说成了另一件事。' }, optionTags: { [wrong]: ['role-reversed'] } }
+            const wrongs = (p.options ?? []).filter((o) => o !== p.answer)
+            return wrongs.length
+              ? {
+                i: p.i,
+                optionFixes: Object.fromEntries(wrongs.map((w) => [w, '选它等于把这句话的含义说成了另一件事。'])),
+                optionTags: Object.fromEntries(wrongs.map((w) => [w, ['role-reversed']])),
+              }
               : { i: p.i }
           }),
         }),
@@ -391,16 +396,20 @@ describe('全自动流水线（审 → 改 → 复审，人不在链上）', () 
     expect(r1.rewritten).toBeGreaterThanOrEqual(1)
     expect(r1.pending).toBe(1)   // 只剩 pqA 还是 fix（复审在下一轮）
 
-    // 改写写进权威层（练习界面读这里）+ 同步了镜像（下一轮复审看得到）
+    // 改写写进账户权威层（练习界面读这里）；**复审视图也必须是改写后的那一份** ——
+    // 审核/改/复审与学员练到的内容必须是同一稿（复核报告 #2）
     const en = (await call(`/api/accounts/${acct}/enrichments`)).json.enrichments
     expect(en.pqA.rewrite.explain).toContain('him')
     expect(en.pqA.rewrite.explain).not.toContain('宾格')
     const mirror = () => dbmod.getDb().prepare('SELECT explain FROM questions WHERE id = ?').get('pqA').explain
-    expect(mirror()).toBe(en.pqA.rewrite.explain)
+    const reviewView = () => dbmod.pipelineQueue(acct, { limit: 500 }).find((q) => q.id === 'pqA').explain
+    expect(mirror()).toBe(raw.explain)            // 镜像 = 仓库基准题面，不混入任何账户的改写
+    expect(reviewView()).toBe(en.pqA.rewrite.explain)
 
-    // 客户端启动会把仓库原始题面原样推上来 —— 改写不许被这次推送冲掉
+    // 客户端启动会把仓库原始题面原样推上来：镜像回到基准，复审视图仍是改写后的
     await call('/api/catalog', { questions: [raw] }, 'POST')
-    expect(mirror()).toBe(en.pqA.rewrite.explain)
+    expect(mirror()).toBe(raw.explain)
+    expect(reviewView()).toBe(en.pqA.rewrite.explain)
 
     // 自动执行必须留痕：日志里有这一轮的计数、动了哪些题、用的哪个审核员
     const logs = dbmod.listRunLog(acct, 10).filter((r) => r.kind === 'pipeline')
@@ -428,6 +437,92 @@ describe('全自动流水线（审 → 改 → 复审，人不在链上）', () 
     expect(r3.requested).toBe(0)
     expect(dbmod.listRunLog(acct, 10).filter((r) => r.kind === 'pipeline').length).toBe(beforeR2 + 1)
     resetChat()
+  })
+})
+
+describe('复核报告回归（2026-09-29 外部代码审查）', () => {
+  it('#1 审核输出缺字段/类型错误 → 拒收，不许当"四项全过"', async () => {
+    await call('/api/catalog', {
+      questions: [{ id: 'st1', skill: 's9', type: 'choice', prompt: '严格题', answer: 'a', options: ['a', 'b'], contentKey: 'st1' }],
+    }, 'POST')
+    setChat(async (messages) => {
+      const payload = JSON.parse(messages[messages.length - 1].content.slice(messages[messages.length - 1].content.indexOf('[')))
+      // 只回 verdict、没有任何检查项字段 —— 旧逻辑会四项全过（实测缺陷）
+      return { text: JSON.stringify({ items: payload.map((p) => ({ i: p.i, verdict: 'ok' })) }), finishReason: 'stop' }
+    })
+    const r = (await call(`/api/accounts/${acct}/ai-pipeline`, { limit: 5 }, 'POST')).json
+    expect(r.verdicts.st1).toBeUndefined()
+    expect(r.reviewed).toBe(0)
+    const reviews = (await call(`/api/accounts/${acct}/progress`)).json.reviews
+    expect(reviews.st1).toBeUndefined()
+    // 字符串 "false" 也不算布尔
+    setChat(async (messages) => {
+      const payload = JSON.parse(messages[messages.length - 1].content.slice(messages[messages.length - 1].content.indexOf('[')))
+      return { text: JSON.stringify({ items: payload.map((p) => ({ i: p.i, answerOk: 'false', distractorOk: false, glossOk: true, explainOk: true, verdict: 'ok' })) }), finishReason: 'stop' }
+    })
+    const r2 = (await call(`/api/accounts/${acct}/ai-pipeline`, { limit: 5 }, 'POST')).json
+    expect(r2.verdicts.st1).toBeUndefined()
+    resetChat()
+  })
+
+  it('#3 AI 结论不许覆盖人工判毙；请求期间的人工操作让旧结论作废', async () => {
+    await call(`/api/accounts/${acct}/sync`, {
+      reviews: { gk1: { verdict: 'kill', source: 'human' }, gk2: { verdict: 'ok', source: 'human' } },
+    }, 'POST')
+    // 人工判毙：AI 的 ok 不写；AI 自己也判 kill 是允许的（收紧方向可以）
+    const r1 = dbmod.saveAiReview(acct, 'gk1', 'ok', ['看着没问题'], 'test/m')
+    expect(r1).toMatchObject({ saved: false, skipped: 'human-kill' })
+    // 请求起点之后有人工操作 → 结论过期，不写
+    const r2 = dbmod.saveAiReview(acct, 'gk2', 'fix', ['有术语'], 'test/m', { since: Date.now() - 60_000 })
+    expect(r2).toMatchObject({ saved: false, skipped: 'human-newer' })
+    // 不在竞态里（since=0）→ 正常写入
+    const r3 = dbmod.saveAiReview(acct, 'gk2', 'fix', ['有术语'], 'test/m')
+    expect(r3).toMatchObject({ saved: true })
+  })
+
+  it('#4 改题干/选项升内容版本（旧作答证据失效）；只改解析不升；镜像保持基准不回退', async () => {
+    const raw = { id: 'cv1', skill: 's9', type: 'choice', prompt: '版本题', answer: 'a', options: ['a', 'b'], contentKey: 'cv1', contentVersion: 1 }
+    await call('/api/catalog', { questions: [raw] }, 'POST')
+    const payloadOf = () => JSON.parse(dbmod.getDb().prepare(
+      "SELECT payload FROM enrichments WHERE account_id = ? AND question_id = 'cv1' AND kind = 'rewrite'").get(acct).payload)
+    const mirrorVersion = () => dbmod.getDb().prepare('SELECT content_version FROM questions WHERE id = ?').get('cv1').content_version
+    expect(mirrorVersion()).toBe(1)                                            // 镜像 = 仓库基准
+    dbmod.saveRewrite(acct, 'cv1', { explain: '新的讲法' }, 'test/m')           // 只改解析：不动版本
+    expect(payloadOf().contentVersion).toBeUndefined()
+    expect(payloadOf().explain).toBe('新的讲法')
+    dbmod.saveRewrite(acct, 'cv1', { options: ['a', 'c'] }, 'test/m')           // 改选项 → 升版本
+    expect(payloadOf().contentVersion).toBe(2)                                  // 版本记在账户级改写里（客户端据此让旧证据失效）
+    expect(payloadOf().explain).toBe('新的讲法')                                 // 字段级合并没有丢
+    expect(mirrorVersion()).toBe(1)                                             // 镜像基准不动
+    await call('/api/catalog', { questions: [raw] }, 'POST')                    // 客户端推原始题面
+    expect(payloadOf().contentVersion).toBe(2)                                  // 改写不受影响
+  })
+
+  it('#2 复审看到的必须是"这个账户自己的改稿"，别的账户串不进来', async () => {
+    await call('/api/catalog', {
+      questions: [{ id: 'xq1', skill: 's9', type: 'choice', prompt: '跨账户题', answer: 'a', options: ['a', 'b'], explain: '原始解析', contentKey: 'xq1' }],
+    }, 'POST')
+    const b = (await call('/api/accounts', { name: '复核B' }, 'POST')).json.account
+    dbmod.saveRewrite(acct, 'xq1', { explain: 'A 改过的解析' }, 'test/m')
+    const inA = dbmod.pipelineQueue(acct, { limit: 500 }).find((q) => q.id === 'xq1')
+    const inB = dbmod.pipelineQueue(b.id, { limit: 500 }).find((q) => q.id === 'xq1')
+    expect(inA.explain).toBe('A 改过的解析')
+    expect(inB.explain).toBe('原始解析')
+  })
+
+  it('#6 逐项纠正按错误选项逐个算缺口；分批补时字段级合并不丢', async () => {
+    await call('/api/catalog', {
+      questions: [{ id: 'mc1', skill: 's9', type: 'choice', prompt: '缺口题', answer: 'a', options: ['a', 'b', 'c', 'd'], contentKey: 'mc1' }],
+    }, 'POST')
+    const missing = async () => (await call(`/api/accounts/${acct}/audit`)).json.audit.missingCauseAll.some((s) => s.id === 'mc1')
+    expect(await missing()).toBe(true)
+    dbmod.saveEnrichment(acct, 'mc1', 'causes', { optionFixes: { b: '选 b 等于说…' }, optionTags: { b: ['role-reversed'] } }, 'test/m')
+    expect(await missing()).toBe(true)                                       // 还缺 c/d：不算补完
+    dbmod.saveEnrichment(acct, 'mc1', 'causes', { optionFixes: { c: '选 c 等于…', d: '选 d 等于…' } }, 'test/m')
+    const merged = JSON.parse(dbmod.getDb().prepare(
+      "SELECT payload FROM enrichments WHERE account_id = ? AND question_id = 'mc1' AND kind = 'causes'").get(acct).payload)
+    expect(Object.keys(merged.optionFixes).sort()).toEqual(['b', 'c', 'd'])   // b 没被后一批挤掉
+    expect(await missing()).toBe(false)
   })
 })
 

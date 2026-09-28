@@ -481,8 +481,9 @@ export interface DbAudit {
 }
 
 export interface EnrichmentCauses { optionFixes?: Record<string, string>; optionTags?: Record<string, string[]> }
-/** 系统 AI 按审核意见改好的稿（**纠正**，练习时覆盖原题面；与 causes 的"只补空缺"相反） */
-export interface EnrichmentRewrite { explain?: string; options?: string[]; prompt?: string }
+/** 系统 AI 按审核意见改好的稿（**纠正**，练习时覆盖原题面；与 causes 的"只补空缺"相反）。
+ *  改过题干/选项的稿会带 contentVersion（影响判分的修订要升版本，旧作答证据随之失效）。 */
+export interface EnrichmentRewrite { explain?: string; options?: string[]; prompt?: string; contentVersion?: number }
 export interface Enrichment { causes?: EnrichmentCauses; rewrite?: EnrichmentRewrite; model?: string | null; at?: number }
 export type EnrichmentMap = Record<string, Enrichment>
 

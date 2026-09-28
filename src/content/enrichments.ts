@@ -26,6 +26,10 @@ export function applyEnrichments(questions: AdaptedQuestion[], map: EnrichmentMa
       if (Array.isArray(rw.options) && rw.options.length > 1 && rw.options.length === (q.options?.length ?? 0)) {
         patch.options = rw.options
       }
+      // 影响判分的修订带内容版本：升版本让修订前的旧作答不再算有效证据（evidence 按版本等值过滤）
+      if (typeof rw.contentVersion === 'number' && rw.contentVersion !== q.contentVersion) {
+        patch.contentVersion = rw.contentVersion
+      }
       if (Object.keys(patch).length) base = { ...q, ...patch }
     }
     const e = entry.causes

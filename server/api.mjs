@@ -150,18 +150,20 @@ const ROUTES = [
       if (!todo.length) {
         // 空轮是客户端循环的正常收尾，没有信息量，不写日志
         return {
-          ok: true, requested: 0, reviewed: 0, killed: 0, fixed: 0, rewritten: 0,
+          ok: true, requested: 0, reviewed: 0, killed: 0, fixed: 0, rewritten: 0, skipped: 0,
           rejected: 0, rewriteRejected: 0, pending: audit(id).pipelinePending, verdicts: {},
           reviewer: null, error: null,
         }
       }
       const { results, rejected, truncated, model, provider, error } = await reviewQuestions(todo)
       const tag = provider ? `${provider}/${model}` : model
-      let killed = 0, fixed = 0, saved = 0
+      let killed = 0, fixed = 0, saved = 0, skipped = 0
       const verdicts = {}
       const killedIds = [], fixedIds = []
       for (const [qid, v] of Object.entries(results)) {
-        saveAiReview(id, qid, v.verdict, v.reasons, tag)
+        // since=请求起点：期间发生的人工操作会让这轮结论作废；人工判毙永不复活（写入层兜底）
+        const res = saveAiReview(id, qid, v.verdict, v.reasons, tag, { since: started })
+        if (res.saved === false) { skipped++; continue }
         verdicts[qid] = { verdict: v.verdict, reasons: v.reasons, source: 'ai', model: tag }
         saved++
         if (v.verdict === 'kill') { killed++; killedIds.push(qid) }
@@ -191,12 +193,12 @@ const ROUTES = [
       const finalError = error ?? rewriteError
       writeRunLog(id, 'pipeline', {
         requested: todo.length, reviewed: saved, killed, fixed, rewritten, rewriteRejected,
-        rejected, truncated, pending: audit(id).pipelinePending, reviewer: tag,
+        rejected, truncated, skipped, pending: audit(id).pipelinePending, reviewer: tag,
         ms: Date.now() - started,
         killedIds: killedIds.slice(0, 50), fixedIds: fixedIds.slice(0, 50), rewrittenIds: rewrittenIds.slice(0, 50),
       }, finalError)
       return {
-        ok: true, requested: todo.length, reviewed: saved, killed, fixed, rewritten,
+        ok: true, requested: todo.length, reviewed: saved, killed, fixed, rewritten, skipped,
         rejected, rewriteRejected, truncated, pending: audit(id).pipelinePending, verdicts,
         reviewer: { provider, model, independent: llmStatus().independentReview },
         error: finalError,

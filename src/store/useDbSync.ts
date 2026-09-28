@@ -21,6 +21,21 @@ const DEBOUNCE_MS = 800
 /** 库内统计重新拉取的间隔（每次推送都拉一遍太吵） */
 const STATS_TTL_MS = 5000
 
+/**
+ * 启动时的审核结论合并：**服务端优先**（远端一般是较新的 AI 结论）。
+ * 本地只在"远端没有该题结论 + 这条带 source（是本机真做过的操作）"时保留；
+ * 本地那些没有 source 的老标记一律不参与 —— 它们是缓存里的旧通过，会把新完成的
+ * AI 判毙重新打开（实测事故；adopt 与 merge 两条启动分支都必须走这里，复核报告 #5）。
+ */
+export function mergeReviewMarks(remote: ReviewMarks, local: ReviewMarks): ReviewMarks {
+  const keepLocal: ReviewMarks = {}
+  for (const [qid, m] of Object.entries(local)) {
+    if (remote[qid]) continue
+    if (m?.source) keepLocal[qid] = m
+  }
+  return { ...remote, ...keepLocal }
+}
+
 export interface DbSyncNotice { kind: 'ok' | 'warn'; text: string }
 
 export interface DbSyncApi {
@@ -206,17 +221,11 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
     const { applyProgress: ap, applyMarks: am, getMarks: gm } = optsRef.current
     ap(pull.progress)
     const remote = pull.reviews ?? {}
-    const local = gm()
-    // 本地那些**没有 source** 的老标记（迁移前"全部通过"那批）不许盖回服务端更新的结论；
-    // 本地带 source 的（人在新界面里真点过的）才保留。
-    const keepLocal: ReviewMarks = {}
-    for (const [qid, m] of Object.entries(local)) {
-      if (remote[qid]) continue
-      if (m?.source) keepLocal[qid] = m
-    }
-    const merged = { ...remote, ...keepLocal }
+    const merged = mergeReviewMarks(remote, gm())
     if (Object.keys(merged).length) am(merged)
-    marksBaselineRef.current = merged
+    // 基线 = 服务端已有的那份：之后的 push 只会带上"服务端还没有、本地新做的"结论 ——
+    // 既不会把旧缓存推回去，也不会把本地新增的丢掉
+    marksBaselineRef.current = remote
     setSyncedAt(Date.now())
     refreshStats(true)
   }, [refreshStats])
@@ -233,6 +242,9 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
     const batches = await fetchItemBatches(id)
     setItemBatches(batches ?? [])
   }, [])
+
+  // 声明必须在 runAudit 之前（oxlint react-compiler 规则：回调里引用了尚未初始化的 setter）
+  const [runs, setRuns] = useState<RunLogEntry[]>([])
 
   /** 系统自检 + 已补内容 + 后台维护日志的加载 */
   const runAudit = useCallback(async () => {
@@ -268,7 +280,6 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
   }, [runAudit])
 
   const [pipelineNote, setPipelineNote] = useState<string | null>(null)
-  const [runs, setRuns] = useState<RunLogEntry[]>([])
   const autoPipelineRef = useRef(false)
 
   /**
@@ -340,15 +351,18 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
           : `流水线${r.error ? '有调用失败' : '完成'}：审 ${r.reviewed} · 改写 ${r.rewritten} · 判毙 ${r.killed} · 还剩 ${Math.max(0, r.remaining)}`)
         if (r.error) parts.push(r.error)
       }
-      // 出题人接着补逐项纠正：同样自动，跑到补完或连续没有进展（宁缺勿错的那部分会留下）
+      // 出题人接着补逐项纠正：同样自动，跑到补完或**缺口不再减少**为止
+      // （缺口是逐项算的：模型只覆盖部分错项时 enriched 会重复计数，用 remaining 判进展才准，
+      //  否则会拿同一批题空烧满 60 批 —— 复核报告 #6 的连带发现）
       if (ai?.configured) {
         let enriched = 0, lastRemaining = -1
         for (let i = 0; i < 60; i++) {
           const er = await enrichNow(24)
           if (!er) break
           enriched += er.enriched
+          const noProgress = lastRemaining >= 0 && er.remaining >= lastRemaining
           lastRemaining = er.remaining
-          if (er.error || er.remaining <= 0 || er.enriched === 0) break
+          if (er.error || er.remaining <= 0 || er.enriched === 0 || noProgress) break
         }
         if (enriched > 0) {
           void reloadItems()   // 新补的纠正要并进抽题池，练习页立刻能用
@@ -457,7 +471,13 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
           setNotice({ kind: 'ok', text: `已把数据库里另外 ${added} 条作答记录并入本机存档。` })
         }
         const remote = decision.pull.reviews ?? {}
-        if (Object.keys(remote).length) optsRef.current.applyMarks({ ...remote, ...optsRef.current.getMarks() })
+        if (Object.keys(remote).length) {
+          // 与 adopt 同一套规则：服务端优先。旧写法 {...remote, ...local} 是本地优先 ——
+          // 双标签页/旧缓存会把已完成的 AI 判毙重新打开（复核报告 #5）
+          const merged = mergeReviewMarks(remote, optsRef.current.getMarks())
+          optsRef.current.applyMarks(merged)
+          marksBaselineRef.current = remote
+        }
         setSyncedAt(lastSyncedAt(acc.id))
         void push(false, 'boot-merge')
       } else if (decision.kind === 'upload-local') {

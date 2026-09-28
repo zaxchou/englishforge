@@ -610,9 +610,21 @@ function writeReviews(db, accountId, reviews, ts) {
 }
 
 /** 写入一条 AI 审核结论（供 /ai-review 用；人工之后改它，source 会变 human） */
-export function saveAiReview(accountId, questionId, verdict, reasons, model) {
+/**
+ * 写入一条 AI 审核结论（供 /ai-pipeline 用；人工之后改它，source 会变 human）。
+ * 两道写入层保护（队列层已排除 kill，这里是防"审核请求进行中"的竞态，复核报告 #3）：
+ *   · 人工判毙**永久生效**：AI 不许把它复活；
+ *   · 请求发出（since）之后有人工操作 → 这轮结论已过期，不写，下一轮自然会重审。
+ */
+export function saveAiReview(accountId, questionId, verdict, reasons, model, { since = 0 } = {}) {
   const db = getDb()
   if (!db.prepare('SELECT 1 FROM accounts WHERE id = ?').get(accountId)) throw new ApiError(404, '账户不存在：' + accountId)
+  const cur = db.prepare('SELECT verdict, source, updated_at FROM content_reviews WHERE account_id = ? AND question_id = ?')
+    .get(accountId, questionId)
+  if (cur?.source === 'human') {
+    if (cur.verdict === 'kill' && verdict !== 'kill') return { ok: true, saved: false, skipped: 'human-kill' }
+    if (since && cur.updated_at > since) return { ok: true, saved: false, skipped: 'human-newer' }
+  }
   db.prepare(`INSERT INTO content_reviews (account_id, question_id, verdict, note, source, model, reasons, updated_at)
     VALUES (?,?,?,?,?,?,?,?)
     ON CONFLICT(account_id, question_id) DO UPDATE SET
@@ -620,7 +632,7 @@ export function saveAiReview(accountId, questionId, verdict, reasons, model) {
       reasons = excluded.reasons, updated_at = excluded.updated_at`)
     .run(accountId, questionId, verdict, null, 'ai', model ?? null,
       Array.isArray(reasons) && reasons.length ? JSON.stringify(reasons.slice(0, 4)) : null, nowMs())
-  return { ok: true }
+  return { ok: true, saved: true }
 }
 
 /**
@@ -884,12 +896,6 @@ export function upsertCatalog(rows = []) {
       content_key = excluded.content_key,
       has_cause = excluded.has_cause, updated_at = excluded.updated_at`)
   let inserted = 0, updated = 0, skipped = 0
-  // 系统改过的稿（rewrite）是权威：客户端推上来的是仓库里的原始题面（旧解析），
-  // 不盖回去的话，每次启动一推送就把 AI 改好的内容冲掉了（旧标签页同理）。
-  const rewrites = new Map()
-  for (const r of db.prepare("SELECT question_id, payload FROM enrichments WHERE kind = 'rewrite'").all()) {
-    rewrites.set(r.question_id, parseJson(r.payload) ?? {})
-  }
   db.exec('BEGIN')
   try {
     for (const r of rows) {
@@ -897,14 +903,12 @@ export function upsertCatalog(rows = []) {
       const skill = str(r?.skill)
       if (!id || !skill) { skipped++; continue }
       const exists = db.prepare('SELECT 1 FROM questions WHERE id = ?').get(id)
-      const rw = rewrites.get(id)
-      const prompt = rw?.prompt ?? str(r.prompt)
-      const optionsSrc = Array.isArray(rw?.options) ? rw.options : r.options
-      const explainSrc = rw?.explain ?? r.explain
-      const options = Array.isArray(optionsSrc) ? JSON.stringify(optionsSrc.map((o) => String(o).slice(0, 200))) : null
+      // 镜像 = 仓库基准题面（客户端推什么存什么）。AI 改写只在 enrichments（按账户），
+      // 由复审/练习端派生叠加 —— 全局镜像里混入某账户的改稿会串给别的账户（复核报告 #2）。
+      const options = Array.isArray(r.options) ? JSON.stringify(r.options.map((o) => String(o).slice(0, 200))) : null
       ins.run(id, skill, r.mode ?? null, r.type ?? null, r.variantGroupId ?? null,
-        prompt.slice(0, 500), r.answer ?? null, options,
-        explainSrc ? String(explainSrc).slice(0, 600) : null,
+        str(r.prompt).slice(0, 500), r.answer ?? null, options,
+        r.explain ? String(r.explain).slice(0, 600) : null,
         r.aux ? JSON.stringify(r.aux).slice(0, 2000) : null, r.tts ?? null,
         int(r.contentVersion, 1), r.contentKey ? String(r.contentKey).slice(0, 600) : null, r.hasCause ? 1 : 0, ts)
       if (exists) updated++; else inserted++
@@ -1000,10 +1004,20 @@ export function audit(accountId) {
     return !v || v.verdict === 'fix' || v.source === 'bulk' || v.source === 'human'
   }).length
 
-  const enriched = new Set(db.prepare("SELECT question_id FROM enrichments WHERE account_id = ? AND kind = 'causes'").all(accountId)
-    .map((r) => r.question_id))
-  // 只有选择题才有"逐项纠正"这回事；顺序/词块题不需要
-  const missingCause = rows.filter((r) => !r.has_cause && !enriched.has(r.id) && (parseJson(r.options) ?? []).length > 1)
+  // 逐项纠正的完成度**按当前有效题面的错误选项逐个算**（复核报告 #6）：
+  // 三个错项只补了一个 = 还没补完；选项被改写后旧纠正按文本失配 = 缺口自动重新出现。
+  const fixedByQ = new Map()
+  for (const r of db.prepare("SELECT question_id, payload FROM enrichments WHERE account_id = ? AND kind = 'causes'").all(accountId)) {
+    fixedByQ.set(r.question_id, new Set(Object.keys(parseJson(r.payload)?.optionFixes ?? {})))
+  }
+  const missingCause = rows.filter((r) => {
+    if (r.has_cause) return false
+    const opts = parseJson(r.options) ?? []
+    if (opts.length < 2) return false            // 只有选择题才有"逐项纠正"这回事
+    const wrong = opts.filter((o) => o !== r.answer)
+    const fixed = fixedByQ.get(r.id) ?? new Set()
+    return wrong.some((o) => !fixed.has(o))
+  })
   const missingCauseList = missingCause.map(withOptions)
 
   return {
@@ -1025,7 +1039,7 @@ export function audit(accountId) {
     conflicts,
     missingCause: { count: missingCause.length, sample: missingCauseList.slice(0, 30) },
     missingCauseAll: missingCauseList,
-    enrichedCount: enriched.size,
+    enrichedCount: fixedByQ.size,
     duplicateCount: duplicates.reduce((n, g) => n + g.extras.length, 0),
   }
 }
@@ -1129,14 +1143,39 @@ function reviewItemOf(r) {
   }
 }
 
+/**
+ * 该账户自己的改写过（练习端正在用的那份）：**复审必须看到与学员相同的内容**。
+ * 不改这个的话，A 账户改的稿会通过全局镜像串给 B 的复审，而 B 的学员看到的还是原稿
+ * —— 审过的内容和发下去的内容可能不是同一份（复核报告 #2）。
+ */
+function accountRewriteMap(db, accountId) {
+  const out = new Map()
+  for (const row of db.prepare("SELECT question_id, payload FROM enrichments WHERE account_id = ? AND kind = 'rewrite'").all(accountId)) {
+    out.set(row.question_id, parseJson(row.payload) ?? {})
+  }
+  return out
+}
+
+/** 把该账户的改写叠加到送审题目上（与客户端 applyEnrichments 同一套覆盖规则） */
+function applyRewriteToItem(item, rw) {
+  if (!rw) return item
+  return {
+    ...item,
+    prompt: rw.prompt ?? item.prompt,
+    options: Array.isArray(rw.options) ? rw.options : item.options,
+    explain: rw.explain ?? item.explain,
+  }
+}
+
 /** 取一批"还没定过版"的题给审核员（目录里有什么就审什么，含仓库题与账户题） */
 export function catalogForReview(accountId, { skipReviewed = new Set(), limit = 60 } = {}) {
   const db = getDb()
   const killed = killedQuestionIds(db, accountId)
+  const rewrites = accountRewriteMap(db, accountId)
   const out = []
   for (const r of db.prepare('SELECT * FROM questions ORDER BY skill, id').all()) {
     if (killed.has(r.id) || skipReviewed.has(r.id)) continue
-    out.push(reviewItemOf(r))
+    out.push(applyRewriteToItem(reviewItemOf(r), rewrites.get(r.id)))
     if (out.length >= limit) break
   }
   return out
@@ -1150,6 +1189,7 @@ export function catalogForReview(accountId, { skipReviewed = new Set(), limit = 
 export function pipelineQueue(accountId, { limit = 60 } = {}) {
   const db = getDb()
   const killed = killedQuestionIds(db, accountId)
+  const rewrites = accountRewriteMap(db, accountId)
   const reviews = new Map(
     db.prepare('SELECT question_id, verdict, source FROM content_reviews WHERE account_id = ?').all(accountId)
       .map((r) => [r.question_id, r]),
@@ -1160,7 +1200,7 @@ export function pipelineQueue(accountId, { limit = 60 } = {}) {
     const v = reviews.get(r.id)
     const needs = !v || v.verdict === 'fix' || v.source === 'bulk' || v.source === 'human'
     if (!needs) continue
-    out.push(reviewItemOf(r))
+    out.push(applyRewriteToItem(reviewItemOf(r), rewrites.get(r.id)))
     if (out.length >= limit) break
   }
   return out
@@ -1169,20 +1209,33 @@ export function pipelineQueue(accountId, { limit = 60 } = {}) {
 export function saveEnrichment(accountId, questionId, kind, payload, model = null) {
   const db = getDb()
   if (!db.prepare('SELECT 1 FROM accounts WHERE id = ?').get(accountId)) throw new ApiError(404, '账户不存在：' + accountId)
+  // causes（逐项纠正）分批补时**字段级合并**：后一批不许把前一批补好的选项挤掉
+  // （模型每批只看得到题面，看不到已补的内容；缺口是逐项算的，所以合并才是对的 —— 复核报告 #6）
+  let toSave = payload
+  if (kind === 'causes') {
+    const prev = parseJson(db.prepare('SELECT payload FROM enrichments WHERE account_id = ? AND question_id = ? AND kind = ?')
+      .get(accountId, questionId, kind)?.payload) ?? {}
+    toSave = {
+      ...prev,
+      ...payload,
+      optionFixes: { ...(prev.optionFixes ?? {}), ...(payload?.optionFixes ?? {}) },
+      optionTags: { ...(prev.optionTags ?? {}), ...(payload?.optionTags ?? {}) },
+    }
+  }
   db.prepare(`INSERT INTO enrichments (account_id, question_id, kind, payload, model, created_at)
     VALUES (?,?,?,?,?,?)
     ON CONFLICT(account_id, question_id, kind) DO UPDATE SET
       payload = excluded.payload, model = excluded.model, created_at = excluded.created_at`)
-    .run(accountId, questionId, kind, JSON.stringify(payload), model, nowMs())
+    .run(accountId, questionId, kind, JSON.stringify(toSave), model, nowMs())
   return { ok: true }
 }
 
 /**
- * 采纳 AI 按审核意见改好的稿（解析/干扰项/释义）。写两份：
- *   · enrichments(kind='rewrite') 是权威层 —— 练习界面从这里读，写回即生效；
- *   · questions 镜像同步改掉 —— 下一轮复审从镜像读题面，否则审核员看的还是旧解析。
- * 客户端每次启动都会把仓库题面**原样**推上来，upsertCatalog 会把 rewrite 盖回去，
- * 所以旧标签页推旧内容也覆盖不掉系统改好的结果。
+ * 采纳 AI 按审核意见改好的稿（解析/干扰项/释义）。**只写 enrichments（按账户）**：
+ *   · 练习端（applyEnrichments）与复审端（pipelineQueue/catalogForReview 的账户级叠加）
+ *     各自派生"基准题面 + 本账户改写"，两边看到的必然是同一份；
+ *   · questions 镜像是**全局**的仓库基准题面 —— 改写不许写进去，否则 A 账户的改稿会串给
+ *     B 账户的复审、而 B 的学员看到的还是原稿（复核报告 #2，实测复现）。
  */
 export function saveRewrite(accountId, questionId, payload, model = null) {
   const db = getDb()
@@ -1195,22 +1248,25 @@ export function saveRewrite(accountId, questionId, payload, model = null) {
   // 字段级合并：这轮只改了题干，不能把上一轮改好的解析从权威层挤掉
   const prevRow = db.prepare("SELECT payload FROM enrichments WHERE account_id = ? AND question_id = ? AND kind = 'rewrite'")
     .get(accountId, questionId)
-  const merged = { ...(parseJson(prevRow?.payload) ?? {}), ...fresh }
+  const prev = parseJson(prevRow?.payload) ?? {}
+  const merged = { ...prev, ...fresh }
+  // 改题干/选项是**影响判分的修订**：必须升内容版本，否则修订前的旧作答仍会被
+  // evidence 当成有效证据（它按 contentVersion 等值过滤，见复核报告 #4）。
+  // 只改解析（措辞）不动版本 —— 不影响任何判定。版本从上次改写版本或镜像基准继续递增。
+  const qrow = db.prepare('SELECT prompt, options, content_version FROM questions WHERE id = ?').get(questionId)
+  if (qrow) {
+    const promptChanged = fresh.prompt !== undefined && fresh.prompt !== qrow.prompt
+    const optionsChanged = fresh.options !== undefined
+      && JSON.stringify(parseJson(qrow.options) ?? null) !== JSON.stringify(fresh.options)
+    if (promptChanged || optionsChanged) {
+      merged.contentVersion = int(prev.contentVersion, int(qrow.content_version, 1)) + 1
+    }
+  }
   db.prepare(`INSERT INTO enrichments (account_id, question_id, kind, payload, model, created_at)
     VALUES (?,?,?,?,?,?)
     ON CONFLICT(account_id, question_id, kind) DO UPDATE SET
       payload = excluded.payload, model = excluded.model, created_at = excluded.created_at`)
     .run(accountId, questionId, 'rewrite', JSON.stringify(merged), model, nowMs())
-  if (db.prepare('SELECT 1 FROM questions WHERE id = ?').get(questionId)) {
-    db.prepare(`UPDATE questions SET
-        explain = COALESCE(?, explain),
-        options = COALESCE(?, options),
-        prompt  = COALESCE(?, prompt),
-        updated_at = ?
-      WHERE id = ?`)
-      .run(fresh.explain ?? null, fresh.options ? JSON.stringify(fresh.options) : null,
-        fresh.prompt ?? null, nowMs(), questionId)
-  }
   return { saved: true }
 }
 
