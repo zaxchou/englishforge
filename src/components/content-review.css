@@ -55,3 +55,26 @@
 .review-status.st-reviewed { background: #eaf5cd; color: #39471d; }
 .review-status.st-draft { background: #f4f3f7; color: var(--sub); }
 .review-status.st-quarantined { background: #151519; color: #fff; }
+
+/* ---- 系统自检面板（都在审核页顶部，点一下就跑，不靠人跑脚本） ---- */
+.sysaudit{background:#fff;border-radius:26px;padding:24px 26px;margin-bottom:22px}
+.sysaudit-head{display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap}
+.sysaudit-head h2{font-size:19px;font-weight:600;letter-spacing:-.4px}
+.ai-pill{font-size:11px;border-radius:999px;padding:8px 14px;background:#f1f0f5;color:var(--sub)}
+.ai-pill.is-on{background:#eaf5cd;color:#39471d}
+.ai-pill.is-off{background:#fff0ed;color:#963d32}
+.sysaudit-note{font-size:12px;color:var(--sub);line-height:1.95;margin-top:12px}
+.sysaudit-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:18px}
+.sysaudit-card{background:#f5f4f8;border-radius:20px;padding:16px 18px;display:flex;flex-direction:column;gap:4px}
+.sysaudit-card.is-wide{grid-column:1/-1}
+.sysaudit-card>span{font-size:11px;color:var(--sub)}
+.sysaudit-card>b{font-size:24px;font-weight:550;letter-spacing:-.5px}
+.sysaudit-card>small{font-size:11px;color:var(--sub);line-height:1.75}
+.sysaudit-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px}
+.sysaudit-msg{font-size:12px;color:var(--brand);line-height:1.9;margin-top:14px}
+.sysaudit-list{margin-top:16px}
+.sysaudit-list h3{font-size:12px;font-weight:600;color:var(--sub);margin-bottom:10px}
+.dupg{background:#f7f6f9;border-radius:14px;padding:10px 14px;margin-bottom:6px;font-size:12px}
+.dupg-keep{color:var(--ink)}
+.dupg-keep b{font-size:10px;background:#eaf5cd;color:#39471d;border-radius:999px;padding:2px 8px;margin-right:6px}
+.dupg-extra{color:var(--sub);font-size:11px;margin-top:4px;padding-left:10px}

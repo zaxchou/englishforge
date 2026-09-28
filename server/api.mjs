@@ -3,11 +3,13 @@
 // 刻意不引框架：整个后端只有「读一份存档」「合并一次写入」「查两组统计」三类需求，
 // 一个纯函数 + 一个中间件就够了，也能直接在测试里调用（不起 HTTP）。
 import {
-  ApiError, addItems, createAccount, dbInfo, deleteItem, ensureDefaultAccount, getAccount,
-  itemStats, listAccounts, listBatches, listItems, listSnapshots, loadProgress, queryAttempts,
-  renameAccount, replaceState, resetAccount, restoreSnapshot, setItemReview, stats, syncAccount,
-  touchAccount, writeSnapshot, getDb,
+  ApiError, addItems, audit, createAccount, dbInfo, deleteItem, ensureDefaultAccount, getAccount,
+  itemStats, listAccounts, listBatches, listEnrichments, listItems, listSnapshots, loadProgress,
+  queryAttempts, renameAccount, replaceState, resetAccount, restoreSnapshot, saveEnrichment,
+  setItemReview, stats, syncAccount, touchAccount, upsertCatalog, writeSnapshot, getDb,
 } from './db.mjs'
+import { enrichCauses } from './content-ai.mjs'
+import { llmStatus } from './llm.mjs'
 
 const MAX_BODY = 64 * 1024 * 1024   // 首次把浏览器里的整份进度搬进库时会有一次大包
 
@@ -77,6 +79,34 @@ const ROUTES = [
   })],
   ['DELETE', '/api/accounts/:id/items/:itemId', (ctx) => ({ ok: true, ...deleteItem(ctx.params.id, ctx.params.itemId) })],
   ['GET', '/api/accounts/:id/batches', (ctx) => ({ batches: listBatches(ctx.params.id) })],
+
+  // ---- 系统自检与自我修复（用户的明确要求：纠正要由系统自己的 AI 跑，不靠人） ----
+  ['GET', '/api/ai/status', () => ({ ai: llmStatus() })],
+  ['POST', '/api/catalog', (ctx) => {
+    const rows = ctx.body?.questions
+    if (!Array.isArray(rows)) throw new HttpError(400, 'questions 必须是数组')
+    return { ok: true, ...upsertCatalog(rows) }
+  }],
+  ['GET', '/api/accounts/:id/audit', (ctx) => ({ audit: audit(ctx.params.id) })],
+  ['GET', '/api/accounts/:id/enrichments', (ctx) => ({ enrichments: listEnrichments(ctx.params.id, ctx.query.get('kind')) })],
+  /** 让系统自己的 AI 给缺逐项纠正的题补上（一次一批，可反复点，直到补完） */
+  ['POST', '/api/accounts/:id/enrich-causes', async (ctx) => {
+    const limit = num(ctx.body?.limit, 8)
+    const a = audit(ctx.params.id)
+    const todo = a.missingCauseAll.slice(0, Math.max(1, Math.min(24, limit)))
+    if (!todo.length) return { ok: true, requested: 0, enriched: 0, rejected: 0, remaining: 0, model: null }
+    const { results, rejected, model, error } = await enrichCauses(todo)
+    let saved = 0
+    for (const [qid, payload] of Object.entries(results)) {
+      saveEnrichment(ctx.params.id, qid, 'causes', payload, model)
+      saved++
+    }
+    const after = audit(ctx.params.id)
+    return {
+      ok: true, requested: todo.length, enriched: saved, rejected, model,
+      error: error ?? null, remaining: after.missingCause.count,
+    }
+  }],
 
   ['GET', '/api/accounts/:id/attempts', (ctx) => ({
     attempts: queryAttempts(ctx.params.id, {

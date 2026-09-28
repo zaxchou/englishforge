@@ -7,11 +7,12 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ProgressV2 } from '../types'
 import type { ReviewMarks } from '../content/reviewMarks'
 import {
-  bootstrap, createAccount, currentAccountId, decideBoot, fetchAccounts, fetchItemBatches, fetchItems,
-  fetchStats, getDbError, getDbState, lastSyncedAt, pullProgress, renameAccount, resetRemote,
-  setCurrentAccountId, setItemVerdict, subscribeDbState, syncProgress, unionProgress,
-  type DbAccount, type DbItem, type DbItemBatch, type DbItemStats, type DbState, type DbStats,
-  type PullResult,
+  bootstrap, createAccount, currentAccountId, decideBoot, fetchAccounts, fetchAiStatus, fetchAudit,
+  fetchEnrichments, fetchItemBatches, fetchItems, fetchStats, getDbError, getDbState, lastSyncedAt,
+  pullProgress, pushCatalog, renameAccount, resetRemote, runEnrichCauses, setCurrentAccountId,
+  setItemVerdict, subscribeDbState, syncProgress, unionProgress,
+  type AiStatus, type CatalogRow, type DbAccount, type DbAudit, type DbItem, type DbItemBatch,
+  type DbItemStats, type DbState, type DbStats, type EnrichmentMap, type PullResult,
 } from './db'
 
 /** 状态变化后多久落库：一次练习里连续提交会合并成一次写入 */
@@ -40,6 +41,17 @@ export interface DbSyncApi {
   reloadItems: () => Promise<void>
   /** 逐题定版：写进账户题库 */
   patchItemVerdict: (itemId: string, verdict: 'ok' | 'fix' | 'kill') => Promise<void>
+  /** 系统自检结果（重复题 / 打架题 / 缺逐项纠正的题） */
+  audit: DbAudit | null
+  /** 系统 AI 补出来的逐项纠正（按题 id），并进题目池后练习里就能看到 */
+  enrichments: EnrichmentMap
+  ai: AiStatus | null
+  /** 把仓库题库目录推给服务端（系统要能"看见"自己的内容才能自检） */
+  syncCatalog: (rows: CatalogRow[]) => Promise<void>
+  /** 刷新自检结果 */
+  runAudit: () => Promise<void>
+  /** 让系统自己的 AI 补一批逐项纠正 */
+  enrichNow: (limit?: number) => Promise<{ enriched: number; rejected: number; remaining: number; error: string | null } | null>
   /** 状态变了：安排一次落库 */
   schedule: () => void
   /** 立刻落库（full = 整份替换，服务端先留快照） */
@@ -72,6 +84,11 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
   const [itemStats, setItemStats] = useState<DbItemStats | null>(null)
   const [itemBatches, setItemBatches] = useState<DbItemBatch[]>([])
   const [itemsCached, setItemsCached] = useState(false)
+  // 系统自检 + 系统 AI 补出来的内容
+  const [audit, setAudit] = useState<DbAudit | null>(null)
+  const [enrichments, setEnrichments] = useState<EnrichmentMap>({})
+  const [ai, setAi] = useState<AiStatus | null>(null)
+  const catalogSent = useRef(false)
 
   const accountRef = useRef<DbAccount | null>(null)
   const bootedRef = useRef(false)
@@ -174,6 +191,32 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
     setItemBatches(batches ?? [])
   }, [])
 
+  /** 系统自检 + 已补内容的加载 */
+  const runAudit = useCallback(async () => {
+    const id = accountRef.current?.id
+    if (!id) return
+    const [a, en, st] = await Promise.all([fetchAudit(id), fetchEnrichments(id), fetchAiStatus()])
+    if (a) setAudit(a)
+    if (en) setEnrichments(en)
+    setAi(st)
+  }, [])
+
+  const syncCatalog = useCallback(async (rows: CatalogRow[]) => {
+    if (!rows.length) return
+    const res = await pushCatalog(rows)
+    if (res) catalogSent.current = true
+  }, [])
+
+  /** 让系统自己的 AI 补一批逐项纠正；补完刷新自检与已补内容 */
+  const enrichNow = useCallback(async (limit = 8) => {
+    const id = accountRef.current?.id
+    if (!id) return null
+    const res = await runEnrichCauses(id, limit)
+    if (!res) return null
+    await runAudit()
+    return { enriched: res.enriched, rejected: res.rejected, remaining: res.remaining, error: res.error }
+  }, [runAudit])
+
   const patchItemVerdict = useCallback(async (itemId: string, verdict: 'ok' | 'fix' | 'kill') => {
     const id = accountRef.current?.id
     if (!id) return
@@ -230,6 +273,7 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
       setAccount(acc)
       // 账户题库（内容层）与进度分开读：它决定"这个人能抽到哪些题"
       void reloadItems()
+      void runAudit()
 
       const decision = decideBoot(optsRef.current.progressRef.current, pulled)
       const localBefore = optsRef.current.progressRef.current
@@ -270,7 +314,7 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
       }
     })()
     return () => { dead = true }
-  }, [adopt, push, refreshStats, reloadItems])
+  }, [adopt, push, refreshStats, reloadItems, runAudit])
 
   // 关页面 / 切后台前把最后一次写入补上（localStorage 已有全量，这里只是让库跟上）
   useEffect(() => {
@@ -301,8 +345,9 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
     setStats(null)
     adopt(pull)
     void reloadItems()
+    void runAudit()
     setNotice({ kind: 'ok', text: `已切换到「${target.name}」。` })
-  }, [adopt, push, reloadItems])
+  }, [adopt, push, reloadItems, runAudit])
 
   const newAccount = useCallback(async (name: string) => {
     const acc = await createAccount(name)
@@ -344,6 +389,7 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
     dismissNotice: () => setNotice(null),
     note: (text, kind = 'ok') => setNotice({ kind, text }),
     items, itemStats, itemBatches, itemsCached, reloadItems, patchItemVerdict,
+    audit, enrichments, ai, syncCatalog, runAudit, enrichNow,
     schedule, flush, refreshStats, rename, newAccount, switchTo, resetCurrent, reloadFromDb,
   }
 }

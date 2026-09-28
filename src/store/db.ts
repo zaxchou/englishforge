@@ -169,11 +169,12 @@ export function lastSyncedAt(accountId: string): number {
 
 // ---------------------------------------------------------------- 请求
 
-async function req<T>(path: string, init: RequestInit = {}): Promise<T> {
+/** timeoutMs 默认 8s；模型调用这类慢接口自己传更长的值 */
+async function req<T>(path: string, init: RequestInit = {}, timeoutMs = TIMEOUT_MS): Promise<T> {
   const res = await fetch(API + path, {
     ...init,
     headers: { 'content-type': 'application/json', ...(init.headers ?? {}) },
-    signal: AbortSignal.timeout(TIMEOUT_MS),
+    signal: AbortSignal.timeout(timeoutMs),
   })
   const text = await res.text()
   if (!res.ok) {
@@ -429,6 +430,75 @@ export async function makeSnapshot(accountId: string, reason = 'manual'): Promis
     method: 'POST', body: JSON.stringify({ reason }),
   }))
   return res !== null
+}
+
+// ---------------------------------------------------------------- 系统自检与自我修复
+
+/** 一道题的目录条目：服务端需要"看得见"仓库里的题库，才能自己查重、自己补内容 */
+export interface CatalogRow {
+  id: string
+  skill: string
+  mode?: string
+  type?: string
+  variantGroupId?: string
+  prompt: string
+  answer?: string
+  options?: string[]
+  tts?: string
+  contentVersion?: number
+  /** 题目身份（题型+题干+句子，归一化）：服务端查重就靠它，不能只比题干 */
+  contentKey: string
+  /** 题面自带逐项纠正了吗（决定了系统 AI 要不要补） */
+  hasCause: boolean
+}
+
+export interface AuditQuestion { id: string; skill: string; prompt: string; answer?: string; type?: string; options?: string[]; tts?: string | null }
+export interface DbAudit {
+  catalog: number
+  duplicates: { keep: AuditQuestion; extras: AuditQuestion[]; count: number }[]
+  conflicts: { variants: AuditQuestion[]; count: number }[]
+  missingCause: { count: number; sample: AuditQuestion[] }
+  enrichedCount: number
+  duplicateCount: number
+}
+
+export interface EnrichmentCauses { optionFixes?: Record<string, string>; optionTags?: Record<string, string[]> }
+export interface Enrichment { causes?: EnrichmentCauses; model?: string | null; at?: number }
+export type EnrichmentMap = Record<string, Enrichment>
+
+export interface AiStatus { configured: boolean; model: string | null; source: string | null }
+
+export async function pushCatalog(rows: CatalogRow[]): Promise<{ inserted: number; updated: number; total: number } | null> {
+  const res = await attemptReq(() => req<{ inserted: number; updated: number; total: number }>('/catalog', {
+    method: 'POST', body: JSON.stringify({ questions: rows }),
+  }))
+  return res
+}
+
+export async function fetchAudit(accountId: string): Promise<DbAudit | null> {
+  const res = await attemptReq(() => req<{ audit: DbAudit }>(`/accounts/${accountId}/audit`))
+  return res?.audit ?? null
+}
+
+export async function fetchEnrichments(accountId: string): Promise<EnrichmentMap | null> {
+  const res = await attemptReq(() => req<{ enrichments: EnrichmentMap }>(`/accounts/${accountId}/enrichments`))
+  return res?.enrichments ?? null
+}
+
+export interface EnrichRun { requested: number; enriched: number; rejected: number; remaining: number; model: string | null; error: string | null }
+
+/** 让系统自己的 AI 补一批逐项纠正（可反复调用直到 remaining 为 0） */
+export async function runEnrichCauses(accountId: string, limit = 8): Promise<EnrichRun | null> {
+  // 模型一次要写 8 道题的逐项纠正，慢的时候 10~40 秒，给足 120 秒
+  const res = await attemptReq(() => req<EnrichRun>(`/accounts/${accountId}/enrich-causes`, {
+    method: 'POST', body: JSON.stringify({ limit }),
+  }, 120_000))
+  return res
+}
+
+export async function fetchAiStatus(): Promise<AiStatus | null> {
+  const res = await attemptReq(() => req<{ ai: AiStatus }>('/ai/status'))
+  return res?.ai ?? null
 }
 
 // ---------------------------------------------------------------- 决策

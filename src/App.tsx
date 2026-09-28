@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { lessons, questionsOfSkill, allQuestions, skillOrder } from './data/course'
 import { applyReviewMarks, loadReviewMarks, saveReviewMarks, type ReviewMarks } from './content/reviewMarks'
 import { adaptAll } from './content/adapt'
+import { applyEnrichments } from './content/enrichments'
+import { contentKeyOf, hasOwnCause } from './content/bank'
 import {
   loadProgress, saveProgress, resetProgress, getSkillProgress,
   recordSkillPractice, commitSession, recordSession, localDateStr,
@@ -96,9 +98,19 @@ export default function App() {
   /** 账户题库 = 数据库里属于这个账户的内容（语料派生的题、将来即时生成的题） */
   const accountPool = useMemo(() => adaptAll(db.items.map((it) => it.question)), [db.items])
 
+  /** 仓库题库目录推给服务端：系统要能"看见"自己的内容，才能自己查重、自己补逐项纠正 */
+  useEffect(() => {
+    const rows = [...allQuestions, ...accountPool].map((q) => ({
+      id: q.id, skill: q.skill, mode: q.mode, type: q.type, variantGroupId: q.variantGroupId,
+      prompt: q.prompt, answer: q.answer, options: q.options, tts: q.tts,
+      contentVersion: q.contentVersion, contentKey: contentKeyOf(q), hasCause: hasOwnCause(q),
+    }))
+    void db.syncCatalog(rows)
+  }, [accountPool, db])
+
   const reviewed = useMemo(
-    () => applyReviewMarks([...allQuestions, ...accountPool], marks),
-    [accountPool, marks],
+    () => applyEnrichments(applyReviewMarks([...allQuestions, ...accountPool], marks), db.enrichments),
+    [accountPool, marks, db.enrichments],
   )
   const pool = useMemo(() => eligible(reviewed), [reviewed])
   const questionById = useMemo(() => new Map(reviewed.map((q) => [q.id, q])), [reviewed])
@@ -520,6 +532,20 @@ export default function App() {
             marks={marks}
             onMarks={handleMarks}
             onExit={() => setView({ name: 'home' })}
+            audit={db.audit}
+            ai={db.ai}
+            onKillDuplicates={(ids) => {
+              // 重复题：每组保留第一道，其余标「毙掉」→ 退出抽题
+              const next: ReviewMarks = { ...marksRef.current }
+              for (const id of ids) next[id] = { ...(next[id] ?? {}), verdict: 'kill' }
+              handleMarks(next)
+            }}
+            onEnrich={async (limit) => {
+              const r = await db.enrichNow(limit)
+              // 补完立刻刷新题目池（逐项纠正并进去后，练习与结算页马上能用）
+              if (r?.enriched) void db.reloadItems()
+              return r
+            }}
           />
         )}
         {view.name !== 'review' && <div className={`narrow ${view.name === 'practice' ? 'quiz-center' : ''}`}>

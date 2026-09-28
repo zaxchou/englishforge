@@ -4,15 +4,21 @@
 import { useMemo, useState } from 'react'
 import type { AdaptedQuestion } from '../types'
 import { saveReviewMarks, type ReviewMarks } from '../content/reviewMarks'
+import type { AiStatus, DbAudit } from '../store/db'
+import { SystemAudit } from './SystemAudit'
 import './content-review.css'
 
 const DIFF = ['', '基础', '进阶', '挑战']
 
-export function ContentReview({ questions, marks, onMarks, onExit }: {
+export function ContentReview({ questions, marks, onMarks, onExit, audit, ai, onKillDuplicates, onEnrich }: {
   questions: AdaptedQuestion[]
   marks: ReviewMarks
   onMarks: (m: ReviewMarks) => void
   onExit: () => void
+  audit: DbAudit | null
+  ai: AiStatus | null
+  onKillDuplicates: (ids: string[]) => void
+  onEnrich: (limit: number) => Promise<{ enriched: number; rejected: number; remaining: number; error: string | null } | null>
 }) {
   const drafts = useMemo(() => questions.filter((q) => q.reviewStatus === 'draft'), [questions])
   // 默认范围：还有待审核的就显示待审核；全审完了就显示全部（否则用户会以为"题不见了"）
@@ -74,6 +80,8 @@ export function ContentReview({ questions, marks, onMarks, onExit }: {
 
   return (
     <div className="review-page">
+      {/* 系统自检放最上面：先让系统把自己能发现的毛病找出来，再逐题看 */}
+      <SystemAudit audit={audit} ai={ai} onKillDuplicates={onKillDuplicates} onEnrich={onEnrich} />
       <header className="review-head">
         <div>
           <h1>内容审核 · 语料派生题</h1>

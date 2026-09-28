@@ -176,6 +176,39 @@ CREATE VIEW IF NOT EXISTS v_item_stats AS
 SELECT account_id, skill, source, review_status, COUNT(*) AS n
 FROM items GROUP BY account_id, skill, source, review_status;
 
+-- 题库目录：仓库里自带的那批题（随代码发布）的**元数据镜像**。
+-- 为什么要有它：系统要能自己检查自己的内容（查重、找缺逐项纠正的题、让模型补全），
+-- 而题面原本只存在于前端编译产物里，服务端看不见。客户端启动时把目录推上来（幂等 upsert）。
+-- 注意：这不是"用户的题"，只是"这道题长什么样"；信任级别仍按账户存在 content_reviews / items 里。
+CREATE TABLE IF NOT EXISTS questions (
+  id                TEXT PRIMARY KEY,
+  skill             TEXT NOT NULL,
+  mode              TEXT,
+  type              TEXT,
+  variant_group_id  TEXT,
+  prompt            TEXT NOT NULL,
+  answer            TEXT,
+  options           TEXT,                          -- JSON 数组（模型补逐项纠正时要用）
+  tts               TEXT,
+  content_version   INTEGER NOT NULL DEFAULT 1,
+  content_key       TEXT,                          -- 题型+题干+句子（归一化）：查重的依据
+  has_cause         INTEGER NOT NULL DEFAULT 0,   -- 题面自带逐项纠正了吗
+  updated_at        INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_questions_skill ON questions(skill);
+
+-- 系统 AI 给题目补的内容（逐项纠正 / 错因标签 / 释义…），按账户存：
+-- 补出来的东西是"这个账户的内容"，写回后练习与结算页立刻能用上。
+CREATE TABLE IF NOT EXISTS enrichments (
+  account_id  TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  question_id TEXT NOT NULL,
+  kind        TEXT NOT NULL,      -- causes（逐项纠正 + 错因标签）/ glossary / …
+  payload     TEXT NOT NULL,      -- JSON
+  model       TEXT,
+  created_at  INTEGER NOT NULL,
+  PRIMARY KEY (account_id, question_id, kind)
+);
+
 -- 整份存档快照：覆盖 / 清空 / 导入前自动留一份，出问题能回捞
 CREATE TABLE IF NOT EXISTS snapshots (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -741,6 +774,121 @@ export function itemStats(accountId) {
     bySkill: Object.values(bySkill).sort((a, b) => a.skill.localeCompare(b.skill)),
     batches: listBatches(accountId).length,
   }
+}
+
+// ---------------------------------------------------------------- 题库目录与系统自检
+
+/** 客户端把仓库题库的目录推上来（幂等）：服务端从此"看得见"自己的内容 */
+export function upsertCatalog(rows = []) {
+  const db = getDb()
+  const ts = nowMs()
+  const ins = db.prepare(`INSERT INTO questions
+    (id, skill, mode, type, variant_group_id, prompt, answer, options, tts, content_version, content_key, has_cause, updated_at)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+    ON CONFLICT(id) DO UPDATE SET
+      skill = excluded.skill, mode = excluded.mode, type = excluded.type,
+      variant_group_id = excluded.variant_group_id, prompt = excluded.prompt,
+      answer = excluded.answer, options = excluded.options, tts = excluded.tts, content_version = excluded.content_version,
+      content_key = excluded.content_key,
+      has_cause = excluded.has_cause, updated_at = excluded.updated_at`)
+  let inserted = 0, updated = 0, skipped = 0
+  db.exec('BEGIN')
+  try {
+    for (const r of rows) {
+      const id = str(r?.id)
+      const skill = str(r?.skill)
+      if (!id || !skill) { skipped++; continue }
+      const exists = db.prepare('SELECT 1 FROM questions WHERE id = ?').get(id)
+      const options = Array.isArray(r.options) ? JSON.stringify(r.options.map((o) => String(o).slice(0, 200))) : null
+      ins.run(id, skill, r.mode ?? null, r.type ?? null, r.variantGroupId ?? null,
+        str(r.prompt).slice(0, 500), r.answer ?? null, options, r.tts ?? null,
+        int(r.contentVersion, 1), r.contentKey ? String(r.contentKey).slice(0, 600) : null, r.hasCause ? 1 : 0, ts)
+      if (exists) updated++; else inserted++
+    }
+    db.exec('COMMIT')
+  } catch (err) {
+    try { db.exec('ROLLBACK') } catch { /* ignore */ }
+    throw err
+  }
+  return { inserted, updated, skipped, total: db.prepare('SELECT COUNT(*) AS n FROM questions').get().n }
+}
+
+/** 归一化：查重只看"实质内容"，忽略大小写、空白与标点（中英标点都算） */
+export function normText(v) {
+  return String(v ?? '')
+    .toLowerCase()
+    .replace(/[\s　]/g, '')
+    .replace(/[.,!?;:'"“”‘’()（）[\]{}<>《》、。，！？；：…—~`|/*#&+^%$@=_·•]/g, '')
+}
+
+/** 系统自检：重复题、互相打架的题、缺逐项纠正的题。
+ *  这些都是"系统能自己发现"的内容缺陷，不需要人肉通读 356 道题。 */
+export function audit(accountId) {
+  const db = getDb()
+  if (!db.prepare('SELECT 1 FROM accounts WHERE id = ?').get(accountId)) throw new ApiError(404, '账户不存在：' + accountId)
+  const rows = db.prepare('SELECT * FROM questions ORDER BY skill, id').all()
+
+  // 分组的依据是 content_key（题型+题干+句子）。**不能只用题干**：听力题题干统一是
+  // 「🎧 听一听」，跟读题的 answer 是占位符 'speak' —— 只用题干会把 25 道听力题算成打架（实测过）。
+  const identity = (r) => r.content_key || (normText(r.prompt) + '|' + normText(r.tts))
+  const bySig = new Map()      // 身份 + 答案 + 选项 全同 → 纯重复
+  const byIdent = new Map()    // 身份相同但答案不同 → 互相打架
+  for (const r of rows) {
+    const key = identity(r)
+    const sig = key + '|' + normText(r.answer) + '|' + normText(r.options ?? '')
+    if (bySig.has(sig)) bySig.get(sig).push(r); else bySig.set(sig, [r])
+    if (byIdent.has(key)) byIdent.get(key).push(r); else byIdent.set(key, [r])
+  }
+  const slim = (r) => ({ id: r.id, skill: r.skill, prompt: r.prompt, answer: r.answer, type: r.type })
+  const withOptions = (r) => ({ ...slim(r), options: parseJson(r.options) ?? [], tts: r.tts ?? null })
+
+  const duplicates = [...bySig.values()].filter((g) => g.length > 1)
+    .map((g) => ({ keep: slim(g[0]), extras: g.slice(1).map(slim), count: g.length }))
+
+  // 跟读题的 answer 是占位符（'speak'），它的答案在 target 里，不参与"打架"判定
+  const conflicts = [...byIdent.values()]
+    .filter((g) => g.length > 1 && g.every((r) => r.type !== 'speak')
+      && new Set(g.map((r) => normText(r.answer))).size > 1)
+    .map((g) => ({ variants: g.map(slim), count: g.length }))
+
+  const enriched = new Set(db.prepare("SELECT question_id FROM enrichments WHERE account_id = ? AND kind = 'causes'").all(accountId)
+    .map((r) => r.question_id))
+  // 只有选择题才有"逐项纠正"这回事；顺序/词块题不需要
+  const missingCause = rows.filter((r) => !r.has_cause && !enriched.has(r.id) && (parseJson(r.options) ?? []).length > 1)
+  const missingCauseList = missingCause.map(withOptions)
+
+  return {
+    catalog: rows.length,
+    duplicates,
+    conflicts,
+    missingCause: { count: missingCause.length, sample: missingCauseList.slice(0, 30) },
+    missingCauseAll: missingCauseList,
+    enrichedCount: enriched.size,
+    duplicateCount: duplicates.reduce((n, g) => n + g.extras.length, 0),
+  }
+}
+
+export function saveEnrichment(accountId, questionId, kind, payload, model = null) {
+  const db = getDb()
+  if (!db.prepare('SELECT 1 FROM accounts WHERE id = ?').get(accountId)) throw new ApiError(404, '账户不存在：' + accountId)
+  db.prepare(`INSERT INTO enrichments (account_id, question_id, kind, payload, model, created_at)
+    VALUES (?,?,?,?,?,?)
+    ON CONFLICT(account_id, question_id, kind) DO UPDATE SET
+      payload = excluded.payload, model = excluded.model, created_at = excluded.created_at`)
+    .run(accountId, questionId, kind, JSON.stringify(payload), model, nowMs())
+  return { ok: true }
+}
+
+export function listEnrichments(accountId, kind = null) {
+  const db = getDb()
+  const rows = kind
+    ? db.prepare('SELECT * FROM enrichments WHERE account_id = ? AND kind = ?').all(accountId, kind)
+    : db.prepare('SELECT * FROM enrichments WHERE account_id = ?').all(accountId)
+  const out = {}
+  for (const r of rows) {
+    out[r.question_id] = { ...(out[r.question_id] ?? {}), [r.kind]: parseJson(r.payload) ?? {}, model: r.model, at: r.created_at }
+  }
+  return out
 }
 
 // ---------------------------------------------------------------- 快照
