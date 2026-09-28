@@ -186,6 +186,18 @@ CREATE TABLE IF NOT EXISTS settings (
   updated_at INTEGER NOT NULL
 );
 
+-- 后台维护日志：流水线/补纠正每次执行的留痕（何时、动了谁、错在哪、耗时多久）。
+-- 自动化必须有可回查的执行记录 —— 否则出了问题就是黑箱。
+CREATE TABLE IF NOT EXISTS run_log (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  account_id  TEXT,                        -- 可空：系统级事件
+  kind        TEXT NOT NULL,               -- pipeline / enrich / …
+  summary     TEXT,                        -- JSON：计数、模型、耗时、动的题目 id
+  error       TEXT,                        -- 过程中的非致命错误（单批坏输出等）
+  created_at  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_run_log_acct ON run_log(account_id, created_at);
+
 -- 题库目录：仓库里自带的那批题（随代码发布）的**元数据镜像**。
 -- 为什么要有它：系统要能自己检查自己的内容（查重、找缺逐项纠正的题、让模型补全），
 -- 而题面原本只存在于前端编译产物里，服务端看不见。客户端启动时把目录推上来（幂等 upsert）。
@@ -1070,6 +1082,31 @@ export function reopenIncompleteAi(accountId) {
   let n = 0
   for (const r of rows) n += upd.run(accountId, r.question_id).changes
   return { reopened: n }
+}
+
+/**
+ * 后台维护日志：自动化每跑一次留一条（计数/动了谁/错在哪/耗时）。
+ * summary 是结构化 JSON，查询端（db.py log、自检面板）负责拼成人话。
+ */
+export function writeRunLog(accountId, kind, summary = {}, error = null) {
+  const db = getDb()
+  db.prepare('INSERT INTO run_log (account_id, kind, summary, error, created_at) VALUES (?,?,?,?,?)')
+    .run(accountId ?? null, String(kind).slice(0, 40), JSON.stringify(summary ?? {}),
+      error ? String(error).slice(0, 500) : null, nowMs())
+  // 日志是诊断用的，不是数据：只留最近 500 条，防无限膨胀
+  db.prepare('DELETE FROM run_log WHERE id NOT IN (SELECT id FROM run_log ORDER BY id DESC LIMIT 500)').run()
+  return { ok: true }
+}
+
+/** 最近的后台维护日志（新的在前）；含系统级条目（account_id 为空） */
+export function listRunLog(accountId, limit = 30) {
+  const rows = getDb()
+    .prepare('SELECT * FROM run_log WHERE account_id = ? OR account_id IS NULL ORDER BY id DESC LIMIT ?')
+    .all(accountId, Math.max(1, Math.min(200, limit)))
+  return rows.map((r) => ({
+    id: r.id, accountId: r.account_id, kind: r.kind,
+    summary: parseJson(r.summary) ?? {}, error: r.error, at: r.created_at,
+  }))
 }
 
 /** 已经出局的题：人毙的、机器毙的、账户题库里隔离的 —— 一律不再进任何送审队列 */

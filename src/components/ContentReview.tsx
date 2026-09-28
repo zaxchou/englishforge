@@ -4,13 +4,13 @@
 import { useMemo, useState } from 'react'
 import type { AdaptedQuestion } from '../types'
 import { saveReviewMarks, type ReviewMarks } from '../content/reviewMarks'
-import type { AiStatus, DbAudit } from '../store/db'
+import type { AiStatus, DbAudit, RunLogEntry } from '../store/db'
 import { SystemAudit } from './SystemAudit'
 import './content-review.css'
 
 const DIFF = ['', '基础', '进阶', '挑战']
 
-export function ContentReview({ questions, marks, onMarks, onExit, audit, ai, onKillDuplicates, onModel, onAiReview, pipelineNote, onReopenBulk }: {
+export function ContentReview({ questions, marks, onMarks, onExit, audit, ai, onKillDuplicates, onModel, onAiReview, pipelineNote, runs, onReopenBulk }: {
   questions: AdaptedQuestion[]
   marks: ReviewMarks
   onMarks: (m: ReviewMarks) => void
@@ -22,6 +22,8 @@ export function ContentReview({ questions, marks, onMarks, onExit, audit, ai, on
   onAiReview: (limit: number) => Promise<{ reviewed: number; killed: number; fixed: number; rewritten: number; remaining: number; reviewer: string | null; independent: boolean; error: string | null } | null>
   /** 最近一次自动流水线的结果（开机自动跑的那次也会显示） */
   pipelineNote?: string | null
+  /** 后台维护日志（每次自动执行的留痕） */
+  runs: RunLogEntry[]
   onReopenBulk: () => Promise<number>
 }) {
   const drafts = useMemo(() => questions.filter((q) => q.reviewStatus === 'draft'), [questions])
@@ -106,6 +108,7 @@ export function ContentReview({ questions, marks, onMarks, onExit, audit, ai, on
         onModel={onModel}
         onAiReview={onAiReview}
         pipelineNote={pipelineNote}
+        runs={runs}
         onShowFlagged={() => { setScope('flagged') }}
         onReopenBulk={onReopenBulk}
       />

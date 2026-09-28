@@ -529,6 +529,21 @@ export async function fetchEnrichments(accountId: string): Promise<EnrichmentMap
   return res?.enrichments ?? null
 }
 
+/** 后台维护日志的一条留痕（流水线/补纠正每次自动执行的计数、动的题目、错误、耗时） */
+export interface RunLogEntry {
+  id: number
+  accountId: string | null
+  kind: string
+  summary: Record<string, unknown>
+  error: string | null
+  at: number
+}
+
+export async function fetchRunLog(accountId: string, limit = 30): Promise<RunLogEntry[] | null> {
+  const res = await attemptReq(() => req<{ runs: RunLogEntry[] }>(`/accounts/${accountId}/runs?limit=${limit}`))
+  return res?.runs ?? null
+}
+
 export interface EnrichRun {
   requested: number
   enriched: number

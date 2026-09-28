@@ -8,7 +8,7 @@
 //   2. 找"打架"的题（同一题干、答案不同）—— 这个更危险，只报告，由人决定；
 //   3. 让系统 AI 给缺逐项纠正的题补上「你选的那条等于在说什么意思」+ 错因标签。
 import { useState } from 'react'
-import type { AiStatus, DbAudit } from '../store/db'
+import type { AiStatus, DbAudit, RunLogEntry } from '../store/db'
 
 interface Props {
   audit: DbAudit | null
@@ -21,13 +21,15 @@ interface Props {
   onAiReview: (limit: number) => Promise<{ reviewed: number; killed: number; fixed: number; rewritten: number; remaining: number; reviewer: string | null; independent: boolean; error: string | null } | null>
   /** 最近一次自动流水线的结果（开机自动跑的那次也会显示在这里） */
   pipelineNote?: string | null
+  /** 后台维护日志（每次自动执行的留痕，出问题从这里查起） */
+  runs: RunLogEntry[]
   /** 只看"系统认为有问题、要人定"的题（把人工量压到最小） */
   onShowFlagged: () => void
   /** 把之前"批量通过"的旧结论作废，交给 AI 重审 */
   onReopenBulk: () => Promise<number>
 }
 
-export function SystemAudit({ audit, ai, onKillDuplicates, onModel, onAiReview, pipelineNote, onShowFlagged, onReopenBulk }: Props) {
+export function SystemAudit({ audit, ai, onKillDuplicates, onModel, onAiReview, pipelineNote, runs, onShowFlagged, onReopenBulk }: Props) {
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
   const [progress, setProgress] = useState('')
@@ -59,6 +61,21 @@ export function SystemAudit({ audit, ai, onKillDuplicates, onModel, onAiReview, 
     if (/截断|length|没有返回可解析/.test(e)) return '模型输出被截断（已自动拆小重试）'
     if (/429|503|502|500/.test(e)) return '模型服务暂时不可用'
     return e.length > 60 ? e.slice(0, 60) + '…' : e
+  }
+
+  /** 一条维护日志的人话摘要 */
+  function describeRun(s: Record<string, unknown>): string {
+    const n = (k: string) => (typeof s[k] === 'number' ? (s[k] as number) : undefined)
+    const parts: string[] = []
+    if (n('reviewed') !== undefined) parts.push(`审 ${n('reviewed')}`)
+    if (n('killed')) parts.push(`毙 ${n('killed')}`)
+    if (n('rewritten')) parts.push(`改写 ${n('rewritten')}`)
+    if (n('enriched') !== undefined) parts.push(`补 ${n('enriched')}`)
+    if (n('rejected')) parts.push(`弃 ${n('rejected')}`)
+    if (n('pending') !== undefined) parts.push(`余 ${n('pending')}`)
+    else if (n('remaining') !== undefined) parts.push(`余 ${n('remaining')}`)
+    if (n('ms') !== undefined) parts.push(`${Math.round((n('ms') as number) / 100) / 10}s`)
+    return parts.join(' · ') || '（无计数）'
   }
 
   async function killDuplicates() {
@@ -182,6 +199,21 @@ export function SystemAudit({ audit, ai, onKillDuplicates, onModel, onAiReview, 
               ? <> 出题 AI 在后台自动补齐（开机接着流水线跑），<b>不需要任何人操作</b>。</>
               : <> 已全部补齐。</>}
           </small>
+        </div>
+
+        <div className="sysaudit-card is-wide">
+          <span>后台维护日志</span>
+          <b>{runs.length ? `最近 ${runs.length} 条` : '还没有'}</b>
+          <small>流水线与补纠正每次自动执行的留痕（库里保留最近 500 条）。哪道题被毙、哪篇被改、哪次出了错，都在这里。</small>
+          {runs.slice(0, 8).map((r) => (
+            <div key={r.id}>
+              <small>
+                {new Date(r.at).toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' })}{' '}
+                {new Date(r.at).toLocaleTimeString('zh-CN', { hour12: false })} · {r.kind === 'pipeline' ? '流水线' : r.kind === 'enrich' ? '补纠正' : r.kind} · {describeRun(r.summary)}
+                {r.error ? ` · 出错：${shortError(r.error)}` : ''}
+              </small>
+            </div>
+          ))}
         </div>
       </div>
 

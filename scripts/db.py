@@ -302,15 +302,44 @@ def cmd_schema(conn, args):
     for r in rows:
         print(f"{r['type']:<6} {r['name']}")
     print("\n表：accounts / meta / skill_progress / question_states / attempts / practice_sessions /")
-    print("    daily_xp / active_sessions / content_reviews / snapshots")
+    print("    daily_xp / active_sessions / content_reviews / snapshots / run_log")
     print("视图：v_objective_stats（按知识点聚合）/ v_daily（按训练日聚合）")
+
+
+def cmd_log(conn, args):
+    """后台维护日志：流水线/补纠正每次自动执行的留痕。出问题从这里查起。"""
+    n = max(1, min(200, args.n))
+    rows = conn.execute(
+        "SELECT kind, summary, error, created_at FROM run_log ORDER BY id DESC LIMIT ?", (n,)).fetchall()
+    if not rows:
+        print("还没有后台维护日志（流水线/补纠正跑过之后这里就有）。")
+        return
+    for kind, summary, error, ts in rows:
+        t = datetime.fromtimestamp(ts / 1000).strftime("%m-%d %H:%M:%S")
+        s = json.loads(summary) if summary else {}
+        if kind == "pipeline":
+            line = (f"审 {s.get('reviewed', 0)} · 毙 {s.get('killed', 0)} · 改写 {s.get('rewritten', 0)}"
+                    f" · 还剩 {s.get('pending', '?')} · {s.get('reviewer', '?')} · {s.get('ms', 0) / 1000:.1f}s")
+            print(f"[{t}] 流水线  {line}")
+            if s.get("killedIds"):
+                print(f"    毙掉: {', '.join(s['killedIds'])}")
+            if s.get("rewrittenIds"):
+                print(f"    改写: {', '.join(s['rewrittenIds'])}")
+        elif kind == "enrich":
+            line = (f"补 {s.get('enriched', 0)} · 丢弃 {s.get('rejected', 0)}（宁缺勿错）"
+                    f" · 还剩 {s.get('remaining', '?')} · {s.get('model', '?')} · {s.get('ms', 0) / 1000:.1f}s")
+            print(f"[{t}] 补纠正  {line}")
+        else:
+            print(f"[{t}] {kind}  {json.dumps(s, ensure_ascii=False)[:120]}")
+        if error:
+            print(f"    出错: {error}")
 
 
 def main():
     p = argparse.ArgumentParser(description="EnglishForge 进度数据库查询（只读）")
     p.add_argument("cmd", nargs="?", default="summary",
                    choices=["summary", "accounts", "objectives", "errors", "days", "questions",
-                            "sessions", "snapshots", "attempts", "items", "batches", "schema", "sql"])
+                            "sessions", "snapshots", "attempts", "items", "batches", "log", "schema", "sql"])
     p.add_argument("query", nargs="?", help="sql 子命令的 SQL")
     p.add_argument("--acct", help="账户 id 或名称（默认第一个）")
     p.add_argument("-n", type=int, default=20, help="限制行数（默认 20）")
@@ -324,7 +353,7 @@ def main():
             "summary": cmd_summary, "accounts": cmd_accounts, "objectives": cmd_objectives,
             "errors": cmd_errors, "days": cmd_days, "questions": cmd_questions,
             "sessions": cmd_sessions, "snapshots": cmd_snapshots, "attempts": cmd_attempts,
-            "items": cmd_items, "batches": cmd_batches,
+            "items": cmd_items, "batches": cmd_batches, "log": cmd_log,
             "schema": cmd_schema, "sql": cmd_sql,
         }[args.cmd](conn, args)
     finally:

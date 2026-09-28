@@ -402,13 +402,31 @@ describe('全自动流水线（审 → 改 → 复审，人不在链上）', () 
     await call('/api/catalog', { questions: [raw] }, 'POST')
     expect(mirror()).toBe(en.pqA.rewrite.explain)
 
-    // 第二轮：复审通过 → 归零
+    // 自动执行必须留痕：日志里有这一轮的计数、动了哪些题、用的哪个审核员
+    const logs = dbmod.listRunLog(acct, 10).filter((r) => r.kind === 'pipeline')
+    expect(logs.length).toBeGreaterThanOrEqual(1)
+    expect(logs[0].summary.reviewed).toBeGreaterThan(0)
+    expect(logs[0].summary.reviewer).toContain('mimo')
+    expect(logs[0].summary.rewrittenIds).toContain('pqA')
+    expect(logs[0].summary.ms).toBeGreaterThan(0)
+
+    // 第二轮：复审通过 → 归零。复审是实打实的工作，同样要留痕
+    const beforeR2 = dbmod.listRunLog(acct, 10).filter((r) => r.kind === 'pipeline').length
     const r2 = (await call(`/api/accounts/${acct}/ai-pipeline`, { limit: 60 }, 'POST')).json
     expect(r2.pending).toBe(0)
     expect(r2.verdicts.pqA.verdict).toBe('ok')
     expect(r2.verdicts.pqA.source).toBe('ai')
     const a = (await call(`/api/accounts/${acct}/audit`)).json.audit
     expect(a.pipelinePending).toBe(0)
+    const afterR2 = dbmod.listRunLog(acct, 10).filter((r) => r.kind === 'pipeline')
+    expect(afterR2.length).toBe(beforeR2 + 1)
+    expect(afterR2[0].summary.reviewed).toBe(1)
+    expect(afterR2[0].summary.pending).toBe(0)
+
+    // 真正没有信息量的空轮（requested=0）才不写日志
+    const r3 = (await call(`/api/accounts/${acct}/ai-pipeline`, { limit: 60 }, 'POST')).json
+    expect(r3.requested).toBe(0)
+    expect(dbmod.listRunLog(acct, 10).filter((r) => r.kind === 'pipeline').length).toBe(beforeR2 + 1)
     resetChat()
   })
 })

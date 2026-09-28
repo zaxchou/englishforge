@@ -8,12 +8,12 @@ import type { ProgressV2 } from '../types'
 import type { ReviewMarks } from '../content/reviewMarks'
 import {
   bootstrap, createAccount, currentAccountId, decideBoot, fetchAccounts, fetchAiStatus, fetchAudit,
-  fetchEnrichments, fetchItemBatches, fetchItems, fetchStats, getDbError, getDbState, lastSyncedAt,
+  fetchEnrichments, fetchItemBatches, fetchItems, fetchRunLog, fetchStats, getDbError, getDbState, lastSyncedAt,
   pullProgress, pushCatalog, renameAccount, reopenBulk as reopenBulkApi, resetRemote, runAiPipeline,
   runEnrichCauses, setCurrentAccountId,
   setAiModel, setItemVerdict, subscribeDbState, syncProgress, unionProgress,
   type AiStatus, type CatalogRow, type DbAccount, type DbAudit, type DbItem, type DbItemBatch,
-  type DbItemStats, type DbState, type DbStats, type EnrichmentMap, type PullResult,
+  type DbItemStats, type DbState, type DbStats, type EnrichmentMap, type PullResult, type RunLogEntry,
 } from './db'
 
 /** 状态变化后多久落库：一次练习里连续提交会合并成一次写入 */
@@ -59,6 +59,8 @@ export interface DbSyncApi {
   aiReviewNow: (limit?: number) => Promise<{ reviewed: number; killed: number; fixed: number; rewritten: number; remaining: number; reviewer: string | null; independent: boolean; error: string | null } | null>
   /** 最近一次自动流水线的结果（系统自检页显示，不用人盯着跑） */
   pipelineNote: string | null
+  /** 后台维护日志（流水线/补纠正每次自动执行的留痕），随自检刷新 */
+  runs: RunLogEntry[]
   /** 让系统自己的 AI 补一批逐项纠正 */
   enrichNow: (limit?: number) => Promise<{ enriched: number; rejected: number; truncated: number; remaining: number; error: string | null } | null>
   /** 状态变了：安排一次落库 */
@@ -232,14 +234,15 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
     setItemBatches(batches ?? [])
   }, [])
 
-  /** 系统自检 + 已补内容的加载 */
+  /** 系统自检 + 已补内容 + 后台维护日志的加载 */
   const runAudit = useCallback(async () => {
     const id = accountRef.current?.id
     if (!id) return
-    const [a, en, st] = await Promise.all([fetchAudit(id), fetchEnrichments(id), fetchAiStatus()])
+    const [a, en, st, rl] = await Promise.all([fetchAudit(id), fetchEnrichments(id), fetchAiStatus(), fetchRunLog(id)])
     if (a) setAudit(a)
     if (en) setEnrichments(en)
     setAi(st)
+    if (rl) setRuns(rl)
   }, [])
 
   const syncCatalog = useCallback(async (rows: CatalogRow[]) => {
@@ -265,6 +268,7 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
   }, [runAudit])
 
   const [pipelineNote, setPipelineNote] = useState<string | null>(null)
+  const [runs, setRuns] = useState<RunLogEntry[]>([])
   const autoPipelineRef = useRef(false)
 
   /**
@@ -551,7 +555,7 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
     dismissNotice: () => setNotice(null),
     note: (text, kind = 'ok') => setNotice({ kind, text }),
     items, itemStats, itemBatches, itemsCached, reloadItems, patchItemVerdict,
-    audit, enrichments, ai, syncCatalog, runAudit, enrichNow, changeModel, aiReviewNow, pipelineNote, reopenBulkNow,
+    audit, enrichments, ai, syncCatalog, runAudit, enrichNow, changeModel, aiReviewNow, pipelineNote, runs, reopenBulkNow,
     schedule, flush, refreshStats, rename, newAccount, switchTo, resetCurrent, reloadFromDb,
   }
 }

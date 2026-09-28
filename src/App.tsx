@@ -556,6 +556,7 @@ export default function App() {
             onModel={(model: string) => db.changeModel(model)}
             onAiReview={(limit: number) => db.aiReviewNow(limit)}
             pipelineNote={db.pipelineNote}
+            runs={db.runs}
             onReopenBulk={() => db.reopenBulkNow()}
           />
         )}

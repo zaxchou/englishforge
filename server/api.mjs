@@ -5,10 +5,10 @@
 import {
   ApiError, addItems, audit, createAccount, dbInfo, deleteItem, ensureDefaultAccount, getAccount,
   catalogForReview, itemStats, listAccounts, listBatches, listEnrichments, listItems,
-  listSnapshots, pipelineQueue, reopenBulk, reopenIncompleteAi, reviewQueue,
+  listRunLog, listSnapshots, pipelineQueue, reopenBulk, reopenIncompleteAi, reviewQueue,
   loadProgress, queryAttempts, renameAccount, replaceState, resetAccount, restoreSnapshot,
   saveAiReview, saveEnrichment, saveRewrite, setItemReview, setSetting, stats, syncAccount, touchAccount,
-  upsertCatalog, writeSnapshot, getDb,
+  upsertCatalog, writeSnapshot, writeRunLog, getDb,
 } from './db.mjs'
 import { enrichCauses, rewriteQuestions, reviewQuestions } from './content-ai.mjs'
 import { invalidateLlmConfig, llmStatus, DEFAULT_MODEL } from './llm.mjs'
@@ -101,6 +101,7 @@ const ROUTES = [
     return { ok: true, ...upsertCatalog(rows) }
   }],
   ['GET', '/api/accounts/:id/audit', (ctx) => ({ audit: audit(ctx.params.id) })],
+  ['GET', '/api/accounts/:id/runs', (ctx) => ({ runs: listRunLog(ctx.params.id, num(ctx.query.get('limit'), 30)) })],
   ['GET', '/api/accounts/:id/enrichments', (ctx) => ({ enrichments: listEnrichments(ctx.params.id, ctx.query.get('kind')) })],
   /**
    * 让**另一个模型**去审核题库（用户的要求：审核也该是自动的，不该让人逐题看）。
@@ -140,12 +141,14 @@ const ROUTES = [
    */
   ['POST', '/api/accounts/:id/ai-pipeline', async (ctx) => {
     const id = ctx.params.id
+    const started = Date.now()
     if (pipelineLock.has(id)) return { ok: true, running: true }
     pipelineLock.add(id)
     try {
       const limit = Math.max(1, Math.min(60, num(ctx.body?.limit, 60)))
       const todo = pipelineQueue(id, { limit })
       if (!todo.length) {
+        // 空轮是客户端循环的正常收尾，没有信息量，不写日志
         return {
           ok: true, requested: 0, reviewed: 0, killed: 0, fixed: 0, rewritten: 0,
           rejected: 0, rewriteRejected: 0, pending: audit(id).pipelinePending, verdicts: {},
@@ -156,22 +159,27 @@ const ROUTES = [
       const tag = provider ? `${provider}/${model}` : model
       let killed = 0, fixed = 0, saved = 0
       const verdicts = {}
+      const killedIds = [], fixedIds = []
       for (const [qid, v] of Object.entries(results)) {
         saveAiReview(id, qid, v.verdict, v.reasons, tag)
         verdicts[qid] = { verdict: v.verdict, reasons: v.reasons, source: 'ai', model: tag }
         saved++
-        if (v.verdict === 'kill') killed++
-        else if (v.verdict === 'fix') fixed++
+        if (v.verdict === 'kill') { killed++; killedIds.push(qid) }
+        else if (v.verdict === 'fix') { fixed++; fixedIds.push(qid) }
       }
       // 审出"要改"的 → 出题人立刻改稿（改完的题仍在待办里，下一轮复审；单方结论不采信）
       let rewritten = 0, rewriteRejected = 0, rewriteError = null
       const fixQs = todo.filter((q) => results[q.id]?.verdict === 'fix')
         .map((q) => ({ ...q, reasons: results[q.id].reasons }))
+      const rewrittenIds = []
       if (fixQs.length) {
         try {
           const rw = await rewriteQuestions(fixQs)
           for (const [qid, payload] of Object.entries(rw.results)) {
-            if (saveRewrite(id, qid, payload, rw.model ? `${rw.provider}/${rw.model}` : null).saved) rewritten++
+            if (saveRewrite(id, qid, payload, rw.model ? `${rw.provider}/${rw.model}` : null).saved) {
+              rewritten++
+              rewrittenIds.push(qid)
+            }
           }
           rewriteRejected = rw.rejected
           rewriteError = rw.error
@@ -179,11 +187,19 @@ const ROUTES = [
           rewriteError = String(err?.message ?? err)
         }
       }
+      // 留痕：这次自动执行干了什么、动了谁、错在哪（日志表只留最近 500 条）
+      const finalError = error ?? rewriteError
+      writeRunLog(id, 'pipeline', {
+        requested: todo.length, reviewed: saved, killed, fixed, rewritten, rewriteRejected,
+        rejected, truncated, pending: audit(id).pipelinePending, reviewer: tag,
+        ms: Date.now() - started,
+        killedIds: killedIds.slice(0, 50), fixedIds: fixedIds.slice(0, 50), rewrittenIds: rewrittenIds.slice(0, 50),
+      }, finalError)
       return {
         ok: true, requested: todo.length, reviewed: saved, killed, fixed, rewritten,
         rejected, rewriteRejected, truncated, pending: audit(id).pipelinePending, verdicts,
         reviewer: { provider, model, independent: llmStatus().independentReview },
-        error: error ?? rewriteError,
+        error: finalError,
       }
     } finally {
       pipelineLock.delete(id)
@@ -202,6 +218,7 @@ const ROUTES = [
 
   /** 让系统自己的 AI 给缺逐项纠正的题补上（一次一批，可反复点，直到补完） */
   ['POST', '/api/accounts/:id/enrich-causes', async (ctx) => {
+    const started = Date.now()
     const limit = num(ctx.body?.limit, 8)
     const a = audit(ctx.params.id)
     const todo = a.missingCauseAll.slice(0, Math.max(1, Math.min(24, limit)))
@@ -213,6 +230,11 @@ const ROUTES = [
       saved++
     }
     const after = audit(ctx.params.id)
+    writeRunLog(ctx.params.id, 'enrich', {
+      requested: todo.length, enriched: saved, rejected, truncated,
+      remaining: after.missingCause.count, model, ms: Date.now() - started,
+      ids: Object.keys(results).slice(0, 50),
+    }, error)
     return {
       ok: true, requested: todo.length, enriched: saved, rejected, truncated, model,
       error: error ?? null, remaining: after.missingCause.count,
