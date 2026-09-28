@@ -30,7 +30,8 @@ if [ -n "$AVAIL_KB" ] && [ "$AVAIL_KB" -lt 1048576 ]; then
 fi
 
 echo "[1/4] 构建镜像 englishforge:$VER（在 NAS 上 npm ci + build，约几分钟）"
-docker build -t "englishforge:$VER" "$PROJ"
+# Dockerfile 在 deploy/ 下，上下文用整个项目根（.dockerignore 已排除 node_modules/dist/data）
+docker build -f "$PROJ/deploy/Dockerfile" -t "englishforge:$VER" "$PROJ"
 
 echo "[2/4] 更新 .env 版本标签"
 sed -i "s/^ENGLISHFORGE_TAG=.*/ENGLISHFORGE_TAG=$VER/" "$ENV_FILE"

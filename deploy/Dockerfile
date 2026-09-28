@@ -7,7 +7,7 @@ WORKDIR /build
 COPY package.json package-lock.json ./
 ARG NPM_REGISTRY=https://registry.npmmirror.com
 RUN npm config set registry "$NPM_REGISTRY" && npm ci --no-fund --no-audit
-COPY index.html vite.config.ts vite-plugin-db.mjs tsconfig.json tsconfig.app.json tsconfig.node.json ./
+COPY index.html vite.config.ts vite-plugin-db.mjs vite-plugin-db.d.mts tsconfig.json tsconfig.app.json tsconfig.node.json ./
 COPY public ./public
 COPY src ./src
 COPY server ./server
