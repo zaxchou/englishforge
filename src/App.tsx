@@ -142,11 +142,16 @@ export default function App() {
         isVariantDrill: ses.queue.find(it => it.qid === a.qid)?.isVariantDrill,
       })
     } else if (q?.mode === 'oral') {
-      const completed = a.evaluator === 'self' && a.outcome === 'correct'
-      if (completed) {
-        const independent = a.evaluator === 'self' && a.supportUsed === 0 && a.outcome === 'correct'
-        recordSpeak(p, a.qid, independent ? 'independent-self' : 'prompted', independent)
-      }
+      // 口语题：**任何**作答结果都要推进排程。只承认"自评完成"的话，跳过 / 语音识别不确定 /
+      // 自评未过 三条路径都不会改动 dueAt，题目就永远留在到期队列里（实测 bug）。
+      // 口语状态只在真正做了自评（self/ai 判定为正确）时才写，不冒充认证。
+      const ok = a.outcome === 'correct'
+      const self = a.evaluator === 'self'
+      const ai = a.evaluator === 'aiText'
+      const independent = ok && a.supportUsed === 0 && (self || ai)
+      const status = independent ? (ai ? 'independent-ai' : 'independent-self')
+        : self && ok ? 'prompted' : null
+      recordSpeak(p, a.qid, status, independent)
     }
 
     const attempt: Attempt = {

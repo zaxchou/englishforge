@@ -440,10 +440,31 @@ describe('口语题排程（回归：反复出现且清不掉）', () => {
     expect(p.questionStates[q.id].dueAt).toBe(1000 + INTERVALS[1] * DAY)
     expect(p.questionStates[q.id].speak?.status).toBe('independent-self')
 
-    recordSpeak(p, q.id, 'independent-self', false, 2000)
+    recordSpeak(p, q.id, 'prompted', false, 2000)
     expect(p.questionStates[q.id].stage).toBe(0)
     expect(p.questionStates[q.id].dueAt).toBe(2000 + DAY)
-    expect(p.questionStates[q.id].speak?.status).toBe('prompted')   // 依赖提示一律记为 prompted
+    expect(p.questionStates[q.id].speak?.status).toBe('prompted')   // 依赖提示记为 prompted
+  })
+
+  // 这两条才是"反复出现且清不掉"的真正来源：只承认"自评完成"时，
+  // 跳过与识别不确定都不改动 dueAt，题目永远到期，而且越逾期排得越靠前。
+  it('跳过 / 识别不确定（status=null）也必须离开到期队列', () => {
+    const p = defaultProgressV2()
+    const q = speakQ()
+    p.questionStates[q.id] = { stage: 2, dueAt: Date.now() - DAY * 30, correct: 2, total: 2, legacy: true }
+    expect(dueQuestions(p, [q])).toHaveLength(1)          // 一进来就是到期的
+    recordSpeak(p, q.id, null, false)                     // 本次没做自评（跳过 / 识别不确定）
+    expect(dueQuestions(p, [q])).toHaveLength(0)          // 必须离开队列
+    expect(p.questionStates[q.id].dueAt).toBeGreaterThan(Date.now())
+  })
+
+  it('跳过不写入口语状态（不冒充自评认证），但练习量照常累计', () => {
+    const p = defaultProgressV2()
+    const q = speakQ()
+    recordSpeak(p, q.id, null, false, 1000)
+    expect(p.questionStates[q.id].speak).toBeUndefined()
+    expect(p.questionStates[q.id].total).toBe(1)
+    expect(p.questionStates[q.id].correct).toBe(0)
   })
 
   it('练习量照常累计，但口语题不进确定性判定路径', () => {
