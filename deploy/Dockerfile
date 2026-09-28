@@ -15,6 +15,9 @@ RUN npm run build
 
 FROM node:22-alpine
 ENV NODE_ENV=production TZ=Asia/Shanghai
+# compose 用 user: 1026:100 覆盖镜像的 node 用户，HOME 会落回 / ——
+# 显式指到可写目录，避免 npm/npx 在 /.npm 上 EACCES（实测容器起不来的原因）
+ENV HOME=/tmp
 WORKDIR /app
 COPY package.json package-lock.json ./
 ARG NPM_REGISTRY=https://registry.npmmirror.com
@@ -30,4 +33,5 @@ EXPOSE 4173
 USER node
 HEALTHCHECK --interval=60s --timeout=8s --start-period=90s --retries=3 \
   CMD wget -qO- "http://127.0.0.1:${PORT:-4173}/api/health" >/dev/null 2>&1 || exit 1
-CMD ["npx", "vite", "preview", "--host", "0.0.0.0", "--port", "4173", "--strictPort"]
+# 直接用 node 跑 vite 入口（不经 npx/npm，运行时不需要任何缓存目录）
+CMD ["node", "node_modules/vite/bin/vite.js", "preview", "--host", "0.0.0.0", "--port", "4173", "--strictPort"]

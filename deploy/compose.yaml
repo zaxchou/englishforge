@@ -1,6 +1,9 @@
 # EnglishForge 生产 Compose 模板（实际部署目录：deploy/production/ —— 已 gitignore，密钥只在那里）。
 # 单实例常驻；数据在 JunEnglish/data/englishforge-production/，与镜像版本无关。
 # 改动本文件后必须同步 deploy/production/compose.yaml —— 部署用的是后者。
+# name 必须独立：NAS 上 MyInfobase 的 compose 项目也叫 production，同名会互相把对方当
+# "孤儿容器"，谁要是顺手 --remove-orphans 就会把另一家的服务杀掉。
+name: englishforge
 services:
   englishforge:
     image: englishforge:${ENGLISHFORGE_TAG:-latest}
