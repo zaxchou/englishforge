@@ -174,6 +174,7 @@ export interface Attempt {
   evaluator: Evaluator
   responseMs?: number
   isDueReview: boolean     // 是否到期检索
+  isVariantDrill?: boolean
 }
 
 /** 题级复习状态（5.3 单题复习规则） */
@@ -207,6 +208,8 @@ export type SessionKind = 'today' | 'skill' | 'review'
 export interface QuizRuntime {
   phase: { kind: 'concept' | 'q' | 'retry'; index: number }
   retryIds: string[]
+  combo?: { cur: number; best: number }
+  pending?: PersistedResult | null
   results: PersistedResult[]
 }
 

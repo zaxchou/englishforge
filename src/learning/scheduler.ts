@@ -56,6 +56,7 @@ export interface ReviewInput {
   /** 作答前是否已到期 */
   wasDue: boolean
   now?: number
+  isVariantDrill?: boolean
 }
 
 /**
@@ -72,14 +73,15 @@ export function applyQuestionReview(p: ProgressV2, qid: string, ev: ReviewInput)
   const cur: QuestionState = p.questionStates[qid] ?? { stage: 0, dueAt: 0, correct: 0, total: 0 }
   const next: QuestionState = { ...cur, total: cur.total + 1 }
 
-  if (!ev.firstAttempt) {
+  if (!ev.firstAttempt || ev.isVariantDrill) {
     // 补练/立即重试：只记练习量，阶段与到期不动
     if (ev.outcome === 'correct') next.correct = cur.correct + 1
+    if (ev.isVariantDrill && cur.total === 0) next.dueAt = now + DAY
     p.questionStates[qid] = next
     return next
   }
 
-  if (ev.outcome === 'incorrect') {
+  if (ev.outcome === 'incorrect' || (ev.outcome === 'correct' && !ev.independent)) {
     next.stage = 0
     next.dueAt = now + DAY          // 次日复习
     next.lastFailureAt = now
@@ -142,23 +144,8 @@ export function dueQuestions(
     due.push({ q, overdue: now - st.dueAt, critical: criticalQids.has(qid) })
   }
   due.sort((a, b) => Number(b.critical) - Number(a.critical) || b.overdue - a.overdue)
-  // 跨知识点打散：同优先级内按技能轮转
-  const out: AdaptedQuestion[] = []
-  const groups = new Map<string, typeof due>()
-  for (const d of due) {
-    const g = groups.get(d.q.skill) ?? []
-    g.push(d)
-    groups.set(d.q.skill, g)
-  }
-  const queues = [...groups.values()]
-  let i = 0
-  while (out.length < due.length) {
-    const g = queues[i % queues.length]
-    const item = g.shift()
-    if (item) out.push(item.q)
-    i++
-    if (i > due.length * 4) break
-  }
+  // Preserve critical/overdue priority and never truncate unbalanced skill groups.
+  const out = due.map(item => item.q)
   return out
 }
 
@@ -230,14 +217,15 @@ export function buildTodayQueue(
   ]
   const situTake = Math.min(2, remain(), situCandidates.length)
   for (const q of situCandidates.slice(0, situTake)) {
-    items.push(makeQueueItem(q, sessionId))
+    items.push(makeQueueItem(q, sessionId, { isDueReview: !!p.questionStates[q.id]?.total && p.questionStates[q.id].dueAt <= now }))
     used.add(q.id)
   }
 
   // 4. 当前知识点任务（新题优先，其次未到期已练变式）
   for (const q of curPool) {
+    if (used.has(q.id)) continue
     if (remain() <= 0) break
-    items.push(makeQueueItem(q, sessionId))
+    items.push(makeQueueItem(q, sessionId, { isDueReview: !!p.questionStates[q.id]?.total && p.questionStates[q.id].dueAt <= now }))
     used.add(q.id)
   }
 
@@ -248,12 +236,13 @@ export function buildTodayQueue(
       .sort((a, b) => score(b) - score(a))
     for (const q of rest) {
       if (remain() <= 0) break
-      items.push(makeQueueItem(q, sessionId))
+      items.push(makeQueueItem(q, sessionId, { isDueReview: !!p.questionStates[q.id]?.total && p.questionStates[q.id].dueAt <= now }))
       used.add(q.id)
     }
   }
   if (remain() > 0 && due.length > dueTake) {
     for (const q of due.slice(dueTake)) {
+      if (used.has(q.id)) continue
       if (remain() <= 0) break
       items.push(makeQueueItem(q, sessionId, { isDueReview: true }))
       used.add(q.id)
@@ -293,7 +282,7 @@ export function buildSkillQueue(
     if (take.length >= 12) break
     if (!used.has(q.id)) { take.push(q); used.add(q.id) }
   }
-  return take.map((q) => makeQueueItem(q, sessionId))
+  return take.map((q) => makeQueueItem(q, sessionId, { isDueReview: !!p.questionStates[q.id]?.total && p.questionStates[q.id].dueAt <= now }))
 }
 
 /** 复习队列：全部来自题级到期数据（不从技能总 box 推断，§5.4.2） */
@@ -335,7 +324,8 @@ export function insertVariantDrill(
     Number(b.variantGroupId === failed.variantGroupId) - Number(a.variantGroupId === failed.variantGroupId) ||
     Number(b.type === failed.type) - Number(a.type === failed.type) ||
     (a.diff ?? 1) - (b.diff ?? 1))
-  const insertAt = Math.min(queue.length, cursor + 2)   // 过至少两个其他任务
+  if (queue.length - cursor < 2) return false
+  const insertAt = cursor + 2   // 过至少两个其他任务
   queue.splice(insertAt, 0, makeQueueItem(candidates[0], sessionId, { isVariantDrill: true }))
   return true
 }

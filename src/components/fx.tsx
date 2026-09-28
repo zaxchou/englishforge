@@ -1,4 +1,3 @@
-import { useEffect, useRef, useState } from 'react'
 
 /** 浏览器 TTS 朗读英文（en-US） */
 export function Speaker({ text }: { text: string }) {
@@ -38,15 +37,5 @@ export function Confetti() {
 
 /** 打铁火花：答对时的短动画 */
 export function Spark({ show }: { show: boolean }) {
-  const [gone, setGone] = useState(true)
-  const t = useRef<number | undefined>(undefined)
-  useEffect(() => {
-    if (show) {
-      setGone(false)
-      t.current = window.setTimeout(() => setGone(true), 700)
-    }
-    return () => window.clearTimeout(t.current)
-  }, [show])
-  if (gone) return null
-  return <span className="spark" aria-hidden>✨</span>
+  return show ? <span className="spark" aria-hidden>✨</span> : null
 }

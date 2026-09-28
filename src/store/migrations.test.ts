@@ -169,3 +169,18 @@ describe('本地日期（用例 11：跨午夜不等 UTC）', () => {
     expect(localDateStr(new Date(2026, 11, 31, 23, 55).getTime())).toBe('2026-12-31')
   })
 })
+
+
+describe('Review fixes: recovery and imports', () => {
+  it('exports in-memory progress even when storage is unavailable', () => {
+    const p = defaultProgressV2(); p.xp = 321
+    vi.spyOn(localStorage, 'getItem').mockImplementation(() => { throw new Error('blocked') })
+    expect(JSON.parse(exportSave(p)).xp).toBe(321)
+  })
+  it('rejects malformed nested attempts and session runtime before import', () => {
+    const p = defaultProgressV2()
+    expect(previewImport(JSON.stringify({...p, attempts:[null]}))).toHaveProperty('error')
+    expect(previewImport(JSON.stringify({...p, questionStates:{bad:null}}))).toHaveProperty('error')
+    expect(previewImport(JSON.stringify({...p, activeSession:{sessionId:'bad',kind:'today',createdAt:1,committed:false,queue:[],runtime:{phase:{kind:'q',index:'zero'},results:[],retryIds:[]}}}))).toHaveProperty('error')
+  })
+})

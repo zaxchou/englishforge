@@ -1,11 +1,10 @@
 import { useMemo, useState } from 'react'
 import type { ProgressV2 } from '../types'
-import { lessons, modules } from '../data/course'
-import { recentDaysXp, weekXp, todayStr } from '../store/progress'
-import { STATE_LABEL, type EvidenceReport } from '../learning/evidence'
+import { lessons } from '../data/course'
+import { recentDaysXp, todayStr } from '../store/progress'
+import type { EvidenceReport } from '../learning/evidence'
 import './dashboard.css'
 
-/** 首页三行简报（PLAN-v2 §3.1：今天练什么 / 多少到期 / 中断续练） */
 export interface TodayBrief {
   skillName: string | null
   skillLesson: string
@@ -32,448 +31,80 @@ interface Props {
   onReset: () => void
 }
 
-const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六']
 
-export function Dashboard({ progress, evidence, todayBrief, soundOn, saveErr, onToggleSound, onOpenLesson, onStartToday, onResume, onStartReview, onExportSave, onImportSave, onReset }: Props) {
-  const [period, setPeriod] = useState<'week' | 'all'>('week')
-  const [query, setQuery] = useState('')
-  const [showMore, setShowMore] = useState(false)
-
-  // ---- 统计 ----
-  const week = useMemo(() => weekXp(progress), [progress])
-  const days = useMemo(() => recentDaysXp(progress, 4), [progress])
-  const sc = todayBrief.stateCounts
-  const stable = sc.early + sc.durable
-
-  const dueCount = todayBrief.dueCount
-
-  const todayXp = progress.dailyXp?.[todayStr()] ?? 0
-  const todayGoal = 60
-  const goalPct = Math.min(1, todayXp / todayGoal)
-
-  const sessions = progress.sessions ?? []
-  const shownSessions = showMore ? sessions.slice(0, 12) : sessions.slice(0, 3)
-
-  // ---- 搜索 ----
-  const results = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (!q) return []
-    const out: { type: 'lesson' | 'skill'; lessonId: string; lessonNo: string; title: string; sub?: string }[] = []
-    for (const les of Object.values(lessons)) {
-      if ((les.title + les.no).toLowerCase().includes(q)) {
-        out.push({ type: 'lesson', lessonId: les.id, lessonNo: les.no, title: `第 ${les.no} 课 · ${les.title}`, sub: les.subtitle })
-      }
-      for (const sk of les.skills) {
-        if ((sk.name + sk.tagline).toLowerCase().includes(q)) {
-          out.push({ type: 'skill', lessonId: les.id, lessonNo: les.no, title: sk.name, sub: `第 ${les.no} 课 · ${sk.tagline}` })
-        }
-      }
-    }
-    return out.slice(0, 6)
-  }, [query])
-
-  function exportReport() {
-    const data = {
-      exportedAt: new Date().toISOString(),
-      系统: 'EnglishForge',
-      xp: progress.xp,
-      连续天数: progress.streak,
-      最高连击: progress.comboBest,
-      每日XP: progress.dailyXp ?? {},
-      最近练习: progress.sessions ?? [],
-      技能状态: Object.fromEntries(Object.entries(evidence.bySkill).map(([k, v]) => [k, { state: v.state, last10: v.last10, days: v.days, openErrors: v.openErrors }])),
-      分项证据: { dims: evidence.dims, 到期检索成功: evidence.dueSuccesses, 口语: evidence.oral },
-      思维点历史进度: progress.skills,
-      题级状态: progress.questionStates,
-    }
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(blob)
-    a.download = `EnglishForge-学习报告-${todayStr()}.json`
-    a.click()
-    URL.revokeObjectURL(a.href)
-  }
-
-  function scrollToModules() {
-    document.getElementById('modules')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }
-
-  const accAll = sessions.length ? Math.round(sessions.reduce((s, x) => s + x.acc, 0) / sessions.length) : 0
-  const skillOfBrief = todayBrief.skillName
-    ? Object.values(lessons).flatMap((l) => l.skills.map((s) => ({ s, no: l.no }))).find((x) => x.s.name === todayBrief.skillName)
-    : undefined
-  const briefState = skillOfBrief ? evidence.bySkill[skillOfBrief.s.id]?.state : undefined
-
-  return (
-    <div className="dash">
-      {/* ===== 左侧图标导航（卡内分区，无背景块；选中=实心图标+粗字） ===== */}
-      <aside className="rail">
-        <button className="rail-btn active" title="仪表盘">
-          <svg viewBox="0 0 24 24" className="ico-line"><rect x="3.5" y="3.5" width="7" height="7" rx="2" /><rect x="13.5" y="3.5" width="7" height="7" rx="2" /><rect x="3.5" y="13.5" width="7" height="7" rx="2" /><rect x="13.5" y="13.5" width="7" height="7" rx="2" /></svg>
-          <svg viewBox="0 0 24 24" className="ico-fill"><rect x="3" y="3" width="8" height="8" rx="2.4" /><rect x="13" y="3" width="8" height="8" rx="2.4" /><rect x="3" y="13" width="8" height="8" rx="2.4" /><rect x="13" y="13" width="8" height="8" rx="2.4" /></svg>
-          <span className="rail-label">仪表盘</span>
-        </button>
-        <button className="rail-btn" title="课程" onClick={scrollToModules}>
-          <svg viewBox="0 0 24 24" className="ico-line"><path d="M12 6.5C10.2 5.2 7.4 4.9 4.5 5.8V18.6c2.9-.9 5.7-.6 7.5.7 1.8-1.3 4.6-1.6 7.5-.7V5.8C16.6 4.9 13.8 5.2 12 6.5Z" /><path d="M12 6.5v12.8" /></svg>
-          <svg viewBox="0 0 24 24" className="ico-fill"><path d="M12 6.2C10.1 4.9 7.3 4.7 4 5.6v13.2c3.3-.9 6.1-.7 8 .6 1.9-1.3 4.7-1.5 8-.6V5.6c-3.3-.9-6.1-.7-8 .6Zm0 .9v12.4" /><path d="M12 7.1v12.4" /></svg>
-          <span className="rail-label">课程</span>
-        </button>
-        <button className="rail-btn" title="今日复习" onClick={onStartReview}>
-          <svg viewBox="0 0 24 24" className="ico-line"><path d="M20 12a8 8 0 1 1-2.3-5.6" /><path d="M20 3v5h-5" /></svg>
-          <svg viewBox="0 0 24 24" className="ico-fill"><path d="M12 4a8 8 0 1 0 8 8h-2.5a5.5 5.5 0 1 1-1.6-3.9L13 11h7V4l-2.4 2.4A8 8 0 0 0 12 4Z" /></svg>
-          {dueCount > 0 && <span className="rail-dot">{dueCount}</span>}
-          <span className="rail-label">复习</span>
-        </button>
-        <button className="rail-btn" title="清空进度" onClick={onReset}>
-          <svg viewBox="0 0 24 24" className="ico-line"><path d="M4 8h16" /><path d="M9 8V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V8" /><path d="M6.5 8l1 11.5A1.5 1.5 0 0 0 9 21h6a1.5 1.5 0 0 0 1.5-1.5l1-11.5" /></svg>
-          <svg viewBox="0 0 24 24" className="ico-fill"><path d="M9.5 3.5A1.5 1.5 0 0 1 11 2h2a1.5 1.5 0 0 1 1.5 1.5V4H19a1 1 0 1 1 0 2h-.6l-1 12.1A2.5 2.5 0 0 1 14.9 20H9.1a2.5 2.5 0 0 1-2.5-1.9L5.6 6H5a1 1 0 0 1 0-2h4.5v-.5Z" /></svg>
-          <span className="rail-label">清空</span>
-        </button>
-      </aside>
-
-      {/* ===== 中间主区 ===== */}
-      <div className="dash-main">
-        {/* 顶栏：品牌 + 搜索 */}
-        <div className="dash-top">
-          <div className="logo-mark">⚒</div>
-          <div className="brand-2">EnglishForge <span>英语思维训练</span></div>
-          <div className="search-wrap">
-            <svg viewBox="0 0 24 24" className="search-ico"><path d="M10 4a6 6 0 1 0 3.7 10.7l4.3 4.3 1.4-1.4-4.3-4.3A6 6 0 0 0 10 4Zm0 2a4 4 0 1 1 0 8 4 4 0 0 1 0-8Z" /></svg>
-            <input
-              className="search-box"
-              placeholder="搜索课程 / 思维点…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-            {results.length > 0 && (
-              <div className="search-drop">
-                {results.map((r, i) => (
-                  <button key={i} className="search-item" onClick={() => { onOpenLesson(r.lessonId); setQuery('') }}>
-                    <span className="search-item-title">{r.title}</span>
-                    <span className="search-item-sub">{r.sub}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* 问候行：日期小字 + 大标题（参考图头部语言） */}
-        <div className="greet">
-          <div>
-            <div className="greet-date">{dateLabel()}</div>
-            <h1>{greetWord()}，今天打什么铁？</h1>
-          </div>
-          <div className="greet-actions">
-            <div className="segmented">
-              <button className={period === 'week' ? 'active' : ''} onClick={() => setPeriod('week')}>本周</button>
-              <button className={period === 'all' ? 'active' : ''} onClick={() => setPeriod('all')}>全部</button>
-            </div>
-            <button className="pill-btn" onClick={exportReport}>导出报告</button>
-          </div>
-        </div>
-
-        {/* 今日目标卡（参考图 2 "Your Goal" 语言：小字 label + 大数字 + 圆形主按钮） */}
-        <div className="goal-card">
-          <div className="goal-main">
-            <div className="goal-cap">今日目标</div>
-            <div className="goal-num">{todayXp}<span className="goal-unit">/ {todayGoal} XP</span></div>
-            <div className="goal-lines">
-              <div className="hero-line">
-                <i className="dot dot-purple" />
-                今天建议继续
-                <b>{todayBrief.skillLesson ? `第 ${todayBrief.skillLesson} 课 · ` : ''}{todayBrief.skillName ?? '第一课'}</b>
-                {briefState ? <span className="hero-tag">{STATE_LABEL[briefState]}</span> : null}
-              </div>
-              <div className="hero-line">
-                <i className="dot dot-blue" />
-                {todayBrief.dueCount > 0
-                  ? <><b>{todayBrief.dueCount}</b> 个到期复习——本轮预计处理 <b>{todayBrief.dueTake}</b> 个，不催你清空</>
-                  : '暂无到期复习——今天以新任务和变式为主'}
-              </div>
-              <div className="hero-line">
-                <i className="dot dot-gray" />
-                {todayBrief.hasResume
-                  ? <>上次练习还没打完 —— <button className="hero-resume" onClick={onResume}>继续上次 →</button></>
-                  : '没有中断的练习，随时可开新一轮'}
-              </div>
-            </div>
-          </div>
-          <button className="goal-fab" onClick={onStartToday} title={`开始今天的练习（约 ${todayBrief.queueLen} 个短任务）`}>
-            <span className="goal-fab-circle">▶</span>
-            <span className="goal-fab-len">开始 · 约 {todayBrief.queueLen} 个任务</span>
-          </button>
-        </div>
-
-        {/* 统计卡（中性：白卡三列 + hairline 分隔，大数字为主角） */}
-        <div className="stats-card">
-          <div className="stat">
-            <div className="stat-cap">{period === 'week' ? '本周获得 XP' : '累计 XP'}</div>
-            <div className="stat-num">
-              {(period === 'week' ? week.thisWeek : progress.xp).toLocaleString()}
-              <span className="stat-pill">{week.trend === null ? '新' : (week.trend >= 0 ? '+' : '') + week.trend + '%'}</span>
-            </div>
-            <div className="stat-sub">上周 {week.lastWeek} XP</div>
-          </div>
-          <div className="stat-div" />
-          <div className="stat">
-            <div className="stat-cap">连续学习</div>
-            <div className="stat-num">{progress.streak}<span className="stat-unit">天</span></div>
-            <div className="stat-sub">最高连击 {progress.comboBest}</div>
-          </div>
-          <div className="stat-div" />
-          <div className="stat">
-            <div className="stat-cap">已稳定技能</div>
-            <div className="stat-num">{stable}<span className="stat-unit">/ {sc.total}</span></div>
-            <div className="stat-sub">建立中 {sc.building} · 未练习 {sc.unseen}</div>
-          </div>
-        </div>
-
-        {/* 最近练习（交易列表样式） */}
-        <div className="sect-head">
-          <h2>最近练习</h2>
-          <button className="pill-soft" onClick={() => setShowMore(!showMore)}>{showMore ? '收起' : '查看全部'}</button>
-        </div>
-
-        <div className="date-pills">
-          {days.map((d) => {
-            const dt = new Date(d.date + 'T00:00:00')
-            const isToday = d.date === todayStr()
-            return (
-              <div key={d.date} className={`date-pill ${isToday ? 'on' : ''}`}>
-                <span className="dp-week">周{WEEKDAYS[dt.getDay()]}</span>
-                <span className="dp-day">{dt.getDate()}</span>
-                <span className="dp-xp">{d.xp > 0 ? `+${d.xp}` : '—'}</span>
-              </div>
-            )
-          })}
-        </div>
-
-        <div className="tx-list">
-          {shownSessions.length === 0 && (
-            <div className="tx-empty">还没有练习记录——点上面"开始今天的练习"，这里就会出现你的打铁记录 🔨</div>
-          )}
-          {shownSessions.map((s, i) => (
-            <div key={i} className={`tx-row ${s.acc >= 80 ? 'tx-blue' : 'tx-pink'}`}>
-              <div className="tx-ball">{s.acc >= 80 ? '🎯' : '💪'}</div>
-              <div className="tx-main">
-                <div className="tx-title">{s.label}</div>
-                <div className="tx-sub">{fmtTime(s.ts)}</div>
-              </div>
-              <div className="tx-amt">+{s.xp} XP</div>
-              <div className="tx-acc">{s.acc}%</div>
-            </div>
-          ))}
-          {sessions.length > 3 && (
-            <button className="tx-more" onClick={() => setShowMore(!showMore)}>»</button>
-          )}
-        </div>
-
-        {/* 课程地图 */}
-        <div id="modules">
-          {modules.map((m) => (
-            <section key={m.id} className="module">
-              <div className="module-head">
-                <h2>{m.name}</h2>
-                <p>{m.desc}</p>
-              </div>
-              {m.lessons.length === 0 && <div className="locked-row">🔒 等前面的铁打好就来</div>}
-              {m.lessons.map((lid) => {
-                const les = lessons[lid]
-                const done = les.skills.filter((s) => {
-                  const st = evidence.bySkill[s.id]?.state
-                  return st === 'early-stable' || st === 'durable'
-                }).length
-                return (
-                  <button key={lid} className="lesson-card" onClick={() => onOpenLesson(lid)}>
-                    <div className="lesson-no">第 {les.no} 课</div>
-                    <div className="lesson-info">
-                      <h3>{les.title}</h3>
-                      <p>{les.subtitle}</p>
-                      <div className="minibar"><div style={{ width: `${(done / les.skills.length) * 100}%` }} /></div>
-                      <div className="lesson-meta">{done}/{les.skills.length} 个思维点达到初步稳定及以上</div>
-                    </div>
-                    <div className="lesson-go">▶</div>
-                  </button>
-                )
-              })}
-            </section>
-          ))}
-        </div>
-      </div>
-
-      {/* ===== 右侧蓝色侧栏 ===== */}
-      <aside className="dash-side">
-        <div className="side-top">
-          <button className="bell" onClick={onStartReview} title="今日复习">
-            <svg viewBox="0 0 24 24"><path d="M12 22a2 2 0 0 0 2-2h-4a2 2 0 0 0 2 2Zm6-6V11a6 6 0 1 0-12 0v5l-2 2v1h16v-1l-2-2Z" /></svg>
-            {dueCount > 0 && <i className="bell-dot" />}
-          </button>
-          <div className="user-chip">
-            <div className="user-ava">🧑‍🎓</div>
-            <div className="user-info">
-              <b>本地学员</b>
-              <span>{saveErr ? '⚠️ 保存失败' : '进度存本机'}</span>
-            </div>
-            <button className="stats-btn mini" onClick={onToggleSound}>{soundOn ? '🔊' : '🔇'}</button>
-          </div>
-        </div>
-
-        {/* 学习进度卡：四状态分段（不显示笼统百分比，§5.2） */}
-        <div className="side-card">
-          <div className="side-card-head">
-            <h3>学习进度</h3>
-            <button className="pill-soft tiny" onClick={exportReport} title="导出统计报告">···</button>
-          </div>
-          <div className="seg-bar">
-            <span className="seg-grad" style={{ flex: sc.durable || 0.0001 }} />
-            <span className="seg-skilled" style={{ flex: sc.early || 0.0001 }} />
-            <span className="seg-learn" style={{ flex: sc.building || 0.0001 }} />
-            <span className="seg-none" style={{ flex: sc.unseen || 1 }} />
-          </div>
-          <div className="seg-legend">
-            <div><i className="dot dot-purple" />持续巩固</div>
-            <div><i className="dot dot-peri" />初步稳定</div>
-            <div><i className="dot dot-blue" />建立中</div>
-            <div><i className="dot dot-gray" />未练习</div>
-          </div>
-          <div className="seg-nums">
-            <div>{sc.durable}<span>个</span></div>
-            <div>{sc.early}<span>个</span></div>
-            <div>{sc.building + sc.unseen}<span>个</span></div>
-          </div>
-          <div className="side-actions">
-            <button className="pill-soft tiny" onClick={onExportSave}>导出存档</button>
-            <button className="pill-soft tiny" onClick={onImportSave}>导入存档</button>
-          </div>
-        </div>
-
-        {/* 能力证据卡：四维分项（识别/理解/表达/延迟 + 口语单独） */}
-        <div className="side-card">
-          <h3>能力证据</h3>
-          <div className="ev-list">
-            {evidence.dims.map((d) => (
-              <div key={d.mode} className="ev-row">
-                <span className="ev-name">{d.label}</span>
-                <span className="ev-val">{d.total === 0 ? '暂无' : `${d.correct}/${d.total}`}</span>
-              </div>
-            ))}
-            <div className="ev-row">
-              <span className="ev-name">延迟保持</span>
-              <span className="ev-val">{evidence.dueSuccesses} 次到期检索成功</span>
-            </div>
-            <div className="ev-row">
-              <span className="ev-name">口头表达</span>
-              <span className="ev-val">
-                {evidence.oral.independentSelf + evidence.oral.independentAi === 0 && evidence.oral.prompted === 0
-                  ? '未验证'
-                  : `独立 ${evidence.oral.independentSelf + evidence.oral.independentAi} · 有提示 ${evidence.oral.prompted}`}
-              </span>
-            </div>
-          </div>
-          <div className="ev-note">证据来自真实作答事件；XP 与连击只是参与反馈，不代表掌握。</div>
-        </div>
-
-        {/* 今日目标卡（Upgrade 样式） */}
-        <div className="side-card">
-          <h3>今日目标</h3>
-          <p className="side-desc">{todayXp >= todayGoal
-            ? `今天已达标（${todayXp} / ${todayGoal} XP）——想加练就继续，不想就歇会儿，明天再战。`
-            : `今日目标 ${todayXp} / ${todayGoal} XP——再来${todayGoal - todayXp > 40 ? '两' : '一'}关就达标。`}</p>
-          <button className="btn-dark" onClick={onStartToday}>
-            👑 开始今日练习
-          </button>
-          <div className="goal-note">平均正确率 {accAll}% · 已练 {sessions.length} 次</div>
-        </div>
-
-        {/* 环形仪表（Current balance 样式） */}
-        <div className="side-card">
-          <div className="gauge-head">
-            <div>
-              <div className="gauge-cap">今日完成度</div>
-              <div className="gauge-val">{Math.round(goalPct * 100)}%</div>
-            </div>
-            <div className="gauge-right">
-              <div className="gauge-cap">今日 XP</div>
-              <b>{todayXp}</b>
-            </div>
-          </div>
-          <Gauge pct={goalPct} />
-          <div className="gauge-foot">
-            <div><span>待巩固</span><b className="red">{sc.building + sc.unseen}</b></div>
-            <div><span>已稳定</span><b className="purple">{sc.early + sc.durable}</b></div>
-          </div>
-        </div>
-
-        <Illustration />
-      </aside>
+type NavTarget = 'today' | 'courses' | 'history' | 'settings'
+export function Sidebar({ active = 'today', dueCount, onNavigate, onReview }: {
+  active?: NavTarget; dueCount: number; onNavigate: (target: NavTarget) => void; onReview: () => void
+}) {
+  return <aside className="forge-sidebar">
+    <button className="forge-brand" onClick={() => onNavigate('today')} aria-label="EnglishForge 首页">
+      <span className="forge-mark">E</span><span>EnglishForge<small>英语思维训练</small></span>
+    </button>
+    <nav aria-label="主导航">
+      <button className={active === 'today' ? 'selected' : ''} onClick={() => onNavigate('today')}><NavIcon kind="home" />今日练习</button>
+      <button className={active === 'courses' ? 'selected' : ''} onClick={() => onNavigate('courses')}><NavIcon kind="book" />全部课程</button>
+      <button onClick={onReview}><NavIcon kind="review" />巩固复习{dueCount > 0 && <span className="nav-count">{dueCount}</span>}</button>
+      <button className={active === 'history' ? 'selected' : ''} onClick={() => onNavigate('history')}><NavIcon kind="chart" />学习记录</button>
+    </nav>
+    <div className="sidebar-bottom"><button className={active === 'settings' ? 'selected' : ''} onClick={() => onNavigate('settings')}><NavIcon kind="settings" />设置与存档</button>
+      <div className="local-profile"><span className="profile-circle">学</span><div>本地学员<small>一步一步，让表达更自然</small></div></div>
     </div>
-  )
+  </aside>
 }
-
-function greetWord(): string {
-  const h = new Date().getHours()
-  if (h < 6) return '夜已深'
-  if (h < 12) return '早上好'
-  if (h < 18) return '下午好'
-  return '晚上好'
+function NavIcon({ kind }: { kind: string }) {
+  const paths: Record<string, string> = { home: 'M3 10 12 3l9 7v10h-6v-6H9v6H3Z', book: 'M12 5v15M3 4h5l4 2 4-2h5v15h-5l-4 2-4-2H3Z', review: 'M20 8A8 8 0 1 0 20 16M20 3v5h-5', chart: 'M4 20V12M10 20V5M16 20V9M22 20V2', settings: 'M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1' }
+  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d={paths[kind]} />{kind === 'settings' && <circle cx="12" cy="12" r="5" />}</svg>
 }
-
-/** 参考图头部的日期小字：如 "9月28日 · 周一" */
-function dateLabel(): string {
-  const d = new Date()
-  return `${d.getMonth() + 1}月${d.getDate()}日 · 周${WEEKDAYS[d.getDay()]}`
-}
-
-function fmtTime(ts: number): string {
-  const d = new Date(ts)
-  return `${d.getMonth() + 1}月${d.getDate()}日 · ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-}
-
-/** 圆环仪表：紫色进度弧 + 蓝色指针（还原参考图 Current balance 组件） */
-function Gauge({ pct }: { pct: number }) {
-  const R = 64
-  const C = 2 * Math.PI * R
-  const ARC = C * 0.75 // 270°
-  const filled = ARC * Math.min(1, Math.max(0, pct))
-  return (
-    <svg viewBox="0 0 180 170" className="gauge">
-      <circle cx="90" cy="88" r={R} fill="none" stroke="#e8e7f4" strokeWidth="13"
-        strokeDasharray={`${ARC} ${C}`} strokeLinecap="round" transform="rotate(135 90 88)" />
-      <circle cx="90" cy="88" r={R} fill="none" stroke="#6f63e4" strokeWidth="13"
-        strokeDasharray={`${filled} ${C}`} strokeLinecap="round" transform="rotate(135 90 88)" />
-      <circle cx="90" cy="88" r={R} fill="none" stroke="#c9c6ea" strokeWidth="2.5"
-        strokeDasharray="1 9" transform="rotate(135 90 88)" opacity=".9" />
-      <g transform={`rotate(${-135 + 270 * Math.min(1, Math.max(0, pct))} 90 88)`}>
-        <line x1="90" y1="88" x2="90" y2="40" stroke="#4aa3d9" strokeWidth="7" strokeLinecap="round" />
-      </g>
-      <circle cx="90" cy="88" r="9" fill="#4aa3d9" />
-      <circle cx="90" cy="88" r="3.5" fill="#fff" />
-    </svg>
-  )
-}
-
-/** 侧栏底部插画（扁平风湖景，呼应参考图） */
-function Illustration() {
-  return (
-    <svg viewBox="0 0 300 170" className="illus">
-      <rect width="300" height="170" fill="#e9f3fa" />
-      <circle cx="238" cy="38" r="18" fill="#ffd98a" />
-      <path d="M-10 118 L70 52 L150 118 Z" fill="#bcd7ea" />
-      <path d="M96 120 L176 58 L268 120 Z" fill="#a5c9e2" />
-      <path d="M40 120 L96 74 L152 120 Z" fill="#cfe3f2" />
-      <rect y="118" width="300" height="52" fill="#cbe6f6" />
-      <path d="M0 132 H300" stroke="#ffffff" strokeWidth="5" strokeDasharray="16 12" opacity=".9" />
-      <rect y="150" width="300" height="20" fill="#cde3c1" />
-      <path d="M20 150 v-16 M44 150 v-16 M68 150 v-16" stroke="#a9c39a" strokeWidth="4" strokeLinecap="round" />
-      <path d="M14 136 H74" stroke="#a9c39a" strokeWidth="4" strokeLinecap="round" />
-      <circle cx="258" cy="140" r="12" fill="#9fc98d" />
-      <circle cx="276" cy="146" r="8" fill="#b6d7a5" />
-      <rect x="36" y="128" width="4" height="22" rx="2" fill="#8aa87b" />
-      <circle cx="38" cy="118" r="14" fill="#9fc98d" />
-      <circle cx="50" cy="124" r="9" fill="#b6d7a5" />
-      <rect x="82" y="132" width="3.5" height="18" rx="1.75" fill="#8aa87b" />
-      <circle cx="84" cy="124" r="11" fill="#b6d7a5" />
-    </svg>
-  )
+const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六']
+export function Dashboard({ progress, evidence, todayBrief: brief, soundOn, saveErr, onToggleSound, onOpenLesson, onStartToday, onResume, onStartReview, onExportSave, onImportSave, onReset }: Props) {
+  const [query, setQuery] = useState('')
+  const [section, setSection] = useState<NavTarget>('today')
+  const [showMore, setShowMore] = useState(false)
+  const days = recentDaysXp(progress, 7)
+  const sessions = progress.sessions ?? []
+  const results = useMemo(() => {
+    const needle = query.trim().toLowerCase()
+    if (!needle) return []
+    return Object.values(lessons).filter(l => [l.no,l.title,l.subtitle,...l.skills.map(s => s.name + s.tagline)].join(' ').toLowerCase().includes(needle))
+  }, [query])
+  const recommended = Object.values(lessons).flatMap(l => l.skills).find(s => s.name === brief.skillName)
+  const example = recommended?.concept.example ?? 'She helps him.'
+  const now = new Date()
+  const hour = now.getHours()
+  const greeting = hour < 12 ? '早上好' : hour < 18 ? '下午好' : '晚上好'
+  function navigate(target: NavTarget) {
+    setSection(target)
+    document.getElementById(target === 'today' ? 'today' : target)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+  return <div className="workspace">
+    <Sidebar active={section} dueCount={brief.dueCount} onNavigate={navigate} onReview={onStartReview} />
+    <header className="workspace-header"><div>学习空间 <span>/</span> <b>今日练习</b></div>
+      <div className="header-tools"><div className="search-wrap"><span aria-hidden="true">⌕</span><input aria-label="搜索课程或知识点" placeholder="搜索课程或知识点" value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => { if (e.key === 'Escape') setQuery('') }} />
+        {query.trim() && <div className="search-results">{results.length ? results.map(l => <button key={l.id} onClick={() => { onOpenLesson(l.id); setQuery('') }}>第 {l.no} 课 · {l.title}<small>{l.subtitle}</small></button>) : <p>没有找到相关课程，试试“动词”或“07”。</p>}</div>}
+      </div><button className="sound-control" aria-label={soundOn ? '关闭音效' : '开启音效'} onClick={onToggleSound}>{soundOn ? '音效 开' : '音效 关'}</button><span className="profile-circle">学</span></div>
+    </header>
+    <div className="workspace-body" id="today">
+      <div className="welcome"><div><h1>{greeting}，开始今天的练习</h1><p>每次练一点，让理解慢慢变成直觉。</p></div><time>{now.getMonth()+1}月{now.getDate()}日 · 周{WEEKDAYS[now.getDay()]}</time></div>
+      <div className="learning-grid"><div className="learning-main">
+        <section className="recommend-card" aria-labelledby="recommend-title"><div className="eyebrow">{brief.hasResume ? '继续上次 · 进度已保留' : `今日推荐 · 第 ${brief.skillLesson || '07'} 课`}</div><h2 id="recommend-title">{brief.hasResume ? '从上次停下的地方继续' : brief.skillName ?? '让含义与形式连接起来'}</h2><p>{brief.hasResume ? '已经完成的任务不会丢失，按自己的节奏继续。' : recommended?.tagline ?? '从理解到表达，一次练好一个知识点。'}</p>
+          <div className="sentence-preview"><span className="example-label">{brief.hasResume ? '学习提示' : '本课例句'}</span><div>{brief.hasResume ? '理解 → 练习 → 表达' : example}</div><small>{brief.hasResume ? '遇到不确定的地方，可以慢慢来。' : '先读懂意思，再练习如何表达。'}</small></div>
+          <div className="recommend-action"><button className="primary" onClick={brief.hasResume ? onResume : onStartToday}>{brief.hasResume ? '继续上次练习' : '开始练习'} <span>→</span></button><span>约 {brief.queueLen} 个短任务 · 随时可暂停</span></div>
+        </section>
+        <div className="learning-steps" aria-label="练习流程"><span><i>1</i>{brief.dueCount ? `先复习 ${brief.dueTake} 题` : '理解知识点'}</span><b /><span><i>2</i>练习新变化</span><b /><span><i>3</i>尝试表达</span></div>
+        <section className="course-section" id="courses"><div className="section-heading"><h2>按章节，稳步向前</h2><span>{Object.keys(lessons).length} 个可学章节</span></div><div className="course-list">
+          {Object.values(lessons).map(lesson => {
+            const started = lesson.skills.filter(s => (progress.skills[s.id]?.total ?? 0) > 0 || evidence.bySkill[s.id]?.state !== 'unseen').length
+            const stable = lesson.skills.filter(s => ['early-stable','durable'].includes(evidence.bySkill[s.id]?.state ?? '')).length
+            return <button className="course-row" key={lesson.id} onClick={() => onOpenLesson(lesson.id)}><span className="course-number">{lesson.no}</span><div className="course-copy"><h3>{lesson.no === '07' ? '含义与形式' : lesson.no === '10' ? '动词与表达' : lesson.title}</h3><p>{lesson.subtitle}</p><small>{stable} / {lesson.skills.length} 个知识点达到初步稳定</small></div><span className="course-status">{started ? '继续学习' : '开始学习'}<span>→</span></span></button>
+          })}<div className="course-row forthcoming"><span className="course-number">···</span><div className="course-copy"><h3>后续课程</h3><p>更多句子结构与阅读练习</p></div><span>正在准备</span></div>
+        </div></section>
+        <section id="history"><div className="section-heading"><h2>最近练习</h2>{sessions.length > 3 && <button className="text-button" onClick={() => setShowMore(!showMore)}>{showMore ? '收起记录' : '查看全部记录'} →</button>}</div><div className="history-list">{sessions.length === 0 ? <div className="empty-state">还没有练习记录。完成第一轮，就能在这里看到自己的脚步。</div> : sessions.slice(0,showMore ? 30 : 3).map((s,i) => <div className="history-row" key={`${s.ts}-${i}`}><span className="history-symbol">▤</span><div><b>{s.label}</b><small>{new Date(s.ts).toLocaleString('zh-CN', {month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'})} · {s.total} 个任务</small></div><span>+{s.xp} XP</span></div>)}</div></section>
+      </div>
+      <aside className="learning-aside"><section className="side-panel"><h2>{brief.hasResume ? '这次，接着往前' : '本轮安排'}</h2><ol className="round-plan"><li><i>01</i><div><b>{brief.dueCount ? '温习旧知识' : '理解一个知识点'}</b><p>{brief.dueCount ? `${brief.dueCount} 个到期任务，分轮巩固` : '从简短的微课开始'}</p></div></li><li><i>02</i><div><b>练习新变化</b><p>选择、拼句，换种方式理解</p></div></li><li><i>03</i><div><b>尝试表达</b><p>按题型练习，不急着一次学会</p></div></li></ol><div className={`save-status ${saveErr ? 'save-warning' : ''}`}>{saveErr ? '保存遇到问题，请先在设置中导出当前进度。' : '每次提交后自动保存，随时可以暂停。'}</div></section>
+        <section className="side-panel"><div className="section-heading"><h2>我的学习足迹</h2><span>{progress.streak} 天连续</span></div><div className="week-strip">{days.map(d => <div key={d.date} className={d.date === todayStr() ? 'current' : ''} title={`${d.date} · ${d.xp} XP`}><span>周{WEEKDAYS[new Date(d.date+'T12:00:00').getDay()]}</span><i className={d.xp ? 'practiced' : ''} /></div>)}</div><div className="ability-list">{evidence.dims.map(d => <div key={d.mode}><span>{d.label}</span><b>{d.total ? `${d.correct}/${d.total} 次首次答对` : '待练习'}</b></div>)}<div><span>延迟保持</span><b>{evidence.dueSuccesses ? `${evidence.dueSuccesses} 次检索成功` : '待隔日检查'}</b></div><div><span>口头表达</span><b>{evidence.oral.independentAi ? '已有 AI 评价' : evidence.oral.independentSelf ? '已有自评记录' : evidence.oral.prompted ? '有提示练习' : '待尝试'}</b></div></div><p className="panel-note">记录来自实际练习，逐步积累，不急于打分。</p></section>
+        <section className="quiet-note">更清晰地表达，<br />就是更自由地生活。<small>ENGLISHFORGE</small></section>
+      </aside></div>
+      <section id="settings" className="settings-panel"><div><h2>设置与存档</h2><p>进度保存在当前浏览器。导出备份后，可以在其他设备恢复。</p></div><div className="settings-actions"><button className="secondary" onClick={onExportSave}>导出存档</button><button className="secondary" onClick={onImportSave}>导入存档</button><button className="text-button danger" onClick={onReset}>清空进度</button></div></section>
+    </div>
+  </div>
 }

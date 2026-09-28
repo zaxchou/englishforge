@@ -3,7 +3,7 @@ import type { AdaptedQuestion, Evaluator, Outcome, PersistedResult, QueueItem, Q
 import { Speaker, Spark } from './fx'
 import './quiz-new.css'
 import { sfx } from '../sound'
-import { gradeChoice, gradeSequence, gradeTap, normText, similarity, tierOfSpeak, outcomeOfTier } from '../learning/grading'
+import { gradeChoice, gradeSequence, gradeTap, normText, similarity, tierOfSpeak } from '../learning/grading'
 
 export type SessionResult = {
   q: AdaptedQuestion
@@ -88,9 +88,10 @@ export function Quiz({ entries, conceptCards, resume, sessionNote, onAttempt, on
       ?? (conceptCards.length ? { kind: 'concept', index: 0 } : { kind: 'q', index: 0 }),
   )
   const [retryIds, setRetryIds] = useState<string[]>(() => resume?.retryIds ?? [])
+  const [pending, setPending] = useState<PersistedResult | null>(resume?.pending ?? null)
   const resultsRef = useRef<Map<string, SessionResult>>(restoreResults(resume, qById))
-  const comboRef = useRef({ cur: 0, best: 0 })
-  const [combo, setCombo] = useState(0)
+  const comboRef = useRef(resume?.combo ?? { cur: 0, best: 0 })
+  const [combo, setCombo] = useState(resume?.combo?.cur ?? 0)
   const [flash, setFlash] = useState(false)
   const [note, setNote] = useState<string | null>(sessionNote ?? null)
   const finishedRef = useRef(false)
@@ -105,7 +106,7 @@ export function Quiz({ entries, conceptCards, resume, sessionNote, onAttempt, on
 
   // 进入时与每次状态转移后保存断点（App 落盘）
   useEffect(() => {
-    onRuntime({ phase, retryIds, results: Array.from(resultsRef.current.values()).map(toPersisted) })
+    onRuntime({ phase, retryIds, pending, combo: comboRef.current, results: Array.from(resultsRef.current.values()).map(toPersisted) })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -115,7 +116,7 @@ export function Quiz({ entries, conceptCards, resume, sessionNote, onAttempt, on
   }, [])
 
   function emitRuntime(nextPhase: Phase, nextRetry: string[]) {
-    onRuntime({ phase: nextPhase, retryIds: nextRetry, results: Array.from(resultsRef.current.values()).map(toPersisted) })
+    onRuntime({ phase: nextPhase, retryIds: nextRetry, pending: null, combo: comboRef.current, results: Array.from(resultsRef.current.values()).map(toPersisted) })
   }
 
   function bumpCombo(ok: boolean) {
@@ -138,6 +139,9 @@ export function Quiz({ entries, conceptCards, resume, sessionNote, onAttempt, on
   // 恢复时若队列已全部完成 → 直接结算（不卡死）
   useEffect(() => {
     if (finishedRef.current) return
+    if (phase.kind === 'q' && phase.index >= total && retryIds.length > 0) {
+      const next: Phase = { kind: 'retry', index: 0 }; setPhase(next); emitRuntime(next, retryIds); return
+    }
     const qDone = phase.kind === 'q' && phase.index >= total && retryIds.length === 0
     const retryDone = phase.kind === 'retry' && phase.index >= retryIds.length
     if (total > 0 && (qDone || retryDone)) finish()
@@ -152,6 +156,7 @@ export function Quiz({ entries, conceptCards, resume, sessionNote, onAttempt, on
   }
 
   function handleAnswered(r: SessionResult, meta: { outcome: Outcome; evaluator: Evaluator; supportUsed: number }, wasRetry: boolean) {
+    setPending(null)
     const responseMs = Date.now() - qStartRef.current
     const entry = entries.find((e) => e.q.id === r.q.id)
     const isDueReview = entry?.item.isDueReview ?? false
@@ -177,7 +182,7 @@ export function Quiz({ entries, conceptCards, resume, sessionNote, onAttempt, on
     } else {
       resultsRef.current.set(r.q.id, { ...r, outcome: meta.outcome, evaluator: meta.evaluator, supportUsed: meta.supportUsed })
       // 首次答错 → 进二次挑战；跳过/识别失败不自动重排（分别记录，用例 8）
-      if (!r.firstTryCorrect && meta.outcome !== 'skipped' && !nextRetry.includes(r.q.id)) {
+      if (!r.firstTryCorrect && meta.outcome === 'incorrect' && meta.evaluator === 'deterministic' && !nextRetry.includes(r.q.id)) {
         nextRetry = [...nextRetry, r.q.id]
       }
     }
@@ -213,10 +218,19 @@ export function Quiz({ entries, conceptCards, resume, sessionNote, onAttempt, on
     }
   }
 
+  function checkpoint(r: SessionResult, meta: AnswerMeta) {
+    const item = entries.find(e => e.q.id === r.q.id)?.item
+    const saved = toPersisted({ ...r, ...meta })
+    onAttempt({ qid: r.q.id, firstAttempt: phase.kind !== 'retry', ...meta,
+      given: r.given, responseMs: Date.now() - qStartRef.current, isDueReview: item?.isDueReview ?? false })
+    setPending(saved)
+    onRuntime({ phase, retryIds, pending: saved, combo: comboRef.current, results: Array.from(resultsRef.current.values()).map(toPersisted) })
+  }
+
   // ---- 微课卡阶段 ----
   if (phase.kind === 'concept') {
     const card = conceptCards[phase.index]
-    if (!card) { finish(); return null }
+    if (!card) return <div className="quiz"><button className="primary" onClick={nextAfterConcept}>继续练习 →</button></div>
     return (
       <div className="quiz">
         <div className="quiz-top">
@@ -255,30 +269,38 @@ export function Quiz({ entries, conceptCards, resume, sessionNote, onAttempt, on
         </div>
         <div className="combo">🔥 {combo}</div>
       </div>
-      {isRetry && <div className="retry-banner">🔁 二次挑战 · 上次的错误已保留，这道题（或同类变式）再给你一次机会{entry.q.hint ? `——提示：${entry.q.hint}` : ''}</div>}
+      {isRetry && <div className="retry-banner">🔁 二次挑战 · 上次的错误已保留，这道题再练一次{entry.q.hint ? `——提示：${entry.q.hint}` : ''}</div>}
       {note && !isRetry && <div className="session-note">{note}</div>}
-      <QuestionView
+      {pending && pending.qid === entry.q.id ? <div className="qview">
+        <div className="prompt">{entry.q.prompt}</div>
+        {entry.q.type === 'choice' ? <div className="options">{frozenOptions(entry.q, entry.item).map(option => <button key={option.id} disabled className={`opt ${gradeChoice(entry.q, option.id) ? 'correct' : option.text === pending.given ? 'wrong' : 'dim'}`}>{option.text}</button>)}</div> : <div className="saved-answer">你的作答：{pending.given}</div>}
+        <Feedback ok={pending.firstTryCorrect} explain={entry.q.explain} />
+        {entry.q.tts && <div className="tts-row"><code>{entry.q.tts}</code><Speaker text={entry.q.tts} /></div>}
+        <button className="primary" onClick={() => handleAnswered({ ...pending, q: entry.q }, { outcome: pending.outcome ?? 'incorrect', evaluator: pending.evaluator ?? 'deterministic', supportUsed: pending.supportUsed ?? 0 }, isRetry)}>下一题 →</button>
+      </div> : <QuestionView
         key={entry.q.id + (isRetry ? '-r' : '')}
         q={entry.q}
         item={entry.item}
+        onCheckpoint={checkpoint}
         onAnswered={(r, meta) => handleAnswered(r, meta, isRetry)}
-      />
+      />}
     </div>
   )
 }
 
 type AnswerMeta = { outcome: Outcome; evaluator: Evaluator; supportUsed: number }
 
-function QuestionView({ q, item, onAnswered }: {
+function QuestionView({ q, item, onAnswered, onCheckpoint }: {
   q: AdaptedQuestion
   item: QueueItem
   onAnswered: (r: SessionResult, meta: AnswerMeta) => void
+  onCheckpoint: (r: SessionResult, meta: AnswerMeta) => void
 }) {
   if (q.type === 'speak') return <SpeakQ q={q} onAnswered={onAnswered} />
-  if (q.type === 'match') return <MatchQ q={q} item={item} onAnswered={onAnswered} />
-  if (q.type === 'sort') return <SortQ q={q} onAnswered={onAnswered} />
-  if (q.type === 'choice' && q.autoTTS) return <ListenQ q={q} item={item} onAnswered={onAnswered} />
-  return <BasicQ q={q} item={item} onAnswered={onAnswered} />
+  if (q.type === 'match') return <MatchQ q={q} item={item} onAnswered={onAnswered} onCheckpoint={onCheckpoint} />
+  if (q.type === 'sort') return <SortQ q={q} onAnswered={onAnswered} onCheckpoint={onCheckpoint} />
+  if (q.type === 'choice' && q.autoTTS) return <ListenQ q={q} item={item} onAnswered={onAnswered} onCheckpoint={onCheckpoint} />
+  return <BasicQ q={q} item={item} onAnswered={onAnswered} onCheckpoint={onCheckpoint} />
 }
 
 /** 冻结的选项顺序（生成时随机、存档冻结；重渲染不变序，恢复不变序） */
@@ -303,11 +325,12 @@ function SpeakQ({ q, onAnswered }: { q: AdaptedQuestion; onAnswered: (r: Session
   const [firstOk, setFirstOk] = useState<boolean | null>(null)
   const [everOk, setEverOk] = useState(false)
   const [tries, setTries] = useState(0)
-  const [showSelfRate, setShowSelfRate] = useState(false)
+  const [, setShowSelfRate] = useState(false)
   const [revealed, setRevealed] = useState(false)   // 看过原句
   const [prompted, setPrompted] = useState(false)   // 首次作答前是否给过提示（看原句或听示范）
   const [lastEvaluator, setLastEvaluator] = useState<Evaluator>('transcriptMatch')
   const [skipped, setSkipped] = useState(false)
+  const firstVoice = useRef<{ outcome: Outcome; evaluator: Evaluator; given: string; supportUsed: number } | null>(null)
   const recRef = useRef<{ stop: () => void } | null>(null)
   const timerRef = useRef<number | undefined>(undefined)
 
@@ -331,11 +354,12 @@ function SpeakQ({ q, onAnswered }: { q: AdaptedQuestion; onAnswered: (r: Session
     setRevealed(true)
   }
   function recordOutcome(text: string) {
+    firstVoice.current ??= { outcome: 'uncertain', evaluator: 'transcriptMatch', given: text, supportUsed: prompted ? 3 : 0 }
     const r = similarity(normText(target), normText(text))
     const t = tierOfSpeak(r)
     setSaid(text); setRatio(r); setTier(t)
     setTries((n) => n + 1)
-    if (firstOk === null) setFirstOk(t !== 'bad')
+    if (firstOk === null) setFirstOk(false)
     if (t !== 'bad') setEverOk(true)
     setLastEvaluator('transcriptMatch')
     setPhase('done')
@@ -378,8 +402,9 @@ function SpeakQ({ q, onAnswered }: { q: AdaptedQuestion; onAnswered: (r: Session
     setShowSelfRate(true)
     setPhase('idle')
   }
-  function retry() { setPhase('idle'); setSaid(''); setRatio(0) }
+  function retry() { setPrompted(true); setRevealed(true); setSkipped(false); setPhase('idle'); setSaid(''); setRatio(0) }
   function selfRate(ok: boolean) {
+    firstVoice.current ??= { outcome: ok ? 'correct' : 'incorrect', evaluator: 'self', given: '(自评)', supportUsed: prompted ? 3 : 0 }
     setTries((n) => n + 1)
     if (firstOk === null) setFirstOk(ok)
     if (ok) setEverOk(true)
@@ -396,24 +421,9 @@ function SpeakQ({ q, onAnswered }: { q: AdaptedQuestion; onAnswered: (r: Session
     setPhase('done')
   }
   function submit() {
-    const outcome: Outcome = skipped
-      ? 'skipped'
-      : lastEvaluator === 'self'
-        ? (firstOk === true ? 'correct' : 'incorrect')
-        : outcomeOfTier(tier)
-    const supportUsed = prompted ? 3 : 0
-    const independent = !prompted
-    const r: SessionResult = {
-      q,
-      firstTryCorrect: firstOk === true,
-      retriedCorrect: everOk,
-      given: said,
-      outcome,
-      evaluator: lastEvaluator,
-      supportUsed,
-    }
-    onAnswered(r, { outcome, evaluator: lastEvaluator, supportUsed })
-    return independent
+    const first = firstVoice.current ?? { outcome: 'skipped' as Outcome, evaluator: 'self' as Evaluator, given: '(跳过)', supportUsed: prompted ? 3 : 0 }
+    const assessment = skipped && !firstVoice.current ? { ...first, outcome: 'skipped' as Outcome } : first
+    onAnswered({ q, firstTryCorrect: assessment.evaluator === 'self' && assessment.outcome === 'correct', retriedCorrect: everOk, ...assessment }, assessment)
   }
 
   const tierText = {
@@ -453,9 +463,9 @@ function SpeakQ({ q, onAnswered }: { q: AdaptedQuestion; onAnswered: (r: Session
           {phase === 'listening' && (
             <button className="linkish" onClick={cancelListen}>取消监听</button>
           )}
-          {(!supported || showSelfRate) && (
+          {(
             <>
-              <div className="listen-tip">{supported ? '没听清也没关系——读几遍后自评：' : '本浏览器不支持语音识别（推荐 Chrome/Edge）——读几遍后自评：'}</div>
+              <div className="listen-tip">{supported ? '也可以先自行练习，再记录感受：' : '语音识别暂不可用，请检查麦克风权限或网络，也可以自评：'}</div>
               <div className="speak-actions row">
                 <button className="opt" onClick={() => selfRate(true)}>会了，读顺了</button>
                 <button className="opt" onClick={() => selfRate(false)}>还行，再来一次</button>
@@ -474,9 +484,9 @@ function SpeakQ({ q, onAnswered }: { q: AdaptedQuestion; onAnswered: (r: Session
           <div className={`feedback ${tier === 'bad' ? 'no' : 'ok'}`}>
             <div className="feedback-title">{tierText}</div>
             <div className="feedback-body">{q.explain}  目标句：{target}</div>
-            <div className="sr-note">这是"识别文字 vs 目标文字"的接近程度，只说明内容说得对不对，不代表发音/语音评价。</div>
+            <div className="sr-note">这是"识别文字 vs 目标文字"的接近程度，不能证明意思、语法或发音正确；不同的正确表达也可能匹配较低。</div>
           </div>
-          {doneIndependent && <div className="sr-badge">🌟 没看原句、没听示范就完成了 —— 独立完成（识别接近 · 自评确认）</div>}
+          {doneIndependent && <div className="sr-badge">未使用示范 · 已记录表达尝试，尚未经 AI 评价</div>}
           {!doneIndependent && <div className="sr-badge muted">有提示完成（看/听过原句）——独立表达下次再挑战</div>}
           <div className="speak-actions row">
             <button className="opt retry-btn" onClick={retry}>🔁 再说一次</button>
@@ -513,7 +523,7 @@ function SpeakQ({ q, onAnswered }: { q: AdaptedQuestion; onAnswered: (r: Session
 }
 
 /** 听力辨义：自动播放，不显示英文原句；选项顺序冻结 */
-function ListenQ({ q, item, onAnswered }: { q: AdaptedQuestion; item: QueueItem; onAnswered: (r: SessionResult, meta: AnswerMeta) => void }) {
+function ListenQ({ q, item, onAnswered, onCheckpoint }: { q: AdaptedQuestion; item: QueueItem; onAnswered: (r: SessionResult, meta: AnswerMeta) => void ; onCheckpoint: (r: SessionResult, meta: AnswerMeta) => void }) {
   const spoken = useRef(false)
   const [checked, setChecked] = useState(false)
   const [selected, setSelected] = useState<string | null>(null)
@@ -539,13 +549,16 @@ function ListenQ({ q, item, onAnswered }: { q: AdaptedQuestion; item: QueueItem;
     if (checked) return
     setSelected(optId)
     setChecked(true)
+    const correct = gradeChoice(q, optId)
+    const meta: AnswerMeta = { outcome: correct ? 'correct' : 'incorrect', evaluator: 'deterministic', supportUsed: 0 }
+    onCheckpoint({ q, firstTryCorrect: correct, retriedCorrect: null, given: options.find(o => o.id === optId)?.text ?? '', ...meta }, meta)
     if (gradeChoice(q, optId)) sfx.correct()
     else sfx.wrong()
   }
   const ok = selected !== null && gradeChoice(q, selected)
   return (
     <div className="qview">
-      <div className="prompt">🎧 听一听，这句话说的是什么意思？</div>
+      <div className="prompt">{q.prompt}</div>
       <div className="listen-row">
         <button className="listen-btn" onClick={replay}>🔊 再听一遍</button>
         <span className="listen-tip">可多听几次再作答</span>
@@ -574,7 +587,7 @@ function ListenQ({ q, item, onAnswered }: { q: AdaptedQuestion; item: QueueItem;
 }
 
 /** 配对题（右列顺序冻结） */
-function MatchQ({ q, item, onAnswered }: { q: AdaptedQuestion; item: QueueItem; onAnswered: (r: SessionResult, meta: AnswerMeta) => void }) {
+function MatchQ({ q, item, onAnswered, onCheckpoint }: { q: AdaptedQuestion; item: QueueItem; onAnswered: (r: SessionResult, meta: AnswerMeta) => void ; onCheckpoint: (r: SessionResult, meta: AnswerMeta) => void }) {
   const pairs = q.pairs ?? []
   const lefts = pairs.map((p) => p[0])
   const rights = useMemo(() => {
@@ -597,6 +610,8 @@ function MatchQ({ q, item, onAnswered }: { q: AdaptedQuestion; item: QueueItem; 
       setSelLeft(null)
       if (Object.keys(m).length === pairs.length) {
         setChecked(true)
+        const meta: AnswerMeta = { outcome: missed ? 'incorrect' : 'correct', evaluator: 'deterministic', supportUsed: 0 }
+        onCheckpoint({ q, firstTryCorrect: !missed, retriedCorrect: null, given: '配对完成', ...meta }, meta)
         if (!missed) sfx.correct()
         else sfx.wrong()
       }
@@ -640,7 +655,7 @@ function MatchQ({ q, item, onAnswered }: { q: AdaptedQuestion; item: QueueItem; 
 }
 
 /** 二分类题 */
-function SortQ({ q, onAnswered }: { q: AdaptedQuestion; onAnswered: (r: SessionResult, meta: AnswerMeta) => void }) {
+function SortQ({ q, onAnswered, onCheckpoint }: { q: AdaptedQuestion; onAnswered: (r: SessionResult, meta: AnswerMeta) => void; onCheckpoint: (r: SessionResult, meta: AnswerMeta) => void }) {
   const items = q.items ?? []
   const buckets = q.buckets ?? ['A', 'B']
   const [idx, setIdx] = useState(0)
@@ -655,6 +670,8 @@ function SortQ({ q, onAnswered }: { q: AdaptedQuestion; onAnswered: (r: SessionR
     if (idx + 1 < items.length) { setIdx(idx + 1); return }
     setIdx(items.length)
     setChecked(true)
+    const meta: AnswerMeta = { outcome: lastOk.current ? 'correct' : 'incorrect', evaluator: 'deterministic', supportUsed: 0 }
+    onCheckpoint({ q, firstTryCorrect: lastOk.current, retriedCorrect: null, given: '分类完成', ...meta }, meta)
     if (lastOk.current) sfx.correct()
     else sfx.wrong()
   }
@@ -692,7 +709,7 @@ function SortQ({ q, onAnswered }: { q: AdaptedQuestion; onAnswered: (r: SessionR
   )
 }
 
-function BasicQ({ q, item, onAnswered }: { q: AdaptedQuestion; item: QueueItem; onAnswered: (r: SessionResult, meta: AnswerMeta) => void }) {
+function BasicQ({ q, item, onAnswered, onCheckpoint }: { q: AdaptedQuestion; item: QueueItem; onAnswered: (r: SessionResult, meta: AnswerMeta) => void ; onCheckpoint: (r: SessionResult, meta: AnswerMeta) => void }) {
   const [selected, setSelected] = useState<string | null>(null)   // 选项/token ID
   const [checked, setChecked] = useState(false)
   const [picked, setPicked] = useState<string[]>([])              // 词块 ID 序列
@@ -711,7 +728,9 @@ function BasicQ({ q, item, onAnswered }: { q: AdaptedQuestion; item: QueueItem; 
     ? (q.order ?? []).join(' ')
     : q.type === 'tap' ? q.fix ?? '' : q.answer ?? ''
 
-  function finish(correct: boolean) {
+  function finish(correct: boolean, given = pickedTexts.join(' ')) {
+    const meta: AnswerMeta = { outcome: correct ? 'correct' : 'incorrect', evaluator: 'deterministic', supportUsed: q.type === 'tiles' ? 2 : 0 }
+    onCheckpoint({ q, firstTryCorrect: correct, retriedCorrect: null, given, ...meta }, meta)
     setChecked(true)
     setResult(correct)
     if (correct) sfx.correct()
@@ -746,7 +765,7 @@ function BasicQ({ q, item, onAnswered }: { q: AdaptedQuestion; item: QueueItem; 
               : o.id === selected ? 'opt picked' : 'opt'
             return (
               <button key={o.id} className={cls} disabled={checked}
-                onClick={() => { if (!checked) { setSelected(o.id); finish(gradeChoice(q, o.id)) } }}>
+                onClick={() => { if (!checked) { setSelected(o.id); finish(gradeChoice(q, o.id), o.text) } }}>
                 {o.text}
               </button>
             )
@@ -772,7 +791,7 @@ function BasicQ({ q, item, onAnswered }: { q: AdaptedQuestion; item: QueueItem; 
               : t.id === tapped ? 'token picked' : 'token'
             return (
               <button key={t.id} className={cls} disabled={checked}
-                onClick={() => { if (!checked) { setTapped(t.id); finish(gradeTap(q, t.id)) } }}>
+                onClick={() => { if (!checked) { setTapped(t.id); finish(gradeTap(q, t.id), t.text) } }}>
                 {t.text}
               </button>
             )

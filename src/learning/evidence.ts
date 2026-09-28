@@ -50,7 +50,7 @@ function objectiveAttempts(p: ProgressV2, questions: AdaptedQuestion[]): Attempt
   const byId = new Map(questions.map((q) => [q.id, q]))
   return p.attempts.filter((a) => {
     const q = byId.get(a.questionId)
-    if (!q) return false
+    if (!q || q.reviewStatus !== 'reviewed' || q.myth || a.isVariantDrill) return false
     if (a.contentVersion !== q.contentVersion) return false
     return a.evaluator === 'deterministic' &&
       a.firstAttempt &&
@@ -99,7 +99,7 @@ export function buildEvidence(p: ProgressV2, pool: AdaptedQuestion[]): EvidenceR
   const skillOf = new Map(pool.map((q) => [q.id, q.skill]))
   const skillOral = new Map(pool.map((q) => [q.id, q.mode === 'oral']))
 
-  const obj = objectiveAttempts(p, pool).slice()   // 时间序（push 序）
+  const obj = objectiveAttempts(p, pool).sort((a,b) => a.timestamp - b.timestamp)   // 时间序（push 序）
   const bySkillAttempts = new Map<string, Attempt[]>()
   for (const a of obj) {
     const sid = skillOf.get(a.questionId)
@@ -121,9 +121,10 @@ export function buildEvidence(p: ProgressV2, pool: AdaptedQuestion[]): EvidenceR
     const evidence: string[] = []
 
     if (all.length === 0) {
+      const practiced = p.attempts.some(a => skillOf.get(a.questionId) === sid)
       bySkill[sid] = {
-        state: 'unseen',
-        evidence: hasLegacy ? ['只有历史练习记录（v1），尚无新的作答事件证据'] : [],
+        state: practiced ? 'building' : 'unseen',
+        evidence: practiced ? ['已有练习记录；内容或评价尚待验证，不作为稳定能力认证'] : hasLegacy ? ['只有历史练习记录（v1），尚无新的作答事件证据'] : [],
         last10: { correct: 0, total: 0 },
         days: 0,
         openErrors: 0,
@@ -146,7 +147,7 @@ export function buildEvidence(p: ProgressV2, pool: AdaptedQuestion[]): EvidenceR
     const compOk = window.some((a) => a.outcome === 'correct' && mOf(a.questionId) === 'comprehension')
     const conOk = window.some((a) => a.outcome === 'correct' && mOf(a.questionId) === 'construction')
 
-    const rateOk = rate >= 0.8 && total >= 3
+    const rateOk = rate >= 0.8 && total >= 10
     const daysOk = days >= 2
     const vgOk = vgs.size >= 3
     const dimsOk = recOk && compOk && conOk
@@ -156,7 +157,7 @@ export function buildEvidence(p: ProgressV2, pool: AdaptedQuestion[]): EvidenceR
     if (rateOk && daysOk && vgOk && dimsOk && noOpen) state = 'early-stable'
 
     // 证据文案（含"差哪一步"，不用低分挫败用户）
-    evidence.push(`近 ${total} 次首发答对 ${correct} 次${rateOk ? '（≥80%）' : `（需 ≥80%，还差 ${Math.max(1, Math.ceil(total * 0.8) - correct)} 次）`}`)
+    evidence.push(`近 ${total} 次首发答对 ${correct} 次${rateOk ? '（≥80%）' : total < 10 ? `（还需 ${10-total} 次合格记录）` : '（继续巩固后再检查）'}`)
     evidence.push(daysOk ? `覆盖 ${days} 个训练日` : `需跨 2 个训练日（现在 ${days} 天）`)
     evidence.push(vgOk ? `覆盖 ${vgs.size} 个变式组` : `需覆盖 3 个变式组（现在 ${vgs.size} 个）`)
     const dims = [recOk ? '识别✓' : '识别', compOk ? '理解✓' : '理解', conOk ? '表达✓' : '表达'].join(' · ')

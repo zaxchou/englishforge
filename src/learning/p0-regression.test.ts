@@ -305,7 +305,7 @@ describe('能力证据：四状态与分项（§5.2）', () => {
     expect(rep.bySkill.skX.state).toBe('building')   // 只有 1 天
   })
 
-  it('跨 2 日、3 变式组、三类证据齐 → 初步稳定', () => {
+  it('跨 2 日且至少十次合格证据 → 初步稳定', () => {
     const { pool, p } = scenario()
     p.attempts.push(
       mkAttempt({ questionId: 'r1', localDate: day1 }),
@@ -313,9 +313,11 @@ describe('能力证据：四状态与分项（§5.2）', () => {
       mkAttempt({ questionId: 'n1', localDate: day1, mode: 'construction' }),
       mkAttempt({ questionId: 'r2', localDate: day2, sessionId: 'sess-2' }),
     )
+    expect(buildEvidence(p, pool).bySkill.skX.state).toBe('building')
+    for (let i = 0; i < 6; i++) p.attempts.push(mkAttempt({ questionId: pool[i % 4].id, mode: pool[i % 4].mode, localDate: day2, sessionId: `extra-${i}` }))
     const rep = buildEvidence(p, pool)
     expect(rep.bySkill.skX.state).toBe('early-stable')
-    expect(rep.bySkill.skX.last10).toEqual({ correct: 4, total: 4 })
+    expect(rep.bySkill.skX.last10).toEqual({ correct: 10, total: 10 })
     expect(rep.dueSuccesses).toBe(0)
   })
 
@@ -335,6 +337,7 @@ describe('能力证据：四状态与分项（§5.2）', () => {
     p.attempts.push(
       mkAttempt({ questionId: 'c1', localDate: '2026-09-24', sessionId: 'sess-3', mode: 'comprehension', isDueReview: true }),
     )
+    for (let i = 0; i < 4; i++) p.attempts.push(mkAttempt({ questionId: pool[i].id, mode: pool[i].mode, localDate: day2, sessionId: `extra-${i}` }))
     rep = buildEvidence(p, pool)
     expect(rep.openErrorQids.has('c1')).toBe(false)
     expect(rep.bySkill.skX.state).toBe('early-stable')
@@ -373,5 +376,41 @@ describe('能力证据：四状态与分项（§5.2）', () => {
     expect(rep.oral.prompted).toBe(1)
     expect(rep.bySkill.skX.last10.total).toBe(1)   // 口语不进客观窗口
     expect(rep.dims.find((d) => d.mode === 'recognition')?.total).toBe(1)
+  })
+})
+
+
+describe('Review fixes: scheduling edge cases', () => {
+  it('today queue has no duplicate IDs when special tasks also appear in the current skill', () => {
+    const p = defaultProgressV2()
+    const pool = Array.from({length: 15}, (_, i) => mkq({id:`unique-${i}`, skill:'same', type:i < 2 ? 'speak' : 'choice'}))
+    const queue = buildTodayQueue(p, pool, 'no-duplicate', {skillOrder:['same']})
+    expect(queue).toHaveLength(10)
+    expect(new Set(queue.map(q => q.qid)).size).toBe(10)
+  })
+  it('returns all overdue items even with highly unbalanced skill counts', () => {
+    const p = defaultProgressV2()
+    const pool = Array.from({length: 40}, (_, i) => mkq({id:`due-${i}`,skill:i < 30 ? 'large' : `single-${i}`}))
+    pool.forEach(q => {p.questionStates[q.id] = {stage:1,dueAt:1,correct:1,total:1}})
+    expect(dueQuestions(p,pool,100).length).toBe(40)
+  })
+  it('skill practice flags due reviews and drills never upgrade memory', () => {
+    const p = defaultProgressV2(); const q = mkq({id:'due-skill'})
+    p.questionStates[q.id] = {stage:2,dueAt:1,correct:2,total:2}
+    expect(buildSkillQueue(p,[q],'skill',1)[0].isDueReview).toBe(true)
+    applyQuestionReview(p,q.id,{firstAttempt:true,outcome:'correct',independent:true,wasDue:true,isVariantDrill:true,now:100})
+    expect(p.questionStates[q.id].stage).toBe(2)
+    expect(p.questionStates[q.id].dueAt).toBe(1)
+  })
+  it('does not insert an immediate variant without two intervening tasks', () => {
+    const a = mkq({id:'a'}), b = mkq({id:'b'})
+    const queue = [makeQueueItem(a,'s')]
+    expect(insertVariantDrill(queue,1,'a',[a,b],'s')).toBe(false)
+  })
+  it('draft content and remediation attempts do not establish competence', () => {
+    const p = defaultProgressV2()
+    const draft = mkq({id:'draft',reviewStatus:'draft'}), drill = mkq({id:'drill'})
+    p.attempts = [mkAttempt({questionId:'draft'}),mkAttempt({questionId:'drill',isVariantDrill:true})]
+    expect(buildEvidence(p,[draft,drill]).dims.every(d => d.total === 0)).toBe(true)
   })
 })

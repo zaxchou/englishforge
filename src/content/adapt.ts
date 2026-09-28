@@ -53,7 +53,7 @@ export function adaptQuestion(q: Question): AdaptedQuestion {
     variantGroupId: q.variantGroupId ?? q.id,
     objectiveId: q.objectiveId ?? q.skill,
     contentVersion: q.contentVersion ?? 1,
-    reviewStatus: q.reviewStatus ?? 'reviewed',
+    reviewStatus: q.reviewStatus ?? 'draft',
     assessmentRole: q.assessmentRole ?? 'practice',
   }
 }

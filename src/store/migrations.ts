@@ -28,12 +28,34 @@ export function defaultProgressV2(): ProgressV2 {
   }
 }
 
+function record(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value)
+}
+function number(value: unknown): value is number { return typeof value === 'number' && Number.isFinite(value) && value >= 0 }
+function result(value: unknown): boolean {
+  return record(value) && typeof value.qid === 'string' && typeof value.firstTryCorrect === 'boolean' &&
+    (value.retriedCorrect === null || typeof value.retriedCorrect === 'boolean') && typeof value.given === 'string'
+}
 function isV2(raw: unknown): raw is ProgressV2 {
-  const p = raw as ProgressV2
-  return !!p && p.schemaVersion === 2 && typeof p.xp === 'number' &&
-    typeof p.skills === 'object' && p.skills !== null &&
-    typeof p.questionStates === 'object' && p.questionStates !== null &&
-    Array.isArray(p.attempts)
+  if (!record(raw) || raw.schemaVersion !== 2 || !number(raw.xp) || !number(raw.streak) ||
+    !number(raw.comboBest) || typeof raw.lastActiveDate !== 'string' || !record(raw.skills) ||
+    !record(raw.questionStates) || !Array.isArray(raw.attempts)) return false
+  if (!Object.values(raw.skills).every(s => record(s) && typeof s.conceptSeen === 'boolean' && number(s.box) && number(s.due) && number(s.correct) && number(s.total))) return false
+  if (!Object.values(raw.questionStates).every(s => record(s) && number(s.stage) && Number.isInteger(s.stage) && s.stage <= 5 && number(s.dueAt) && number(s.correct) && number(s.total))) return false
+  if (raw.dailyXp !== undefined && (!record(raw.dailyXp) || !Object.values(raw.dailyXp).every(number))) return false
+  if (raw.sessions !== undefined && (!Array.isArray(raw.sessions) || !raw.sessions.every(s => record(s) && number(s.ts) && typeof s.label === 'string' && typeof s.lessonNo === 'string' && number(s.acc) && number(s.xp) && number(s.total) && number(s.firstTry)))) return false
+  if (!raw.attempts.every(a => record(a) && ['attemptId','sessionId','questionId','objectiveId','variantGroupId','localDate','answer'].every(k => typeof a[k] === 'string') && number(a.timestamp) && number(a.contentVersion) && number(a.supportUsed) && typeof a.firstAttempt === 'boolean' && typeof a.isDueReview === 'boolean' && ['correct','incorrect','uncertain','skipped'].includes(String(a.outcome)) && ['deterministic','self','transcriptMatch','aiText'].includes(String(a.evaluator)) && ['recognition','comprehension','construction','oral'].includes(String(a.mode)))) return false
+  if (raw.activeSession != null) {
+    const a = raw.activeSession
+    if (!record(a) || typeof a.sessionId !== 'string' || !['today','skill','review'].includes(String(a.kind)) || typeof a.committed !== 'boolean' || !number(a.createdAt) || !Array.isArray(a.queue) || !a.queue.every(q => record(q) && typeof q.qid === 'string' && [q.optionOrder,q.rightOrder].every(order => order === undefined || (Array.isArray(order) && order.every(x => typeof x === 'string'))))) return false
+    if (a.runtime != null) {
+      const r = a.runtime
+      if (!record(r) || !record(r.phase) || !['concept','q','retry'].includes(String(r.phase.kind)) || !number(r.phase.index) || !Number.isInteger(r.phase.index) || !Array.isArray(r.retryIds) || !r.retryIds.every(x => typeof x === 'string') || !Array.isArray(r.results) || !r.results.every(result)) return false
+      if (r.pending != null && !result(r.pending)) return false
+      if (r.combo != null && (!record(r.combo) || !number(r.combo.cur) || !number(r.combo.best))) return false
+    }
+  }
+  return true
 }
 
 function isV1(raw: unknown): raw is Progress {
@@ -98,6 +120,7 @@ export function loadProgressV2(): LoadResult {
   if (fromV1) {
     // 写入并回读校验成功后才启用 v2（v1 保留）
     const ok = writeRaw(fromV1)
+    lastSaveError = !ok
     if (ok) {
       try {
         const back = JSON.parse(localStorage.getItem(V2_KEY) ?? 'null')
@@ -186,8 +209,10 @@ export function resetProgress() {
 }
 
 /** 导出可恢复存档（原始 v2 JSON）——与统计报告导出是两种功能 */
-export function exportSave(): string {
-  return localStorage.getItem(V2_KEY) ?? JSON.stringify(defaultProgressV2())
+export function exportSave(current?: ProgressV2): string {
+  if (current) return JSON.stringify(current)
+  try { return localStorage.getItem(V2_KEY) ?? JSON.stringify(defaultProgressV2()) }
+  catch { return JSON.stringify(defaultProgressV2()) }
 }
 
 export interface ImportPreview {
