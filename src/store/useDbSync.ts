@@ -189,6 +189,9 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
       const localBefore = optsRef.current.progressRef.current
       if (decision.kind === 'adopt-remote') {
         adopt(decision.pull)
+        // 本地进度是空的，但审核标记（用户逐题「通过」的成果）不在进度文档里 ——
+        // 不推这一次，他刚清空过进度时那几百条结论就永远进不了库（实测 rev 停在 0）。
+        void push(false, 'boot-adopt-remote')
       } else if (decision.kind === 'merge') {
         const { progress, added } = unionProgress(localBefore, decision.pull.progress)
         if (added > 0) {
@@ -214,7 +217,9 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
           setNotice({ kind: 'warn', text: '进度数据库暂时写不进去，已继续用浏览器存档，稍后会自动重试。' })
         }
       } else {
+        // 两边都空（全新开始）：同样要推一次，把本地已有的审核标记登记进库
         setSyncedAt(lastSyncedAt(acc.id))
+        void push(false, 'boot-fresh')
         refreshStats(true)
       }
     })()
