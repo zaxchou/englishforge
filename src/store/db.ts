@@ -444,6 +444,8 @@ export interface CatalogRow {
   prompt: string
   answer?: string
   options?: string[]
+  /** 解析：审核员要据此判断"有没有用术语、自不自洽" */
+  explain?: string
   tts?: string
   contentVersion?: number
   /** 题目身份（题型+题干+句子，归一化）：服务端查重就靠它，不能只比题干 */
@@ -457,6 +459,12 @@ export interface DbAudit {
   catalog: number
   /** 这个账户已毙掉的题数（已从 duplicates/conflicts/missingCause 里排除） */
   quarantined: number
+  /** 还没定过版的题数 —— 就是"要机器去审"的队列 */
+  unreviewed: number
+  /** AI 定过版的题数 */
+  aiReviewed: number
+  /** 现在处于"要改/已毙"的题（这些才需要人过目） */
+  flagged: { count: number; sample: AuditQuestion[] }
   duplicates: { keep: AuditQuestion; extras: AuditQuestion[]; count: number }[]
   conflicts: { variants: AuditQuestion[]; count: number }[]
   missingCause: { count: number; sample: AuditQuestion[] }
@@ -470,11 +478,20 @@ export type EnrichmentMap = Record<string, Enrichment>
 
 export interface AiStatus {
   configured: boolean
+  provider?: string | null
+  providerLabel?: string | null
   model: string | null
   source: string | null
+  /** 模型名来自哪：环境变量 / 界面设置 / 项目 .env */
+  modelSource?: string | null
   defaultModel?: string
   /** 环境变量锁住了模型名（此时界面改不动） */
   envLocked?: boolean
+  /** 审核员那一侧 */
+  review?: { configured: boolean; provider: string | null; providerLabel: string | null; model: string | null; source: string | null }
+  /** 出题人与审核员是不是不同一家（同一家只能算"自查"） */
+  independentReview?: boolean
+  available?: { name: string; label: string }[]
 }
 
 /** 换模型：存进数据库即时生效，不用改任何 .env */
@@ -519,6 +536,33 @@ export async function runEnrichCauses(accountId: string, limit = 8): Promise<Enr
   const res = await attemptReq(() => req<EnrichRun>(`/accounts/${accountId}/enrich-causes`, {
     method: 'POST', body: JSON.stringify({ limit }),
   }, 120_000))
+  return res
+}
+
+export interface AiReviewVerdict extends ReviewMark {
+  verdict: 'ok' | 'fix' | 'kill'
+  reasons: string[]
+  source: 'ai'
+  model: string | null
+}
+export interface AiReviewRun {
+  requested: number
+  reviewed: number
+  killed: number
+  fixed: number
+  rejected: number
+  truncated: number
+  remaining: number
+  reviewer: { provider: string | null; model: string | null; independent: boolean } | null
+  verdicts: Record<string, AiReviewVerdict>
+  error: string | null
+}
+
+/** 让**另一个模型**审核题库（自动定版）。一次一批，可反复调用直到 remaining 为 0。 */
+export async function runAiReview(accountId: string, limit = 20): Promise<AiReviewRun | null> {
+  const res = await attemptReq(() => req<AiReviewRun>(`/accounts/${accountId}/ai-review`, {
+    method: 'POST', body: JSON.stringify({ limit }),
+  }, 180_000))
   return res
 }
 

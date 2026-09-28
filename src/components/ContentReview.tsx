@@ -10,7 +10,7 @@ import './content-review.css'
 
 const DIFF = ['', '基础', '进阶', '挑战']
 
-export function ContentReview({ questions, marks, onMarks, onExit, audit, ai, onKillDuplicates, onModel, onEnrich }: {
+export function ContentReview({ questions, marks, onMarks, onExit, audit, ai, onKillDuplicates, onModel, onAiReview, onEnrich }: {
   questions: AdaptedQuestion[]
   marks: ReviewMarks
   onMarks: (m: ReviewMarks) => void
@@ -19,17 +19,23 @@ export function ContentReview({ questions, marks, onMarks, onExit, audit, ai, on
   ai: AiStatus | null
   onKillDuplicates: (ids: string[]) => Promise<void>
   onModel: (model: string) => Promise<boolean>
+  onAiReview: (limit: number) => Promise<{ reviewed: number; killed: number; fixed: number; remaining: number; reviewer: string | null; independent: boolean; error: string | null } | null>
   onEnrich: (limit: number) => Promise<{ enriched: number; rejected: number; truncated: number; remaining: number; error: string | null } | null>
 }) {
   const drafts = useMemo(() => questions.filter((q) => q.reviewStatus === 'draft'), [questions])
   // 默认范围：还有待审核的就显示待审核；全审完了就显示全部（否则用户会以为"题不见了"）
-  const [scope, setScope] = useState<'draft' | 'corpus' | 'all'>(() => (drafts.length ? 'draft' : 'all'))
+  const [scope, setScope] = useState<'draft' | 'corpus' | 'all' | 'flagged'>(() => (drafts.length ? 'draft' : 'all'))
   const [notice, setNotice] = useState('')
   const corpus = useMemo(
     () => questions.filter((q) => /(tatoeba|ud-en-ewt):/.test(q.sourceRef ?? '')),
     [questions],
   )
-  const shown = scope === 'corpus' ? corpus : scope === 'draft' ? drafts : questions
+  // "要我决定的" = 系统判毙或要求改的题（人工量压到最小）
+  const flagged = useMemo(
+    () => questions.filter((q) => { const v = marks[q.id]?.verdict; return v === 'kill' || v === 'fix' }),
+    [questions, marks],
+  )
+  const shown = scope === 'corpus' ? corpus : scope === 'draft' ? drafts : scope === 'flagged' ? flagged : questions
 
   function update(qid: string, patch: { verdict?: 'ok' | 'fix' | 'kill'; note?: string }) {
     const next: ReviewMarks = { ...marks, [qid]: { ...(marks[qid] ?? {}), ...patch } }
@@ -89,7 +95,15 @@ export function ContentReview({ questions, marks, onMarks, onExit, audit, ai, on
   return (
     <div className="review-page">
       {/* 系统自检放最上面：先让系统把自己能发现的毛病找出来，再逐题看 */}
-      <SystemAudit audit={audit} ai={ai} onKillDuplicates={onKillDuplicates} onModel={onModel} onEnrich={onEnrich} />
+      <SystemAudit
+        audit={audit}
+        ai={ai}
+        onKillDuplicates={onKillDuplicates}
+        onModel={onModel}
+        onEnrich={onEnrich}
+        onAiReview={onAiReview}
+        onShowFlagged={() => { setScope('flagged') }}
+      />
       <header className="review-head">
         <div>
           <h1>内容审核 · 逐题核对</h1>
@@ -104,6 +118,7 @@ export function ContentReview({ questions, marks, onMarks, onExit, audit, ai, on
             <button className={scope === 'draft' ? 'on' : ''} onClick={() => setScope('draft')}>待审核（{drafts.length}）</button>
             <button className={scope === 'corpus' ? 'on' : ''} onClick={() => setScope('corpus')}>语料派生题（{corpus.length}）</button>
             <button className={scope === 'all' ? 'on' : ''} onClick={() => setScope('all')}>全部题目（{questions.length}）</button>
+            <button className={scope === 'flagged' ? 'on' : ''} onClick={() => setScope('flagged')}>要你决定的（{flagged.length}）</button>
           </div>
           <p className="review-hint">
             标记只存在本地。<b>点「通过」= 把它升为 reviewed，从此你的作答才开始计入掌握度</b>

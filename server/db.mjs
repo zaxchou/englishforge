@@ -131,8 +131,11 @@ CREATE TABLE IF NOT EXISTS active_sessions (
 CREATE TABLE IF NOT EXISTS content_reviews (
   account_id  TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
   question_id TEXT NOT NULL,
-  verdict     TEXT NOT NULL,
+  verdict     TEXT NOT NULL,      -- ok / fix / kill
   note        TEXT,
+  source      TEXT NOT NULL DEFAULT 'human',   -- 谁定的：human / ai
+  model       TEXT,               -- 若是 AI 定的：哪家模型
+  reasons     TEXT,               -- JSON 数组：AI 给的逐条理由（人工可据此复核）
   updated_at  INTEGER NOT NULL,
   PRIMARY KEY (account_id, question_id)
 );
@@ -196,6 +199,7 @@ CREATE TABLE IF NOT EXISTS questions (
   prompt            TEXT NOT NULL,
   answer            TEXT,
   options           TEXT,                          -- JSON 数组（模型补逐项纠正时要用）
+  explain           TEXT,                          -- 解析（审核员要据此查"有没有用术语/自不自洽"）
   tts               TEXT,
   content_version   INTEGER NOT NULL DEFAULT 1,
   content_key       TEXT,                          -- 题型+题干+句子（归一化）：查重的依据
@@ -408,7 +412,14 @@ export function loadProgress(accountId) {
   const active = db.prepare('SELECT payload FROM active_sessions WHERE account_id = ?').get(accountId)
   const reviews = {}
   for (const r of db.prepare('SELECT * FROM content_reviews WHERE account_id = ?').all(accountId)) {
-    reviews[r.question_id] = { verdict: r.verdict, ...(r.note ? { note: r.note } : {}), at: r.updated_at }
+    reviews[r.question_id] = {
+      verdict: r.verdict,
+      ...(r.note ? { note: r.note } : {}),
+      ...(r.source && r.source !== 'human' ? { source: r.source } : {}),
+      ...(r.model ? { model: r.model } : {}),
+      ...(parseJson(r.reasons) ? { reasons: parseJson(r.reasons) } : {}),
+      at: r.updated_at,
+    }
   }
 
   return {
@@ -547,16 +558,41 @@ function writeState(db, accountId, state, revision, ts) {
 
 function writeReviews(db, accountId, reviews, ts) {
   if (!reviews || typeof reviews !== 'object') return 0
-  const ins = db.prepare(`INSERT INTO content_reviews (account_id, question_id, verdict, note, updated_at)
-    VALUES (?,?,?,?,?) ON CONFLICT(account_id, question_id) DO UPDATE SET
-      verdict = excluded.verdict, note = excluded.note, updated_at = excluded.updated_at`)
+  const ins = db.prepare(`INSERT INTO content_reviews (account_id, question_id, verdict, note, source, model, reasons, updated_at)
+    VALUES (?,?,?,?,?,?,?,?)
+    ON CONFLICT(account_id, question_id) DO UPDATE SET
+      verdict = excluded.verdict, note = excluded.note, updated_at = excluded.updated_at,
+      -- 结论没变时**保留原来的来源与理由**：否则把人机协作的记录抹平了
+      -- （AI 判的题被客户端回推一次就变成"人工定的"，后面就没法复核了）
+      source = CASE WHEN content_reviews.verdict = excluded.verdict THEN content_reviews.source ELSE excluded.source END,
+      model = CASE WHEN content_reviews.verdict = excluded.verdict THEN content_reviews.model ELSE excluded.model END,
+      reasons = CASE WHEN content_reviews.verdict = excluded.verdict THEN content_reviews.reasons ELSE excluded.reasons END`)
   let n = 0
   for (const [qid, m] of Object.entries(reviews)) {
     if (!qid || !m || !m.verdict) continue
-    ins.run(accountId, qid, String(m.verdict), m.note ? String(m.note).slice(0, 500) : null, int(m.at, ts))
+    ins.run(accountId, qid, String(m.verdict),
+      m.note ? String(m.note).slice(0, 500) : null,
+      m.source === 'ai' ? 'ai' : 'human',
+      m.model ? String(m.model).slice(0, 80) : null,
+      Array.isArray(m.reasons) && m.reasons.length ? JSON.stringify(m.reasons.slice(0, 4)) : null,
+      int(m.at, ts))
     n++
   }
   return n
+}
+
+/** 写入一条 AI 审核结论（供 /ai-review 用；人工之后改它，source 会变 human） */
+export function saveAiReview(accountId, questionId, verdict, reasons, model) {
+  const db = getDb()
+  if (!db.prepare('SELECT 1 FROM accounts WHERE id = ?').get(accountId)) throw new ApiError(404, '账户不存在：' + accountId)
+  db.prepare(`INSERT INTO content_reviews (account_id, question_id, verdict, note, source, model, reasons, updated_at)
+    VALUES (?,?,?,?,?,?,?,?)
+    ON CONFLICT(account_id, question_id) DO UPDATE SET
+      verdict = excluded.verdict, source = 'ai', model = excluded.model,
+      reasons = excluded.reasons, updated_at = excluded.updated_at`)
+    .run(accountId, questionId, verdict, null, 'ai', model ?? null,
+      Array.isArray(reasons) && reasons.length ? JSON.stringify(reasons.slice(0, 4)) : null, nowMs())
+  return { ok: true }
 }
 
 /**
@@ -810,12 +846,13 @@ export function upsertCatalog(rows = []) {
   const db = getDb()
   const ts = nowMs()
   const ins = db.prepare(`INSERT INTO questions
-    (id, skill, mode, type, variant_group_id, prompt, answer, options, tts, content_version, content_key, has_cause, updated_at)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+    (id, skill, mode, type, variant_group_id, prompt, answer, options, explain, tts, content_version, content_key, has_cause, updated_at)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     ON CONFLICT(id) DO UPDATE SET
       skill = excluded.skill, mode = excluded.mode, type = excluded.type,
       variant_group_id = excluded.variant_group_id, prompt = excluded.prompt,
-      answer = excluded.answer, options = excluded.options, tts = excluded.tts, content_version = excluded.content_version,
+      answer = excluded.answer, options = excluded.options, explain = excluded.explain,
+      tts = excluded.tts, content_version = excluded.content_version,
       content_key = excluded.content_key,
       has_cause = excluded.has_cause, updated_at = excluded.updated_at`)
   let inserted = 0, updated = 0, skipped = 0
@@ -828,7 +865,8 @@ export function upsertCatalog(rows = []) {
       const exists = db.prepare('SELECT 1 FROM questions WHERE id = ?').get(id)
       const options = Array.isArray(r.options) ? JSON.stringify(r.options.map((o) => String(o).slice(0, 200))) : null
       ins.run(id, skill, r.mode ?? null, r.type ?? null, r.variantGroupId ?? null,
-        str(r.prompt).slice(0, 500), r.answer ?? null, options, r.tts ?? null,
+        str(r.prompt).slice(0, 500), r.answer ?? null, options,
+        r.explain ? String(r.explain).slice(0, 600) : null, r.tts ?? null,
         int(r.contentVersion, 1), r.contentKey ? String(r.contentKey).slice(0, 600) : null, r.hasCause ? 1 : 0, ts)
       if (exists) updated++; else inserted++
     }
@@ -886,6 +924,16 @@ export function audit(accountId) {
       && new Set(g.map((r) => normText(r.answer))).size > 1)
     .map((g) => ({ variants: g.map(slim), count: g.length }))
 
+  const reviewRows = db.prepare('SELECT question_id, verdict, source, reasons FROM content_reviews WHERE account_id = ?').all(accountId)
+  const verdictOf = new Map(reviewRows.map((r) => [r.question_id, r]))
+  const live = rows.filter((r) => !killed.has(r.id))
+  const unreviewed = live.filter((r) => !verdictOf.has(r.id)).length
+  const aiRows = reviewRows.filter((r) => r.source === 'ai')
+  const flagged = live.filter((r) => {
+    const v = verdictOf.get(r.id)?.verdict
+    return v === 'fix' || v === 'kill'
+  })
+
   const enriched = new Set(db.prepare("SELECT question_id FROM enrichments WHERE account_id = ? AND kind = 'causes'").all(accountId)
     .map((r) => r.question_id))
   // 只有选择题才有"逐项纠正"这回事；顺序/词块题不需要
@@ -896,6 +944,11 @@ export function audit(accountId) {
     catalog: rows.length,
     /** 这个账户已经毙掉的题数（已从上面各项里排除） */
     quarantined: killed.size,
+    /** 还没定过版的题数（AI 或人都没定过）—— 这就是"要机器去审"的队列 */
+    unreviewed,
+    /** AI 定过版的题数、以及现在处于"要改/已毙"的题数（这些才需要人过目） */
+    aiReviewed: aiRows.length,
+    flagged: { count: flagged.length, sample: flagged.slice(0, 30).map(slim) },
     duplicates,
     conflicts,
     missingCause: { count: missingCause.length, sample: missingCauseList.slice(0, 30) },
@@ -903,6 +956,38 @@ export function audit(accountId) {
     enrichedCount: enriched.size,
     duplicateCount: duplicates.reduce((n, g) => n + g.extras.length, 0),
   }
+}
+
+/** 本账户已定版的题（谁定的、什么结论、AI 给的理由） */
+export function listReviews(accountId) {
+  return getDb().prepare('SELECT * FROM content_reviews WHERE account_id = ?').all(accountId).map((r) => ({
+    questionId: r.question_id,
+    verdict: r.verdict,
+    note: r.note ?? null,
+    source: r.source ?? 'human',
+    model: r.model ?? null,
+    reasons: parseJson(r.reasons) ?? [],
+    at: r.updated_at,
+  }))
+}
+
+/** 取一批"还没定过版"的题给审核员（目录里有什么就审什么，含仓库题与账户题） */
+export function catalogForReview(accountId, { skipReviewed = new Set(), limit = 60 } = {}) {
+  const db = getDb()
+  const killed = new Set([
+    ...db.prepare("SELECT question_id FROM content_reviews WHERE account_id = ? AND verdict = 'kill'").all(accountId).map((r) => r.question_id),
+    ...db.prepare("SELECT item_id FROM items WHERE account_id = ? AND review_status = 'quarantined'").all(accountId).map((r) => r.item_id),
+  ])
+  const out = []
+  for (const r of db.prepare('SELECT * FROM questions ORDER BY skill, id').all()) {
+    if (killed.has(r.id) || skipReviewed.has(r.id)) continue
+    const options = parseJson(r.options)
+    // 只有选择题有"干扰项"可审；其它题型（拼句/点词/跟读）这轮不送审
+    if (!Array.isArray(options) || options.length < 2) continue
+    out.push({ id: r.id, skill: r.skill, type: r.type, prompt: r.prompt, options, answer: r.answer, explain: r.explain ?? null, tts: r.tts ?? null })
+    if (out.length >= limit) break
+  }
+  return out
 }
 
 export function saveEnrichment(accountId, questionId, kind, payload, model = null) {

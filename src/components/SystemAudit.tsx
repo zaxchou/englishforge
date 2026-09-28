@@ -17,11 +17,15 @@ interface Props {
   onKillDuplicates: (ids: string[]) => Promise<void>
   /** 换模型（存库即时生效） */
   onModel: (model: string) => Promise<boolean>
+  /** 让系统审核题库（自动定版） */
+  onAiReview: (limit: number) => Promise<{ reviewed: number; killed: number; fixed: number; remaining: number; reviewer: string | null; independent: boolean; error: string | null } | null>
+  /** 只看"系统认为有问题、要人定"的题（把人工量压到最小） */
+  onShowFlagged: () => void
   /** 让系统 AI 补一批 */
   onEnrich: (limit: number) => Promise<{ enriched: number; rejected: number; truncated: number; remaining: number; error: string | null } | null>
 }
 
-export function SystemAudit({ audit, ai, onKillDuplicates, onEnrich, onModel }: Props) {
+export function SystemAudit({ audit, ai, onKillDuplicates, onEnrich, onModel, onAiReview, onShowFlagged }: Props) {
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
   const [progress, setProgress] = useState('')
@@ -74,6 +78,23 @@ export function SystemAudit({ audit, ai, onKillDuplicates, onEnrich, onModel }: 
     setMsg(`已补 ${total} 道 · 还剩 ${lastRemaining} 道（跑满 200 批上限，可再点一次继续）`)
   }
 
+  /** 一键审完：连续跑到审完，或连续两批没有进展就停 */
+  async function aiReviewAll() {
+    setBusy(true)
+    let total = 0, killed = 0, fixed = 0, stale = 0
+    for (let i = 0; i < 200; i++) {
+      const r = await onAiReview(20)
+      if (!r) { setBusy(false); setMsg(`已审 ${total} 道 · 数据库断开，先停下。`); return }
+      total += r.reviewed; killed += r.killed; fixed += r.fixed
+      stale = r.reviewed === 0 ? stale + 1 : 0
+      setProgress(`已审 ${total} 道（判毙 ${killed} · 要改 ${fixed}）· 还剩 ${r.remaining} 道 · 第 ${i + 1} 批`)
+      if (r.remaining === 0) { setBusy(false); setProgress(''); setMsg(`审完了：共 ${total} 道，判毙 ${killed} 道、要改 ${fixed} 道（这些已列进"要你决定"）。`); return }
+      if (stale >= 2) { setBusy(false); setProgress(''); setMsg(`已审 ${total} 道 · 还剩 ${r.remaining} 道，连续两批没有进展，先停下。`); return }
+    }
+    setBusy(false); setProgress('')
+    setMsg(`已审 ${total} 道（跑满上限，可再点一次继续）`)
+  }
+
   /** 报错只显示人话；原始文本塞进 title（模型输出可能很长，不能整段铺在界面上） */
   function shortError(e: string) {
     if (/截断|length|没有返回可解析/.test(e)) return '模型输出被截断（已自动拆小重试）'
@@ -98,7 +119,9 @@ export function SystemAudit({ audit, ai, onKillDuplicates, onEnrich, onModel }: 
         <h2>系统自检</h2>
         <span className="ai-wrap">
           <button className={`ai-pill ${ai?.configured ? 'is-on' : 'is-off'}`} onClick={() => { setModelDraft(ai?.model ?? ''); setModelOpen(!modelOpen) }}>
-            {ai?.configured ? `系统 AI 已就绪 · ${ai.model}（${ai.source}）` : '系统 AI 未配置（在 molin-wiki/backend/.env 放 DEEPSEEK_API_KEY）'}
+            {ai?.configured
+              ? `出题 ${ai.providerLabel ?? ''} ${ai.model}（模型来自${ai.modelSource ?? '?'}）`
+              : '系统 AI 未配置（在 molin-wiki/backend/.env 放 API KEY）'}
           </button>
           {modelOpen && ai?.configured && (
             <form
@@ -119,10 +142,37 @@ export function SystemAudit({ audit, ai, onKillDuplicates, onEnrich, onModel }: 
         </span>
       </div>
       <p className="sysaudit-note">
-        这三项都由系统自己查、自己修，不需要人在仓库外跑脚本。补出来的逐项纠正会存进你的账户，
+        这些都是系统自己查、自己修，不需要你逐题去看：<b>AI 审核</b>让另一个模型把题定版，
+        <b>你只需要看它报出来的例外</b>（判毙的、要改的）。补出来的逐项纠正会存进你的账户，
         做错题时立刻就能看到「你选的那条等于在说什么意思」。
         {!!audit?.quarantined && <b>（你已经毙掉 {audit.quarantined} 道题，它们已退出抽题、也不再计入下面的统计。）</b>}
       </p>
+
+      {/* AI 审核：让另一个模型把题库定版，人只看它报出来的例外 */}
+      <div className="sysaudit-card is-wide is-ai">
+        <span>AI 审核（自动定版）</span>
+        <b>{audit ? `${audit.unreviewed} 道还没审` : '—'}</b>
+        <small>
+          {ai?.review?.configured
+            ? <>审核员：<b>{ai.review.providerLabel} · {ai.review.model}</b>
+              {ai.independentReview
+                ? '（与出题人不是同一家，算独立审核）'
+                : '（和出题人同一家，只能算自查 —— 建议在 molin-wiki/.env 里配上另一家的 KEY）'}
+              </>
+            : '审核模型未配置'}
+          {audit && audit.flagged.count > 0 && <> · 系统认为有问题的 <b>{audit.flagged.count}</b> 道，只有这些需要你过目</>}
+          {audit && audit.aiReviewed > 0 && <> · 已由 AI 定版 {audit.aiReviewed} 道</>}
+        </small>
+        <div className="sysaudit-actions">
+          <button className="secondary" onClick={() => void aiReviewAll()} disabled={busy || !audit?.unreviewed || !ai?.review?.configured}>
+            {busy ? '正在审…' : `一键审完（还剩 ${audit?.unreviewed ?? 0} 道）`}
+          </button>
+          <button className="secondary" onClick={async () => { setBusy(true); setMsg('正在审一批…'); const r = await onAiReview(20); setBusy(false); setMsg(r ? `审了 ${r.reviewed} 道（判毙 ${r.killed} · 要改 ${r.fixed}）· 还剩 ${r.remaining} 道` : '失败') }} disabled={busy || !audit?.unreviewed || !ai?.review?.configured}>
+            只审一批（20 道）
+          </button>
+          {!!audit?.flagged.count && <button className="text-button" onClick={onShowFlagged}>只看要我决定的（{audit.flagged.count}）</button>}
+        </div>
+      </div>
 
       <div className="sysaudit-grid">
         <div className="sysaudit-card">

@@ -4,12 +4,13 @@
 // 一个纯函数 + 一个中间件就够了，也能直接在测试里调用（不起 HTTP）。
 import {
   ApiError, addItems, audit, createAccount, dbInfo, deleteItem, ensureDefaultAccount, getAccount,
-  itemStats, listAccounts, listBatches, listEnrichments, listItems, listSnapshots,
+  catalogForReview, itemStats, listAccounts, listBatches, listEnrichments, listItems,
+  listReviews, listSnapshots,
   loadProgress, queryAttempts, renameAccount, replaceState, resetAccount, restoreSnapshot,
-  saveEnrichment, setItemReview, setSetting, stats, syncAccount, touchAccount, upsertCatalog,
-  writeSnapshot, getDb,
+  saveAiReview, saveEnrichment, setItemReview, setSetting, stats, syncAccount, touchAccount,
+  upsertCatalog, writeSnapshot, getDb,
 } from './db.mjs'
-import { enrichCauses } from './content-ai.mjs'
+import { enrichCauses, reviewQuestions } from './content-ai.mjs'
 import { invalidateLlmConfig, llmStatus, DEFAULT_MODEL } from './llm.mjs'
 
 const MAX_BODY = 64 * 1024 * 1024   // 首次把浏览器里的整份进度搬进库时会有一次大包
@@ -98,6 +99,36 @@ const ROUTES = [
   }],
   ['GET', '/api/accounts/:id/audit', (ctx) => ({ audit: audit(ctx.params.id) })],
   ['GET', '/api/accounts/:id/enrichments', (ctx) => ({ enrichments: listEnrichments(ctx.params.id, ctx.query.get('kind')) })],
+  /**
+   * 让**另一个模型**去审核题库（用户的要求：审核也该是自动的，不该让人逐题看）。
+   * 只审"还没定过版"的题；结论带理由与来源写进 content_reviews，与人工标记走同一条信任路径
+   * （ok → reviewed 计入掌握度 / kill → quarantined 退出抽题 / fix → 仍 draft 但列进"要人看"）。
+   */
+  ['POST', '/api/accounts/:id/ai-review', async (ctx) => {
+    const limit = num(ctx.body?.limit, 20)
+    const reviewed = new Set(listReviews(ctx.params.id).map((r) => r.questionId))
+    const todo = catalogForReview(ctx.params.id, { skipReviewed: reviewed })
+      .slice(0, Math.max(1, Math.min(60, limit)))
+    if (!todo.length) return { ok: true, requested: 0, reviewed: 0, killed: 0, fixed: 0, remaining: 0, reviewer: null }
+    const { results, rejected, truncated, model, provider, error } = await reviewQuestions(todo)
+    let killed = 0, fixed = 0, saved = 0
+    const verdicts = {}
+    for (const [qid, v] of Object.entries(results)) {
+      const tag = provider ? `${provider}/${model}` : model
+      saveAiReview(ctx.params.id, qid, v.verdict, v.reasons, tag)
+      verdicts[qid] = { verdict: v.verdict, reasons: v.reasons, source: 'ai', model: tag }
+      saved++
+      if (v.verdict === 'kill') killed++
+      else if (v.verdict === 'fix') fixed++
+    }
+    const after = audit(ctx.params.id)
+    return {
+      ok: true, requested: todo.length, reviewed: saved, killed, fixed, rejected, truncated, verdicts,
+      remaining: after.unreviewed, reviewer: { provider, model, independent: llmStatus().independentReview },
+      error: error ?? null,
+    }
+  }],
+
   /** 让系统自己的 AI 给缺逐项纠正的题补上（一次一批，可反复点，直到补完） */
   ['POST', '/api/accounts/:id/enrich-causes', async (ctx) => {
     const limit = num(ctx.body?.limit, 8)

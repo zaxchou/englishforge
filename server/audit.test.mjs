@@ -8,7 +8,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-let dir, handleApi, closeDb, setChat, resetChat, ERROR_TAG_KEYS
+let dir, handleApi, closeDb, setChat, resetChat, ERROR_TAG_KEYS, REVIEW_PROMPT
 
 beforeAll(async () => {
   dir = mkdtempSync(join(tmpdir(), 'ef-audit-'))
@@ -23,6 +23,7 @@ beforeAll(async () => {
   setChat = ai.__setChatJson
   resetChat = ai.__resetChatJson
   ERROR_TAG_KEYS = llm.ERROR_TAG_KEYS
+  REVIEW_PROMPT = ai.REVIEW_PROMPT
 })
 
 afterAll(() => {
@@ -179,19 +180,31 @@ describe('让系统自己的 AI 补逐项纠正', () => {
     expect(typeof st.source).toBe('string')
     const text = JSON.stringify(st)
     expect(text).not.toMatch(/sk-/)
-    expect(text.length).toBeLessThan(300)
+    expect(text.length).toBeLessThan(900)   // 现在还会回报审核员与可用 provider，但绝不含密钥
   })
 
-  it('可以换模型：存库即时生效，并如实回报"界面设置"而不是谎称 .env', async () => {
-    const before = (await call('/api/ai/status')).json.ai.model
+  it('可以换模型：存库即时生效，并如实回报模型名来自"界面设置"', async () => {
+    const before = (await call('/api/ai/status')).json.ai
     const res = await call('/api/ai/model', { model: 'deepseek-flash' }, 'POST')
     expect(res.status).toBe(200)
     expect(res.json.ai.model).toBe('deepseek-flash')
-    expect(res.json.ai.source).toBe('界面设置')
+    expect(res.json.ai.modelSource).toBe('界面设置')
     expect((await call('/api/ai/status')).json.ai.model).toBe('deepseek-flash')
     expect((await call('/api/ai/model', { model: 'bad name!!' }, 'POST')).status).toBe(400)
     // 换回去，别影响别的用例
-    await call('/api/ai/model', { model: before }, 'POST')
+    if (before.model) await call('/api/ai/model', { model: before.model }, 'POST')
+  })
+
+  it('审核员尽量与出题人不同一家（同一家只能算自查）', async () => {
+    const ai = (await call('/api/ai/status')).json.ai
+    expect(ai.provider).toBeTruthy()
+    expect(ai.review.configured).toBe(true)
+    expect(Array.isArray(ai.available)).toBe(true)
+    // 有第二家可用时就必须独立；只有一家时才允许自查
+    if (ai.available.length > 1) {
+      expect(ai.independentReview).toBe(true)
+      expect(ai.review.provider).not.toBe(ai.provider)
+    }
   })
 
   it('毙掉的题不再计入自检（否则点完"毙掉"数字不动，看起来像没生效）', async () => {
@@ -205,6 +218,74 @@ describe('让系统自己的 AI 补逐项纠正', () => {
     expect(after.duplicateCount).toBe(before.duplicateCount - 1)
     expect(after.quarantined).toBeGreaterThanOrEqual(1)
     expect(after.conflicts.every((g) => !g.variants.some((v) => v.id === extra))).toBe(true)
+  })
+})
+
+describe('AI 审核（另一个模型自动定版）', () => {
+  const reviewQs = [
+    { id: 'rv1', skill: 's1', type: 'choice', prompt: '苹果复数？', answer: 'apples', options: ['apples', 'apple', 'appless', 'applese'], explain: '含义是多本，形式就得变。', contentKey: 'rv1' },
+    { id: 'rv2', skill: 's1', type: 'choice', prompt: '术语题', answer: 'a', options: ['a', 'b'], explain: '用主格宾格来讲。', contentKey: 'rv2' },
+    { id: 'rv3', skill: 's1', type: 'choice', prompt: '答案错题', answer: 'b', options: ['a', 'b'], explain: 'x', contentKey: 'rv3' },
+  ]
+
+  it('审核员提示词里必须写明"以本书主张为标准"（否则它会把整套教材判死）', () => {
+    // 实测过：不写这条，审核员会说"book 和 books 是同一个词位的屈折形式"从而判 kill
+    expect(REVIEW_PROMPT).toContain('教学主张')
+    expect(REVIEW_PROMPT).toContain('就是评判标准')
+    expect(REVIEW_PROMPT).toContain('含义不同，就是两个不同的词')
+  })
+
+  it('判据与结论不一致时由代码兜底：答案不唯一→kill，有项未过→不许 ok，无理由→不采信', async () => {
+    await call('/api/catalog', { questions: reviewQs }, 'POST')
+    // 替身按**题目内容**给结论，而不是按下标 —— 否则拆半重试时下标会错位（我踩过）
+    setChat(async (messages) => {
+      const payload = JSON.parse(messages[messages.length - 1].content.slice(messages[messages.length - 1].content.indexOf('[')))
+      const items = payload.map((p) => {
+        if (p.prompt.includes('答案错题')) {
+          // 说有问题却给不出理由 → 不该被采信
+          return { i: p.i, answerOk: false, distractorOk: false, glossOk: true, explainOk: true, verdict: 'kill', reasons: [] }
+        }
+        if (p.prompt.includes('术语题')) {
+          // 有检查项没过却自称 ok → 必须被降级
+          return { i: p.i, answerOk: true, distractorOk: true, glossOk: true, explainOk: false, verdict: 'ok', reasons: ['解析用了主格/宾格这两个术语'] }
+        }
+        // 自称 ok，但自己承认答案不唯一 → 必须被判 kill
+        return { i: p.i, answerOk: false, distractorOk: false, glossOk: true, explainOk: true, verdict: 'ok', reasons: ['干扰项 appless 也成立'] }
+      })
+      return { text: JSON.stringify({ items }), finishReason: 'stop' }
+    })
+
+    const run = (await call(`/api/accounts/${acct}/ai-review`, { limit: 3 }, 'POST')).json
+    expect(run.reviewed).toBe(2)          // rv1 判毙、rv2 降级为 fix；rv3 说不出问题 → 不采信
+    expect(run.killed).toBe(1)
+    expect(run.fixed).toBe(1)
+    expect(run.reviewer.independent).toBe(true)   // 有第二家可用 → 必须是独立审核
+
+    const byId = (await call(`/api/accounts/${acct}/progress`)).json.reviews
+    expect(byId.rv1.verdict).toBe('kill')
+    expect(byId.rv1.source).toBe('ai')                        // 来源如实标注
+    expect(byId.rv1.reasons.join(' ')).toContain('答案本身不正确') // 结论被代码兜底改过并写明依据
+    expect(byId.rv2.verdict).toBe('fix')
+    expect(byId.rv3).toBeUndefined()                          // 说不清问题的结论不进库
+  })
+
+  it('人改过之后来源变成 human（机器结论不该被当作人工判断）', async () => {
+    await call(`/api/accounts/${acct}/sync`, { reviews: { rv1: { verdict: 'ok', source: 'human' } } }, 'POST')
+    const p = (await call(`/api/accounts/${acct}/progress`)).json
+    expect(p.reviews.rv1.verdict).toBe('ok')
+    expect(p.reviews.rv1.source).toBeUndefined()   // source='human' 是默认值，不必回传
+  })
+
+  it('已定过版的题不再重复送审', async () => {
+    const before = (await call(`/api/accounts/${acct}/audit`)).json.audit
+    const run = (await call(`/api/accounts/${acct}/ai-review`, { limit: 10 }, 'POST')).json
+    // 送审量不会超过"还没定版的题数"，也不会超过这一批的上限
+    // （比 unreviewed 少是正常的：拼句/点词等没有干扰项的题型这轮不送审）
+    expect(run.requested).toBeGreaterThan(0)
+    expect(run.requested).toBeLessThanOrEqual(Math.min(10, before.unreviewed))
+    // rv1/rv2 已经有结论了，不会出现在这一批里
+    expect(run.verdicts.rv1).toBeUndefined()
+    expect(run.verdicts.rv2).toBeUndefined()
   })
 })
 

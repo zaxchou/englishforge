@@ -10,7 +10,16 @@
 import type { AdaptedQuestion, ReviewStatus } from '../types'
 
 export type Verdict = 'ok' | 'fix' | 'kill'
-export interface ReviewMark { verdict?: Verdict; note?: string }
+export interface ReviewMark {
+  verdict?: Verdict
+  note?: string
+  /** 谁定的：人还是系统 AI（界面上要能区分，人也才知道该复核哪些） */
+  source?: 'human' | 'ai'
+  /** AI 定的用哪家模型 */
+  model?: string | null
+  /** AI 给的理由（人复核时的依据） */
+  reasons?: string[]
+}
 export type ReviewMarks = Record<string, ReviewMark>
 
 export const REVIEW_MARKS_KEY = 'sf-content-review'

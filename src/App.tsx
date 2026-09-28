@@ -102,7 +102,7 @@ export default function App() {
   useEffect(() => {
     const rows = [...allQuestions, ...accountPool].map((q) => ({
       id: q.id, skill: q.skill, mode: q.mode, type: q.type, variantGroupId: q.variantGroupId,
-      prompt: q.prompt, answer: q.answer, options: q.options, tts: q.tts,
+      prompt: q.prompt, answer: q.answer, options: q.options, explain: q.explain, tts: q.tts,
       contentVersion: q.contentVersion, contentKey: contentKeyOf(q), hasCause: hasOwnCause(q),
     }))
     void db.syncCatalog(rows)
@@ -366,6 +366,10 @@ export default function App() {
       if (prev[qid]?.verdict === mark.verdict) continue
       void db.patchItemVerdict(qid, mark.verdict)
     }
+    // 人在界面上点了结论 → 这条就归"人"定的（来源标清楚，才分得清哪些还没被人看过）
+    for (const [qid, mark] of Object.entries(m)) {
+      if (mark?.verdict && prev[qid]?.verdict !== mark.verdict) mark.source = 'human'
+    }
     marksRef.current = m
     setMarks(m)
     saveReviewMarks(m)
@@ -545,6 +549,7 @@ export default function App() {
               await db.runAudit()
             }}
             onModel={(model: string) => db.changeModel(model)}
+            onAiReview={(limit: number) => db.aiReviewNow(limit)}
             onEnrich={async (limit) => {
               const r = await db.enrichNow(limit)
               // 补完立刻刷新题目池（逐项纠正并进去后，练习与结算页马上能用）

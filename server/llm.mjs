@@ -63,49 +63,126 @@ function readEnvFile(path) {
 
 /** 默认模型：用户说 deepseek-flash 是他们最新的 */
 export const DEFAULT_MODEL = 'deepseek-flash'
-let cached = null
 
-/** 解析出 { key, baseUrl, model, source }；没有可用密钥时返回 { configured: false } */
-export function llmConfig({ refresh = false } = {}) {
-  if (cached && !refresh) return cached
-  let key = process.env.DEEPSEEK_API_KEY || ''
-  let base = process.env.DEEPSEEK_BASE_URL || ''
-  let model = process.env.DEEPSEEK_TEXT_MODEL || ''
-  let source = key ? 'env' : ''
+/**
+ * 多 provider：**"审核员"和"出题人"不该是同一家模型** —— 同一个模型自查等于自说自话。
+ * 密钥一律运行时从环境变量或仓库外的 .env 读，绝不入库、绝不打印。
+ */
+export const PROVIDERS = {
+  // 出题 / 补内容
+  deepseek: {
+    label: 'DeepSeek',
+    key: ['DEEPSEEK_API_KEY'], base: ['DEEPSEEK_BASE_URL'], model: ['DEEPSEEK_TEXT_MODEL'],
+    defaultBase: 'https://api.deepseek.com', defaultModel: 'deepseek-flash',
+  },
+  // 审核：小米 MiMo。密钥沿用 molin-wiki 的"通用 OpenAI 兼容槽位"（AI_API_KEY / AI_BASE_URL / AI_MODEL）
+  mimo: {
+    label: 'MiMo（小米）',
+    key: ['MIMO_API_KEY', 'AI_API_KEY'],
+    base: ['MIMO_API_BASE', 'AI_BASE_URL'],
+    model: ['MIMO_MODEL', 'AI_MODEL'],
+    defaultBase: 'https://api.xiaomimimo.com/v1', defaultModel: 'mimo-v2.6-flash',
+  },
+}
+export const PROVIDER_NAMES = Object.keys(PROVIDERS)
+/** 默认审核员：用户指定用 MiMo（另一个模型家族），不要用 qwen / 智谱 */
+export const DEFAULT_REVIEWER = 'mimo'
+
+/** 读某个 provider 的凭据；env 优先，其次仓库外的 .env 文件 */
+function resolveProvider(name) {
+  const spec = PROVIDERS[name]
+  if (!spec) return null
+  const pick = (keys, env) => keys.map((k) => env[k]).find(Boolean) || ''
+  let key = pick(spec.key, process.env)
+  let base = pick(spec.base, process.env)
+  let model = pick(spec.model, process.env)
   if (!key) {
     for (const file of ENV_FILES) {
       const env = readEnvFile(file)
-      if (env.DEEPSEEK_API_KEY) {
-        key = env.DEEPSEEK_API_KEY
-        base = base || env.DEEPSEEK_BASE_URL || ''
-        model = model || env.DEEPSEEK_TEXT_MODEL || ''
-        source = file
+      const k = pick(spec.key, env)
+      if (k) {
+        key = k
+        base = base || pick(spec.base, env)
+        model = model || pick(spec.model, env)
         break
       }
     }
   }
-  // 模型名的优先级：环境变量 > 界面里保存的设置 > 项目 .env > 默认。
-  // 放在库里而不是 .env，是为了让用户在自己的界面上换模型，不必去改别的项目的配置文件。
-  let saved = null
-  try { saved = getSetting('ai_model') } catch { /* 库还没就绪（比如离线脚本调用）就用 .env 的值 */ }
-  if (process.env.ENGLISHFORGE_AI_MODEL) { model = process.env.ENGLISHFORGE_AI_MODEL; source = 'env' }
-  else if (saved) { model = saved; source = '界面设置' }
-  cached = key
-    ? { configured: true, key, baseUrl: (base || 'https://api.deepseek.com').replace(/\/+$/, ''), model: model || DEFAULT_MODEL, source }
-    : { configured: false, key: '', baseUrl: '', model: '', source: '' }
-  return cached
+  if (!key) return null
+  return { provider: name, label: spec.label, key, baseUrl: (base || spec.defaultBase).replace(/\/+$/, ''), model: model || spec.defaultModel }
 }
 
-/** 状态查询：**只回报有没有配好、用的哪个模型、从哪读的**，绝不回报密钥本身 */
+/** 哪些 provider 有密钥可用（只回报名字，不回报密钥） */
+export function availableProviders() {
+  return PROVIDER_NAMES.filter((n) => !!resolveProvider(n)).map((n) => ({ name: n, label: PROVIDERS[n].label }))
+}
+
+let cached = null
+
+/** 模型名是从哪来的（如实回报，别把"界面设置"说成 .env） */
+function sourceLabel(providerName) {
+  const envNames = PROVIDERS[providerName]?.key ?? []
+  return envNames.some((n) => process.env[n]) ? '环境变量' : '项目 .env（仓库外）'
+}
+
+/**
+ * 解析某个角色该用哪家模型：
+ *   role='generate' → 出题 / 补逐项纠正；role='review' → 审核别人出的题。
+ * 优先级：环境变量 > 界面设置（存库）> .env 的值 > 默认。
+ * 审核员默认**自动挑一家和出题人不同的 provider**（没有别的可用时才退回同一家，并如实标注"自查"）。
+ */
+export function llmConfig(role = 'generate', { refresh = false } = {}) {
+  if (cached && !refresh) return cached[role] ?? cached.generate
+  const read = (k) => { try { return getSetting(k) } catch { return null } }
+  const envFor = (r, field) => process.env[`ENGLISHFORGE_${r.toUpperCase()}_${field.toUpperCase()}`] || ''
+
+  const genProvider = envFor('generate', 'provider') || read('ai_provider') || 'deepseek'
+  const gen = resolveProvider(genProvider) ?? resolveProvider('deepseek')
+
+  // 审核员默认 MiMo（用户指定）；只有它没配好时才退回与出题人同一家，并在界面上标"自查"
+  const revProvider = envFor('review', 'provider') || read('ai_review_provider') || DEFAULT_REVIEWER
+  const rev = resolveProvider(revProvider) ?? gen
+
+  const modelOf = (r, fallback) => envFor(r, 'model') || read(r === 'review' ? 'ai_review_model' : 'ai_model') || fallback
+  // 模型名是从哪来的，也要如实回报（用户会问"我改了到底生效没有"）
+  const modelOrigin = (role) => {
+    if (envFor(role, 'model')) return '环境变量'
+    if (read(role === 'review' ? 'ai_review_model' : 'ai_model')) return '界面设置'
+    return '项目 .env（仓库外）'
+  }
+  const mk = (resolved, role) => resolved
+    ? {
+      configured: true, ...resolved,
+      model: modelOf(role, resolved.model),
+      modelSource: modelOrigin(role),
+      source: sourceLabel(resolved.provider),      // 密钥是哪来的
+    }
+    : { configured: false, key: '', baseUrl: '', model: '', source: '', modelSource: '' }
+
+  cached = { generate: mk(gen, 'generate'), review: mk(rev, 'review') }
+  return cached[role] ?? cached.generate
+}
+
+/** 状态查询：**只回报有没有配好、用的哪家模型、从哪读的**，绝不回报密钥本身 */
 export function llmStatus() {
-  const c = llmConfig()
-  return {
+  const mk = (c) => ({
     configured: c.configured,
+    provider: c.provider ?? null,
+    providerLabel: c.label ?? null,
     model: c.configured ? c.model : null,
-    // 如实回报模型名是从哪来的：环境变量 / 界面设置 / 项目 .env（别把"界面设置"说成 .env）
-    source: c.configured
-      ? (c.source === 'env' ? '环境变量' : c.source === '界面设置' ? '界面设置' : '项目 .env（仓库外）')
-      : null,
+    source: c.configured ? c.source : null,
+    modelSource: c.configured ? c.modelSource : null,
+  })
+  const g = llmConfig('generate')
+  const r = llmConfig('review')
+  return {
+    ...mk(g),
+    defaultModel: g.model || DEFAULT_MODEL,
+    envLocked: !!(process.env.ENGLISHFORGE_GENERATE_MODEL || process.env.ENGLISHFORGE_GENERATE_PROVIDER),
+    review: mk(r),
+    /** 出题人与审核员是不是不同一家。同一家只能算"自查"，界面要如实说明 */
+    independentReview: !!(g.provider && r.provider && g.provider !== r.provider),
+    available: availableProviders(),
   }
 }
 
@@ -125,9 +202,9 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
  * 报错文案还甩锅给模型）。看到 `length` 就该知道是**输出预算不够**，正确反应是
  * 把这一批拆小重试，而不是报告"模型没返回可解析的 JSON"。
  */
-export async function chatWithMeta(messages, { maxTokens = 2000, temperature = 0.2, tries = 3 } = {}) {
-  const cfg = llmConfig()
-  if (!cfg.configured) throw new LlmError('模型未配置：在 molin-wiki/backend/.env 里放 DEEPSEEK_API_KEY（或设环境变量）')
+export async function chatWithMeta(messages, { maxTokens = 2000, temperature = 0.2, tries = 3, role = 'generate' } = {}) {
+  const cfg = llmConfig(role)
+  if (!cfg.configured) throw new LlmError('模型未配置：在 molin-wiki/backend/.env 里放对应 provider 的 API KEY（或设环境变量）')
   let last = null
   for (let i = 0; i < tries; i++) {
     try {

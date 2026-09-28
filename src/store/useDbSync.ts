@@ -9,7 +9,7 @@ import type { ReviewMarks } from '../content/reviewMarks'
 import {
   bootstrap, createAccount, currentAccountId, decideBoot, fetchAccounts, fetchAiStatus, fetchAudit,
   fetchEnrichments, fetchItemBatches, fetchItems, fetchStats, getDbError, getDbState, lastSyncedAt,
-  pullProgress, pushCatalog, renameAccount, resetRemote, runEnrichCauses, setCurrentAccountId,
+  pullProgress, pushCatalog, renameAccount, resetRemote, runAiReview, runEnrichCauses, setCurrentAccountId,
   setAiModel, setItemVerdict, subscribeDbState, syncProgress, unionProgress,
   type AiStatus, type CatalogRow, type DbAccount, type DbAudit, type DbItem, type DbItemBatch,
   type DbItemStats, type DbState, type DbStats, type EnrichmentMap, type PullResult,
@@ -52,6 +52,8 @@ export interface DbSyncApi {
   runAudit: () => Promise<void>
   /** 换模型（存库即时生效） */
   changeModel: (model: string) => Promise<boolean>
+  /** 让系统审核题库（自动定版）：一次一批，结论并入本机标记 */
+  aiReviewNow: (limit?: number) => Promise<{ reviewed: number; killed: number; fixed: number; remaining: number; reviewer: string | null; independent: boolean; error: string | null } | null>
   /** 让系统自己的 AI 补一批逐项纠正 */
   enrichNow: (limit?: number) => Promise<{ enriched: number; rejected: number; truncated: number; remaining: number; error: string | null } | null>
   /** 状态变了：安排一次落库 */
@@ -217,6 +219,26 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
     if (!res) return null
     await runAudit()
     return { enriched: res.enriched, rejected: res.rejected, truncated: res.truncated, remaining: res.remaining, error: res.error }
+  }, [runAudit])
+
+  /** 让系统审核一批（另一个模型）；结论并入本机标记，题目池立刻按新信任级别重算 */
+  const aiReviewNow = useCallback(async (limit = 20) => {
+    const id = accountRef.current?.id
+    if (!id) return null
+    const res = await runAiReview(id, limit)
+    if (!res) return null
+    if (res.verdicts && Object.keys(res.verdicts).length) {
+      const { applyMarks: am, getMarks: gm } = optsRef.current
+      // 本机已有的判断优先（人不该被机器覆盖）；机器只补"人还没定过"的题
+      am({ ...res.verdicts, ...gm() })
+    }
+    await runAudit()
+    return {
+      reviewed: res.reviewed, killed: res.killed, fixed: res.fixed, remaining: res.remaining,
+      reviewer: res.reviewer ? `${res.reviewer.provider}/${res.reviewer.model}` : null,
+      independent: !!res.reviewer?.independent,
+      error: res.error,
+    }
   }, [runAudit])
 
   const changeModel = useCallback(async (model: string) => {
@@ -399,7 +421,7 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
     dismissNotice: () => setNotice(null),
     note: (text, kind = 'ok') => setNotice({ kind, text }),
     items, itemStats, itemBatches, itemsCached, reloadItems, patchItemVerdict,
-    audit, enrichments, ai, syncCatalog, runAudit, enrichNow, changeModel,
+    audit, enrichments, ai, syncCatalog, runAudit, enrichNow, changeModel, aiReviewNow,
     schedule, flush, refreshStats, rename, newAccount, switchTo, resetCurrent, reloadFromDb,
   }
 }
