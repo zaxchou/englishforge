@@ -296,6 +296,146 @@ def build_s3_possessive_v2(eng: dict[int, str], limit: int) -> list[dict]:
     return items[:limit] if limit else items
 
 
+# ---- s2 结构化来源：UD_English-EWT（CC BY-SA 4.0）----
+# 为什么要换成有标注的语料：Tatoeba 只有文本，判断不了动词是原形还是过去式、
+# her 是宾格还是物主限定词（实测产出过 "She accepteds me invitation."）。
+# EWT 给了 lemma / Tense / deprel，镜像句的变形因此可以被**证明**而不是猜。
+NOMINATIVE = {'I', 'he', 'she', 'we', 'they', 'you', 'it'}
+ACCUSATIVE = {'me', 'him', 'her', 'us', 'them', 'you', 'it'}
+# 全部用小写做键：EWT 里 "I" 会被 lower() 成 "i"，映射必须一致，否则静默 KeyError。
+# 大小写单独用 _cap() 处理（英语里 I 永远大写）。
+SUBJ_OF_OBJ = {'me': 'i', 'him': 'he', 'her': 'she', 'us': 'we', 'them': 'they',
+               'you': 'you', 'it': 'it'}
+OBJ_OF_SUBJ = {v: k for k, v in SUBJ_OF_OBJ.items()}
+
+
+def _cap(w: str, initial: bool = False) -> str:
+    """i → I；句首词首字母大写。"""
+    if w == 'i':
+        return 'I'
+    return w.capitalize() if initial else w
+
+
+def read_conllu_sentences(folder: Path) -> list[tuple[str, str, list[dict]]]:
+    """读 CoNLL-U：返回 [(sent_id, text, tokens)]，token 只留用得到的列。"""
+    out: list[tuple[str, str, list[dict]]] = []
+    for f in sorted(folder.glob('*.conllu')):
+        sid, text, cur = '', None, []
+        for line in f.open(encoding='utf-8'):
+            line = line.rstrip('\n')
+            if line.startswith('# sent_id ='):
+                sid = line.split('=', 1)[1].strip()
+                continue
+            if line.startswith('# text ='):
+                text, cur = line.split('=', 1)[1].strip(), []
+                continue
+            if not line:
+                if cur and text:
+                    out.append((sid, text, cur))
+                text, cur = None, []
+                continue
+            if line.startswith('#'):
+                continue
+            c = line.split('\t')
+            if len(c) >= 8 and '-' not in c[0] and '.' not in c[0]:
+                cur.append({'id': c[0], 'form': c[1], 'lemma': c[2], 'upos': c[3],
+                            'feats': c[5], 'head': c[6], 'deprel': c[7]})
+        if cur and text:
+            out.append((sid, text, cur))
+    return out
+
+
+def build_s2_from_ewt(folder: Path, limit: int) -> list[dict]:
+    """主格/宾格：用带标注的真实句 + 可证明的镜像句。
+
+    只收"主语在句首、宾语代词是最后一个词、现在时主动语态"的简短陈述句。
+    这样镜像句只需替换三个位置，动词按 lemma + expected_third 变形 —— 正确性由
+    词元与时态标注保证。答案始终是**真实句**；镜像句标为 constructed-provable。
+    """
+    items: list[dict] = []
+    seen_sig: set[tuple] = set()
+    for sid, text, toks in read_conllu_sentences(folder):
+        body = text.strip()
+        if NOISE.search(body):
+            continue
+        np = [t for t in toks if t['upos'] != 'PUNCT']
+        if not (4 <= len(np) <= 9):
+            continue
+        # 非标点词按单空格拼接必须能还原原文，否则重建镜像会改坏原句
+        if ' '.join(t['form'] for t in np).lower() != re.sub(r'[^A-Za-z ]', '', body).strip().lower():
+            continue
+        root = next((t for t in toks if t['deprel'] == 'root'), None)
+        # 注意 EWT 的动词 FEATS 是 Mood/Number/Person/Tense/VerbForm，**没有 Voice=Act**。
+        # 想排除被动只能查 Voice=Pass 是否存在；祈使句没有主语，也要排掉。
+        if not root or root['upos'] != 'VERB' or 'VerbForm=Fin' not in root['feats'] \
+                or 'Tense=Pres' not in root['feats'] or 'Mood=Ind' not in root['feats'] \
+                or 'Voice=Pass' in root['feats']:
+            continue
+        kids = [t for t in toks if t['head'] == root['id']]
+        subj = next((t for t in kids if t['deprel'] == 'nsubj' and t['upos'] == 'PRON'), None)
+        obj = next((t for t in kids if t['deprel'] == 'obj' and t['upos'] == 'PRON'), None)
+        if not subj or not obj:
+            continue
+        if subj['form'] not in NOMINATIVE or obj['form'] not in ACCUSATIVE:
+            continue
+
+        forms = [t['form'] for t in np]
+        vi = [i for i, t in enumerate(np) if t['id'] == root['id']][0]
+        si = [i for i, t in enumerate(np) if t['id'] == subj['id']][0]
+        oi = [i for i, t in enumerate(np) if t['id'] == obj['id']][0]
+        m_subj = SUBJ_OF_OBJ[obj['form'].lower()]
+        m_obj = OBJ_OF_SUBJ[subj['form'].lower()]
+        m_verb = expected_third(root['lemma'].lower()) if m_subj in ('he', 'she', 'it') \
+            else root['lemma'].lower()
+        text_a = body
+        # 按 token 位置原地下标替换：上面的还原性校验保证重建不会改坏原句，
+        # 所以不必强求"主语在句首、宾语在句末"（那条限制把产量压到个位数）。
+        mirror_forms = list(forms)
+        mirror_forms[si] = _cap(m_subj, initial=(si == 0))
+        mirror_forms[vi] = m_verb
+        mirror_forms[oi] = _cap(m_obj, initial=(oi == 0))
+        mirror = ' '.join(mirror_forms) + '.'
+        bad_forms = list(forms)
+        bad_forms[si] = _cap(OBJ_OF_SUBJ[subj['form'].lower()], initial=(si == 0))
+        bad_subj = ' '.join(bad_forms) + '.'
+        bad_forms = list(forms)
+        bad_forms[oi] = _cap(SUBJ_OF_OBJ[obj['form'].lower()], initial=(oi == 0))
+        bad_obj = ' '.join(bad_forms) + '.'
+
+        if len({text_a, mirror, bad_subj, bad_obj}) != 4:
+            continue
+        sig = (mirror, tuple(sorted({text_a, mirror, bad_subj, bad_obj})))
+        if sig in seen_sig:
+            continue                        # EWT 里有重复句，会产出完全相同的题
+        seen_sig.add(sig)
+        vid = f"{root['lemma'].lower()}:{subj['form'].lower()}-{obj['form'].lower()}"
+        source = f'ud-en-ewt:{sid}'
+        items.append({
+            'objectiveId': 's2', 'skill': 's2', 'type': 'choice', 'kind': 'meaning',
+            'prompt': '', 'promptNeedsGloss': True,
+            'options': [text_a, mirror, bad_subj, bad_obj], 'answer': text_a,
+            'tts': text_a, 'explain': '',
+            'variantGroupId': vid,
+            'optionOrigin': {text_a: 'attested', mirror: 'constructed-provable',
+                             bad_subj: 'constructed', bad_obj: 'constructed'},
+            'errorTags': {mirror: ['role-reversed'], bad_subj: ['case-form-subject'],
+                          bad_obj: ['case-form-object']},
+            'sourceId': {'answer': source}, 'reviewStatus': 'draft',
+        })
+        frame_opts = [obj['form'], *PARADIGM.get(obj['form'].lower(), ())]
+        if len(set(frame_opts)) == 4:
+            items.append({
+                'objectiveId': 's2', 'skill': 's2', 'type': 'choice', 'kind': 'frame',
+                'sentence': text_a,
+                'prompt': ' '.join(forms[:oi] + ['___'] + forms[oi + 1:]) + '.',
+                'options': frame_opts, 'answer': obj['form'], 'tts': text_a, 'explain': '',
+                'variantGroupId': vid,
+                'optionOrigin': {obj['form']: 'attested', 'frame': source},
+                'errorTags': {}, 'sourceId': {'frame': source}, 'reviewStatus': 'draft',
+            })
+    return items[:limit] if limit else items
+
+
 def write_items(path: Path, items: list[dict]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(items, ensure_ascii=False, indent=1), encoding='utf-8')
@@ -413,6 +553,9 @@ def main() -> int:
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(items, ensure_ascii=False, indent=1), encoding='utf-8')
     print(f'\n写出 s2 主格/宾格 {len(items)} 题（其中 {with_zh} 题带中文意思）→ {out}')
+    print('s2 结构化来源（UD_English-EWT，镜像句由词元+时态推导，正确性可证明）：')
+    write_items(Path('out/items-s2-case-ewt.json'),
+                build_s2_from_ewt(root / 'ud' / 'UD_English-EWT-master', args.limit))
     print('s3 物主代词（Tatoeba 真实 my+名词 / mine 对立）：')
     write_items(Path('out/items-s3-possessive.json'), build_s3_possessive_v2(eng, args.limit))
     print('s4 三单（Tatoeba 真实对立）：')

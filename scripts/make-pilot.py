@@ -37,12 +37,23 @@ def quote(s: str) -> str:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument('--items', default='out/items-pronoun-case.enriched.json')
+    ap.add_argument('--items', nargs='+',
+                    default=['out/items-pronoun-case.enriched.json',
+                             'out/items-s2-case-ewt.enriched.json'],
+                    help='可给多个文件，按顺序合并后再轮转取样')
     ap.add_argument('--out', default='src/data/pilots/subject-object.ts')
-    ap.add_argument('--limit', type=int, default=16)
+    ap.add_argument('--limit', type=int, default=20)
     args = ap.parse_args()
 
-    src = json.loads(Path(args.items).read_text(encoding='utf-8'))
+    src: list[dict] = []
+    for f in args.items:
+        path = Path(f)
+        if not path.exists():
+            print(f'  跳过（不存在）：{f}')
+            continue
+        loaded = json.loads(path.read_text(encoding='utf-8'))
+        print(f'  读入 {len(loaded):3d} 题 ← {f}')
+        src += loaded
     # 按动词分桶后轮转取样：直接取前 N 条只会拿到字母序开头那几个动词，
     # 种子集就名不副实地"看起来多样、实际重复"。
     buckets: dict[str, list[dict]] = {}
@@ -82,7 +93,7 @@ def main() -> int:
         '// 数据来源：语料派生的主宾格练习（R1-02）。正确选项均为真实语料原句，',
         '// 干扰项来自真实镜像句或对真实框架的最小违反；中文释义与解析由模型生成后待人工过目。',
         '// 生成命令：python scripts/build-items.py && python scripts/enrich-items.py && python scripts/make-pilot.py',
-        '// 署名：句子源自 Tatoeba（CC BY 2.0 FR），逐题出处见 sourceRef。',
+        '// 署名：句子源自 Tatoeba（CC BY 2.0 FR）与 UD_English-EWT（CC BY-SA 4.0），逐题出处见 sourceRef。',
         "import type { Question } from '../../types'",
         '',
         'export const subjectObjectPilot: Question[] = [',
@@ -99,7 +110,9 @@ def main() -> int:
             source = it['sourceId'].get('answer', '')
         lines += [
             '  {',
-            f"    id: 'soq{n:02d}', skill: 's2', type: 'choice', diff: 2,",
+            # 框架填空给了四个选项，本质是识别题 → diff 1；中文意思题要自己产出形式 → diff 2。
+            # 顺带让语料题分布在两个桶里，不会因为全挤进进阶桶而极少被抽到。
+            f"    id: 'soq{n:02d}', skill: 's2', type: 'choice', diff: {1 if it.get('kind') == 'frame' else 2},",
             f"    prompt: {quote(it['prompt'])},",
             '    options: [' + ', '.join(quote(x) for x in o) + '],',
             f"    answer: {quote(it['answer'])},",

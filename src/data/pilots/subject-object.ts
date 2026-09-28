@@ -2,12 +2,12 @@
 // 数据来源：语料派生的主宾格练习（R1-02）。正确选项均为真实语料原句，
 // 干扰项来自真实镜像句或对真实框架的最小违反；中文释义与解析由模型生成后待人工过目。
 // 生成命令：python scripts/build-items.py && python scripts/enrich-items.py && python scripts/make-pilot.py
-// 署名：句子源自 Tatoeba（CC BY 2.0 FR），逐题出处见 sourceRef。
+// 署名：句子源自 Tatoeba（CC BY 2.0 FR）与 UD_English-EWT（CC BY-SA 4.0），逐题出处见 sourceRef。
 import type { Question } from '../../types'
 
 export const subjectObjectPilot: Question[] = [
   {
-    id: 'soq01', skill: 's2', type: 'choice', diff: 2,
+    id: 'soq01', skill: 's2', type: 'choice', diff: 1,
     prompt: "I adore ___.  （我很喜欢他。）",
     options: ["him", "he", "his", "himself"],
     answer: "him",
@@ -23,7 +23,7 @@ export const subjectObjectPilot: Question[] = [
     assessmentRole: 'practice',
   },
   {
-    id: 'soq02', skill: 's2', type: 'choice', diff: 2,
+    id: 'soq02', skill: 's2', type: 'choice', diff: 1,
     prompt: "I avoid ___.  （我躲着她。）",
     options: ["her", "she", "hers", "herself"],
     answer: "her",
@@ -39,7 +39,7 @@ export const subjectObjectPilot: Question[] = [
     assessmentRole: 'practice',
   },
   {
-    id: 'soq03', skill: 's2', type: 'choice', diff: 2,
+    id: 'soq03', skill: 's2', type: 'choice', diff: 1,
     prompt: "I dislike ___.  （我不喜欢他。）",
     options: ["him", "he", "his", "himself"],
     answer: "him",
@@ -56,6 +56,22 @@ export const subjectObjectPilot: Question[] = [
   },
   {
     id: 'soq04', skill: 's2', type: 'choice', diff: 2,
+    prompt: "「反正我有时把它们喂给我的路。」",
+    options: ["anyways I feed them to my road sometimes.", "anyways they feed me to my road sometimes.", "anyways me feed them to my road sometimes.", "anyways I feed they to my road sometimes."],
+    answer: "anyways I feed them to my road sometimes.",
+    tts: "anyways I feed them to my road sometimes.",
+    explain: "feed 后面接动作承受者用 them，I 是动作发出者，位置和形式都对。",
+    objectiveId: 's2-case',
+    variantGroupId: "feed:i-them",
+    errorTags: ["case-form-object", "case-form-subject", "role-reversed"],
+    optionFeedback: {"anyways they feed me to my road sometimes.": "角色反了——这是把\"谁打谁\"说反的那一句。", "anyways me feed them to my road sometimes.": "做动作的用主格，这里的位置要求宾格。", "anyways I feed they to my road sometimes.": "挨动作的用宾格，这里的位置要求主格。"},
+    sourceRef: "张俊杰第7课16-22段 / ud-en-ewt:answers-20111108085945AAgJhOG_ans-0014",
+    contentVersion: 1,
+    reviewStatus: 'draft',
+    assessmentRole: 'practice',
+  },
+  {
+    id: 'soq05', skill: 's2', type: 'choice', diff: 1,
     prompt: "I hate ___.  （我讨厌她。）",
     options: ["her", "she", "hers", "herself"],
     answer: "her",
@@ -71,7 +87,23 @@ export const subjectObjectPilot: Question[] = [
     assessmentRole: 'practice',
   },
   {
-    id: 'soq05', skill: 's2', type: 'choice', diff: 2,
+    id: 'soq06', skill: 's2', type: 'choice', diff: 2,
+    prompt: "「我还留着它们，它们过得挺好。」",
+    options: ["I still have them and they are doing well.", "They still have me and they are doing well.", "Me still have them and they are doing well.", "I still have they and they are doing well."],
+    answer: "I still have them and they are doing well.",
+    tts: "I still have them and they are doing well.",
+    explain: "have 后面接被拥有的 them，后半句 they 才是发出动作的人。",
+    objectiveId: 's2-case',
+    variantGroupId: "have:i-them",
+    errorTags: ["case-form-object", "case-form-subject", "role-reversed"],
+    optionFeedback: {"They still have me and they are doing well.": "角色反了——这是把\"谁打谁\"说反的那一句。", "Me still have them and they are doing well.": "做动作的用主格，这里的位置要求宾格。", "I still have they and they are doing well.": "挨动作的用宾格，这里的位置要求主格。"},
+    sourceRef: "张俊杰第7课16-22段 / ud-en-ewt:answers-20111108092643AAXe4lD_ans-0017",
+    contentVersion: 1,
+    reviewStatus: 'draft',
+    assessmentRole: 'practice',
+  },
+  {
+    id: 'soq07', skill: 's2', type: 'choice', diff: 1,
     prompt: "We help ___.  （我们帮她。）",
     options: ["her", "she", "hers", "herself"],
     answer: "her",
@@ -87,7 +119,7 @@ export const subjectObjectPilot: Question[] = [
     assessmentRole: 'practice',
   },
   {
-    id: 'soq06', skill: 's2', type: 'choice', diff: 2,
+    id: 'soq08', skill: 's2', type: 'choice', diff: 2,
     prompt: "「我们认识他。」",
     options: ["We know him.", "He knows us.", "Us know him.", "We know he."],
     answer: "We know him.",
@@ -103,7 +135,7 @@ export const subjectObjectPilot: Question[] = [
     assessmentRole: 'practice',
   },
   {
-    id: 'soq07', skill: 's2', type: 'choice', diff: 2,
+    id: 'soq09', skill: 's2', type: 'choice', diff: 2,
     prompt: "「我喜欢他。」",
     options: ["I like him.", "He likes me.", "Me like him.", "I like he."],
     answer: "I like him.",
@@ -119,7 +151,7 @@ export const subjectObjectPilot: Question[] = [
     assessmentRole: 'practice',
   },
   {
-    id: 'soq08', skill: 's2', type: 'choice', diff: 2,
+    id: 'soq10', skill: 's2', type: 'choice', diff: 2,
     prompt: "「我爱她。」",
     options: ["I love her.", "She loves me.", "Me love her.", "I love she."],
     answer: "I love her.",
@@ -135,7 +167,7 @@ export const subjectObjectPilot: Question[] = [
     assessmentRole: 'practice',
   },
   {
-    id: 'soq09', skill: 's2', type: 'choice', diff: 2,
+    id: 'soq11', skill: 's2', type: 'choice', diff: 1,
     prompt: "I miss ___.  （我想念她。）",
     options: ["her", "she", "hers", "herself"],
     answer: "her",
@@ -151,7 +183,7 @@ export const subjectObjectPilot: Question[] = [
     assessmentRole: 'practice',
   },
   {
-    id: 'soq10', skill: 's2', type: 'choice', diff: 2,
+    id: 'soq12', skill: 's2', type: 'choice', diff: 1,
     prompt: "I need ___.  （我需要她。）",
     options: ["her", "she", "hers", "herself"],
     answer: "her",
@@ -167,7 +199,7 @@ export const subjectObjectPilot: Question[] = [
     assessmentRole: 'practice',
   },
   {
-    id: 'soq11', skill: 's2', type: 'choice', diff: 2,
+    id: 'soq13', skill: 's2', type: 'choice', diff: 1,
     prompt: "I owe ___ a lot of money.  （我欠他很多钱。）",
     options: ["him", "he", "his", "himself"],
     answer: "him",
@@ -183,7 +215,7 @@ export const subjectObjectPilot: Question[] = [
     assessmentRole: 'practice',
   },
   {
-    id: 'soq12', skill: 's2', type: 'choice', diff: 2,
+    id: 'soq14', skill: 's2', type: 'choice', diff: 1,
     prompt: "I persecute ___.  （我迫害他。）",
     options: ["him", "he", "his", "himself"],
     answer: "him",
@@ -199,7 +231,23 @@ export const subjectObjectPilot: Question[] = [
     assessmentRole: 'practice',
   },
   {
-    id: 'soq13', skill: 's2', type: 'choice', diff: 2,
+    id: 'soq15', skill: 's2', type: 'choice', diff: 2,
+    prompt: "「我强烈推荐她。」",
+    options: ["I highly recommend her.", "She highly recommends me.", "Me highly recommend her.", "I highly recommend she."],
+    answer: "I highly recommend her.",
+    tts: "I highly recommend her.",
+    explain: "recommend 后面是动作承受者，用 her；I 是发出推荐的人。",
+    objectiveId: 's2-case',
+    variantGroupId: "recommend:i-her",
+    errorTags: ["case-form-object", "case-form-subject", "role-reversed"],
+    optionFeedback: {"She highly recommends me.": "角色反了——这是把\"谁打谁\"说反的那一句。", "Me highly recommend her.": "做动作的用主格，这里的位置要求宾格。", "I highly recommend she.": "挨动作的用宾格，这里的位置要求主格。"},
+    sourceRef: "张俊杰第7课16-22段 / ud-en-ewt:reviews-397066-0005",
+    contentVersion: 1,
+    reviewStatus: 'draft',
+    assessmentRole: 'practice',
+  },
+  {
+    id: 'soq16', skill: 's2', type: 'choice', diff: 1,
     prompt: "I respect ___.  （我尊重他。）",
     options: ["him", "he", "his", "himself"],
     answer: "him",
@@ -215,7 +263,7 @@ export const subjectObjectPilot: Question[] = [
     assessmentRole: 'practice',
   },
   {
-    id: 'soq14', skill: 's2', type: 'choice', diff: 2,
+    id: 'soq17', skill: 's2', type: 'choice', diff: 1,
     prompt: "I scare ___.  （我怕她。）",
     options: ["her", "she", "hers", "herself"],
     answer: "her",
@@ -231,7 +279,7 @@ export const subjectObjectPilot: Question[] = [
     assessmentRole: 'practice',
   },
   {
-    id: 'soq15', skill: 's2', type: 'choice', diff: 2,
+    id: 'soq18', skill: 's2', type: 'choice', diff: 1,
     prompt: "I support ___.  （我支持他。）",
     options: ["him", "he", "his", "himself"],
     answer: "him",
@@ -247,7 +295,7 @@ export const subjectObjectPilot: Question[] = [
     assessmentRole: 'practice',
   },
   {
-    id: 'soq16', skill: 's2', type: 'choice', diff: 2,
+    id: 'soq19', skill: 's2', type: 'choice', diff: 2,
     prompt: "「我信任他。」",
     options: ["I trust him.", "He trusts me.", "Me trust him.", "I trust he."],
     answer: "I trust him.",
@@ -258,6 +306,22 @@ export const subjectObjectPilot: Question[] = [
     errorTags: ["case-form-object", "case-form-subject", "role-reversed"],
     optionFeedback: {"He trusts me.": "角色反了——这是把\"谁打谁\"说反的那一句。", "Me trust him.": "做动作的用主格，这里的位置要求宾格。", "I trust he.": "挨动作的用宾格，这里的位置要求主格。"},
     sourceRef: "张俊杰第7课16-22段 / tatoeba:1258628",
+    contentVersion: 1,
+    reviewStatus: 'draft',
+    assessmentRole: 'practice',
+  },
+  {
+    id: 'soq20', skill: 's2', type: 'choice', diff: 1,
+    prompt: "I want ___.  （我想要他。）",
+    options: ["him", "he", "his", "himself"],
+    answer: "him",
+    tts: "I want him.",
+    explain: "想要的对象跟在动词后，用 him；he 是发出者，his 表所属。",
+    objectiveId: 's2-case',
+    variantGroupId: "want:i-him",
+    errorTags: ["case-form-subject", "case-form-possessive", "case-form-reflexive"],
+    optionFeedback: {"he": "这里要的是\"挨动作的那个\"，得用宾格。", "his": "物主形式（my/his/her…）后面得跟名词，放动词后面不通。", "himself": "反身代词指\"自己对自己\"，意思就变了。"},
+    sourceRef: "张俊杰第7课16-22段 / tatoeba:3904684",
     contentVersion: 1,
     reviewStatus: 'draft',
     assessmentRole: 'practice',

@@ -253,6 +253,47 @@ export function buildTodayQueue(
 }
 
 /** 课程内单技能练习队列（保留原配比：特殊题保底 + 难度混搭 + 破惯性保底） */
+/** 按变式家族轮转取样。
+ *
+ *  为什么必须这样取：SRS 分相同时（例如全新存档下所有题都是"新题"100 分），
+ *  原来的写法直接取排序后的前 N 条，而 Array.sort 是稳定的 → 等于按数组顺序取前 N 条，
+ *  后加进题库的内容永远轮不到。实测：新追加的 20 道语料种子题一道都进不了队列。
+ *  这里先按家族分组（家族内按 SRS 分排序），家族之间按"最高分 + 会话种子随机"定序，
+ *  再逐轮每家族取一条——既保住优先级，又让一次练习覆盖多个变式。
+ */
+function pickVaried(
+  list: AdaptedQuestion[],
+  score: (q: AdaptedQuestion) => number,
+  count: number,
+  sessionId: string,
+): AdaptedQuestion[] {
+  const groups = new Map<string, AdaptedQuestion[]>()
+  for (const q of list) {
+    const g = groups.get(q.variantGroupId)
+    if (g) g.push(q)
+    else groups.set(q.variantGroupId, [q])
+  }
+  const ranked = [...groups.values()].map((qs) => ({
+    qs: qs.sort((a, b) => score(b) - score(a)),
+    s: score(qs[0]),
+  }))
+  const jitter = seededShuffle(ranked.map((_, i) => i), `${sessionId}:pick:${count}`)
+  const ordered = jitter.map((i) => ranked[i]).sort((a, b) => b.s - a.s)
+  const out: AdaptedQuestion[] = []
+  for (let round = 0; out.length < count; round++) {
+    let progressed = false
+    for (const g of ordered) {
+      if (g.qs[round]) {
+        out.push(g.qs[round])
+        progressed = true
+      }
+      if (out.length >= count) break
+    }
+    if (!progressed) break
+  }
+  return out
+}
+
 export function buildSkillQueue(
   p: ProgressV2,
   skillQuestions: AdaptedQuestion[],
@@ -262,15 +303,15 @@ export function buildSkillQueue(
   const now = Date.now()
   const pool = eligible(skillQuestions)
   const score = srsScore(p, now)
-  const specials = pool.filter(isSpecial).sort((a, b) => score(b) - score(a))
-  const core = pool.filter((q) => !isSpecial(q)).sort((a, b) => score(b) - score(a))
+  const specials = pool.filter(isSpecial)
+  const core = pool.filter((q) => !isSpecial(q))
   const advCore = core.filter((q) => (q.diff ?? 1) >= 2)
   const baseCore = core.filter((q) => (q.diff ?? 1) < 2)
   const advanced = skillBox >= 2
   const take: AdaptedQuestion[] = [
-    ...specials.slice(0, advanced ? 3 : 2),
-    ...advCore.slice(0, advanced ? 6 : 3),
-    ...baseCore.slice(0, advanced ? 3 : 7),
+    ...pickVaried(specials, score, advanced ? 3 : 2, sessionId),
+    ...pickVaried(advCore, score, advanced ? 6 : 3, sessionId),
+    ...pickVaried(baseCore, score, advanced ? 3 : 7, sessionId),
   ].slice(0, 12)
   if (!take.some((q) => q.myth)) {
     const m = core.find((q) => q.myth)

@@ -17,11 +17,12 @@ describe('主宾格种子题（R1-02）', () => {
     for (const q of adapted) {
       expect(q.objectiveId, q.id).toBeTruthy()
       expect(q.variantGroupId, q.id).toBeTruthy()
-      expect(q.sourceRef, q.id).toBeTruthy()
       expect(q.contentVersion, q.id).toBeGreaterThanOrEqual(1)
       expect(['draft', 'reviewed', 'quarantined'], q.id).toContain(q.reviewStatus)
       expect(q.mode, q.id).toBeTruthy()
       expect(q.answerId, q.id).toBeTruthy()
+      // sourceRef 必须带真实语料出处，不能只有课稿锚点——否则溯源是断的
+      expect(q.sourceRef, q.id).toMatch(/(tatoeba|ud-en-ewt):/)
     }
   })
 

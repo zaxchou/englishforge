@@ -10,10 +10,14 @@ import { questionsD } from './lesson07-q-d'
 import { questionsE } from './lesson07-q-e'
 import { lesson10qA } from './lesson10-q-a'
 import { lesson10qB } from './lesson10-q-b'
+// R1-02 种子题：由真实语料派生（出处见 docs/curriculum/corpus-coverage-spike.md）
+// 一律 draft，供练习与试用；未人工审核前不参与能力认证
+import { subjectObjectPilot } from './pilots/subject-object'
 
 const rawQuestions: Question[] = [
   ...questionsA, ...questionsB, ...questionsC, ...questionsD, ...questionsE,
   ...lesson10qA, ...lesson10qB,
+  ...subjectObjectPilot,
 ]
 
 /** 加载时适配：ID 化 + v2 元数据默认值 */
