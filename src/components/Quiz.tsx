@@ -315,6 +315,14 @@ function frozenOptions(q: AdaptedQuestion, item: QueueItem): { id: string; text:
 }
 
 /** 跟读：可先隐藏原句（独立表达）；反馈是文字相似度，不宣称发音；退出停止识别 */
+/** 语料派生的题（R1-02 种子题）：标出来，便于逐题审核与试用对照。
+ *  出处写在 sourceRef 里，悬停徽章可见。 */
+/** 语料派生的题（R1-02 种子题）：标出来，便于逐题审核与试用对照。
+ *  出处写在 sourceRef 里，悬停徽章可见。 */
+function isCorpusDerived(q: AdaptedQuestion): boolean {
+  return /(tatoeba|ud-en-ewt):/.test(q.sourceRef ?? '')
+}
+
 function SpeakQ({ q, onAnswered }: { q: AdaptedQuestion; onAnswered: (r: SessionResult, meta: AnswerMeta) => void }) {
   const target = q.target ?? q.tts ?? ''
   const [phase, setPhase] = useState<'idle' | 'listening' | 'done'>('idle')
@@ -757,6 +765,7 @@ function BasicQ({ q, item, onAnswered, onCheckpoint }: { q: AdaptedQuestion; ite
           {q.myth && <span className="myth-badge">💥 破除误区</span>}
           {q.prompt}
           <span className={'diff-tag diff-' + (q.diff ?? 1)}>{diffName}</span>
+          {isCorpusDerived(q) && <span className="corpus-tag" title={`语料出处：${q.sourceRef}`}>语料</span>}
         </div>
         <div className="options">
           {options.map((o) => {

@@ -107,3 +107,11 @@
   margin-bottom: 12px; box-shadow: var(--elev-1), var(--inset-top);
 }
 .sr-badge.muted { background: var(--surface); color: var(--sub); font-weight: 600; box-shadow: none; }
+
+/* 语料出处徽章：描边形态，与填充式难度徽章区分；悬停显示 sourceRef */
+.corpus-tag {
+  display: inline-block; font-size: 10px; font-weight: 500;
+  border: 1px solid var(--line); border-radius: 999px;
+  padding: 1px 7px; margin-left: 6px; vertical-align: 2px;
+  background: #fff; color: var(--sub);
+}

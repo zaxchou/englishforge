@@ -430,7 +430,8 @@ def build_s2_from_ewt(folder: Path, limit: int) -> list[dict]:
                 'prompt': ' '.join(forms[:oi] + ['___'] + forms[oi + 1:]) + '.',
                 'options': frame_opts, 'answer': obj['form'], 'tts': text_a, 'explain': '',
                 'variantGroupId': vid,
-                'optionOrigin': {obj['form']: 'attested', 'frame': source},
+                'optionOrigin': {**{o: ('attested' if o == obj['form'] else 'constructed')
+                                 for o in frame_opts}, 'frame': source},
                 'errorTags': {}, 'sourceId': {'frame': source}, 'reviewStatus': 'draft',
             })
     return items[:limit] if limit else items
@@ -545,7 +546,10 @@ def main() -> int:
             'answer': obj_w,
             'tts': text_a,
             'explain': f'这里要"挨动作的那个"，用宾格 {obj_w}。',
-            'variantGroupId': vid, 'optionOrigin': {'answer': 'attested', 'frame': f'tatoeba:{sid_a}'},
+            'variantGroupId': vid,
+            # 只有答案来自真实句；范式干扰项（he/his/himself）是构造的，不能标 attested
+            'optionOrigin': {**{o: ('attested' if o == obj_w else 'constructed') for o in frame_opts},
+                             'frame': f'tatoeba:{sid_a}'},
             'errorTags': {}, 'sourceId': {'frame': f'tatoeba:{sid_a}'}, 'reviewStatus': 'draft',
         })
 

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from datetime import datetime
 from pathlib import Path
 
 POSS_TAG = {1: 'case-form-subject', 2: 'case-form-possessive', 3: 'case-form-reflexive'}
@@ -133,9 +134,70 @@ def main() -> int:
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text('\n'.join(lines), encoding='utf-8')
     print(f'写出 {len(picked)} 题 → {out}')
+    write_review_sheet(picked, Path('docs/curriculum/review-subject-object.md'))
     for it in picked[:3]:
         print(f"  · {it['prompt'][:30]:32s} {it['options']}")
     return 0
+
+
+def write_review_sheet(picked: list[dict], path: Path) -> None:
+    """生成人工审核单：把种子题一次列全，便于逐题核对（不用在练习里碰运气）。"""
+    KIND = {'meaning': '中文意思题', 'frame': '框架填空'}
+    rows = [
+        '# 主宾格种子题 · 人工审核单（R1-02）',
+        '',
+        '由 `scripts/make-pilot.py` 生成，请勿手改。题面、选项、解析、出处一次列全，',
+        '便于**逐题核对**；改完在每题的「判定」行勾选，或直接告诉我要改哪几道。',
+        '',
+        '这些题目前的信任级别是 `draft`：可练习，但**不参与能力认证**。',
+        '出处徽章在 app 里显示为「语料」（悬停可见具体 sourceRef）。',
+        '',
+        f'共 {len(picked)} 题。',
+        '',
+        '| # | 类型 | 动词 | 出处 |',
+        '|---|---|---|---|',
+    ]
+    for n, it in enumerate(picked, 1):
+        verb = it['variantGroupId'].split(':')[0]
+        src = (it.get('sourceId') or {}).get('answer') or (it.get('sourceId') or {}).get('frame') or ''
+        rows.append(f"| {n} | {KIND.get(it.get('kind'), it.get('kind'))} | {verb} | `{src}` |")
+    rows.append('')
+    for n, it in enumerate(picked, 1):
+        verb = it['variantGroupId'].split(':')[0]
+        src = (it.get('sourceId') or {}).get('answer') or (it.get('sourceId') or {}).get('frame') or ''
+        origin = it.get('optionOrigin', {})
+        rows += [
+            f"## {n:02d} · {KIND.get(it.get('kind'), it.get('kind'))} · {verb}",
+            '',
+            f"- **题干**：{it['prompt']}",
+            f"- **正确**：`{it['answer']}`  ·  来源 `{src}`（{origin.get(it['answer'], '—')}）",
+            '- **干扰项**：',
+        ]
+        for o in it['options']:
+            if o == it['answer']:
+                continue
+            if it.get('kind') == 'frame':
+                idx = it['options'].index(o)
+                tags_o = [POSS_TAG[idx]] if idx in POSS_TAG else []
+            else:
+                tags_o = (it.get('errorTags') or {}).get(o, [])
+            tag = '、'.join(tags_o) or '—'
+            rows.append(f"    - `{o}`　错因：{tag}　来源：{origin.get(o, '—')}")
+        if it.get('distractorIssue'):
+            rows.append(f"- ⚠️ **模型告警**：{it['distractorIssue']}")
+        if it.get('langCheck', {}).get('problem'):
+            rows.append(f"- ⚠️ **语言问题**：{it['langCheck']['problem']}")
+        rows += [
+            f"- **解析**：{it.get('explain', '')}",
+            '- **判定**：☐ 通过　☐ 要改　☐ 毙掉　（备注：　）',
+            '',
+        ]
+    rows.append('---')
+    rows.append('')
+    rows.append(f'最后生成：{datetime.now().strftime("%Y-%m-%d %H:%M")}')
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text('\n'.join(rows) + '\n', encoding='utf-8')
+    print(f'审核单 → {path}')
 
 
 if __name__ == '__main__':
