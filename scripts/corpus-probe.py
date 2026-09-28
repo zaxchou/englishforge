@@ -25,7 +25,8 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-PERSON = {'I': 'me', 'he': 'him', 'she': 'her', 'we': 'us', 'they': 'them', 'you': 'you'}
+# 键必须是小写：匹配出来的主语已 lower()，用大写 'I' 作键会静默丢掉所有 I↔me 的对
+PERSON = {'i': 'me', 'he': 'him', 'she': 'her', 'we': 'us', 'they': 'them', 'you': 'you'}
 OBJ2SUBJ = {v: k for k, v in PERSON.items()}
 
 # 句子级噪声过滤：数字/引号/括号/网址/省略号/破折号等都不适合做练习句

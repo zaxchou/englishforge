@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# 生成的题目（派生自 CC BY 语料，入库前需定署名方案）
+out/
