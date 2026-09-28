@@ -20,8 +20,12 @@ ENV NODE_ENV=production TZ=Asia/Shanghai
 ENV HOME=/tmp
 WORKDIR /app
 # vite 是 devDependency，而本阶段 NODE_ENV=production 会让 npm ci 跳过它（实测容器起不来的第二个原因）
-# → 直接从构建阶段拷全量 node_modules，运行层不再跑 npm ci
-COPY --from=build /build/node_modules ./node_modules
+# → 直接从构建阶段拷全量 node_modules，运行层不再跑 npm ci。
+# 属主必须改成容器运行身份：vite 加载 TS 配置要在 node_modules/.vite-temp/ 写临时文件
+# （root 属主 + user:1026 = EACCES，实测容器起不来的第三个原因）
+ARG CONTAINER_UID=1026
+ARG CONTAINER_GID=100
+COPY --from=build --chown=${CONTAINER_UID}:${CONTAINER_GID} /build/node_modules ./node_modules
 COPY --from=build /build/dist ./dist
 # vite preview 启动时要加载 vite.config.ts（/api 插件在里面），server/ 是插件运行时引用的实现
 COPY vite.config.ts vite-plugin-db.mjs vite-plugin-db.d.mts index.html package.json package-lock.json ./
