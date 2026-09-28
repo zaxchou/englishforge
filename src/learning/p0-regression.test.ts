@@ -3,7 +3,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   applyQuestionReview, buildTodayQueue, buildSkillQueue, buildReviewQueue,
-  makeQueueItem, insertVariantDrill, softenQueue, eligible, dueQuestions,
+  makeQueueItem, insertVariantDrill, softenQueue, eligible, dueQuestions, recordSpeak,
 } from './scheduler'
 import { buildEvidence } from './evidence'
 import { gradeChoice, gradeSequence, gradeTap } from './grading'
@@ -12,6 +12,7 @@ import { validateQuestions, errorsOf } from '../content/validation'
 import { defaultProgressV2 } from '../store/migrations'
 import { allQuestions } from '../data/course'
 import type { AdaptedQuestion, Attempt, Question, QueueItem } from '../types'
+import { INTERVALS } from '../types'
 
 const DAY = 24 * 60 * 60 * 1000
 
@@ -412,5 +413,44 @@ describe('Review fixes: scheduling edge cases', () => {
     const draft = mkq({id:'draft',reviewStatus:'draft'}), drill = mkq({id:'drill'})
     p.attempts = [mkAttempt({questionId:'draft'}),mkAttempt({questionId:'drill',isVariantDrill:true})]
     expect(buildEvidence(p,[draft,drill]).dims.every(d => d.total === 0)).toBe(true)
+  })
+})
+
+describe('口语题排程（回归：反复出现且清不掉）', () => {
+  // 现象：口语题「黑板看起来很干净。」反复出现在巩固复习里，练完也不消失。
+  // 原因：口语题不走 applyQuestionReview，而 recordSpeak 只写 speak 子状态、不推进 dueAt，
+  //       于是任何带历史记录的口语题（如 v1 迁移来的 total>0 + 过去的 dueAt）永久到期。
+  const speakQ = () => mkq({ id: 'v2q10', type: 'speak', mode: 'oral', target: 'The blackboard looks clean.', tts: 'The blackboard looks clean.' })
+
+  it('迁移来的历史口语题在完成后必须离开到期队列', () => {
+    const p = defaultProgressV2()
+    const q = speakQ()
+    p.questionStates[q.id] = { stage: 2, dueAt: Date.now() - DAY * 30, correct: 2, total: 2, legacy: true }
+    expect(dueQuestions(p, [q]).map((x) => x.id)).toEqual([q.id])   // 一进来就是到期的
+    recordSpeak(p, q.id, 'independent-self', true)
+    expect(dueQuestions(p, [q])).toHaveLength(0)                   // 完成后不得再出现在到期队列
+    expect(p.questionStates[q.id].dueAt).toBeGreaterThan(Date.now())
+  })
+
+  it('独立完成升一阶并按新阶段排下次到期；依赖提示则次日再来', () => {
+    const p = defaultProgressV2()
+    const q = speakQ()
+    recordSpeak(p, q.id, 'independent-self', true, 1000)
+    expect(p.questionStates[q.id].stage).toBe(1)
+    expect(p.questionStates[q.id].dueAt).toBe(1000 + INTERVALS[1] * DAY)
+    expect(p.questionStates[q.id].speak?.status).toBe('independent-self')
+
+    recordSpeak(p, q.id, 'independent-self', false, 2000)
+    expect(p.questionStates[q.id].stage).toBe(0)
+    expect(p.questionStates[q.id].dueAt).toBe(2000 + DAY)
+    expect(p.questionStates[q.id].speak?.status).toBe('prompted')   // 依赖提示一律记为 prompted
+  })
+
+  it('练习量照常累计，但口语题不进确定性判定路径', () => {
+    const p = defaultProgressV2()
+    const q = speakQ()
+    recordSpeak(p, q.id, 'independent-self', true, 1000)
+    expect(p.questionStates[q.id].total).toBe(1)
+    expect(p.questionStates[q.id].correct).toBe(1)
   })
 })

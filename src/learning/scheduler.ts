@@ -110,20 +110,40 @@ export function applyQuestionReview(p: ProgressV2, qid: string, ev: ReviewInput)
   return next
 }
 
-/** 口语状态单独记录（不与客观证据混算，§5.2） */
+/** 口语状态单独记录（不与客观证据混算，§5.2）。
+ *
+ *  同时负责口语题**自己的排程**：applyQuestionReview 只处理确定性判定，口语题（自评/语音）
+ *  按设计不进它。所以这里若不同时推进 dueAt，任何带历史记录的口语题（例如 v1 迁移过来的
+ *  total>0 + 过去的 dueAt）就会永远留在到期队列里，练多少次都清不掉。
+ *  —— 实测 bug：用户遇到口语题「黑板看起来很干净。」反复出现在巩固复习里。
+ */
 export function recordSpeak(
   p: ProgressV2,
   qid: string,
   status: 'prompted' | 'independent-self' | 'independent-ai',
   independent: boolean,
-) {
-  const cur = p.questionStates[qid] ?? { stage: 0, dueAt: 0, correct: 0, total: 0 }
-  if (!independent) {
-    cur.speak = { status: 'prompted', at: Date.now() }   // 有提示完成（对照原句/自评完成由调用方定级）
-  } else {
-    cur.speak = { status, at: Date.now() }
+  now = Date.now(),
+): QuestionState {
+  const cur: QuestionState = p.questionStates[qid] ?? { stage: 0, dueAt: 0, correct: 0, total: 0 }
+  const next: QuestionState = {
+    ...cur,
+    total: cur.total + 1,
+    speak: { status: independent ? status : 'prompted', at: now },
   }
-  p.questionStates[qid] = cur
+  if (independent) {
+    // 独立完成：与客观题"首次独立正确"同口径——升一阶、按新阶段排下次到期
+    next.stage = Math.min(5, cur.stage + 1)
+    next.correct = cur.correct + 1
+    next.lastIndependentSuccessAt = now
+    next.dueAt = now + INTERVALS[next.stage] * DAY
+  } else {
+    // 依赖提示（看了原句/听了示范）：阶段回落，次日再来
+    next.stage = 0
+    next.lastFailureAt = now
+    next.dueAt = now + DAY
+  }
+  p.questionStates[qid] = next
+  return next
 }
 
 // ============ §5.4 到期与队列 ============
