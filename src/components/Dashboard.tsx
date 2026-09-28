@@ -55,13 +55,14 @@ export function Sidebar({ active = 'today', dueCount, account, dbState, onNaviga
   const who = account?.name ?? '本机模式'
   const initial = (who.replace(/[^\p{L}\p{N}]/gu, '') || '学').slice(0, 1)
   const tone = !account ? 'wait' : dbState === 'offline' ? 'off' : dbState === 'connecting' ? 'wait' : 'on'
+  // 文字要短且**行数恒定**：侧栏底部这块一变行数，整栏就会上下跳（实测过）
   const status = !account
-    ? '数据库连接中…'
+    ? '正在连接数据库…'
     : dbState === 'offline'
-      ? `未连接数据库 · ${account.attempts} 条记录在本机`
+      ? `未连接 · 本机 ${account.attempts} 条`
       : dbState === 'connecting'
-        ? '正在写入数据库…'
-        : `已存入数据库 · ${account.attempts} 条记录`
+        ? '正在连接数据库…'
+        : `已存入数据库 · ${account.attempts} 条`
   return <aside className="forge-sidebar">
     <button className="forge-brand" onClick={() => onNavigate('today')} aria-label="EnglishForge 首页">
       <img className="forge-mark" src="/icon-96.png" alt="" /><span>EnglishForge<small>英语思维训练</small></span>
@@ -74,7 +75,12 @@ export function Sidebar({ active = 'today', dueCount, account, dbState, onNaviga
       <button onClick={onReviewContent}><NavIcon kind="check" />题目审核</button>
     </nav>
     <div className="sidebar-bottom"><div className="sidebar-focus"><span>✦ 每天，一点进步</span><p>让理解成为直觉</p><button onClick={() => onNavigate('today')}>回到今日练习 <span>↗</span></button></div><button className={active === 'settings' ? 'selected' : ''} onClick={() => onNavigate('settings')}><NavIcon kind="settings" />设置与存档</button>
-      <button className="sidebar-account" onClick={onOpenAccount} title="点这里切换 / 新建账户"><span className="profile-circle">{initial}</span><div><b>{who}</b><small className={`db-mini is-${tone}`}><i aria-hidden="true" />{status}</small></div><span className="acct-arrow" aria-hidden="true">⇄</span></button>
+      <button className="sidebar-account" onClick={onOpenAccount} title="点这里切换 / 新建账户">
+        <span className="profile-circle">{initial}</span>
+        <span className="acct-name">{who}</span>
+        <span className="acct-arrow" aria-hidden="true">⇄</span>
+        <small className={`db-mini is-${tone}`}><i aria-hidden="true" />{status}</small>
+      </button>
     </div>
   </aside>
 }

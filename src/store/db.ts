@@ -197,8 +197,13 @@ let lastError = ''
 /** 最近一次失败原因；'NO_API' 表示服务端根本不认识 /api（需要重启应用） */
 export function getDbError(): string { return lastError }
 
+/**
+ * 每次请求只落**终态**（online / offline），不来回翻 'connecting' ——
+ * 之前每个请求都先把状态设成 connecting，于是一次答题（写进度 + 拉统计两个请求）
+ * 会让侧栏状态文字在「正在写入数据库…」和「已存入数据库 · N 条」之间抖四次，
+ * 两种文字行数不同 → 整块侧栏上下跳 15px（实测）。'connecting' 只在首次连接前显示。
+ */
 async function attemptReq<T>(fn: () => Promise<T>): Promise<T | null> {
-  setDbState('connecting')
   try {
     const out = await fn()
     lastError = ''
