@@ -2,7 +2,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_PACKAGE || 'playwright');
 const fs = require('node:fs');
 const path = require('node:path');
 (async () => {
- const out = path.resolve('design-v6'); fs.mkdirSync(out,{recursive:true});
+ const out = path.resolve(process.env.REVIEW_OUTPUT || 'design-v7'); fs.mkdirSync(out,{recursive:true});
  const browser = await chromium.launch({channel:'msedge',headless:true});
  const context = await browser.newContext({viewport:{width:1536,height:1024}, reducedMotion:'reduce'});
  const page = await context.newPage(); const errors=[];

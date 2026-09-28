@@ -57,13 +57,13 @@
 .mic-btn {
   border: none; border-radius: 999px; padding: 15px 32px;
   font-size: 16px; font-weight: 800; cursor: pointer;
-  background: #e03131; color: #fff;
-  box-shadow: 0 10px 24px -8px rgba(224, 49, 49, 0.5), var(--inset-top-brand);
+  background: var(--ink); color: #fff;
+  box-shadow: none;
   transition: filter .15s, transform .42s var(--ease);
 }
 .mic-btn:hover:not(:disabled) { transform: scale(1.03); }
-.mic-btn.rec { background: #c92a2a; animation: pulse 1s infinite; }
-@keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(224,49,49,.5); } 50% { box-shadow: 0 0 0 12px rgba(224,49,49,0); } }
+.mic-btn.rec { background: var(--brand-soft); color: #202713; animation: pulse 1s infinite; }
+@keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 rgba(206,243,78,.65); } 50% { box-shadow: 0 0 0 12px rgba(206,243,78,0); } }
 .speak-result {
   background: var(--sunken-2); border: none;
   border-radius: var(--radius); padding: 13px 15px; margin-bottom: 12px;
@@ -102,7 +102,7 @@
   font-size: 12px; color: var(--sub);
 }
 .sr-badge {
-  display: inline-block; background: var(--raised); color: #4b41b8;
+  display: inline-block; background: var(--raised); color: var(--ink);
   border-radius: 999px; padding: 6px 15px; font-size: 13px; font-weight: 700;
   margin-bottom: 12px; box-shadow: var(--elev-1), var(--inset-top);
 }
