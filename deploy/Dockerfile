@@ -19,12 +19,12 @@ ENV NODE_ENV=production TZ=Asia/Shanghai
 # 显式指到可写目录，避免 npm/npx 在 /.npm 上 EACCES（实测容器起不来的原因）
 ENV HOME=/tmp
 WORKDIR /app
-COPY package.json package-lock.json ./
-ARG NPM_REGISTRY=https://registry.npmmirror.com
-RUN npm config set registry "$NPM_REGISTRY" && npm ci --no-fund --no-audit && npm cache clean --force
+# vite 是 devDependency，而本阶段 NODE_ENV=production 会让 npm ci 跳过它（实测容器起不来的第二个原因）
+# → 直接从构建阶段拷全量 node_modules，运行层不再跑 npm ci
+COPY --from=build /build/node_modules ./node_modules
 COPY --from=build /build/dist ./dist
 # vite preview 启动时要加载 vite.config.ts（/api 插件在里面），server/ 是插件运行时引用的实现
-COPY vite.config.ts vite-plugin-db.mjs index.html ./
+COPY vite.config.ts vite-plugin-db.mjs vite-plugin-db.d.mts index.html package.json package-lock.json ./
 COPY server ./server
 # 生产数据库通过挂载提供（compose 里 ENGLISHFORGE_DB=/app/data/englishforge.db）
 ENV ENGLISHFORGE_DB=/app/data/englishforge.db
