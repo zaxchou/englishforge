@@ -245,8 +245,14 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
   const syncCatalog = useCallback(async (rows: CatalogRow[]) => {
     if (!rows.length) return
     const res = await pushCatalog(rows)
-    if (res) catalogSent.current = true
-  }, [])
+    if (res) {
+      const first = !catalogSent.current
+      catalogSent.current = true
+      // 全新数据库：目录推送之前 questions 表是空的，audit 看到的待办是 0，
+      // 自动流水线不会触发。首次推送成功后必须刷新一次自检，同一会话内就能开跑。
+      if (first) void runAudit()
+    }
+  }, [runAudit])
 
   /** 让系统自己的 AI 补一批逐项纠正；补完刷新自检与已补内容 */
   const enrichNow = useCallback(async (limit = 8) => {
@@ -272,7 +278,12 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
     let reviewed = 0, killed = 0, fixed = 0, rewritten = 0, remaining = -1
     let reviewer: string | null = null, independent = false, error: string | null = null
     for (let round = 0; round < 6; round++) {
-      const res = await runAiPipeline(id, limit)
+      let res = await runAiPipeline(id, limit)
+      if (!res) {
+        // 超时/断线不等于失败：服务端多半还在跑那一轮（账户锁会让下一次调用返回 running），等一下再试
+        await new Promise((r) => setTimeout(r, 5000))
+        res = await runAiPipeline(id, limit)
+      }
       if (!res) { error = '流水线接口没有响应（服务可能在重启）'; break }
       if (res.running) {
         // 另一个标签页正在跑同一条流水线：等它一轮，不并发烧调用
@@ -294,7 +305,9 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
         am(merged)
         marksBaselineRef.current = merged
       }
-      if (res.error) { error = res.error; break }
+      // 单批坏输出已被服务端拆半重试/抢救救回，error 只是"过程中出过事"，
+      // 不该当成中断 —— 有进展就继续，真正的停止条件是下面两条
+      if (res.error) error = res.error
       if (res.pending <= 0) break
       if (!res.reviewed && !res.rewritten) break   // 一轮没有任何进展就停，不空烧调用
     }
@@ -310,11 +323,11 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
     void (async () => {
       setPipelineNote('自动流水线启动：审 → 改 → 复审…')
       const r = await aiReviewNow()
-      setPipelineNote(r
-        ? (r.error
-          ? `自动流水线中断：${r.error}（已处理 审 ${r.reviewed} · 改 ${r.rewritten} · 毙 ${r.killed}）`
-          : `自动流水线完成：审 ${r.reviewed} · 改写 ${r.rewritten} · 判毙 ${r.killed} · 待机器处理还剩 ${Math.max(0, r.remaining)}`)
-        : '自动流水线：数据库接口没有响应')
+      setPipelineNote(!r
+        ? '自动流水线：数据库接口没有响应'
+        : r.remaining < 0
+          ? `自动流水线：有另一条正在跑，本轮没取到数（审 ${r.reviewed} · 改 ${r.rewritten} · 毙 ${r.killed}）${r.error ? ' · ' + r.error : ''}`
+          : `自动流水线${r.error ? '有调用失败' : '完成'}：审 ${r.reviewed} · 改写 ${r.rewritten} · 判毙 ${r.killed} · 还剩 ${Math.max(0, r.remaining)} 待机器处理${r.error ? `（${r.error}）` : ''}`)
     })()
   }, [account, audit, ai, aiReviewNow])
 
@@ -361,14 +374,16 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
   }, [])
 
   // ---------- 启动：拉库 → 决定谁接管谁 ----------
+  // 注意：这里**不能**用"cleanup 里置 dead 废弃异步启动"的写法 —— StrictMode（dev）会
+  // 挂载→清理→再挂载，第一次启动会在第一个 await 后被废弃，而第二次又被 bootedRef 挡住，
+  // 结果是 bootstrap 永远不发出、新用户永远停在"正在连接数据库"（实测）。boot 每个应用
+  // 生命周期只该跑一次，跑起来就让它跑完；真卸载时多写几次状态无害。
   useEffect(() => {
     if (bootedRef.current) return
     bootedRef.current = true
-    let dead = false
     ;(async () => {
       const wanted = currentAccountId()
       const list = await fetchAccounts()
-      if (dead) return
       if (!list) {
         // 数据库不可用：完全退回本地模式，练习照常，只在设置里说明
         setSyncedAt(lastSyncedAt(wanted))
@@ -386,11 +401,9 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
       let pulled: PullResult | null = null
       if (acc) {
         pulled = await pullProgress(acc.id)
-        if (dead) return
       } else {
         // 第一次跑这个功能，或者存的是别的库的账户：库里没有就建一个
         const boot = await bootstrap()
-        if (dead) return
         if (!boot) { setAccounts(list); return }
         acc = boot.account
         pulled = { progress: boot.progress, revision: boot.revision, reviews: boot.reviews, updatedAt: boot.updatedAt }
@@ -422,7 +435,6 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
       } else if (decision.kind === 'upload-local') {
         const n = localBefore.attempts.length
         const ok = await push(true, 'bootstrap-migrate')
-        if (dead) return
         if (ok) {
           setNotice({
             kind: 'ok',
@@ -440,7 +452,6 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
         refreshStats(true)
       }
     })()
-    return () => { dead = true }
   }, [adopt, push, refreshStats, reloadItems, runAudit])
 
   // 关页面 / 切后台前把最后一次写入补上（localStorage 已有全量，这里只是让库跟上）

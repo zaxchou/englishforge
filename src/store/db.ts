@@ -589,7 +589,7 @@ export interface AiPipelineRun extends AiReviewRun {
 export async function runAiPipeline(accountId: string, limit = 60): Promise<AiPipelineRun | null> {
   return attemptReq(() => req<AiPipelineRun>(`/accounts/${accountId}/ai-pipeline`, {
     method: 'POST', body: JSON.stringify({ limit }),
-  }, 300_000))
+  }, 480_000))
 }
 
 /** 把"批量通过"的旧结论作废，交回待审（返回作废条数） */
