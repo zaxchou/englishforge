@@ -98,7 +98,12 @@ export default function App() {
   /** 账户题库 = 数据库里属于这个账户的内容（语料派生的题、将来即时生成的题） */
   const accountPool = useMemo(() => adaptAll(db.items.map((it) => it.question)), [db.items])
 
-  /** 仓库题库目录推给服务端：系统要能"看见"自己的内容，才能自己查重、自己补逐项纠正 */
+  /** 仓库题库目录推给服务端：系统要能"看见"自己的内容，才能自己查重、自己补逐项纠正。
+   *  注意：**不能把 db（每次渲染都是新对象）放进依赖** —— 那会让这个 effect 每次渲染都跑，
+   *  变成"每次点一下都全量推 396 行"（NAS 上实测 6 秒推了 8 次、每次 1~2 秒，
+   *  同步 SQLite 会把整个服务进程堵住 → 所有接口一起变慢）。
+   *  依赖用稳定引用 db.syncCatalog，内容没变（签名相同）就不重复推。 */
+  const catalogSigRef = useRef('')
   useEffect(() => {
     const rows = [...allQuestions, ...accountPool].map((q) => ({
       id: q.id, skill: q.skill, mode: q.mode, type: q.type, variantGroupId: q.variantGroupId,
@@ -107,8 +112,11 @@ export default function App() {
       aux: { tokens: q.tokens, order: q.order, target: q.target, fix: q.fix },
       contentVersion: q.contentVersion, contentKey: contentKeyOf(q), hasCause: hasOwnCause(q),
     }))
+    const sig = JSON.stringify(rows)
+    if (sig === catalogSigRef.current) return
+    catalogSigRef.current = sig
     void db.syncCatalog(rows)
-  }, [accountPool, db])
+  }, [accountPool, db.syncCatalog])
 
   const reviewed = useMemo(
     () => applyEnrichments(applyReviewMarks([...allQuestions, ...accountPool], marks), db.enrichments),

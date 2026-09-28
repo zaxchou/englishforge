@@ -273,6 +273,15 @@ export function openDb(path = DB_PATH) {
   if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true })
   const conn = new DatabaseSync(path)
   conn.exec(SCHEMA)
+  // WAL + synchronous=NORMAL：NAS 的数据卷在同步盘上（fsync 很贵），回滚日志模式下一次
+  // 396 行的目录推送要 1~2 秒 —— 而 node:sqlite 是**同步**的，整段时间服务进程被堵住，
+  // 连读接口都在排队（实测：慢请求全是写操作且互相拖累）。WAL 把 fsync 降到 ~1 次/事务。
+  // busy_timeout：多连接（脚本/维护任务）偶发锁竞争时等一会儿，别直接报忙。
+  try {
+    conn.exec('PRAGMA journal_mode = WAL')
+    conn.exec('PRAGMA synchronous = NORMAL')
+    conn.exec('PRAGMA busy_timeout = 5000')
+  } catch { /* :memory: 等场景不支持 WAL，忽略 */ }
   // 老库的补列迁移：CREATE TABLE IF NOT EXISTS 不会给**已存在**的表加列
   ensureColumns(conn, 'content_reviews')
   ensureColumns(conn, 'questions')
