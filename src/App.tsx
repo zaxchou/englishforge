@@ -12,7 +12,7 @@ import {
   pushAttempt, exportSave, applyImport, previewImport, clearSaveError, hadSaveError,
 } from './store/migrations'
 import type { LoadNotice } from './store/migrations'
-import { useDbSync } from './store/useDbSync'
+import { pushCatalogUntilOk, useDbSync } from './store/useDbSync'
 import type { ActiveSession, AdaptedQuestion, Attempt, ProgressV2, QuizRuntime, SessionKind } from './types'
 import { Quiz, type SessionResult, type QuizAttempt, type QuizEntry } from './components/Quiz'
 import { Confetti } from './components/fx'
@@ -102,8 +102,8 @@ export default function App() {
    *  注意：**不能把 db（每次渲染都是新对象）放进依赖** —— 那会让这个 effect 每次渲染都跑，
    *  变成"每次点一下都全量推 396 行"（NAS 上实测 6 秒推了 8 次、每次 1~2 秒，
    *  同步 SQLite 会把整个服务进程堵住 → 所有接口一起变慢）。
-   *  解构出稳定的 syncCatalog 引用当依赖（exhaustive-deps 也不用把整个 db 拉进来），
-   *  签名**推送成功后**才记录 —— 失败要留重试路径（二次审查补充观察）。 */
+   *  解构出稳定的 syncCatalog 引用当依赖；签名只在成功后记录，**失败由定时退避重试**
+   *  （三审 T4：老实现失败后没有任何东西会再发起调用，服务端目录停在空/旧状态）。 */
   const { syncCatalog } = db
   const catalogSigRef = useRef('')
   useEffect(() => {
@@ -119,9 +119,15 @@ export default function App() {
     }))
     const sig = JSON.stringify(rows)
     if (sig === catalogSigRef.current) return
-    void syncCatalog(rows).then((ok) => {
-      if (ok) catalogSigRef.current = sig
+    let stopped = false
+    void pushCatalogUntilOk(() => syncCatalog(rows), {
+      stopped: () => stopped,
+      sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+    }).then((res) => {
+      if (res.ok) catalogSigRef.current = sig
     })
+    // 卸载/换账户/题池变化 → 收手（在途结果不再排重试；幂等 upsert 下重叠也无害）
+    return () => { stopped = true }
   }, [accountPool, syncCatalog])
 
   const reviewed = useMemo(

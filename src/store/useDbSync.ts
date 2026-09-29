@@ -120,6 +120,36 @@ export function pipelineProgressed(
   return res.rewritten > 0 || reviewedChanged > 0 || (prevPending >= 0 && res.pending < prevPending)
 }
 
+/** 目录推送失败后的退避间隔（三审 T4）：2s → 4s → 8s → 16s → 30s 封顶 */
+export function catalogRetryDelay(attempt: number): number {
+  return Math.min(2 ** attempt * 1000, 30_000)
+}
+
+/**
+ * 目录推送直到成功（三审 T4）：首推失败后**由定时重试触发**，不再依赖"碰巧再渲染一次"。
+ * 老实现只在成功后记签名，失败后没有任何东西会再发起调用 —— 服务端目录停在空/旧状态，
+ * 自动维护也就看不到题。stopped（卸载/切账户）后立即收手，不产生重叠推送。
+ */
+export async function pushCatalogUntilOk(
+  send: () => Promise<boolean>,
+  hooks: {
+    stopped: () => boolean
+    sleep: (ms: number) => Promise<void>
+    onScheduled?: (attempt: number, delayMs: number) => void
+  },
+): Promise<{ attempts: number; ok: boolean }> {
+  let attempt = 0
+  while (!hooks.stopped()) {
+    if (await send()) return { attempts: attempt + 1, ok: true }
+    attempt += 1
+    if (hooks.stopped()) break
+    const delay = catalogRetryDelay(attempt)
+    hooks.onScheduled?.(attempt, delay)
+    await hooks.sleep(delay)
+  }
+  return { attempts: attempt, ok: false }
+}
+
 export interface DbSyncNotice { kind: 'ok' | 'warn'; text: string }
 
 export interface DbSyncApi {

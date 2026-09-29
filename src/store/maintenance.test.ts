@@ -2,7 +2,7 @@
 // T2 = 整条链固定同一账户；T3 = "真进展"判定（同结论/同稿/pending 不动 = 空转）。
 // runMaintenanceFlow 与 pipelineProgressed 都是纯回调注入的导出函数，可脱离 React 直接测。
 import { describe, expect, it } from 'vitest'
-import { pipelineProgressed, runMaintenanceFlow, type MaintenanceEnrich, type MaintenanceReview } from './useDbSync'
+import { catalogRetryDelay, pipelineProgressed, pushCatalogUntilOk, runMaintenanceFlow, type MaintenanceEnrich, type MaintenanceReview } from './useDbSync'
 
 const review = (over: Partial<MaintenanceReview> = {}): MaintenanceReview => ({
   reviewed: 5, killed: 0, fixed: 1, rewritten: 1, remaining: 0,
@@ -77,6 +77,44 @@ describe('runMaintenanceFlow：维护任务从头到尾属于同一个账户（�
     expect(note2).toContain('流水线完成')
     expect(note2).not.toContain('补了')
     expect(r2.enriched).toBe(0)
+  })
+})
+
+describe('pushCatalogUntilOk：目录推送失败后靠定时重试自愈（三审 T4）', () => {
+  const harness = () => {
+    const delays: number[] = []
+    let stopped = false
+    return {
+      delays,
+      stop: () => { stopped = true },
+      hooks: () => ({
+        stopped: () => stopped,
+        sleep: async (ms: number) => { delays.push(ms) },
+      }),
+    }
+  }
+
+  it('失败两次后第三次成功；退避按 2s→4s', async () => {
+    const h = harness()
+    let calls = 0
+    const res = await pushCatalogUntilOk(async () => (++calls < 3 ? false : true), h.hooks())
+    expect(res).toEqual({ attempts: 3, ok: true })
+    expect(h.delays).toEqual([catalogRetryDelay(1), catalogRetryDelay(2)])
+    expect(h.delays[0]).toBe(2000)
+  })
+
+  it('停止（卸载/换账户）后不再重试，也不再排下一次重试', async () => {
+    const h = harness()
+    let calls = 0
+    const res = await pushCatalogUntilOk(async () => { calls++; h.stop(); return false }, h.hooks())
+    expect(res).toEqual({ attempts: 1, ok: false })
+    expect(calls).toBe(1)                    // 失败一次 → 已停止 → 不再发第二次
+    expect(h.delays).toHaveLength(0)          // 已停止就不再排重试（不留僵尸定时器）
+  })
+
+  it('退避 30s 封顶', () => {
+    expect(catalogRetryDelay(10)).toBe(30_000)
+    expect(catalogRetryDelay(4)).toBe(16_000)
   })
 })
 
