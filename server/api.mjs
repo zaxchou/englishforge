@@ -239,12 +239,14 @@ const ROUTES = [
     const after = audit(ctx.params.id)
     writeRunLog(ctx.params.id, 'enrich', {
       requested: todo.length, enriched: saved, rejected, truncated,
-      remaining: after.missingCause.count, model, ms: Date.now() - started,
+      remaining: after.missingCause.count, gaps: after.missingOptions, model, ms: Date.now() - started,
       ids: Object.keys(results).slice(0, 50),
     }, error)
     return {
       ok: true, requested: todo.length, enriched: saved, rejected, truncated, model,
       error: error ?? null, remaining: after.missingCause.count,
+      // 进展度量：**还缺几个选项**（remaining 是"几道题"，部分补全时它不动 —— 复核报告 R6）
+      gaps: after.missingOptions,
     }
   }],
 

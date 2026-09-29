@@ -81,8 +81,8 @@ export interface DbSyncApi {
   pipelineNote: string | null
   /** 后台维护日志（流水线/补纠正每次自动执行的留痕），随自检刷新 */
   runs: RunLogEntry[]
-  /** 让系统自己的 AI 补一批逐项纠正 */
-  enrichNow: (limit?: number) => Promise<{ enriched: number; rejected: number; truncated: number; remaining: number; error: string | null } | null>
+  /** 让系统自己的 AI 补一批逐项纠正（gaps = 还缺几个选项，用于判进展） */
+  enrichNow: (limit?: number) => Promise<{ enriched: number; rejected: number; truncated: number; remaining: number; gaps: number; error: string | null } | null>
   /** 状态变了：安排一次落库 */
   schedule: () => void
   /** 立刻落库（full = 整份替换，服务端先留快照） */
@@ -287,7 +287,10 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
     const res = await runEnrichCauses(id, limit)
     if (!res) return null
     await runAudit()
-    return { enriched: res.enriched, rejected: res.rejected, truncated: res.truncated, remaining: res.remaining, error: res.error }
+    return {
+      enriched: res.enriched, rejected: res.rejected, truncated: res.truncated,
+      remaining: res.remaining, gaps: res.gaps ?? -1, error: res.error,
+    }
   }, [runAudit])
 
   const [pipelineNote, setPipelineNote] = useState<string | null>(null)
@@ -365,17 +368,21 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
           : `流水线${r.error ? '有调用失败' : '完成'}：审 ${r.reviewed} · 改写 ${r.rewritten} · 判毙 ${r.killed} · 还剩 ${Math.max(0, r.remaining)}`)
         if (r.error) parts.push(r.error)
       }
-      // 出题人接着补逐项纠正：同样自动，跑到补完或**缺口不再减少**为止
-      // （缺口是逐项算的：模型只覆盖部分错项时 enriched 会重复计数，用 remaining 判进展才准，
-      //  否则会拿同一批题空烧满 60 批 —— 复核报告 #6 的连带发现）
+      // 出题人接着补逐项纠正：同样自动，跑到补完或**缺口不再减少**为止。
+      // 进展度量是 gaps（还缺几个**选项**）：remaining 是"几道题"，同一道题分几批补时
+      // 它不动，用它判进展会把部分补全误当停滞提前停（二审 R6）
       if (ai?.configured) {
-        let enriched = 0, lastRemaining = -1
+        let enriched = 0, lastRemaining = -1, lastGaps = -1
         for (let i = 0; i < 60; i++) {
           const er = await enrichNow(24)
           if (!er) break
           enriched += er.enriched
-          const noProgress = lastRemaining >= 0 && er.remaining >= lastRemaining
           lastRemaining = er.remaining
+          // 进展 = 还缺的**选项数**在减少：remaining 是"几道题"，部分补全时它不动，
+          // 用它判进展会把"同一道题多补了几个选项"误当停滞提前停（二审 R6）
+          const gaps = er.gaps ?? -1
+          const noProgress = gaps >= 0 && lastGaps >= 0 && gaps >= lastGaps
+          if (gaps >= 0) lastGaps = gaps
           if (er.error || er.remaining <= 0 || er.enriched === 0 || noProgress) break
         }
         if (enriched > 0) {

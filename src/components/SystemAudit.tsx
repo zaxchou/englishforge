@@ -198,6 +198,7 @@ export function SystemAudit({ audit, ai, onKillDuplicates, onModel, onAiReview, 
             {missing > 0
               ? <> 出题 AI 在后台自动补齐（开机接着流水线跑），<b>不需要任何人操作</b>。</>
               : <> 已全部补齐。</>}
+            {(audit?.tagGaps ?? 0) > 0 && <> 另有 <b>{audit.tagGaps}</b> 处纠正缺错因标签（只提示、不阻塞补齐）。</>}
           </small>
         </div>
 

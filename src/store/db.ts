@@ -454,6 +454,10 @@ export interface CatalogRow {
   contentKey: string
   /** 题面自带逐项纠正了吗（决定了系统 AI 要不要补） */
   hasCause: boolean
+  /** 题面自带逐项纠正覆盖了哪些**错误选项**（选项级，布尔 hasCause 表达不了"补了一半"—— 二审 R5） */
+  ownFixes?: string[]
+  /** 题面自带逐项纠正带了哪些**错因标签**（同上，用于统计标签缺口） */
+  ownTags?: string[]
 }
 
 export interface AuditQuestion { id: string; skill: string; prompt: string; answer?: string; type?: string; options?: string[]; tts?: string | null }
@@ -469,6 +473,10 @@ export interface DbAudit {
   flagged: { count: number; sample: AuditQuestion[] }
   /** 只是"批量通过"、待 AI 重审的条数 */
   bulkPending: number
+  /** 还缺多少**个**错项的纠正（自动补齐用它判断进展 —— 二审 R6） */
+  missingOptions?: number
+  /** 有纠正但缺错因标签的处数（只提示不阻塞 —— 二审 R5 的取舍） */
+  tagGaps?: number
   /** 自动流水线的待办（含人工结论复核与 fix 复审）；归零 = 机器这边全处理完了 */
   pipelinePending: number
   /** 同一个句子被多道题反复考的情况（上限 2） */
@@ -552,6 +560,8 @@ export interface EnrichRun {
   /** 有几批因为输出太长被截断（已自动拆小重试） */
   truncated: number
   remaining: number
+  /** 还缺多少**个**错项的纠正：部分补全时 remaining 不动，用它判进展（二审 R6） */
+  gaps?: number
   model: string | null
   error: string | null
 }

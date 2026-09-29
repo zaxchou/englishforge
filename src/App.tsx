@@ -113,6 +113,9 @@ export default function App() {
       // 句子词序/顺序/跟读目标：不给审核员，它看不见非选择题的句子
       aux: { tokens: q.tokens, order: q.order, target: q.target, fix: q.fix },
       contentVersion: q.contentVersion, contentKey: contentKeyOf(q), hasCause: hasOwnCause(q),
+      // 题面自带的逐项覆盖明细（选项级）：布尔表达不了"补了一半"，服务端靠它算真实缺口（二审 R5）
+      ownFixes: Object.keys(q.optionFeedback ?? {}),
+      ownTags: Object.keys(q.optionTags ?? {}),
     }))
     const sig = JSON.stringify(rows)
     if (sig === catalogSigRef.current) return

@@ -293,7 +293,7 @@ function ensureColumns(conn, table) {
   const have = new Set(conn.prepare(`PRAGMA table_info(${table})`).all().map((r) => r.name))
   const spec = {
     content_reviews: [['source', "TEXT NOT NULL DEFAULT 'human'"], ['model', 'TEXT'], ['reasons', 'TEXT']],
-    questions: [['explain', 'TEXT'], ['aux', 'TEXT']],
+    questions: [['explain', 'TEXT'], ['aux', 'TEXT'], ['own_fixes', 'TEXT'], ['own_tags', 'TEXT']],
   }
   for (const [name, type] of spec[table] ?? []) {
     if (!have.has(name)) conn.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${type}`)
@@ -895,15 +895,16 @@ export function upsertCatalog(rows = []) {
   const db = getDb()
   const ts = nowMs()
   const ins = db.prepare(`INSERT INTO questions
-    (id, skill, mode, type, variant_group_id, prompt, answer, options, explain, aux, tts, content_version, content_key, has_cause, updated_at)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    (id, skill, mode, type, variant_group_id, prompt, answer, options, explain, aux, tts, content_version, content_key, has_cause, own_fixes, own_tags, updated_at)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     ON CONFLICT(id) DO UPDATE SET
       skill = excluded.skill, mode = excluded.mode, type = excluded.type,
       variant_group_id = excluded.variant_group_id, prompt = excluded.prompt,
       answer = excluded.answer, options = excluded.options, explain = excluded.explain,
       aux = excluded.aux, tts = excluded.tts, content_version = excluded.content_version,
       content_key = excluded.content_key,
-      has_cause = excluded.has_cause, updated_at = excluded.updated_at`)
+      has_cause = excluded.has_cause, own_fixes = excluded.own_fixes, own_tags = excluded.own_tags,
+      updated_at = excluded.updated_at`)
   let inserted = 0, updated = 0, skipped = 0
   db.exec('BEGIN')
   try {
@@ -919,7 +920,12 @@ export function upsertCatalog(rows = []) {
         str(r.prompt).slice(0, 500), r.answer ?? null, options,
         r.explain ? String(r.explain).slice(0, 600) : null,
         r.aux ? JSON.stringify(r.aux).slice(0, 2000) : null, r.tts ?? null,
-        int(r.contentVersion, 1), r.contentKey ? String(r.contentKey).slice(0, 600) : null, r.hasCause ? 1 : 0, ts)
+        int(r.contentVersion, 1), r.contentKey ? String(r.contentKey).slice(0, 600) : null, r.hasCause ? 1 : 0,
+        // 题面自带的逐项覆盖明细（选项级）：布尔 hasCause 只能表达"有没有"，
+        // 表达不了"补了一半"（二次审查 R5）；老客户端没传则为 NULL，走旧行为
+        Array.isArray(r.ownFixes) ? JSON.stringify(r.ownFixes.map((o) => String(o).slice(0, 200))) : null,
+        Array.isArray(r.ownTags) ? JSON.stringify(r.ownTags.map((o) => String(o).slice(0, 200))) : null,
+        ts)
       if (exists) updated++; else inserted++
     }
     db.exec('COMMIT')
@@ -1013,19 +1019,44 @@ export function audit(accountId) {
     return !v || v.verdict === 'fix' || v.source === 'bulk' || v.source === 'human'
   }).length
 
-  // 逐项纠正的完成度**按当前有效题面的错误选项逐个算**（复核报告 #6）：
-  // 三个错项只补了一个 = 还没补完；选项被改写后旧纠正按文本失配 = 缺口自动重新出现。
-  const fixedByQ = new Map()
+  // 逐项纠正的完成度要按**该账户的有效题面**逐个错项算（复核报告 #6/R4/R5）：
+  //   · 账户改写过选项/题干 → 学员看到新题面，缺口判断与补给模型的题面都必须是新题面；
+  //   · 覆盖度 = 账户补的(causes) ∪ 题面自带的(own_fixes)；老数据只有 has_cause 布尔 → 保持整题跳过；
+  //   · 缺标签（tagGaps）只统计提示、**不阻塞完成**（强制补齐会让模型反复吐同一份内容空转）。
+  const accFixByQ = new Map()
+  const accTagByQ = new Map()
   for (const r of db.prepare("SELECT question_id, payload FROM enrichments WHERE account_id = ? AND kind = 'causes'").all(accountId)) {
-    fixedByQ.set(r.question_id, new Set(Object.keys(parseJson(r.payload)?.optionFixes ?? {})))
+    const p = parseJson(r.payload) ?? {}
+    accFixByQ.set(r.question_id, new Set(Object.keys(p.optionFixes ?? {})))
+    accTagByQ.set(r.question_id, new Set(Object.keys(p.optionTags ?? {})))
   }
-  const missingCause = rows.filter((r) => {
-    if (r.has_cause) return false
+  const rwMap = accountRewriteMap(db, accountId)
+  const viewOf = (r) => {
+    const rw = rwMap.get(r.id)
+    if (!rw) return r
+    return {
+      ...r,
+      prompt: rw.prompt ?? r.prompt,
+      options: Array.isArray(rw.options) ? JSON.stringify(rw.options) : r.options,
+      explain: rw.explain ?? r.explain,
+    }
+  }
+  let missingOptions = 0
+  let tagGaps = 0
+  const missingCause = rows.map(viewOf).filter((r) => {
+    if (r.has_cause && r.own_fixes === null) return false   // 老数据无逐项明细：保持旧行为
     const opts = parseJson(r.options) ?? []
-    if (opts.length < 2) return false            // 只有选择题才有"逐项纠正"这回事
+    if (opts.length < 2) return false                       // 只有选择题才有"逐项纠正"这回事
     const wrong = opts.filter((o) => o !== r.answer)
-    const fixed = fixedByQ.get(r.id) ?? new Set()
-    return wrong.some((o) => !fixed.has(o))
+    if (!wrong.length) return false
+    const accFix = accFixByQ.get(r.id) ?? new Set()
+    const accTag = accTagByQ.get(r.id) ?? new Set()
+    const nativeFix = new Set(parseJson(r.own_fixes) ?? [])
+    const nativeTag = new Set(parseJson(r.own_tags) ?? [])
+    const uncovered = wrong.filter((o) => !accFix.has(o) && !nativeFix.has(o))
+    missingOptions += uncovered.length
+    tagGaps += wrong.filter((o) => (accFix.has(o) || nativeFix.has(o)) && !accTag.has(o) && !nativeTag.has(o)).length
+    return uncovered.length > 0
   })
   const missingCauseList = missingCause.map(withOptions)
 
@@ -1037,6 +1068,10 @@ export function audit(accountId) {
     unreviewed,
     /** 其中"批量通过"待重审的条数 */
     bulkPending: bulkCount,
+    /** 还缺多少**个**错项的纠正（不是多少道题）—— 自动补齐用它判断进展（复核报告 R6） */
+    missingOptions,
+    /** 有纠正但缺错因标签的处数：只提示、不阻塞完成（复核报告 R5 的取舍） */
+    tagGaps,
     /** 自动流水线的待办（含人工结论复核与 fix 复审）；归零 = 机器这边全处理完了 */
     pipelinePending,
     /** 同一个句子被 2 道以上题目反复考的情况（上限 2） */
@@ -1048,7 +1083,7 @@ export function audit(accountId) {
     conflicts,
     missingCause: { count: missingCause.length, sample: missingCauseList.slice(0, 30) },
     missingCauseAll: missingCauseList,
-    enrichedCount: fixedByQ.size,
+    enrichedCount: accFixByQ.size,
     duplicateCount: duplicates.reduce((n, g) => n + g.extras.length, 0),
   }
 }

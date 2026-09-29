@@ -570,6 +570,60 @@ describe('复核报告回归（2026-09-29 外部代码审查）', () => {
     expect(reviews.r1q).toMatchObject({ verdict: 'ok' })
     resetChat()
   })
+
+  it('二次审查 R4：缺口与补给模型的题面都是"该账户的有效题面"（改过选项的账户看新选项）', async () => {
+    await call('/api/catalog', {
+      questions: [{ id: 'ev1', skill: 's9', type: 'choice', prompt: '有效视图题', answer: 'yes', options: ['yes', 'no'], contentKey: 'ev1' }],
+    }, 'POST')
+    const missingOf = async (id) => (await call(`/api/accounts/${acct}/audit`)).json.audit.missingCauseAll.some((s) => s.id === id)
+    expect(await missingOf('ev1')).toBe(true)
+    dbmod.saveRewrite(acct, 'ev1', { options: ['yes', 'never'] }, 't')
+    // 用**老选项** no 的纠正去覆盖：在 A 的有效视图里 never 仍是缺口（旧实现会误判完成）
+    dbmod.saveEnrichment(acct, 'ev1', 'causes', { optionFixes: { no: '老选项的纠正' } }, 't')
+    const eff = (await call(`/api/accounts/${acct}/audit`)).json.audit.missingCauseAll.find((s) => s.id === 'ev1')
+    expect(eff).toBeTruthy()
+    expect(eff.options).toEqual(['yes', 'never'])            // 补给模型的也是有效题面
+    // 用**有效选项**覆盖 → 缺口关闭
+    dbmod.saveEnrichment(acct, 'ev1', 'causes', { optionFixes: { never: '新选项的纠正' } }, 't')
+    expect(await missingOf('ev1')).toBe(false)
+  })
+
+  it('二次审查 R5：原生部分覆盖继续补缺；老数据保持跳过；缺标签只提示不阻塞', async () => {
+    await call('/api/catalog', { questions: [
+      { id: 'nc1', skill: 's9', type: 'choice', prompt: '原生部分题', answer: 'a', options: ['a', 'b', 'c'], contentKey: 'nc1', hasCause: true, ownFixes: ['b'] },
+      { id: 'nc2', skill: 's9', type: 'choice', prompt: '老数据题', answer: 'a', options: ['a', 'b'], contentKey: 'nc2', hasCause: true },
+    ] }, 'POST')
+    const missingOf = async (id) => (await call(`/api/accounts/${acct}/audit`)).json.audit.missingCauseAll.some((s) => s.id === id)
+    expect(await missingOf('nc1')).toBe(true)                  // 自带 b 的纠正 → 还缺 c：算未完成
+    dbmod.saveEnrichment(acct, 'nc1', 'causes', { optionFixes: { c: '补上 c' } }, 't')   // 没带标签
+    expect(await missingOf('nc1')).toBe(false)                 // 反馈齐了就算完成（标签不阻塞）
+    expect(await missingOf('nc2')).toBe(false)                 // 老数据只有布尔 → 整题跳过（不反复重补）
+    const a = (await call(`/api/accounts/${acct}/audit`)).json.audit
+    expect(typeof a.tagGaps).toBe('number')
+    expect(a.tagGaps).toBeGreaterThanOrEqual(1)                // nc1 的 c 有纠正没标签 → 提示
+    expect(typeof a.missingOptions).toBe('number')
+  })
+
+  it('二次审查 R6：进展度量 = 还缺多少个选项（部分补全时 remaining 不动、gaps 必须降）', async () => {
+    await call('/api/catalog', {
+      questions: [{ id: 'pg1', skill: 's9', type: 'choice', prompt: '进度题', answer: 'a', options: ['a', 'b', 'c', 'd'], contentKey: 'pg1' }],
+    }, 'POST')
+    const gaps = async () => (await call(`/api/accounts/${acct}/audit`)).json.audit.missingOptions
+    const g0 = await gaps()
+    dbmod.saveEnrichment(acct, 'pg1', 'causes', { optionFixes: { b: '补 b' } }, 't')
+    const g1 = await gaps()
+    expect(g1).toBe(g0 - 1)                                   // 补了一个选项 → 缺口 -1（remaining 仍不动）
+    dbmod.saveEnrichment(acct, 'pg1', 'causes', { optionFixes: { c: '补 c' } }, 't')
+    const g2 = await gaps()
+    expect(g2).toBe(g1 - 1)
+    dbmod.saveEnrichment(acct, 'pg1', 'causes', { optionFixes: { d: '补 d' } }, 't')
+    expect(await gaps()).toBe(g2 - 1)
+    // enrich 路由回报的 gaps 与审计同源（客户端拿它判"这一批算不算进展"）
+    setChat(async () => ({ text: JSON.stringify({ items: [] }), finishReason: 'stop' }))
+    const run = (await call(`/api/accounts/${acct}/enrich-causes`, { limit: 4 }, 'POST')).json
+    expect(run.gaps).toBe((await call(`/api/accounts/${acct}/audit`)).json.audit.missingOptions)
+    resetChat()
+  })
 })
 
 describe('改稿闸门（acceptRewrite：代码不信模型的自述）', () => {
