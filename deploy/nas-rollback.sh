@@ -24,8 +24,14 @@ PORT=$(grep -E '^ENGLISHFORGE_PORT=' "$ENV_FILE" | cut -d= -f2 | tr -d ' ')
 PORT=${PORT:-4173}
 i=0
 while [ $i -lt 60 ]; do
-  BODY=$(wget -qO- --no-check-certificate "https://127.0.0.1:$PORT/api/health" 2>/dev/null \
-    || wget -qO- "http://127.0.0.1:$PORT/api/health" 2>/dev/null || true)
+  # 同 nas-update.sh：探针必须带硬超时（loopback 上偶发卡死，历史上吃掉过 145 秒）
+  BODY=$(curl -sk -m 8 "https://127.0.0.1:$PORT/api/health" 2>/dev/null) || BODY=""
+  if [ -z "$BODY" ]; then
+    BODY=$(wget -T 8 -qO- --no-check-certificate "https://127.0.0.1:$PORT/api/health" 2>/dev/null) || BODY=""
+  fi
+  if [ -z "$BODY" ]; then
+    BODY=$(curl -s -m 8 "http://127.0.0.1:$PORT/api/health" 2>/dev/null || true)
+  fi
   case "$BODY" in
     *"\"version\":\"$VER\""*)
       echo "完成：已回滚到 $VER（数据卷不动，进度不丢）"

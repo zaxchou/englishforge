@@ -51,9 +51,16 @@ PORT=$(grep -E '^ENGLISHFORGE_PORT=' "$ENV_FILE" | cut -d= -f2 | tr -d ' ')
 PORT=${PORT:-4173}
 i=0
 while [ $i -lt 60 ]; do
-  # 配了 TLS 打 https（自签要 --no-check-certificate），否则回退 http
-  BODY=$(wget -qO- --no-check-certificate "https://127.0.0.1:$PORT/api/health" 2>/dev/null \
-    || wget -qO- "http://127.0.0.1:$PORT/api/health" 2>/dev/null || true)
+  # 配了 TLS 打 https（自签用 -k/--no-check-certificate）。**探针必须有硬超时**：
+  # 实测容器刚重建后 loopback 上偶发一次 145 秒卡死（无超时的 wget 会一直等），
+  # 有界探针最多丢一轮、下一轮就过。curl -m 优先（超时语义可靠），wget -T 兜底。
+  BODY=$(curl -sk -m 8 "https://127.0.0.1:$PORT/api/health" 2>/dev/null) || BODY=""
+  if [ -z "$BODY" ]; then
+    BODY=$(wget -T 8 -qO- --no-check-certificate "https://127.0.0.1:$PORT/api/health" 2>/dev/null) || BODY=""
+  fi
+  if [ -z "$BODY" ]; then
+    BODY=$(curl -s -m 8 "http://127.0.0.1:$PORT/api/health" 2>/dev/null || true)
+  fi
   case "$BODY" in
     *'"ok":true'*)
       case "$BODY" in
