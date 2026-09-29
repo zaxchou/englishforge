@@ -50,7 +50,12 @@ for (const f of ['package.json', 'package-lock.json', 'vite.config.ts', 'vite-pl
   cpSync(join(ROOT, f), join(relDir, f))
 }
 cpSync(join(ROOT, 'dist'), join(relDir, 'dist'), { recursive: true })
-cpSync(join(ROOT, 'server'), join(relDir, 'server'), { recursive: true })
+// server/ 里**不带测试**：① 测试不是运行时需要的；② 带出去的测试拷贝会被根目录的 vitest
+// 当成真测试跑（在包外环境必挂，实测把发布脚本搅黄过一次）
+cpSync(join(ROOT, 'server'), join(relDir, 'server'), {
+  recursive: true,
+  filter: (src) => !/\.(test|spec)\.(mjs|js|ts)$/.test(src),
+})
 cpSync(join(ROOT, 'deploy', 'Dockerfile'), join(relDir, 'Dockerfile'))
 
 // ---- 5) 版本归一 + 命中断言（npm 的 version 出现在多处；盲替换会毁掉 lockfile）----
