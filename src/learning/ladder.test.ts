@@ -201,6 +201,22 @@ describe('队列只放行已解锁的档', () => {
     expect(normal).toHaveLength(10)
   })
 
+  it('阶梯没走完时不会拿本技能"已做过的题"凑数（重复感的来源）', () => {
+    const pool = ladderPool()
+    const p = defaultProgressV2()
+    const now = Date.now()
+    p.attempts = [att('b1-1'), att('b1-2'), att('b1-3')]        // 第 1 档过了 → 开第 2 档
+    // questionStates 也要写：SRS 分看的是它（只有 attempts 的题会被当成"没练过的新题"，
+    // 那样测不出"已做过被排除"这件事）
+    for (const id of ['b1-1', 'b1-2', 'b1-3']) {
+      p.questionStates[id] = { stage: 3, dueAt: now + 24 * 3600 * 1000, correct: 1, total: 1 }
+    }
+    const items = buildTodayQueue(p, pool, 'sess-r', { skillOrder: ['skB'] })
+    expect(items).toHaveLength(3)
+    expect(items.every((i) => i.qid.startsWith('b2-'))).toBe(true)      // 只有第 2 档的新题
+    expect(items.some((i) => i.qid.startsWith('b1-'))).toBe(false)      // 不夹带已做过的第 1 档
+  })
+
   it('整条阶梯走完后回到全池补足（队列不会只剩一两条）', () => {
     const other = Array.from({ length: 10 }, (_, i) => mkq({ id: `f${i}`, skill: 'skA' }))
     const pool = [...ladderPool(), ...other]

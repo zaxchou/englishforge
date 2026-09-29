@@ -277,6 +277,10 @@ export function buildTodayQueue(
   // 2. 当前知识点（recommendSkill 仍看原池：证据口径不该被门控改写）
   const curPool = (skill ? qpool.filter((q) => q.skill === skill) : [])
     .filter((q) => !used.has(q.id))
+    // 阶梯没走完时**不夹带本技能已做过的题**（下面第 4 步、第 5 步都从这里取，
+    // 只挡一步是挡不住的 —— 实测第 4 步照样把做过的第 1 档塞进队列，3 道变 6 道）。
+    // 已练变式留给常规技能（它没有档位可推进，重复是它的正常形态）。
+    .filter((q) => !ladderPending || !p.questionStates[q.id]?.total)
     .sort((a, b) => score(b) - score(a))
 
   // 3. 情境/表达任务（优先当前技能，不足再从全池补）
@@ -301,14 +305,14 @@ export function buildTodayQueue(
   }
 
   // 5. 空位补足
-  //    阶梯技能**不拿别的技能的新题来凑数** —— 那正是"前面三道是新题、后面又变回
-  //    老题"的观感来源（第 1 档只有 3 道，旧逻辑会从全池抓 7 道补满）。
-  //    空位只给：本档剩余 → 下面的到期复习。都空就短队列收工，回首页看下一档亮起；
-  //    整条阶梯走完（或本来就没有阶梯）才回到全池补足，队列不会空掉。
+  //    阶梯没走完时，只补**当前技能里从没做过的题**：
+  //      · 拿别的技能的新题 → "前面三道新题、后面又变回老题"（用户原话）
+  //      · 拿本技能做过的题 → 同一批句子反复出现（"重复的题目太多了"，用户原话）
+  //    两样都不补就短队列收工（该做的复习在下面补到期那步照样进来），
+  //    回首页看下一档亮起；整条阶梯走完（或本来就没阶梯）才回到全池补足。
   if (remain() > 0) {
-    const ladderPending = !!skill && ladderOn && !levelStatuses(pool, p, skill).every((s) => s.passed)
-    const own = qpool.filter((q) => q.skill === skill && !used.has(q.id))
-    const rest = (ladderPending ? own : qpool.filter((q) => !used.has(q.id)))
+    const ownFresh = qpool.filter((q) => q.skill === skill && !used.has(q.id) && !p.questionStates[q.id]?.total)
+    const rest = (ladderPending ? ownFresh : qpool.filter((q) => !used.has(q.id)))
       .sort((a, b) => score(b) - score(a))
     for (const q of rest) {
       if (remain() <= 0) break
