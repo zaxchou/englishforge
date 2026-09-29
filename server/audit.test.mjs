@@ -241,6 +241,11 @@ describe('AI 审核（另一个模型自动定版）', () => {
     expect(REVIEW_PROMPT).toContain('教学主张')
     expect(REVIEW_PROMPT).toContain('就是评判标准')
     expect(REVIEW_PROMPT).toContain('含义不同，就是两个不同的词')
+    // 跟读题的 answer 是题型标记（固定 "speak"），不是句中的词 —— 提示词必须写明，
+    // 否则审核员按"答案必须是句子里真实存在的词"判 answerOk=false → 随机误杀
+    // （实测：三道同结构的跟读题只杀了一道，被杀的那道永远从题池里消失）。
+    expect(REVIEW_PROMPT).toContain('跟读题（type=speak）例外')
+    expect(REVIEW_PROMPT).toContain('绝不要求答案出现在句子里')
   })
 
   it('判据与结论不一致时由代码兜底：答案不唯一→kill，有项未过→不许 ok，无理由→不采信', async () => {
@@ -750,5 +755,38 @@ describe('错因标签词表前后端一致', () => {
     const { TAG_LABEL } = await import('../src/learning/errorTags')
     const clientTags = Object.keys(TAG_LABEL).sort()
     expect(clientTags).toEqual([...ERROR_TAG_KEYS].sort())
+  })
+})
+
+// 放在最后：本用例会留下一条"已作废的 kill"和一条"人工 kill"，不能影响前面的用例计数。
+describe('被误杀的非选择题能被 reopen-incomplete 真正救回', () => {
+  it('AI 的 kill 必须连 verdict 一起作废；人工 kill 一律不碰', async () => {
+    // 实测事故：跟读题 ld4q1 被审核规则误杀 → 从题池消失、第 4 档缺题。
+    // reopenIncompleteAi 此前只改 source，而 killedQuestionIds 只认 verdict='kill' ——
+    // "作废并重新送审"这句承诺实际做不到。
+    const speakQ = (id) => ({
+      id, skill: 's9', type: 'speak',
+      prompt: '说出：「他昨天写信给我。」',
+      target: 'He wrote to me yesterday.', tts: 'He wrote to me yesterday.',
+      answer: 'speak', explain: '写信的人是他，收到信的是我。',
+      contentKey: `sk|${id}`,
+    })
+    await call('/api/catalog', { questions: [speakQ('sk1'), speakQ('sk2')] }, 'POST')
+    await call(`/api/accounts/${acct}/sync`, {
+      reviews: {
+        sk1: { verdict: 'kill', source: 'ai', reasons: ['answerOk 为 false：answer 标为 speak，但 sentence 里没有这个词'] },
+        sk2: { verdict: 'kill', source: 'human', reasons: ['人工毙的'] },
+      },
+    }, 'POST')
+
+    const inPool = () => dbmod.pipelineQueue(acct, { limit: 500 }).map((q) => q.id)
+    const verdictOf = (id) => dbmod.listReviews(acct).find((r) => r.questionId === id)?.verdict
+    expect(inPool()).not.toContain('sk1')                       // kill = 出池
+
+    const re = (await call(`/api/accounts/${acct}/reopen-bulk`, { what: 'ai-incomplete' }, 'POST')).json
+    expect(re.reopened).toBeGreaterThanOrEqual(1)
+    expect(inPool()).toContain('sk1')                           // AI 误杀的：救回来了
+    expect(verdictOf('sk1')).not.toBe('kill')
+    expect(verdictOf('sk2')).toBe('kill')                        // 人毙的：原样不动
   })
 })

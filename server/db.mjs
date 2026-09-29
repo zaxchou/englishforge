@@ -1139,15 +1139,24 @@ export function reopenBulk(accountId, { includeHumanOk = true } = {}) {
  * 作废"输入数据不完整时下的" AI 结论：拼句/点词/跟读题需要 `aux`（句子词序）才能判断答案，
  * 而第一轮审核时这些数据没推上来 —— 实测因此误杀了 4 道好题（说"答案不在句子里"，其实在）。
  * 把它们的来源降级为 bulk，就会重新进待审队列、带着完整数据再审一遍。
+ *
+ * **kill 必须连 verdict 一起作废**：`killedQuestionIds` 只认 `verdict='kill'`，光把来源
+ * 改成 bulk 这道题依旧出在队列外、永远回不到待审 —— 上面那句"重新进待审队列"此前其实做不到
+ * （实测：跟读题 ld4q1 被审核规则误杀后，此函数改了来源却救不回来）。
+ * 人工的 kill 不碰（source='ai' 过滤在前面），"人毙的不复活"照旧。
  */
 export function reopenIncompleteAi(accountId) {
   const db = getDb()
   const rows = db.prepare(
-    `SELECT r.question_id FROM content_reviews r JOIN questions q ON q.id = r.question_id
+    `SELECT r.question_id, r.verdict FROM content_reviews r JOIN questions q ON q.id = r.question_id
      WHERE r.account_id = ? AND r.source = 'ai' AND q.type <> 'choice'`).all(accountId)
-  const upd = db.prepare("UPDATE content_reviews SET source = 'bulk' WHERE account_id = ? AND question_id = ?")
+  const demote = db.prepare("UPDATE content_reviews SET source = 'bulk' WHERE account_id = ? AND question_id = ?")
+  const voidKill = db.prepare(
+    "UPDATE content_reviews SET verdict = 'fix', source = 'bulk' WHERE account_id = ? AND question_id = ?")
   let n = 0
-  for (const r of rows) n += upd.run(accountId, r.question_id).changes
+  for (const r of rows) {
+    n += (r.verdict === 'kill' ? voidKill : demote).run(accountId, r.question_id).changes
+  }
   return { reopened: n }
 }
 

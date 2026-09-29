@@ -175,6 +175,32 @@ describe('队列只放行已解锁的档', () => {
     expect(items.every((i) => i.qid.startsWith('b1-'))).toBe(true)
   })
 
+  it('阶梯没走完时到期复习最多只取 3 条（别让 7 条旧复习把新档挤成"3 新 + 7 老"）', () => {
+    const pool = ladderPool()
+    // 到期题放在**另一个**技能（skC）上：这样它们不会因"属于当前技能"而从 curPool 二次进队列，
+    // 测到的才是 step 1 那个配额本身。
+    const dueQs = Array.from({ length: 9 }, (_, i) => mkq({ id: `d${i}`, skill: 'skC' }))
+    // skA 要有自己的题：否则填充步骤会跨技能摸到 skC 剩下那 2 条到期题（也标 isDueReview），
+    // 断言就测不准"step 1 的配额"了。
+    const skAqs = Array.from({ length: 5 }, (_, i) => mkq({ id: `a${i}`, skill: 'skA' }))
+    const all = [...pool, ...dueQs, ...skAqs]
+    const p = defaultProgressV2()
+    const now = Date.now()
+    for (let i = 0; i < dueQs.length; i++) {
+      p.questionStates[dueQs[i].id] = { stage: 2, dueAt: now - (dueQs.length - i) * 1000, correct: 3, total: 5 }
+    }
+
+    // ① 当前技能带阶梯且没走完 → 到期封顶 3
+    const ladder = buildTodayQueue(p, all, 'sess-due', { skillOrder: ['skB', 'skA', 'skC'] })
+    expect(ladder.filter((i) => i.isDueReview).length).toBe(3)
+    expect(ladder.filter((i) => !i.isDueReview).every((i) => i.qid.startsWith('b1-'))).toBe(true)
+
+    // ② 当前技能没有阶梯 → 恢复常规封顶 7（§5.4 不变）
+    const normal = buildTodayQueue(p, all, 'sess-due2', { skillOrder: ['skA', 'skC'] })
+    expect(normal.filter((i) => i.isDueReview).length).toBe(7)
+    expect(normal).toHaveLength(10)
+  })
+
   it('整条阶梯走完后回到全池补足（队列不会只剩一两条）', () => {
     const other = Array.from({ length: 10 }, (_, i) => mkq({ id: `f${i}`, skill: 'skA' }))
     const pool = [...ladderPool(), ...other]

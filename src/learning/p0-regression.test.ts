@@ -212,7 +212,8 @@ describe('队列生成（§5.4）', () => {
     for (let i = 0; i < dueSeeds.length; i++) {
       p.questionStates[dueSeeds[i].id] = { stage: 2, dueAt: now - (dueSeeds.length - i) * 1000, correct: 3, total: 5 }
     }
-    const q = buildTodayQueue(p, pool, 'sess-B')
+    const others = skillOrder.filter((s) => s !== 'ldd1')
+    const q = buildTodayQueue(p, pool, 'sess-B', { skillOrder: others })
     expect(q).toHaveLength(10)
     expect(q.filter((i) => i.isDueReview).length).toBeLessThanOrEqual(7)
   })

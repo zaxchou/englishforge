@@ -247,9 +247,26 @@ export function buildTodayQueue(
   // 档位门控：只放行已达标的档。无阶梯的老题库原样通过（ladderFilter 不动它们）。
   const qpool = ladderFilter(pool, p)
 
-  // 1. 到期（最多 7，保留 3 个变化位）
+  // 当前知识点与阶梯状态先算（下面"到期"的配额要按"是不是阶梯技能"来定）
+  const skillOrder = opts?.skillOrder ?? [...new Set(qpool.map((q) => q.skill))]
+  const skill = recommendSkill(p, pool, skillOrder)
+  // 注意：必须用**未过滤的原池**判断有没有阶梯 —— 用 qpool 判断的话，
+  // 初始状态只剩第 1 档 → ladderLevels 只剩 [1] → 被误判成"无阶梯"，门控整个失效。
+  const ladderOn = hasLadder(pool, skill)
+  const ladderPending = !!skill && ladderOn && !levelStatuses(pool, p, skill).every((s) => s.passed)
+  // 阶梯技能：当前档的题在队列里**排最前**。构成不变（到期复习照常入选、一条不丢），
+  // 只调顺序 —— 首页那句"下一步做什么"的答案就是当前档，不能让旧复习挡在前面。
+  const ladderLead = ladderOn && skill ? new Set(qpool.filter((q) => q.skill === skill).map((q) => q.id)) : null
+
+  // 1. 到期
+  //    常规最多 7（积压时保留 3 个变化位）；**阶梯还没走完时只取 3 条**：
+  //    每天 10 条里塞 7 条旧复习，会把阶梯挤成"3 道新题 + 7 道老题"——
+  //    用户试用时直接报告了"感觉生成了一些题，然后插进大部分老题里"。
+  //    复习一条都不丢：它们仍是到期状态，下一次照样排在前面。
   const due = dueQuestions(p, qpool, now, opts?.criticalQids)
-  const dueTake = due.length <= 4 ? due.length : Math.min(due.length, 7)
+  const dueTake = ladderPending
+    ? Math.min(due.length, 3)
+    : due.length <= 4 ? due.length : Math.min(due.length, 7)
   for (const q of due.slice(0, dueTake)) {
     items.push(makeQueueItem(q, sessionId, { isDueReview: true }))
     used.add(q.id)
@@ -258,14 +275,6 @@ export function buildTodayQueue(
   const remain = () => QUEUE_SIZE - items.length
 
   // 2. 当前知识点（recommendSkill 仍看原池：证据口径不该被门控改写）
-  const skillOrder = opts?.skillOrder ?? [...new Set(qpool.map((q) => q.skill))]
-  const skill = recommendSkill(p, pool, skillOrder)
-  // 注意：必须用**未过滤的原池**判断有没有阶梯 —— 用 qpool 判断的话，
-  // 初始状态只剩第 1 档 → ladderLevels 只剩 [1] → 被误判成"无阶梯"，门控整个失效。
-  const ladderOn = hasLadder(pool, skill)
-  // 阶梯技能：当前档的题在队列里**排最前**。构成不变（到期复习照常入选、一条不丢），
-  // 只调顺序 —— 首页那句"下一步做什么"的答案就是当前档，不能让 7 条旧复习挡在前面。
-  const ladderLead = ladderOn && skill ? new Set(qpool.filter((q) => q.skill === skill).map((q) => q.id)) : null
   const curPool = (skill ? qpool.filter((q) => q.skill === skill) : [])
     .filter((q) => !used.has(q.id))
     .sort((a, b) => score(b) - score(a))
@@ -307,7 +316,9 @@ export function buildTodayQueue(
       used.add(q.id)
     }
   }
-  if (remain() > 0 && due.length > dueTake) {
+  // 阶梯没走完时**不能**再用到期题把队列填满 —— 否则上面"复习封顶 3"会被这一段原样绕过
+  // （实测：本该 3 条，走完流程又变回 7 条）。空着就空着，回首页看下一档亮起。
+  if (remain() > 0 && due.length > dueTake && !ladderPending) {
     for (const q of due.slice(dueTake)) {
       if (used.has(q.id)) continue
       if (remain() <= 0) break

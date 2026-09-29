@@ -173,6 +173,9 @@ const REVIEW_SYSTEM = [
   '    （若这道题**没有选项**（拼句/点词/跟读这类），这一项不适用，填 true。）',
   '    拼句/点词题会给出 `sentence`（题目展示给学生的词序）——判断 answerOk 前**必须先看这个**，',
   '    答案必须是句子里真实存在的那个词/位置；说"答案不在句子里"之前请先确认 sentence 里确实找不到它。',
+  '    **跟读题（type=speak）例外**：它没有要填的空，`sentence` 就是**要读出来的原句**；',
+  '    这类题的 answerOk 判的是**原句本身对不对、自不自然**。绝不要求答案出现在句子里 ——',
+  '    跟读题的答案字段是题型标记，不在句子里是正常的，按"答案不在句子里"判 kill 就是误杀。',
   '3) glossOk：题干里的中文提示/释义是否准确、不误导？没有中文释义就填 true。',
   '4) explainOk：解析是否自洽、且没有出现"主格/宾格/物主代词/三单规则"这类术语？',
   '',
@@ -240,7 +243,12 @@ export async function reviewQuestions(questions) {
         // 句子在哪：选择题在选项里，拼句/点词/跟读在 tokens/order/target 里
         // （不给句子，审核员会误判"答案不在句子里"—— 实测误杀了 4 道）
         sentence: it.tokens ?? it.order ?? it.target ?? null,
-        options: it.options, answer: it.answer, explain: it.explain ?? null,
+        // 跟读题的 answer 是**题型标记**（固定 "speak"），不是答案文本 —— 发给审核员
+        // 会触发它那条"答案必须是句子里的词"，把好题判死（实测 ld4q1 被误杀，同结构
+        // 的另两道却没被杀 = 随机误杀）。这类题要审的是 sentence 本身。
+        options: it.options,
+        answer: it.type === 'speak' ? null : it.answer,
+        explain: it.explain ?? null,
       })), null, 1),
     accept: acceptReview,
     keyOf: (q) => q.id,

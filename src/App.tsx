@@ -24,7 +24,7 @@ import { buildEvidence, STATE_LABEL, type EvidenceReport } from './learning/evid
 import { summarizeTags, tagLabel, TAG_FIX } from './learning/errorTags'
 import {
   applyQuestionReview, recordSpeak, buildTodayQueue, buildSkillQueue, buildReviewQueue,
-  insertVariantDrill, softenQueue, eligible, dueQuestions, recommendSkill, QUEUE_SIZE,
+  insertVariantDrill, softenQueue, eligible, dueQuestions, recommendSkill,
 } from './learning/scheduler'
 import { isMuted, setMuted, sfx } from './sound'
 
@@ -447,14 +447,18 @@ export default function App() {
   const todayBrief = useMemo(() => {
     const sid = recommendSkill(progress, pool, skillOrder)
     const sk = allSkillList.find((s) => s.id === sid)
-    const dueTake = dueList.length <= 4 ? dueList.length : Math.min(dueList.length, 7)
+    // 队列长度与"队列里几条到期复习"**不要在这里再算一遍配额**：阶梯技能的到期配额是 3、
+    // 当前档还会置顶，而这里曾复刻一套旧规则（最多 7、先出现）→ 首页文案与真实队列对不上。
+    // 直接问 buildTodayQueue（或已冻结的会话队列），只留一个事实源。
+    const q = active?.queue ?? buildTodayQueue(progress, pool, 'brief', { skillOrder })
+    const dueTake = q.filter((i) => i.isDueReview).length
     return {
       skillName: sk ? sk.name : null,
       skillLesson: sk ? (Object.values(lessons).find((l) => l.skills.some((k) => k.id === sk.id))?.no ?? '') : '',
       dueCount: dueList.length,
       dueTake,
       hasResume: !!active,
-      queueLen: active?.queue.length ?? QUEUE_SIZE,
+      queueLen: q.length,
       stateCounts: countStates(evidence),
     }
   }, [progress, pool, dueList, evidence, active])

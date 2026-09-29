@@ -121,8 +121,10 @@ export function PathHome({
             {brief.hasResume ? '继续上次练习' : '继续下一步'} <span>→</span>
           </button>
           <div className="next-note">
-            {brief.dueCount > 0
-              ? `今天有 ${brief.dueCount} 个到期复习，会先出现；约 ${brief.queueLen} 个短任务，随时可暂停`
+            {brief.dueTake > 0
+              ? (showLadder
+                ? `约 ${brief.queueLen} 个短任务：当前档排在最前，另有 ${brief.dueTake} 个到期复习 · 随时可暂停`
+                : `约 ${brief.queueLen} 个短任务：先做 ${brief.dueTake} 个到期复习，再练新题 · 随时可暂停`)
               : `约 ${brief.queueLen} 个短任务 · 每次提交自动保存，随时可暂停`}
           </div>
         </section>
