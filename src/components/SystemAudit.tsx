@@ -41,6 +41,7 @@ export function SystemAudit({ audit, ai, onKillDuplicates, onModel, onAiReview, 
   const dup = audit?.duplicates ?? []
   const conflicts = audit?.conflicts ?? []
   const missing = audit?.missingCause.count ?? 0
+  const tagGaps = audit?.tagGaps ?? 0
 
   /** 跑一遍全自动流水线（内部自己循环：审 → 改 → 复审，直到待办归零或没有进展） */
   async function aiReviewAll() {
@@ -198,7 +199,7 @@ export function SystemAudit({ audit, ai, onKillDuplicates, onModel, onAiReview, 
             {missing > 0
               ? <> 出题 AI 在后台自动补齐（开机接着流水线跑），<b>不需要任何人操作</b>。</>
               : <> 已全部补齐。</>}
-            {(audit?.tagGaps ?? 0) > 0 && <> 另有 <b>{audit.tagGaps}</b> 处纠正缺错因标签（只提示、不阻塞补齐）。</>}
+            {tagGaps > 0 && <> 另有 <b>{tagGaps}</b> 处纠正缺错因标签（只提示、不阻塞补齐）。</>}
           </small>
         </div>
 

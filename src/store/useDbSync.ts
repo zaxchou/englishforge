@@ -68,7 +68,8 @@ export interface DbSyncApi {
   enrichments: EnrichmentMap
   ai: AiStatus | null
   /** 把仓库题库目录推给服务端（系统要能"看见"自己的内容才能自检） */
-  syncCatalog: (rows: CatalogRow[]) => Promise<void>
+  /** 推送题库目录；返回是否成功（调用方要**成功后**才记"已送达"签名，失败留重试） */
+  syncCatalog: (rows: CatalogRow[]) => Promise<boolean>
   /** 刷新自检结果 */
   runAudit: () => Promise<void>
   /** 换模型（存库即时生效） */
