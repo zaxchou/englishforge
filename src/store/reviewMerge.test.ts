@@ -27,4 +27,15 @@ describe('启动合并审核结论：服务端优先（复核报告 #5）', () =
     expect(out.q1).toMatchObject({ verdict: 'ok' })
     expect(out.q9).toMatchObject({ verdict: 'kill', source: 'human' })
   })
+
+  it('切账户接管（keepLocal:false）：整份接管远端，上一个账户的标记一个都不带', () => {
+    const remoteB = { b1: { verdict: 'ok' as const, source: 'ai' as const } }
+    const localFromA = {
+      a1: { verdict: 'kill' as const, source: 'ai' as const },   // A 独有的 AI 结论
+      b1: { verdict: 'fix' as const, source: 'human' as const }, // 远端 B 有 → 必须以远端为准
+    }
+    const out = mergeReviewMarks(remoteB, localFromA, { keepLocal: false })
+    expect(out).toEqual(remoteB)
+    expect(out.a1).toBeUndefined()
+  })
 })

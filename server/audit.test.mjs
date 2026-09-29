@@ -524,6 +524,52 @@ describe('复核报告回归（2026-09-29 外部代码审查）', () => {
     expect(Object.keys(merged.optionFixes).sort()).toEqual(['b', 'c', 'd'])   // b 没被后一批挤掉
     expect(await missing()).toBe(false)
   })
+
+  it('二次审查 R2：版本比较看"有效内容"——同稿重存不升版、改回基准要升版、只改解析不动版', async () => {
+    await call('/api/catalog', {
+      questions: [{ id: 'vq', skill: 's9', type: 'choice', prompt: '版本题', answer: 'yes', options: ['yes', 'no'], contentKey: 'vq', contentVersion: 1 }],
+    }, 'POST')
+    const pv = () => {
+      const row = dbmod.getDb().prepare("SELECT payload FROM enrichments WHERE account_id = ? AND question_id = 'vq' AND kind = 'rewrite'").get(acct)
+      return row ? JSON.parse(row.payload).contentVersion : undefined
+    }
+    expect(pv()).toBeUndefined()
+    dbmod.saveRewrite(acct, 'vq', { options: ['yes', 'never'] }, 'test/m')
+    expect(pv()).toBe(2)                                   // 内容变了 → 升版
+    dbmod.saveRewrite(acct, 'vq', { options: ['yes', 'never'] }, 'test/m')
+    expect(pv()).toBe(2)                                   // 同稿重存 → 不升版（旧实现会升到 3）
+    dbmod.saveRewrite(acct, 'vq', { options: ['yes', 'no'] }, 'test/m')
+    expect(pv()).toBe(3)                                   // 改回基准也算内容变化 → 升版（旧实现停在 3）
+    dbmod.saveRewrite(acct, 'vq', { explain: '只换措辞' }, 'test/m')
+    expect(pv()).toBe(3)                                   // 措辞不影响判分 → 不动版本
+  })
+
+  it('二次审查 R1：结论被时效保护跳过的 fix 不进改稿（不生成、不落库）', async () => {
+    await call('/api/catalog', {
+      questions: [{ id: 'r1q', skill: 's9', type: 'choice', prompt: 'R1 题', answer: 'a', options: ['a', 'b'], contentKey: 'r1q' }],
+    }, 'POST')
+    await call(`/api/accounts/${acct}/sync`, { reviews: { r1q: { verdict: 'ok', source: 'human' } } }, 'POST')
+    // 造"审核请求期间出现了人工操作"：人工结论的时间戳晚于请求起点
+    dbmod.getDb().prepare("UPDATE content_reviews SET updated_at = ? WHERE account_id = ? AND question_id = 'r1q'")
+      .run(Date.now() + 60_000, acct)
+    setChat(async (messages) => {
+      const payload = JSON.parse(messages[messages.length - 1].content.slice(messages[messages.length - 1].content.indexOf('[')))
+      return {
+        text: JSON.stringify({
+          items: payload.map((p) => ({ i: p.i, answerOk: true, distractorOk: true, glossOk: true, explainOk: false, verdict: 'fix', reasons: ['解析用了术语'] })),
+        }), finishReason: 'stop',
+      }
+    })
+    const r = (await call(`/api/accounts/${acct}/ai-pipeline`, { limit: 60 }, 'POST')).json
+    expect(r.skipped).toBeGreaterThanOrEqual(1)
+    expect(r.verdicts.r1q).toBeUndefined()                                     // 过期结论不落库
+    const en = (await call(`/api/accounts/${acct}/enrichments`)).json.enrichments
+    expect(en?.r1q?.rewrite).toBeUndefined()                                   // 也不进改稿
+    // 人工结论原样保留
+    const reviews = (await call(`/api/accounts/${acct}/progress`)).json.reviews
+    expect(reviews.r1q).toMatchObject({ verdict: 'ok' })
+    resetChat()
+  })
 })
 
 describe('改稿闸门（acceptRewrite：代码不信模型的自述）', () => {

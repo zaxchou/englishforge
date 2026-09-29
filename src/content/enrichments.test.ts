@@ -57,4 +57,12 @@ describe('applyEnrichments：rewrite 覆盖题面，causes 只补空缺', () => 
     const list = [q()]
     expect(applyEnrichments(list, {})).toBe(list)
   })
+
+  it('账户改写的内容版本只往上取，不把新基准版本压回去（二次审查 R2）', () => {
+    // 改写版本低于/等于基准 → 不动
+    expect(applyEnrichments([q()], { q1: { rewrite: { contentVersion: 1 } } })[0].contentVersion).toBe(1)
+    expect(applyEnrichments([q()], { q1: { rewrite: { contentVersion: 0 } } })[0].contentVersion).toBe(1)
+    // 改写版本高于基准 → 生效（修订前的旧证据随之失效）
+    expect(applyEnrichments([q()], { q1: { rewrite: { contentVersion: 3 } } })[0].contentVersion).toBe(3)
+  })
 })

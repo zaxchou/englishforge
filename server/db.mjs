@@ -1246,9 +1246,16 @@ export function saveEnrichment(accountId, questionId, kind, payload, model = nul
  *   · questions 镜像是**全局**的仓库基准题面 —— 改写不许写进去，否则 A 账户的改稿会串给
  *     B 账户的复审、而 B 的学员看到的还是原稿（复核报告 #2，实测复现）。
  */
-export function saveRewrite(accountId, questionId, payload, model = null) {
+export function saveRewrite(accountId, questionId, payload, model = null, { since = 0 } = {}) {
   const db = getDb()
   if (!db.prepare('SELECT 1 FROM accounts WHERE id = ?').get(accountId)) throw new ApiError(404, '账户不存在：' + accountId)
+  // 过期防护（二次审查 R1）：改稿模型返回后才落库，这期间可能已有人工新结论 ——
+  // 这份基于旧审核意见的改稿就作废，不许覆盖期间发生的人工判断
+  if (since) {
+    const rv = db.prepare('SELECT source, updated_at FROM content_reviews WHERE account_id = ? AND question_id = ?')
+      .get(accountId, questionId)
+    if (rv && rv.source === 'human' && rv.updated_at > since) return { saved: false, skipped: 'stale' }
+  }
   const fresh = {}
   if (typeof payload?.explain === 'string' && payload.explain.trim()) fresh.explain = payload.explain.trim().slice(0, 600)
   if (Array.isArray(payload?.options)) fresh.options = payload.options.map((o) => String(o).slice(0, 200))
@@ -1261,13 +1268,17 @@ export function saveRewrite(accountId, questionId, payload, model = null) {
   const merged = { ...prev, ...fresh }
   // 改题干/选项是**影响判分的修订**：必须升内容版本，否则修订前的旧作答仍会被
   // evidence 当成有效证据（它按 contentVersion 等值过滤，见复核报告 #4）。
-  // 只改解析（措辞）不动版本 —— 不影响任何判定。版本从上次改写版本或镜像基准继续递增。
+  // 版本比较的对象 = **上一个有效题面（基准+已有改写）与下一个有效题面**，
+  // 不是拿基准比 —— 二次审查 R2 实测：拿基准比会"同稿重存升版、改回基准不升版"。
   const qrow = db.prepare('SELECT prompt, options, content_version FROM questions WHERE id = ?').get(questionId)
   if (qrow) {
-    const promptChanged = fresh.prompt !== undefined && fresh.prompt !== qrow.prompt
-    const optionsChanged = fresh.options !== undefined
-      && JSON.stringify(parseJson(qrow.options) ?? null) !== JSON.stringify(fresh.options)
-    if (promptChanged || optionsChanged) {
+    const baseOpts = parseJson(qrow.options) ?? null
+    const prevOpts = Array.isArray(prev.options) ? prev.options : baseOpts
+    const nextOpts = fresh.options !== undefined ? fresh.options : prevOpts
+    const prevPrompt = typeof prev.prompt === 'string' ? prev.prompt : qrow.prompt
+    const nextPrompt = fresh.prompt !== undefined ? fresh.prompt : prevPrompt
+    const contentChanged = JSON.stringify(prevOpts) !== JSON.stringify(nextOpts) || prevPrompt !== nextPrompt
+    if (contentChanged) {
       merged.contentVersion = int(prev.contentVersion, int(qrow.content_version, 1)) + 1
     }
   }

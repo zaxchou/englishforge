@@ -102,7 +102,9 @@ export default function App() {
    *  注意：**不能把 db（每次渲染都是新对象）放进依赖** —— 那会让这个 effect 每次渲染都跑，
    *  变成"每次点一下都全量推 396 行"（NAS 上实测 6 秒推了 8 次、每次 1~2 秒，
    *  同步 SQLite 会把整个服务进程堵住 → 所有接口一起变慢）。
-   *  依赖用稳定引用 db.syncCatalog，内容没变（签名相同）就不重复推。 */
+   *  解构出稳定的 syncCatalog 引用当依赖（exhaustive-deps 也不用把整个 db 拉进来），
+   *  签名**推送成功后**才记录 —— 失败要留重试路径（二次审查补充观察）。 */
+  const { syncCatalog } = db
   const catalogSigRef = useRef('')
   useEffect(() => {
     const rows = [...allQuestions, ...accountPool].map((q) => ({
@@ -114,9 +116,10 @@ export default function App() {
     }))
     const sig = JSON.stringify(rows)
     if (sig === catalogSigRef.current) return
-    catalogSigRef.current = sig
-    void db.syncCatalog(rows)
-  }, [accountPool, db.syncCatalog])
+    void syncCatalog(rows).then((ok) => {
+      if (ok) catalogSigRef.current = sig
+    })
+  }, [accountPool, syncCatalog])
 
   const reviewed = useMemo(
     () => applyEnrichments(applyReviewMarks([...allQuestions, ...accountPool], marks), db.enrichments),

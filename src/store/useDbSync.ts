@@ -26,8 +26,13 @@ const STATS_TTL_MS = 5000
  * 本地只在"远端没有该题结论 + 这条带 source（是本机真做过的操作）"时保留；
  * 本地那些没有 source 的老标记一律不参与 —— 它们是缓存里的旧通过，会把新完成的
  * AI 判毙重新打开（实测事故；adopt 与 merge 两条启动分支都必须走这里，复核报告 #5）。
+ *
+ * `keepLocal: false` 是**切账户接管**专用：标记是按账户的（单键存储），切过去时
+ * 必须整份接管目标账户的远端标记，把上一个账户的本地标记整个丢掉 —— 否则 A 的结论
+ * 会混进 B 的题池、还会作为"B 的新增结论"被推回服务端（复核报告 R3）。
  */
-export function mergeReviewMarks(remote: ReviewMarks, local: ReviewMarks): ReviewMarks {
+export function mergeReviewMarks(remote: ReviewMarks, local: ReviewMarks, opts: { keepLocal?: boolean } = {}): ReviewMarks {
+  if (opts.keepLocal === false) return { ...remote }
   const keepLocal: ReviewMarks = {}
   for (const [qid, m] of Object.entries(local)) {
     if (remote[qid]) continue
@@ -217,12 +222,13 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
   }, [push])
 
   /** 接管一份服务端存档：**审核结论以服务端为准**（它更新、且带来源） */
-  const adopt = useCallback((pull: PullResult) => {
+  const adopt = useCallback((pull: PullResult, opts: { keepLocal?: boolean } = {}) => {
     const { applyProgress: ap, applyMarks: am, getMarks: gm } = optsRef.current
     ap(pull.progress)
     const remote = pull.reviews ?? {}
-    const merged = mergeReviewMarks(remote, gm())
-    if (Object.keys(merged).length) am(merged)
+    const merged = mergeReviewMarks(remote, gm(), opts)
+    // 切账户（keepLocal:false）时空对象也要写：那是在**清空**上一个账户的标记
+    if (Object.keys(merged).length || opts.keepLocal === false) am(merged)
     // 基线 = 服务端已有的那份：之后的 push 只会带上"服务端还没有、本地新做的"结论 ——
     // 既不会把旧缓存推回去，也不会把本地新增的丢掉
     marksBaselineRef.current = remote
@@ -251,6 +257,8 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
     const id = accountRef.current?.id
     if (!id) return
     const [a, en, st, rl] = await Promise.all([fetchAudit(id), fetchEnrichments(id), fetchAiStatus(), fetchRunLog(id)])
+    // 护栏：取数期间切了账户 → 这些是旧账户的数据，不许盖到新账户的界面上（复核报告 R3）
+    if (accountRef.current?.id !== id) return
     if (a) setAudit(a)
     if (en) setEnrichments(en)
     setAi(st)
@@ -258,7 +266,7 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
   }, [])
 
   const syncCatalog = useCallback(async (rows: CatalogRow[]) => {
-    if (!rows.length) return
+    if (!rows.length) return true
     const res = await pushCatalog(rows)
     if (res) {
       const first = !catalogSent.current
@@ -267,6 +275,9 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
       // 自动流水线不会触发。首次推送成功后必须刷新一次自检，同一会话内就能开跑。
       if (first) void runAudit()
     }
+    // 回报成败：调用方要**成功之后**才记"内容已送达"的签名，失败必须留出重试路径
+    // （否则首推失败后同内容永远不再推，服务端目录停在旧状态 —— 二次审查补充观察）
+    return !!res
   }, [runAudit])
 
   /** 让系统自己的 AI 补一批逐项纠正；补完刷新自检与已补内容 */
@@ -315,6 +326,9 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
         independent = !!res.reviewer.independent
       }
       if (res.verdicts && Object.keys(res.verdicts).length) {
+        // 异步回写护栏：请求是发给 A 账户的，返回时可能已经切到 B —— 直接并入会把
+        // A 的 AI 结论写进 B 的标记（复核报告 R3）
+        if (accountRef.current?.id !== id) { error = '账户已切换，本轮结果不并入'; break }
         const { applyMarks: am, getMarks: gm } = optsRef.current
         const merged = { ...gm(), ...res.verdicts }
         am(merged)
@@ -529,7 +543,10 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
     setAccount(target)
     setAccounts(list ?? [])
     setStats(null)
-    adopt(pull)
+    // 切账户 = 整份接管目标账户的标记，**不与上一个账户的本地标记合并**
+    // （合并会把 A 的结论带进 B 的题池、还会当 B 的新增推回服务端 —— 复核报告 R3；
+    //   A 的标记已在上面 switch-out 时推给了 A，丢掉本地这份不会丢数据）
+    adopt(pull, { keepLocal: false })
     void reloadItems()
     void runAudit()
     setNotice({ kind: 'ok', text: `已切换到「${target.name}」。` })

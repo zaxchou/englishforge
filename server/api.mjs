@@ -160,6 +160,9 @@ const ROUTES = [
       let killed = 0, fixed = 0, saved = 0, skipped = 0
       const verdicts = {}
       const killedIds = [], fixedIds = []
+      // 只有**已成功落库**的 fix 才允许进入改稿 —— 被时效保护跳过的结论是作废的，
+      // 不能让作废的审核意见再去改题目内容（复核报告 R1 实测：skipped=1 却 rewritten=1）
+      const acceptedFixes = new Map()
       for (const [qid, v] of Object.entries(results)) {
         // since=请求起点：期间发生的人工操作会让这轮结论作废；人工判毙永不复活（写入层兜底）
         const res = saveAiReview(id, qid, v.verdict, v.reasons, tag, { since: started })
@@ -167,18 +170,20 @@ const ROUTES = [
         verdicts[qid] = { verdict: v.verdict, reasons: v.reasons, source: 'ai', model: tag }
         saved++
         if (v.verdict === 'kill') { killed++; killedIds.push(qid) }
-        else if (v.verdict === 'fix') { fixed++; fixedIds.push(qid) }
+        else if (v.verdict === 'fix') { fixed++; fixedIds.push(qid); acceptedFixes.set(qid, v) }
       }
       // 审出"要改"的 → 出题人立刻改稿（改完的题仍在待办里，下一轮复审；单方结论不采信）
       let rewritten = 0, rewriteRejected = 0, rewriteError = null
-      const fixQs = todo.filter((q) => results[q.id]?.verdict === 'fix')
-        .map((q) => ({ ...q, reasons: results[q.id].reasons }))
+      const fixQs = todo.filter((q) => acceptedFixes.has(q.id))
+        .map((q) => ({ ...q, reasons: acceptedFixes.get(q.id).reasons }))
       const rewrittenIds = []
       if (fixQs.length) {
         try {
           const rw = await rewriteQuestions(fixQs)
           for (const [qid, payload] of Object.entries(rw.results)) {
-            if (saveRewrite(id, qid, payload, rw.model ? `${rw.provider}/${rw.model}` : null).saved) {
+            // since 再查一次时效：改稿模型返回后可能已有人工操作，过期改稿不落库（复核报告 R1）
+            const res = saveRewrite(id, qid, payload, rw.model ? `${rw.provider}/${rw.model}` : null, { since: started })
+            if (res.saved) {
               rewritten++
               rewrittenIds.push(qid)
             }
