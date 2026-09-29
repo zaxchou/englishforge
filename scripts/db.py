@@ -319,7 +319,8 @@ def cmd_log(conn, args):
         s = json.loads(summary) if summary else {}
         if kind == "pipeline":
             line = (f"审 {s.get('reviewed', 0)} · 毙 {s.get('killed', 0)} · 改写 {s.get('rewritten', 0)}"
-                    f" · 还剩 {s.get('pending', '?')} · {s.get('reviewer', '?')} · {s.get('ms', 0) / 1000:.1f}s")
+                    + (f" · 无变化 {s['rewriteUnchanged']}" if s.get("rewriteUnchanged") else "")
+                    + f" · 还剩 {s.get('pending', '?')} · {s.get('reviewer', '?')} · {s.get('ms', 0) / 1000:.1f}s")
             print(f"[{t}] 流水线  {line}")
             if s.get("killedIds"):
                 print(f"    毙掉: {', '.join(s['killedIds'])}")

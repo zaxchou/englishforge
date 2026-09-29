@@ -624,6 +624,32 @@ describe('复核报告回归（2026-09-29 外部代码审查）', () => {
     expect(run.gaps).toBe((await call(`/api/accounts/${acct}/audit`)).json.audit.missingOptions)
     resetChat()
   })
+
+  it('二审 R7：未审题优先——卡在队首的 fix 不阻塞新题（limit=1 也不会先拿 fix）', async () => {
+    await call('/api/catalog', { questions: [
+      { id: 'a-fix', skill: 's9', type: 'choice', prompt: '卡队首的 fix', answer: 'a', options: ['a', 'b'], contentKey: 'a-fix' },
+      { id: 'z-new', skill: 's9', type: 'choice', prompt: '排后面的未审题', answer: 'a', options: ['a', 'b'], contentKey: 'z-new' },
+    ] }, 'POST')
+    dbmod.saveAiReview(acct, 'a-fix', 'fix', ['解析有术语'], 't/m')
+    const one = dbmod.pipelineQueue(acct, { limit: 1 })
+    // 旧实现按 skill,id 固定排序：a-fix 排在 z-new 前面，会把唯一的名额吃掉
+    expect(one[0].id).not.toBe('a-fix')
+    const all = dbmod.pipelineQueue(acct, { limit: 500 }).map((q) => q.id)
+    expect(all).toContain('a-fix')                       // fix 仍在队列（只是排后面）
+    expect(all.indexOf('a-fix')).toBeGreaterThan(all.indexOf(one[0].id))
+  })
+
+  it('二审 R7：内容没变的重复改稿不算进展（saved:false, unchanged:true）', async () => {
+    await call('/api/catalog', {
+      questions: [{ id: 'uq', skill: 's9', type: 'choice', prompt: '重复改稿题', answer: 'a', options: ['a', 'b'], contentKey: 'uq' }],
+    }, 'POST')
+    const first = dbmod.saveRewrite(acct, 'uq', { explain: '第一版解析' }, 't')
+    expect(first).toMatchObject({ saved: true })
+    const again = dbmod.saveRewrite(acct, 'uq', { explain: '第一版解析' }, 't')
+    expect(again).toMatchObject({ saved: false, unchanged: true })   // 同稿重存 → 不算进展
+    const changed = dbmod.saveRewrite(acct, 'uq', { explain: '第二版解析' }, 't')
+    expect(changed).toMatchObject({ saved: true })
+  })
 })
 
 describe('改稿闸门（acceptRewrite：代码不信模型的自述）', () => {

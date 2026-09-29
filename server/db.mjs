@@ -1238,14 +1238,24 @@ export function pipelineQueue(accountId, { limit = 60 } = {}) {
     db.prepare('SELECT question_id, verdict, source FROM content_reviews WHERE account_id = ?').all(accountId)
       .map((r) => [r.question_id, r]),
   )
-  const out = []
+  // **未审题优先**（二次审查 R7）：旧的按 skill,id 顺序里，反复改不过的 fix 一直卡在队首，
+  // 会把后面的新题全部饿死（实测：前 60 道全 fix 时第 61 道永远轮不到）。
+  // 分三桶：0=从没审过（最优先）→ 1=bulk/human 待复核 → 2=fix 复审；桶内保持 skill,id 稳定排序。
+  const buckets = [[], [], []]
   for (const r of db.prepare('SELECT * FROM questions ORDER BY skill, id').all()) {
     if (killed.has(r.id)) continue
     const v = reviews.get(r.id)
     const needs = !v || v.verdict === 'fix' || v.source === 'bulk' || v.source === 'human'
     if (!needs) continue
-    out.push(applyRewriteToItem(reviewItemOf(r), rewrites.get(r.id)))
-    if (out.length >= limit) break
+    const bucket = !v ? 0 : v.verdict === 'fix' ? 2 : 1
+    buckets[bucket].push(r)
+  }
+  const out = []
+  for (const bucket of buckets) {
+    for (const r of bucket) {
+      out.push(applyRewriteToItem(reviewItemOf(r), rewrites.get(r.id)))
+      if (out.length >= limit) return out
+    }
   }
   return out
 }
@@ -1317,6 +1327,9 @@ export function saveRewrite(accountId, questionId, payload, model = null, { sinc
       merged.contentVersion = int(prev.contentVersion, int(qrow.content_version, 1)) + 1
     }
   }
+  // 内容没变的重复改稿不算进展（二次审查 R7）：模型反复吐同一份稿时不能让调用方
+  // 把它记成"已改写"，否则空转也算推进、进度数字会说谎
+  if (prevRow && JSON.stringify(merged) === JSON.stringify(prev)) return { saved: false, unchanged: true }
   db.prepare(`INSERT INTO enrichments (account_id, question_id, kind, payload, model, created_at)
     VALUES (?,?,?,?,?,?)
     ON CONFLICT(account_id, question_id, kind) DO UPDATE SET

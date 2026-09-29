@@ -306,7 +306,9 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
     if (!id) return null
     let reviewed = 0, killed = 0, fixed = 0, rewritten = 0, remaining = -1
     let reviewer: string | null = null, independent = false, error: string | null = null
-    for (let round = 0; round < 6; round++) {
+    // 处理轮次与锁等待分开计数（二次审查 R7）：另一条流水线占用时的等待**不消耗**处理预算
+    let rounds = 0, waits = 0
+    while (rounds < 6) {
       let res = await runAiPipeline(id, limit)
       if (!res) {
         // 超时/断线不等于失败：服务端多半还在跑那一轮（账户锁会让下一次调用返回 running），等一下再试
@@ -315,10 +317,12 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
       }
       if (!res) { error = '流水线接口没有响应（服务可能在重启）'; break }
       if (res.running) {
-        // 另一个标签页正在跑同一条流水线：等它一轮，不并发烧调用
+        // 另一个标签页正在跑同一条流水线：等它跑完，不并发烧调用；最多等 20 次×3s
+        if (++waits > 20) { error = '另一条流水线长时间占用，本次先退出'; break }
         await new Promise((r) => setTimeout(r, 3000))
         continue
       }
+      rounds++
       reviewed += res.reviewed
       killed += res.killed
       fixed += res.fixed
