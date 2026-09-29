@@ -150,7 +150,7 @@ const ROUTES = [
       if (!todo.length) {
         // 空轮是客户端循环的正常收尾，没有信息量，不写日志
         return {
-          ok: true, requested: 0, reviewed: 0, killed: 0, fixed: 0, rewritten: 0, rewriteUnchanged: 0, skipped: 0,
+          ok: true, requested: 0, reviewed: 0, killed: 0, fixed: 0, rewritten: 0, rewriteUnchanged: 0, reviewedUnchanged: 0, skipped: 0,
           rejected: 0, rewriteRejected: 0, pending: audit(id).pipelinePending, verdicts: {},
           reviewer: null, error: null,
         }
@@ -163,10 +163,12 @@ const ROUTES = [
       // 只有**已成功落库**的 fix 才允许进入改稿 —— 被时效保护跳过的结论是作废的，
       // 不能让作废的审核意见再去改题目内容（复核报告 R1 实测：skipped=1 却 rewritten=1）
       const acceptedFixes = new Map()
+      let reviewedUnchanged = 0
       for (const [qid, v] of Object.entries(results)) {
         // since=请求起点：期间发生的人工操作会让这轮结论作废；人工判毙永不复活（写入层兜底）
         const res = saveAiReview(id, qid, v.verdict, v.reasons, tag, { since: started })
         if (res.saved === false) { skipped++; continue }
+        if (res.unchanged) reviewedUnchanged++   // 同一条 ai 结论再存一遍 ≠ 状态有推进（三审 T3）
         verdicts[qid] = { verdict: v.verdict, reasons: v.reasons, source: 'ai', model: tag }
         saved++
         if (v.verdict === 'kill') { killed++; killedIds.push(qid) }
@@ -200,13 +202,13 @@ const ROUTES = [
       // 留痕：这次自动执行干了什么、动了谁、错在哪（日志表只留最近 500 条）
       const finalError = error ?? rewriteError
       writeRunLog(id, 'pipeline', {
-        requested: todo.length, reviewed: saved, killed, fixed, rewritten, rewriteUnchanged, rewriteRejected,
+        requested: todo.length, reviewed: saved, killed, fixed, rewritten, rewriteUnchanged, reviewedUnchanged, rewriteRejected,
         rejected, truncated, skipped, pending: audit(id).pipelinePending, reviewer: tag,
         ms: Date.now() - started,
         killedIds: killedIds.slice(0, 50), fixedIds: fixedIds.slice(0, 50), rewrittenIds: rewrittenIds.slice(0, 50),
       }, finalError)
       return {
-        ok: true, requested: todo.length, reviewed: saved, killed, fixed, rewritten, rewriteUnchanged, skipped,
+        ok: true, requested: todo.length, reviewed: saved, killed, fixed, rewritten, rewriteUnchanged, reviewedUnchanged, skipped,
         rejected, rewriteRejected, truncated, pending: audit(id).pipelinePending, verdicts,
         reviewer: { provider, model, independent: llmStatus().independentReview },
         error: finalError,

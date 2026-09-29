@@ -640,6 +640,9 @@ export function saveAiReview(accountId, questionId, verdict, reasons, model, { s
     if (cur.verdict === 'kill' && verdict !== 'kill') return { ok: true, saved: false, skipped: 'human-kill' }
     if (since && cur.updated_at > since) return { ok: true, saved: false, skipped: 'human-newer' }
   }
+  // "真变化"计数（三审 T3）：同一条 ai 结论再存一遍没有改变任何状态 —— 调用方拿它区分
+  // "调用过审核"与"状态有推进"，否则重复复审永远算进展、整轮预算被同一批题吃光
+  const unchanged = Boolean(cur && cur.source === 'ai' && cur.verdict === verdict)
   db.prepare(`INSERT INTO content_reviews (account_id, question_id, verdict, note, source, model, reasons, updated_at)
     VALUES (?,?,?,?,?,?,?,?)
     ON CONFLICT(account_id, question_id) DO UPDATE SET
@@ -647,7 +650,7 @@ export function saveAiReview(accountId, questionId, verdict, reasons, model, { s
       reasons = excluded.reasons, updated_at = excluded.updated_at`)
     .run(accountId, questionId, verdict, null, 'ai', model ?? null,
       Array.isArray(reasons) && reasons.length ? JSON.stringify(reasons.slice(0, 4)) : null, nowMs())
-  return { ok: true, saved: true }
+  return { ok: true, saved: true, unchanged }
 }
 
 /**
@@ -1241,12 +1244,12 @@ export function pipelineQueue(accountId, { limit = 60 } = {}) {
   const killed = killedQuestionIds(db, accountId)
   const rewrites = accountRewriteMap(db, accountId)
   const reviews = new Map(
-    db.prepare('SELECT question_id, verdict, source FROM content_reviews WHERE account_id = ?').all(accountId)
+    db.prepare('SELECT question_id, verdict, source, updated_at FROM content_reviews WHERE account_id = ?').all(accountId)
       .map((r) => [r.question_id, r]),
   )
-  // **未审题优先**（二次审查 R7）：旧的按 skill,id 顺序里，反复改不过的 fix 一直卡在队首，
+  // **未审题优先**（二审 R7）：旧的按 skill,id 顺序里，反复改不过的 fix 一直卡在队首，
   // 会把后面的新题全部饿死（实测：前 60 道全 fix 时第 61 道永远轮不到）。
-  // 分三桶：0=从没审过（最优先）→ 1=bulk/human 待复核 → 2=fix 复审；桶内保持 skill,id 稳定排序。
+  // 分三桶：0=从没审过（最优先）→ 1=bulk/human 待复核 → 2=fix 复审。
   const buckets = [[], [], []]
   for (const r of db.prepare('SELECT * FROM questions ORDER BY skill, id').all()) {
     if (killed.has(r.id)) continue
@@ -1256,6 +1259,13 @@ export function pipelineQueue(accountId, { limit = 60 } = {}) {
     const bucket = !v ? 0 : v.verdict === 'fix' ? 2 : 1
     buckets[bucket].push(r)
   }
+  // 返修桶内部**轮转**（三审 T3 实测：61 道 fix 时第 61 道始终轮不到）——
+  // 按"最近处理时间"升序：最久没被碰的先来；sort 稳定，同一时刻仍保持 skill,id。
+  buckets[2].sort((a, b) => {
+    const ta = reviews.get(a.id)?.updated_at ?? 0
+    const tb = reviews.get(b.id)?.updated_at ?? 0
+    return ta - tb
+  })
   const out = []
   for (const bucket of buckets) {
     for (const r of bucket) {

@@ -672,6 +672,40 @@ describe('复核报告回归（2026-09-29 外部代码审查）', () => {
   })
 })
 
+describe('三审回归（T2/T3/T5 相关）', () => {
+  it('T3a：返修桶按最近处理时间轮转——超批上限时，最久没碰的那道要能排到前面', async () => {
+    const qs = []
+    for (let i = 0; i < 61; i++) {
+      const id = 'fx' + String(i).padStart(2, '0')
+      qs.push({ id, skill: 's9', type: 'choice', prompt: '轮转题' + id, answer: 'a', options: ['a', 'b'], contentKey: 'fx|' + id })
+    }
+    await call('/api/catalog', { questions: qs }, 'POST')
+    for (const q of qs) dbmod.saveAiReview(acct, q.id, 'fix', ['要改'], 't/m')
+    const pos = (arr, id) => arr.indexOf(id)
+    // 用全队列（limit 拉满）断言**相对次序**：取前 N 个的行为完全由这个次序决定，
+    // 且不受测试库中其他桶条目的影响
+    const order = () => dbmod.pipelineQueue(acct, { limit: 500 }).map((x) => x.id)
+    const first = order()
+    expect(pos(first, 'fx60')).toBeGreaterThan(pos(first, 'fx00'))   // 修前：同刻时间戳 → 稳定排序，fx60 在后
+    // 模拟"前 60 被处理过"：时间戳推后 → 轮转让没被处理的 fx60 排到 fx00 前面
+    const upd = dbmod.getDb().prepare('UPDATE content_reviews SET updated_at = ? WHERE account_id = ? AND question_id = ?')
+    const base = Date.now() + 60_000
+    first.slice(0, 60).forEach((id, i) => upd.run(base + i, acct, id))
+    const next = order()
+    expect(pos(next, 'fx60')).toBeGreaterThan(-1)
+    expect(pos(next, 'fx60')).toBeLessThan(pos(next, 'fx00'))
+  })
+
+  it('T3b：同一条 ai 结论重复保存回报 unchanged（"真进展"判定的依据）', () => {
+    const a1 = dbmod.saveAiReview(acct, 'uns1', 'ok', [], 't/m')
+    expect(a1).toMatchObject({ saved: true })
+    const a2 = dbmod.saveAiReview(acct, 'uns1', 'ok', [], 't/m')
+    expect(a2).toMatchObject({ saved: true, unchanged: true })     // 同 verdict 同 source = 没有状态推进
+    const a3 = dbmod.saveAiReview(acct, 'uns1', 'fix', ['有术语'], 't/m')
+    expect(a3).toMatchObject({ saved: true, unchanged: false })    // 结论变了 = 真进展
+  })
+})
+
 describe('改稿闸门（acceptRewrite：代码不信模型的自述）', () => {
   const q = { id: 'x', prompt: '我喜欢 ___。（他）', answer: 'him', options: ['him', 'he', 'his', 'her'] }
 

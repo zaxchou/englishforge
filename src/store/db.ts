@@ -607,6 +607,8 @@ export interface AiPipelineRun extends AiReviewRun {
   rewritten: number
   rewriteRejected: number
   pending: number
+  /** 同一条 ai 结论重复保存的条数（= 没有状态推进；客户端据此防空转 —— 三审 T3） */
+  reviewedUnchanged?: number
   /** 同一账户已有流水线在跑（另一个标签页）；此时其它字段不返回 */
   running?: boolean
 }

@@ -41,6 +41,85 @@ export function mergeReviewMarks(remote: ReviewMarks, local: ReviewMarks, opts: 
   return { ...remote, ...keepLocal }
 }
 
+/** aiReviewNow 的返回形状（后台维护编排要读的那部分） */
+export interface MaintenanceReview {
+  reviewed: number; killed: number; fixed: number; rewritten: number
+  remaining: number; reviewer: string | null; independent: boolean; error: string | null
+}
+/** enrichNow 的返回形状 */
+export interface MaintenanceEnrich {
+  enriched: number; remaining: number; gaps: number; error: string | null
+}
+
+/**
+ * 后台维护编排（三审 T2）：**整条链固定在同一个账户上**。
+ * 每个 await 之后校验 isCurrent —— 切换账户后后续阶段立刻停，绝不把 A 的任务尾巴
+ * （补纠正）接到 B 头上（实测过：A 审完时切到 B，旧代码会对 B 先补纠正）。
+ * 依赖全部注入成回调，可脱离 React 直接测试。
+ */
+export async function runMaintenanceFlow(opts: {
+  isCurrent: () => boolean
+  review: () => Promise<MaintenanceReview | null>
+  /** undefined = 出题模型未配置（跳过补纠正阶段） */
+  enrichBatch?: () => Promise<MaintenanceEnrich | null>
+  onNote: (s: string) => void
+  /** 补纠正真有产出时回调（调用方用来刷新题库池） */
+  onEnriched?: (count: number) => void
+}): Promise<{ reviewed: number; rewritten: number; enriched: number; aborted: boolean }> {
+  opts.onNote('后台自动维护启动：审 → 改 → 复审 → 补逐项纠正…')
+  const parts: string[] = []
+  const r = await opts.review()
+  if (!opts.isCurrent()) {
+    opts.onNote('账户已切换，维护中止（A 的任务不会落到 B 头上）')
+    return { reviewed: 0, rewritten: 0, enriched: 0, aborted: true }
+  }
+  if (!r) {
+    parts.push('流水线：数据库接口没有响应')
+  } else {
+    parts.push(r.remaining < 0
+      ? `流水线有另一条在跑（审 ${r.reviewed} · 改 ${r.rewritten} · 毙 ${r.killed}）`
+      : `流水线${r.error ? '有调用失败' : '完成'}：审 ${r.reviewed} · 改写 ${r.rewritten} · 判毙 ${r.killed} · 还剩 ${Math.max(0, r.remaining)} 待机器处理`)
+    if (r.error) parts.push(r.error)
+  }
+  let enriched = 0
+  if (opts.enrichBatch) {
+    // 跑到补完或**缺口不再减少**为止；进展度量 gaps（还缺几个选项），二审 R6
+    let lastRemaining = -1, lastGaps = -1
+    for (let i = 0; i < 60; i++) {
+      if (!opts.isCurrent()) { parts.push('账户已切换，补纠正中止'); break }
+      const er = await opts.enrichBatch()
+      if (!er) break
+      // 切换前已发出的这批是**真发生过的工作**（请求带的是旧账户身份），照实计入；
+      // 只是**不再发下一批** —— 之后的阶段一律停止（三审 T2）
+      enriched += er.enriched
+      lastRemaining = er.remaining
+      const gaps = er.gaps ?? -1
+      const noProgress = gaps >= 0 && lastGaps >= 0 && gaps >= lastGaps
+      if (gaps >= 0) lastGaps = gaps
+      if (!opts.isCurrent()) { parts.push('账户已切换，补纠正中止'); break }
+      if (er.error || er.remaining <= 0 || er.enriched === 0 || noProgress) break
+    }
+    if (enriched > 0) {
+      opts.onEnriched?.(enriched)
+      parts.push(`逐项纠正补了 ${enriched} 篇${lastRemaining > 0 ? `（还剩 ${lastRemaining}）` : '（已补齐）'}`)
+    }
+  }
+  opts.onNote(parts.join(' · '))
+  return { reviewed: r?.reviewed ?? 0, rewritten: r?.rewritten ?? 0, enriched, aborted: false }
+}
+
+/**
+ * 一轮流水线算不算"真进展"（三审 T3）：改稿有落库、或有结论**真变化**、或待办减少。
+ * 同结论再存一遍（reviewedUnchanged）、同稿不落库（rewritten=0）、pending 不动 = 空转 —— 不算。
+ */
+export function pipelineProgressed(
+  res: { rewritten: number; reviewed: number; reviewedUnchanged?: number; pending: number },
+  prevPending: number,
+): boolean {
+  const reviewedChanged = res.reviewed - (res.reviewedUnchanged ?? 0)
+  return res.rewritten > 0 || reviewedChanged > 0 || (prevPending >= 0 && res.pending < prevPending)
+}
+
 export interface DbSyncNotice { kind: 'ok' | 'warn'; text: string }
 
 export interface DbSyncApi {
@@ -295,7 +374,8 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
   }, [runAudit])
 
   const [pipelineNote, setPipelineNote] = useState<string | null>(null)
-  const autoPipelineRef = useRef(false)
+  /** 每个账户每会话只自动维护一次（三审 T2：A 跑过 ≠ B 跑过，切账户后按新账户重新武装） */
+  const autoRunForRef = useRef<string | null>(null)
 
   /**
    * 全自动流水线：审（另一个模型）→ 按审核意见改稿 → 复审，**循环到待办归零**。
@@ -307,9 +387,11 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
     if (!id) return null
     let reviewed = 0, killed = 0, fixed = 0, rewritten = 0, remaining = -1
     let reviewer: string | null = null, independent = false, error: string | null = null
-    // 处理轮次与锁等待分开计数（二次审查 R7）：另一条流水线占用时的等待**不消耗**处理预算
-    let rounds = 0, waits = 0
+    // 处理轮次与锁等待分开计数（二审 R7）：另一条流水线占用时的等待**不消耗**处理预算
+    let rounds = 0, waits = 0, prevPending = -1
     while (rounds < 6) {
+      // 账户身份检查（三审 T2）：每轮**发请求前**确认还在本任务的账户上，切了就停
+      if (accountRef.current?.id !== id) { error = '账户已切换，本轮中止'; break }
       let res = await runAiPipeline(id, limit)
       if (!res) {
         // 超时/断线不等于失败：服务端多半还在跑那一轮（账户锁会让下一次调用返回 running），等一下再试
@@ -342,11 +424,13 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
         am(merged)
         marksBaselineRef.current = merged
       }
-      // 单批坏输出已被服务端拆半重试/抢救救回，error 只是"过程中出过事"，
-      // 不该当成中断 —— 有进展就继续，真正的停止条件是下面两条
+      // 单批坏输出已被服务端拆半重试/抢救救回，error 只是"过程中出过事"，不当成中断
       if (res.error) error = res.error
       if (res.pending <= 0) break
-      if (!res.reviewed && !res.rewritten) break   // 一轮没有任何进展就停，不空烧调用
+      // 停止条件 = **没有真进展**（三审 T3）：同结论再存一遍不算（reviewedUnchanged）、
+      // 同稿不落库不算、pending 不动不算 —— 首轮总允许（它本身就是入口）
+      if (rounds > 1 && !pipelineProgressed(res, prevPending)) break
+      prevPending = res.pending
     }
     await runAudit()
     return { reviewed, killed, fixed, rewritten, remaining, reviewer, independent, error }
@@ -354,49 +438,23 @@ export function useDbSync({ progressRef, applyProgress, getMarks, applyMarks }: 
 
   /** 开机即自动维护：流水线（审→改→复审）跑到归零，接着补齐缺的逐项纠正 —— 全程无按钮
    *  （用户拍板：生成新题后自动走自我纠正管线，「连按钮都不需要」，用户对这套流程无感知）。
-   *  每个会话自动触发一次；这里有待办才启动，归零后每次开机零调用。 */
+   *  **按账户武装**（三审 T2）：每个账户每会话只跑一次；A 跑过不代表 B 跑过，
+   *  切到 B 后若 B 有待办，B 自己的维护照常启动。编排体在 runMaintenanceFlow（可脱离 React 测）。 */
   useEffect(() => {
-    if (autoPipelineRef.current || !account || !audit || !ai?.review?.configured) return
+    if (autoRunForRef.current === account?.id || !account || !audit || !ai?.review?.configured) return
     const pending = audit.pipelinePending ?? 0
     const missing = audit.missingCause?.count ?? 0
     if (pending <= 0 && missing <= 0) return
-    autoPipelineRef.current = true
-    void (async () => {
-      setPipelineNote('后台自动维护启动：审 → 改 → 复审 → 补逐项纠正…')
-      const parts: string[] = []
-      const r = await aiReviewNow()
-      if (!r) {
-        parts.push('流水线：数据库接口没有响应')
-      } else {
-        parts.push(r.remaining < 0
-          ? `流水线有另一条在跑（审 ${r.reviewed} · 改 ${r.rewritten} · 毙 ${r.killed}）`
-          : `流水线${r.error ? '有调用失败' : '完成'}：审 ${r.reviewed} · 改写 ${r.rewritten} · 判毙 ${r.killed} · 还剩 ${Math.max(0, r.remaining)}`)
-        if (r.error) parts.push(r.error)
-      }
-      // 出题人接着补逐项纠正：同样自动，跑到补完或**缺口不再减少**为止。
-      // 进展度量是 gaps（还缺几个**选项**）：remaining 是"几道题"，同一道题分几批补时
-      // 它不动，用它判进展会把部分补全误当停滞提前停（二审 R6）
-      if (ai?.configured) {
-        let enriched = 0, lastRemaining = -1, lastGaps = -1
-        for (let i = 0; i < 60; i++) {
-          const er = await enrichNow(24)
-          if (!er) break
-          enriched += er.enriched
-          lastRemaining = er.remaining
-          // 进展 = 还缺的**选项数**在减少：remaining 是"几道题"，部分补全时它不动，
-          // 用它判进展会把"同一道题多补了几个选项"误当停滞提前停（二审 R6）
-          const gaps = er.gaps ?? -1
-          const noProgress = gaps >= 0 && lastGaps >= 0 && gaps >= lastGaps
-          if (gaps >= 0) lastGaps = gaps
-          if (er.error || er.remaining <= 0 || er.enriched === 0 || noProgress) break
-        }
-        if (enriched > 0) {
-          void reloadItems()   // 新补的纠正要并进抽题池，练习页立刻能用
-          parts.push(`逐项纠正补了 ${enriched} 篇${lastRemaining > 0 ? `（还剩 ${lastRemaining}）` : '（已补齐）'}`)
-        }
-      }
-      setPipelineNote(parts.join(' · '))
-    })()
+    const maintId = account.id
+    autoRunForRef.current = maintId
+    void runMaintenanceFlow({
+      // 整条链的身份：每个 await 之后都会校验，切了账户就停（三审 T2）
+      isCurrent: () => accountRef.current?.id === maintId,
+      review: () => aiReviewNow(),
+      enrichBatch: ai?.configured ? () => enrichNow(24) : undefined,
+      onNote: setPipelineNote,
+      onEnriched: () => { void reloadItems() },   // 新补的纠正要并进抽题池，练习页立刻能用
+    })
   }, [account, audit, ai, aiReviewNow, enrichNow, reloadItems])
 
   const reopenBulkNow = useCallback(async () => {
