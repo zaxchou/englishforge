@@ -139,7 +139,7 @@ export function buildEvidence(p: ProgressV2, pool: AdaptedQuestion[]): EvidenceR
     const correct = window.filter((a) => a.outcome === 'correct').length
     const total = window.length
     const rate = total ? correct / total : 0
-    const days = new Set(window.map((a) => a.localDate)).size
+    const days = new Set(all.map((a) => a.localDate)).size   // 见下方 daysOk 注释
     const vgs = new Set(window.map((a) => a.variantGroupId))
 
     const mOf = (qid: string): Mode | undefined => pool.find((q) => q.id === qid)?.mode
@@ -148,6 +148,11 @@ export function buildEvidence(p: ProgressV2, pool: AdaptedQuestion[]): EvidenceR
     const conOk = window.some((a) => a.outcome === 'correct' && mOf(a.questionId) === 'construction')
 
     const rateOk = rate >= 0.8 && total >= 10
+    // 「跨 ≥2 个训练日」按该知识点**全部合格作答**覆盖的天数算，不是最近 10 次。
+    // 用最近 10 次的 distinct date 会恒等于 1：每天队列 10 道且全来自同一个知识点，
+    // 最近 10 次永远落在同一天 → "已掌握"永远判不出来（生产数据实测 11 个知识点
+    // 全部显示"现在 1 天"、已掌握 0/17）。答对率仍看近期窗口 —— 既看"练过两天"，
+    // 也看"最近真的会"；延迟检索另有 dueSuccesses 兜底。
     const daysOk = days >= 2
     const vgOk = vgs.size >= 3
     const dimsOk = recOk && compOk && conOk
