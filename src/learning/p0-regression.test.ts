@@ -10,7 +10,7 @@ import { gradeChoice, gradeSequence, gradeTap } from './grading'
 import { adaptQuestion } from '../content/adapt'
 import { validateQuestions, errorsOf } from '../content/validation'
 import { defaultProgressV2 } from '../store/migrations'
-import { allQuestions } from '../data/course'
+import { allQuestions, skillOrder } from '../data/course'
 import type { AdaptedQuestion, Attempt, Mode, ProgressV2, Question, QueueItem } from '../types'
 import { INTERVALS } from '../types'
 
@@ -186,9 +186,13 @@ describe('队列生成（§5.4）', () => {
   })
 
   it('今日队列 = 10 任务、无重复、同会话可复现（生成后冻结，用例 4 的基础）', () => {
+    // 这条断言的是 §5.4 的**常规**配额（10 条、去重、同 seed 可复现）。
+    // 深度阶梯样板课（ldd1，排在 skillOrder 最前）是刻意的例外：它的空位不拿别的技能
+    // 新题来凑数，只有 3 条也照发（见 ladder.test.ts「阶梯没走完时不拿别的技能新题凑数」）。
     const p = defaultProgressV2()
-    const q1 = buildTodayQueue(p, pool, 'sess-A')
-    const q2 = buildTodayQueue(p, pool, 'sess-A')
+    const others = skillOrder.filter((s) => s !== 'ldd1')
+    const q1 = buildTodayQueue(p, pool, 'sess-A', { skillOrder: others })
+    const q2 = buildTodayQueue(p, pool, 'sess-A', { skillOrder: others })
     expect(q1).toHaveLength(10)
     expect(new Set(q1.map((i) => i.qid)).size).toBe(10)
     expect(q2).toEqual(q1)                          // 同 seed 同队列：刷新恢复不漂移
@@ -202,9 +206,11 @@ describe('队列生成（§5.4）', () => {
   it('复习积压：最多 7 个到期任务，保留至少 3 个变化位', () => {
     const p = defaultProgressV2()
     const now = Date.now()
-    const seedQueue = buildTodayQueue(p, pool, 'sess-S')
-    for (const it of seedQueue.slice(0, 9)) {
-      p.questionStates[it.qid] = { stage: 2, dueAt: now - (9 - seedQueue.indexOf(it)) * 1000, correct: 3, total: 5 }
+    // 直接给**非阶梯**技能的题置到期（不借 seedQueue —— 样板课只有 3 条，借它只能种 3 条）
+    const dueSeeds = pool.filter((q) => q.skill !== 'ldd1').slice(0, 9)
+    expect(dueSeeds).toHaveLength(9)
+    for (let i = 0; i < dueSeeds.length; i++) {
+      p.questionStates[dueSeeds[i].id] = { stage: 2, dueAt: now - (dueSeeds.length - i) * 1000, correct: 3, total: 5 }
     }
     const q = buildTodayQueue(p, pool, 'sess-B')
     expect(q).toHaveLength(10)

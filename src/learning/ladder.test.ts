@@ -162,6 +162,30 @@ describe('队列只放行已解锁的档', () => {
     expect(items.every((i) => i.qid.startsWith('b1-'))).toBe(true)
   })
 
+  it('阶梯没走完时不拿别的技能新题凑数（否则队列就变成"3 新 + 7 老"）', () => {
+    const other = Array.from({ length: 10 }, (_, i) => mkq({ id: `o${i}`, skill: 'skA' }))
+    const pool = [...ladderPool(), ...other]
+    const p = defaultProgressV2()
+    const items = buildTodayQueue(p, pool, 'sess-x', { skillOrder: ['skB'] })
+    expect(items.length).toBeGreaterThan(0)
+    // 全部来自阶梯技能（skB），没有 skA 的题
+    expect(items.every((i) => !i.qid.startsWith('o'))).toBe(true)
+    // 只有第 1 档的 3 道（后面不补老题，队列就到这 3 条）
+    expect(items).toHaveLength(3)
+    expect(items.every((i) => i.qid.startsWith('b1-'))).toBe(true)
+  })
+
+  it('整条阶梯走完后回到全池补足（队列不会只剩一两条）', () => {
+    const other = Array.from({ length: 10 }, (_, i) => mkq({ id: `f${i}`, skill: 'skA' }))
+    const pool = [...ladderPool(), ...other]
+    const p = defaultProgressV2()
+    for (const lv of [1, 2, 3]) for (let i = 1; i <= 3; i++) p.attempts.push(att(`b${lv}-${i}`))
+    const items = buildTodayQueue(p, pool, 'sess-y', { skillOrder: ['skB'] })
+    expect(items).toHaveLength(10)
+    expect(items.some((i) => i.qid.startsWith('b'))).toBe(true)
+    expect(items.some((i) => i.qid.startsWith('f'))).toBe(true)
+  })
+
   it('真实样板：打开应用时 current 档是第 1 档，队列里只有 1 档的题', () => {
     const p = defaultProgressV2()
     const ldd = allQuestions.filter((q) => q.skill === 'ldd1')

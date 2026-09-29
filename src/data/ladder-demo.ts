@@ -80,7 +80,7 @@ export const ladderDemoQuestions: Question[] = [
   },
   {
     id: 'ld1q3', skill: 'ldd1', type: 'choice', level: 1, diff: 1, mode: 'recognition',
-    prompt: '「我今早给他打过电话。」 I called him this morning.',
+    prompt: '「我今早给他打过电话。」 I called ___ this morning.',
     options: ['him', 'he', 'his', 'himself'],
     answer: 'him',
     tts: 'I called him this morning.',

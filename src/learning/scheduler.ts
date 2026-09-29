@@ -5,7 +5,7 @@ import type {
 import { INTERVALS } from '../types'
 import { seededShuffle, localDateStr } from '../store/progress'
 import { buildEvidence } from './evidence'
-import { ladderFilter, hasLadder } from './ladder'
+import { ladderFilter, hasLadder, levelStatuses } from './ladder'
 
 const DAY = 24 * 60 * 60 * 1000
 export const QUEUE_SIZE = 10
@@ -291,13 +291,15 @@ export function buildTodayQueue(
     used.add(q.id)
   }
 
-  // 5. 没有新内容/本技能抽完：全池补足
-  //    阶梯技能且本档还有题 → 只在本技能内补（把阶梯走完，别被无关题打断）；
-  //    本档已抽空 → 回到全池补足，否则队列会被压成 1~2 条、当天做不成一次训练。
+  // 5. 空位补足
+  //    阶梯技能**不拿别的技能的新题来凑数** —— 那正是"前面三道是新题、后面又变回
+  //    老题"的观感来源（第 1 档只有 3 道，旧逻辑会从全池抓 7 道补满）。
+  //    空位只给：本档剩余 → 下面的到期复习。都空就短队列收工，回首页看下一档亮起；
+  //    整条阶梯走完（或本来就没有阶梯）才回到全池补足，队列不会空掉。
   if (remain() > 0) {
-    const ladderLeft = ladderOn && qpool.some((q) => q.skill === skill && !used.has(q.id))
-    const rest = (ladderLeft ? qpool.filter((q) => q.skill === skill) : qpool)
-      .filter((q) => !used.has(q.id))
+    const ladderPending = !!skill && ladderOn && !levelStatuses(pool, p, skill).every((s) => s.passed)
+    const own = qpool.filter((q) => q.skill === skill && !used.has(q.id))
+    const rest = (ladderPending ? own : qpool.filter((q) => !used.has(q.id)))
       .sort((a, b) => score(b) - score(a))
     for (const q of rest) {
       if (remain() <= 0) break

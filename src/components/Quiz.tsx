@@ -343,6 +343,10 @@ function SpeakQ({ q, onAnswered }: { q: AdaptedQuestion; onAnswered: (r: Session
   const [ratio, setRatio] = useState(0)
   const [tier, setTier] = useState<'ok' | 'close' | 'bad'>('bad')
   const [supported, setSupported] = useState(true)
+  // 识别失败要分清是哪一类：no-speech 只是"没听到声音"，麦克风与识别后端都是好的。
+  // 一律报"语音识别暂不可用"就是误诊 —— 实测点麦克风 5~6 秒后返回 no-speech，
+  // 用户看到按钮从"正在听"退回，界面却写着"暂不可用"，于是以为按钮没反应。
+  const [err, setErr] = useState<'' | 'no-speech' | 'denied' | 'network' | 'other'>('')
   // 浏览器只在**安全来源**（https 或 localhost）开放麦克风与语音识别：
   // 局域网明文 http://（如 http://192.168.31.246:4173）下 navigator.mediaDevices 直接不存在、
   // 语音识别一起就报 not-allowed。这不是权限问题，提示必须说清真实原因（用户实拍报过误诊）。
@@ -397,16 +401,30 @@ function SpeakQ({ q, onAnswered }: { q: AdaptedQuestion; onAnswered: (r: Session
     if (!SR) { setSupported(false); return }
     const rec = new (SR as new () => never)() as {
       lang: string; interimResults: boolean; maxAlternatives: number
+      onstart: () => void
       onresult: (e: { results: { 0: { 0: { transcript: string } } } }) => void
-      onerror: () => void; onend: () => void; start: () => void; stop: () => void
+      onerror: (e: { error?: string }) => void; onend: () => void; start: () => void; stop: () => void
     }
+    setErr('')
     setPhase('listening')
     rec.lang = 'en-US'; rec.interimResults = false; rec.maxAlternatives = 1
     recRef.current = rec
     const cleanup = () => window.clearTimeout(timerRef.current)
-    rec.onresult = (e) => { cleanup(); recordOutcome(e.results[0][0].transcript) }
-    // 识别失败：分别提示，降级到自评，不判学习者答错
-    rec.onerror = () => { cleanup(); setSupported(false); setPhase((v) => (v === 'listening' ? 'idle' : v)) }
+    rec.onstart = () => setSupported(true)      // 识别会话被后端接受 = 能力确实在
+    rec.onresult = (e) => { cleanup(); setErr(''); recordOutcome(e.results[0][0].transcript) }
+    // 识别失败：分类提示，降级到自评，不判学习者答错
+    rec.onerror = (e) => {
+      cleanup()
+      const code = e?.error ?? ''
+      if (code === 'no-speech') {
+        setErr('no-speech')                     // 没听到 ≠ 识别不可用
+      } else {
+        setErr(code === 'not-allowed' || code === 'service-not-allowed' ? 'denied'
+          : code === 'network' ? 'network' : 'other')
+        setSupported(false)
+      }
+      setPhase((v) => (v === 'listening' ? 'idle' : v))
+    }
     rec.onend = () => {
       cleanup()
       setPhase((v) => {
@@ -490,11 +508,21 @@ function SpeakQ({ q, onAnswered }: { q: AdaptedQuestion; onAnswered: (r: Session
           )}
           {(
             <>
-              <div className="listen-tip">{supported
-                ? '也可以先自行练习，再记录感受：'
-                : insecure
-                  ? '当前是局域网 http:// 访问，浏览器出于安全限制禁用了麦克风与语音识别（不是权限问题）。改用 https:// 访问即可；也可以直接自评：'
-                  : '语音识别暂不可用，请检查麦克风权限或网络，也可以自评：'}</div>
+              <div className="listen-tip">
+                {phase === 'listening'
+                  ? '🎙️ 正在听——看着上面的目标句，直接说出来'
+                  : err === 'no-speech'
+                    ? '🤫 没听到你说话（麦克风和识别都是好的）——靠近一点、正常音量再说一次；连续几次不行就直接自评：'
+                    : supported
+                      ? '也可以先自行练习，再记录感受：'
+                      : insecure
+                        ? '当前是局域网 http:// 访问，浏览器出于安全限制禁用了麦克风与语音识别（不是权限问题）。改用 https:// 访问即可；也可以直接自评：'
+                        : err === 'denied'
+                          ? '麦克风权限被拒绝了——在地址栏左侧的权限图标里允许麦克风，再点一次；也可以直接自评：'
+                          : err === 'network'
+                            ? '识别服务连不上（网络问题），不是麦克风坏了——稍后重试，也可以直接自评：'
+                            : '语音识别暂不可用，也可以直接自评：'}
+              </div>
               <div className="speak-actions row">
                 <button className="opt" onClick={() => selfRate(true)}>会了，读顺了</button>
                 <button className="opt" onClick={() => selfRate(false)}>还行，再来一次</button>
