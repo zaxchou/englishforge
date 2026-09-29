@@ -65,4 +65,12 @@ describe('applyEnrichments：rewrite 覆盖题面，causes 只补空缺', () => 
     // 改写版本高于基准 → 生效（修订前的旧证据随之失效）
     expect(applyEnrichments([q()], { q1: { rewrite: { contentVersion: 3 } } })[0].contentVersion).toBe(3)
   })
+
+  it('三审 T1：基线升到 10 后，改写拿到 11 → 生效版本 11（不是被 10 盖住）', () => {
+    const base10 = q({ contentVersion: 10 })
+    // 服务端修复后覆盖版本会从 max(旧覆盖, 基线)+1 = 11 起；这里验证前端把它应用为有效版本
+    expect(applyEnrichments([base10], { q1: { rewrite: { contentVersion: 11 } } })[0].contentVersion).toBe(11)
+    // 旧覆盖低于基线时仍不倒挂（保底不变）
+    expect(applyEnrichments([base10], { q1: { rewrite: { contentVersion: 4 } } })[0].contentVersion).toBe(10)
+  })
 })

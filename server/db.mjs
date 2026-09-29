@@ -1330,7 +1330,9 @@ export function saveRewrite(accountId, questionId, payload, model = null, { sinc
     const nextPrompt = fresh.prompt !== undefined ? fresh.prompt : prevPrompt
     const contentChanged = JSON.stringify(prevOpts) !== JSON.stringify(nextOpts) || prevPrompt !== nextPrompt
     if (contentChanged) {
-      merged.contentVersion = int(prev.contentVersion, int(qrow.content_version, 1)) + 1
+      // 从 **max(旧覆盖版本, 基线版本)** 递增（三审 T1 实测：基线后来升到 10 时，只从旧覆盖
+      // 3+1=4 往上涨 → 被前端的"只取较大值"盖住 → 换了题面有效版本却没变，证据区分失效）
+      merged.contentVersion = Math.max(int(prev.contentVersion, 0), int(qrow.content_version, 1)) + 1
     }
   }
   // 内容没变的重复改稿不算进展（二次审查 R7）：模型反复吐同一份稿时不能让调用方

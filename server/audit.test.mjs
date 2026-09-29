@@ -544,6 +544,26 @@ describe('复核报告回归（2026-09-29 外部代码审查）', () => {
     expect(pv()).toBe(3)                                   // 措辞不影响判分 → 不动版本
   })
 
+  it('三审 T1：基线版本升到覆盖之上后，改题仍要拿到"比基线高"的版本（旧证据失效）', async () => {
+    await call('/api/catalog', {
+      questions: [{ id: 't1q', skill: 's9', type: 'choice', prompt: 'T1 题', answer: 'yes', options: ['yes', 'no'], contentKey: 't1q', contentVersion: 1 }],
+    }, 'POST')
+    const pv = () => {
+      const row = dbmod.getDb().prepare("SELECT payload FROM enrichments WHERE account_id = ? AND question_id = 't1q' AND kind = 'rewrite'").get(acct)
+      return row ? JSON.parse(row.payload).contentVersion : undefined
+    }
+    dbmod.saveRewrite(acct, 't1q', { options: ['yes', 'never'] }, 't')   // 1→2
+    dbmod.saveRewrite(acct, 't1q', { options: ['yes', 'no'] }, 't')      // 撤回 →3
+    expect(pv()).toBe(3)
+    // 仓库侧内容升级：基线推到 10（高于覆盖）
+    await call('/api/catalog', {
+      questions: [{ id: 't1q', skill: 's9', type: 'choice', prompt: 'T1 题', answer: 'yes', options: ['yes', 'no'], contentKey: 't1q', contentVersion: 10 }],
+    }, 'POST')
+    dbmod.saveRewrite(acct, 't1q', { options: ['yes', 'maybe'] }, 't')    // 实质改内容
+    // 修前是 4（被前端 max(10,4)=10 盖住）；修后必须从 max(3,10)+1=11 起
+    expect(pv()).toBe(11)
+  })
+
   it('二次审查 R1：结论被时效保护跳过的 fix 不进改稿（不生成、不落库）', async () => {
     await call('/api/catalog', {
       questions: [{ id: 'r1q', skill: 's9', type: 'choice', prompt: 'R1 题', answer: 'a', options: ['a', 'b'], contentKey: 'r1q' }],
