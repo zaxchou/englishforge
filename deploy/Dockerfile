@@ -26,6 +26,13 @@ COPY server ./server
 # 生产数据库通过挂载提供（compose 里 ENGLISHFORGE_DB=/app/data/englishforge.db）
 ENV ENGLISHFORGE_DB=/app/data/englishforge.db
 VOLUME ["/app/data"]
+# 容器以 compose 的 user:1026 运行，而 COPY 的文件属 root —— vite 加载 TS 配置时把打包结果
+# 写到 **vite.config.ts 旁边**（/app/ 目录本身），非 root 写不进去 → EACCES 崩溃循环
+# （与 node_modules/.vite-temp 同族的坑，上一版镜像就是这么挂的）。整体交给容器运行身份。
+# UID/GID 默认值 = .env 的 CONTAINER_UID/GID（zaxchou 1026:100，已核实）；若改身份要传 --build-arg。
+ARG CONTAINER_UID=1026
+ARG CONTAINER_GID=100
+RUN chown -R ${CONTAINER_UID}:${CONTAINER_GID} /app
 EXPOSE 4173
 USER node
 HEALTHCHECK --interval=60s --timeout=8s --start-period=90s --retries=3 \
