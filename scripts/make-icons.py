@@ -3,20 +3,29 @@
 
 源图：方形母版（白底/黑底留边都可），默认取新主图，可用参数覆盖。
 产出（写入 ../public/）：
-  icon-1024.png         应用图标母版：裁到形状、四角补满（满幅不透明 RGB）
-  apple-touch-icon.png  iOS 主屏 180：同母版处理
+  icon-1024.png         应用图标母版：满幅不透明 RGB
+  apple-touch-icon.png  iOS 主屏 180
   icon-96.png           侧栏品牌位：圆角透明（RGBA，角外 alpha=0）
   icon-32.png           浏览器标签页 favicon：圆角透明
 
 算法要点：
-- 有效区域 = **既非近白也非近黑**像素的 bbox（两种底色的留边都裁掉。
-  2026-09-29 的新源图是黑底留边，"只裁近白"的旧逻辑什么都没裁、产出带黑框）
-- bbox 非正方形时**补边**而不是裁切：新源图方卡外有机器人探出的突出物，
-  中心裁切会把它们切掉；补边色 = bbox 外缘背景色的中位数
-- 圆角半径按 0.223 × 边长（品牌值，与源图自身的烘焙圆角无关）
-- 不透明母版的四角：按"四角双线性插值色"补满（OS 会再裁圆角，接缝不可见）
-- 透明版从"补满后的方形"切圆角蒙版再缩；生成后**数值验收**：统计被圆角切掉的
-  非黑内容像素，>阈值即告警（半径切进作品 = 事故，肉眼看不到也要机器兜住）
+1. 背景 = 近白 或 近黑（两种底色的留边都算背景；只看颜色）
+2. 形状 bbox 先用**形态学开运算**滤掉与主体不相连的杂点：
+   源图边缘常有几像素到几十像素的孤立亮点（2026-09-29 主图顶部就有一簇纯蓝杂点，
+   与卡片断开 ~40px 纯黑）。不滤掉会把 bbox 撑高 ~60px、主体被迫缩小，
+   四周就多出一圈背景色的"框"。
+3. bbox 内的背景像素（主体自身圆角外的四个角）用**同列最近前景色**延展：
+   圆角矩形的角部，最近的前景像素本来就在同一列 —— 即最近邻填充，纵向渐变无缝延续。
+   **历史事故**：旧实现补边/补角取的是"bbox 外缘的背景色"。白底源图上恰好接近作品色
+   所以看不出来；黑底源图取到纯黑 → 成品四周一圈黑框（用户报"图标有黑边"）。
+4. w≠h 时按边缘复制补成正方形（**不裁切**）。
+5. 圆角半径 0.223 × 边长（品牌值，与源图自身烘焙的圆角无关）。
+6. 数值验收（肉眼看不到也要机器兜住）：
+   ① 圆角蒙版不得切掉**实心主体**（近黑墨迹或近白像素 = 文字、角色等）；
+   ② 成品最外圈边框不得出现近黑像素 —— 这是"黑边/黑框"的回归护栏。
+   注：验收①不能用"与局部背景差异大"来定义主体 —— 渐变卡片自身就会被判成细节
+   （实测误报 9201 px）。用"近黑/近白"这个判据，渐变不触发、主体跑不掉。
+
 用法：python scripts/make-icons.py [源图路径]
 """
 import sys
@@ -27,112 +36,125 @@ from PIL import Image, ImageDraw
 
 DEFAULT_SRC = r"D:\Download\ChatGPT 图像 2026年9月29日 12_51_27-1.png"
 OUT_DIR = Path(__file__).resolve().parent.parent / "public"
-RADIUS_RATIO = 0.223
-BG_WHITE = 236  # 近白判定阈值
-BG_BLACK = 8    # 近黑判定阈值（新源图黑区实测最大通道值=4）
-SS = 4          # 圆角蒙版超采样倍数
+RADIUS_RATIO = 0.223   # 品牌圆角
+BG_WHITE = 236        # 近白判定阈值
+BG_BLACK = 8          # 近黑判定阈值
+OPEN_K = 12           # 开运算半径（剔除最大边小于 ~24px 的孤立杂点）
+SS = 4                # 圆角蒙版超采样倍数
+RING_FRAC = 0.08      # 外圈边框宽度占比（黑边护栏取样带；旧图黑边实测 4.2%~5.6%，
+                      #   带子窄了会"差几像素"漏掉事故，取 8% 留余量）
+INK_DARK = 90         # "近黑墨迹"阈值（验收①的主体判据）
+INK_WHITE = 200       # "近白"阈值（验收①的主体判据）
+INK_TOLERANCE = 8     # 抗锯齿容差（512 尺度上允许被切的像素数）
 
 
-def find_shape(im: Image.Image) -> Image.Image:
+def backdrop(a: np.ndarray) -> np.ndarray:
+    """近白或近黑都算背景（只看颜色，不看连通性）"""
+    nw = (a[:, :, 0] > BG_WHITE) & (a[:, :, 1] > BG_WHITE) & (a[:, :, 2] > BG_WHITE)
+    nb = a.max(axis=2) <= BG_BLACK
+    return nw | nb
+
+
+def erode4(m: np.ndarray, k: int) -> np.ndarray:
+    """4 邻域腐蚀 k 次（形态学开运算；纯 numpy，不依赖 scipy）"""
+    for _ in range(k):
+        m = m & np.roll(m, 1, 0) & np.roll(m, -1, 0) & np.roll(m, 1, 1) & np.roll(m, -1, 1)
+    return m
+
+
+def extend_from_column(crop: np.ndarray, valid: np.ndarray) -> np.ndarray:
+    """把背景像素填成**同列最近前景色**（最近邻延展，渐变无缝）"""
+    H, W = valid.shape
+    out = crop.astype(np.float64)
+    rows = np.arange(H)[:, None]
+    above = np.maximum.accumulate(np.where(valid, rows, -1), axis=0)             # 上方最近有效行
+    below = np.minimum.accumulate(np.where(valid, rows, H)[::-1], axis=0)[::-1]   # 下方最近有效行
+    has_a, has_b = above >= 0, below < H
+    da = np.where(has_a, rows - above, 1 << 30)
+    db = np.where(has_b, below - rows, 1 << 30)
+    src = np.where(has_a | has_b, np.where(da <= db, np.maximum(above, 0), below), 0)
+    cols = np.broadcast_to(np.arange(W), (H, W))
+    nearest = out[src, cols, :]                                                   # 每个背景像素取同列最近前景色
+    return np.where(valid[:, :, None], out, nearest)
+
+
+def build_square(im: Image.Image) -> Image.Image:
+    """源图 → 满幅方形作品（已延展、已补边、四周无背景留边）"""
     a = np.asarray(im).astype(int)
-    mx = a.max(axis=2)
-    near_white = (a[:, :, 0] > BG_WHITE) & (a[:, :, 1] > BG_WHITE) & (a[:, :, 2] > BG_WHITE)
-    fg = (~near_white) & (mx > BG_BLACK)
-    ys, xs = np.where(fg)
-    box = (int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1)
-    shape = im.crop(box)
-    w, h = shape.size
-    if w != h:
-        # 补边成正方形（**不裁切**：突出物必须保全）；补边色 = bbox 外缘背景色中位数
-        x0, y0, x1, y1 = box
-        ext = []
-        if x0 > 0:
-            ext += [a[y, x0 - 1] for y in range(y0, y1, max(1, (y1 - y0) // 50))]
-        if x1 < a.shape[1]:
-            ext += [a[y, x1] for y in range(y0, y1, max(1, (y1 - y0) // 50))]
-        if y0 > 0:
-            ext += [a[y0 - 1, x] for x in range(x0, x1, max(1, (x1 - x0) // 50))]
-        if y1 < a.shape[0]:
-            ext += [a[y1, x] for x in range(x0, x1, max(1, (x1 - x0) // 50))]
-        color = tuple(int(v) for v in np.median(np.array(ext), axis=0)) if ext else (0, 0, 0)
-        s = max(w, h)
-        canvas = Image.new("RGB", (s, s), color)
-        canvas.paste(shape, ((s - w) // 2, (s - h) // 2))
-        shape = canvas
-        print(f"  有效区域 {box} → 补边成 {shape.size}（补边色 {color}）")
+    H, W = a.shape[:2]
+    fg = ~backdrop(a)
+
+    core = erode4(fg, OPEN_K)
+    if core.any():
+        ys, xs = np.where(core)
+        y0 = max(0, ys.min() - OPEN_K); y1 = min(H, ys.max() + 1 + OPEN_K)
+        x0 = max(0, xs.min() - OPEN_K); x1 = min(W, xs.max() + 1 + OPEN_K)
     else:
-        print(f"  有效区域 {box} → {shape.size}")
-    return shape
+        ys, xs = np.where(fg)
+        y0, y1, x0, x1 = ys.min(), ys.max() + 1, xs.min(), xs.max() + 1
+    dropped = int(fg.sum() - fg[y0:y1, x0:x1].sum())
+    print(f"  形状 bbox ({x0}, {y0}, {x1}, {y1}) → {x1 - x0}×{y1 - y0}"
+          f"（开运算剔除孤立杂点 {dropped} px）")
+
+    crop = a[y0:y1, x0:x1]
+    filled = extend_from_column(crop, ~backdrop(crop))
+
+    h, w = filled.shape[:2]
+    if h != w:
+        s = max(h, w)
+        top, left = (s - h) // 2, (s - w) // 2
+        filled = np.pad(filled, ((top, s - h - top), (left, s - w - left), (0, 0)), mode="edge")
+        print(f"  非正方形 {w}×{h} → 边缘复制补边成 {s}×{s}（补的是作品自身边缘色，不是背景色）")
+    else:
+        print(f"  正方形 {w}×{h}，无需补边")
+    return Image.fromarray(filled.clip(0, 255).astype(np.uint8))
 
 
-def content_lost_outside_mask(shape: Image.Image, size: int = 512) -> int:
-    """数值验收：被 0.223 圆角蒙版切掉的"非黑内容"像素数（应接近 0）。"""
-    img = shape.resize((size, size), Image.LANCZOS)
-    arr = np.asarray(img).astype(int)
+def rounded_mask(size: int) -> np.ndarray:
+    """0.223 圆角蒙版（超采样抗锯齿）"""
     big = size * SS
-    mask = Image.new("L", (big, big), 0)
-    ImageDraw.Draw(mask).rounded_rectangle(
-        [0, 0, big - 1, big - 1], radius=RADIUS_RATIO * big, fill=255
-    )
-    m = np.asarray(mask.resize((size, size), Image.LANCZOS)) > 127
-    content = arr.max(axis=2) > BG_BLACK
-    return int((content & ~m).sum())
+    m = Image.new("L", (big, big), 0)
+    ImageDraw.Draw(m).rounded_rectangle([0, 0, big - 1, big - 1], radius=RADIUS_RATIO * big, fill=255)
+    return np.asarray(m.resize((size, size), Image.LANCZOS)) > 127
 
 
-def corner_samples(shape: Image.Image):
-    arr = np.asarray(shape).astype(int)
-    s = shape.size[0]
-
-    def safe(x, y):
-        for k in range(40):  # 向内推直到不是近白，拿到真实蓝色
-            px = arr[min(y + k, s - 1), min(x + k, s - 1)]
-            if not (px[0] > BG_WHITE and px[1] > BG_WHITE and px[2] > BG_WHITE):
-                return px[:3].astype(float)
-        return arr[y, x][:3].astype(float)
-
-    inset = int(s * 0.08)
-    return (
-        safe(inset, inset),
-        safe(s - 1 - inset, inset),
-        safe(inset, s - 1 - inset),
-        safe(s - 1 - inset, s - 1 - inset),
-    )
-
-
-def opaque_master(shape: Image.Image, colors, size: int) -> Image.Image:
-    """裁到形状 → 缩放到 size → 圆角外按四角双线性色补满（满幅不透明）"""
-    img = np.asarray(shape.resize((size, size), Image.LANCZOS)).astype(np.float64)
-    r = RADIUS_RATIO * size
-    yy, xx = np.mgrid[0:size, 0:size]
-    cx = np.clip(xx, r, size - 1 - r)
-    cy = np.clip(yy, r, size - 1 - r)
-    outside = (xx - cx) ** 2 + (yy - cy) ** 2 > r * r
-    u = (xx / (size - 1))[..., None]
-    v = (yy / (size - 1))[..., None]
-    tl, tr, bl, br = colors
-    fill = (tl * (1 - u) + tr * u) * (1 - v) + (bl * (1 - u) + br * u) * v
-    img[outside] = fill[outside]
-    return Image.fromarray(img.clip(0, 255).astype(np.uint8))
-
-
-def rounded_transparent(shape: Image.Image, colors, size: int) -> Image.Image:
-    """从补满方形切圆角蒙版（超采样）再缩到目标，角外完全透明、无白边"""
+def rounded_transparent(square: Image.Image, size: int) -> Image.Image:
+    """满幅方形 + 圆角 alpha（角外完全透明，无白边/黑边）"""
     big = size * SS
-    base = opaque_master(shape, colors, big).convert("RGBA")
-    mask = Image.new("L", (big, big), 0)
-    ImageDraw.Draw(mask).rounded_rectangle(
-        [0, 0, big - 1, big - 1], radius=RADIUS_RATIO * big, fill=255
-    )
-    base.putalpha(mask)
+    base = square.resize((big, big), Image.LANCZOS).convert("RGBA")
+    m = Image.new("L", (big, big), 0)
+    ImageDraw.Draw(m).rounded_rectangle([0, 0, big - 1, big - 1], radius=RADIUS_RATIO * big, fill=255)
+    base.putalpha(m)
     return base.resize((size, size), Image.LANCZOS)
 
 
-def corner_report(img: Image.Image, name: str):
-    w, h = img.size
-    mid = w // 2
-    pts = {"左上": (1, 1), "右上": (w - 2, 1), "左下": (1, h - 2), "右下": (w - 2, h - 2), "中心": (mid, mid)}
-    info = {k: img.getpixel(p) for k, p in pts.items()}
-    print(f"  {name}: {img.size[0]}×{img.size[1]} {img.mode} | 角: {info['左上']} α={info['左上'][-1]} | 中心: {info['中心']}")
+def subject_cut(square: Image.Image, size: int = 512) -> tuple[int, int]:
+    """圆角切掉的"实心主体"像素数 / 主体总数。
+
+    主体 = 近黑墨迹 或 近白像素（文字、角色等实心内容）。
+    刻意不用"与局部背景的差异"来定义：渐变卡片整体都是差异，会把整张图判成主体。
+    """
+    img = square.resize((size, size), Image.LANCZOS)
+    arr = np.asarray(img).astype(int)
+    ink = (arr.max(axis=2) <= INK_DARK) | (arr.min(axis=2) > INK_WHITE)
+    return int((ink & ~rounded_mask(size)).sum()), int(ink.sum())
+
+
+def ring_near_black(img: Image.Image) -> tuple[int, int]:
+    """最外圈边框里的近黑像素数 / 边框像素数（黑边回归护栏）
+
+    注意：必须只看 RGB 三个通道 —— RGBA 上直接 max(axis=2) 会把 alpha=255 算进去，
+    判据恒假、护栏永远不触发（实测踩过：旧图黑边 43px 也报 0）。
+    """
+    arr = np.asarray(img.convert("RGBA")).astype(int)
+    s = arr.shape[0]
+    k = max(1, int(s * RING_FRAC))
+    ring = np.zeros((s, s), bool)
+    ring[:k, :] = ring[-k:, :] = ring[:, :k] = ring[:, -k:] = True
+    ring &= arr[:, :, 3] > 127            # 透明像素不算（favicon 角外本就透明）
+    rgb = arr[:, :, :3]
+    nb = rgb.max(axis=2) <= BG_BLACK
+    return int((nb & ring).sum()), int(ring.sum())
 
 
 def main():
@@ -140,26 +162,34 @@ def main():
     print(f"源图: {src}")
     im = Image.open(src).convert("RGB")
     print(f"  原始尺寸 {im.size} {im.mode}")
-    shape = find_shape(im)
-    colors = corner_samples(shape)
-    print("  四角补色采样:", [tuple(int(v) for v in c) for c in colors])
+    square = build_square(im)
 
     outputs = [
-        ("icon-1024.png", opaque_master(shape, colors, 1024)),
-        ("apple-touch-icon.png", opaque_master(shape, colors, 180)),
-        ("icon-96.png", rounded_transparent(shape, colors, 96)),
-        ("icon-32.png", rounded_transparent(shape, colors, 32)),
+        ("icon-1024.png", square.resize((1024, 1024), Image.LANCZOS)),
+        ("apple-touch-icon.png", square.resize((180, 180), Image.LANCZOS)),
+        ("icon-96.png", rounded_transparent(square, 96)),
+        ("icon-32.png", rounded_transparent(square, 32)),
     ]
+
+    ring_bad = 0
     for name, img in outputs:
         path = OUT_DIR / name
         img.save(path)
-        corner_report(img, name)
+        nb, ring = ring_near_black(img)
+        ring_bad += nb
+        s = img.size[0]
+        mid = s // 2
+        print(f"  {name:22s} {s}×{s} {img.mode} | 角 {img.getpixel((1, 1))} | 中心 {img.getpixel((mid, mid))}"
+              f" | 外圈近黑 {nb}/{ring}")
         print(f"    → {path} ({path.stat().st_size / 1024:.1f} KB)")
 
-    lost = content_lost_outside_mask(shape)
-    print(f"  数值验收：被圆角切掉的非黑内容像素 = {lost}（0 或个位数为抗锯齿，>100 说明半径切进作品）")
-    if lost > 100:
-        raise SystemExit(f"验收失败：{lost} 个内容像素被切掉 —— 圆角半径或补边有问题，产物已写出但不作数")
+    cut, total = subject_cut(square)
+    print(f"  数值验收①：被圆角切掉的实心主体像素 = {cut} / {total}（容差 {INK_TOLERANCE}；超了说明半径切进主体）")
+    print(f"  数值验收②：成品外圈近黑像素合计 = {ring_bad}（应为 0 —— 黑边回归护栏）")
+    if cut > INK_TOLERANCE:
+        raise SystemExit(f"验收失败：{cut} 个主体像素被圆角切掉 —— 半径或定位有问题")
+    if ring_bad > 0:
+        raise SystemExit(f"验收失败：成品外圈有 {ring_bad} 个近黑像素 —— 补色又取到背景色了")
 
 
 if __name__ == "__main__":
