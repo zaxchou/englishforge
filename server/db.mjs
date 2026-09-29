@@ -7,7 +7,7 @@
 // 数据文件放在仓库之外（JunEnglish/data/englishforge/），与 课稿-校对版/、corpus/
 // 同一纪律：englishforge 是公开仓库，用户数据永远不会进 git。
 import { DatabaseSync } from 'node:sqlite'
-import { mkdirSync } from 'node:fs'
+import { mkdirSync, readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -16,6 +16,12 @@ const HERE = dirname(fileURLToPath(import.meta.url))
 export const DB_PATH = process.env.ENGLISHFORGE_DB
   ? resolve(process.env.ENGLISHFORGE_DB)
   : resolve(HERE, '..', '..', 'data', 'englishforge', 'englishforge.db')
+
+/** 真实版本（= 镜像 tag = git 短哈希），由 scripts/release.mjs 写进 VERSION 文件。
+ *  /api/health 自报它，nas-update.sh 用它做上线断言 —— 没有它，"发版成功但跑着旧容器"就查不出来。 */
+const VERSION = (() => {
+  try { return readFileSync(resolve(HERE, '..', 'VERSION'), 'utf8').trim() } catch { return 'dev' }
+})()
 
 /** 客户端一次最多带回多少条作答事件（库里全量保留，客户端只吃最近这些） */
 export const ATTEMPT_PAGE = 5000
@@ -1455,7 +1461,7 @@ export function dbInfo() {
     try { return db.prepare('PRAGMA page_count').get().page_count * db.prepare('PRAGMA page_size').get().page_size }
     catch { return null }
   })()
-  return { path: DB_PATH, accounts: listAccounts().length, bytes: size, sqlite: 'node:sqlite / Node ' + process.version }
+  return { path: DB_PATH, accounts: listAccounts().length, bytes: size, version: VERSION, sqlite: 'node:sqlite / Node ' + process.version }
 }
 
 export { bool }

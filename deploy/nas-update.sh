@@ -1,56 +1,72 @@
 #!/bin/sh
-# NAS 版本更新：从项目目录构建指定标签的镜像并重建容器，然后做健康检查。
-# 用法（在 NAS 上）：sudo sh deploy/nas-update.sh <git短哈希或标签>
-# 说明：源码经共享目录已自动同步到 NAS（/volume2/Media/...），无需上传发布包；
-#       本 NAS 的 docker 需要 root；非登录 shell 要手动补 PATH（脚本里已处理）。
+# NAS 版本更新（方法论见 MyInfobase/docs/deploy-handoff.md）：
+# 构建指定版本的**发布包镜像**（不在 NAS 上编译）→ 换 tag → 重建容器 →
+# **带版本断言的健康检查**（没确认线上版本 ≠ 请求版本就不算成功）。
+#
+# 用法（在 NAS 上）：sudo sh deploy/nas-update.sh <git短哈希>
+# 前置：开发机先跑 `node scripts/release.mjs` 生成 releases/<版本>/（源码经共享目录已同步）。
 set -eu
 
 if [ "$#" -ne 1 ]; then
-  echo "用法: $0 <版本标签，如 git 短哈希 4cf9d4c>" >&2
+  echo "用法: $0 <版本标签，如 git 短哈希 4cf9d4c>（对应 releases/<版本>/）" >&2
   exit 1
 fi
 VER="$1"
 PROJ="$(cd "$(dirname "$0")/.." && pwd)"
+REL="$PROJ/releases/$VER"
 ENV_FILE="$PROJ/deploy/production/.env"
 COMPOSE_FILE="$PROJ/deploy/production/compose.yaml"
 
 export PATH=/usr/local/bin:$PATH
 
-[ -f "$ENV_FILE" ] || { echo "错误：$ENV_FILE 不存在，先完成首次部署配置（复制 .env.example）" >&2; exit 1; }
-[ -f "$COMPOSE_FILE" ] || { echo "错误：$COMPOSE_FILE 不存在（把 deploy/compose.yaml 复制过去）" >&2; exit 1; }
-[ -f "$PROJ/package.json" ] || { echo "错误：$PROJ 不像项目根目录" >&2; exit 1; }
+[ -d "$REL" ] || { echo "错误：$REL 不存在。先在开发机跑：node scripts/release.mjs" >&2; exit 1; }
+[ -f "$REL/manifest.json" ] || { echo "错误：$REL/manifest.json 不存在，不是有效发布包" >&2; exit 1; }
+[ -f "$REL/VERSION" ] || { echo "错误：$REL/VERSION 缺失（程序要靠它自报版本，健康断言会失败）" >&2; exit 1; }
+[ -f "$ENV_FILE" ] || { echo "错误：$ENV_FILE 不存在，先完成首次部署配置" >&2; exit 1; }
+# sed 守卫：.env 里没有这一行时 sed 会**静默什么都不做** —— 那样会"发版成功"却跑着旧 tag
+grep -q "^ENGLISHFORGE_TAG=" "$ENV_FILE" || { echo "错误：.env 缺少 ENGLISHFORGE_TAG 行" >&2; exit 1; }
 
 echo "== 更新 englishforge -> $VER =="
+sed -n '1,8p' "$REL/manifest.json"
 
 # 磁盘粗检（构建需约 1GB 余量）
-AVAIL_KB=$(df -Pk "$PROJ" | awk 'NR==2 {print $4}')
+AVAIL_KB=$(df -Pk "$(dirname "$PROJ")" | awk 'NR==2 {print $4}')
 if [ -n "$AVAIL_KB" ] && [ "$AVAIL_KB" -lt 1048576 ]; then
   echo "错误：可用空间不足 1GB（${AVAIL_KB}KB）" >&2
   exit 1
 fi
 
-echo "[1/4] 构建镜像 englishforge:$VER（在 NAS 上 npm ci + build，约几分钟）"
-# Dockerfile 在 deploy/ 下，上下文用整个项目根（.dockerignore 已排除 node_modules/dist/data）
-docker build -f "$PROJ/deploy/Dockerfile" -t "englishforge:$VER" "$PROJ"
+echo "[1/4] 构建镜像 englishforge:$VER（发布包已预编译：npm ci 层应全程 CACHED）"
+docker build -t "englishforge:$VER" "$REL"
 
 echo "[2/4] 更新 .env 版本标签"
 sed -i "s/^ENGLISHFORGE_TAG=.*/ENGLISHFORGE_TAG=$VER/" "$ENV_FILE"
+grep -q "^ENGLISHFORGE_TAG=$VER\$" "$ENV_FILE" || { echo "错误：.env 标签更新失败" >&2; exit 1; }
 
 echo "[3/4] 重建容器"
 docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --force-recreate
 
-echo "[4/4] 健康检查"
+echo "[4/4] 健康检查 + **版本断言**"
 PORT=$(grep -E '^ENGLISHFORGE_PORT=' "$ENV_FILE" | cut -d= -f2 | tr -d ' ')
 PORT=${PORT:-4173}
 i=0
 while [ $i -lt 60 ]; do
-  # 配了 TLS 打 https（自签证书要 --no-check-certificate），否则回退 http
+  # 配了 TLS 打 https（自签要 --no-check-certificate），否则回退 http
   BODY=$(wget -qO- --no-check-certificate "https://127.0.0.1:$PORT/api/health" 2>/dev/null \
     || wget -qO- "http://127.0.0.1:$PORT/api/health" 2>/dev/null || true)
   case "$BODY" in
     *'"ok":true'*)
-      echo "完成：健康检查通过，$VER 已上线（http://$(grep -E '^NAS_IP=' "$ENV_FILE" | cut -d= -f2):$PORT）"
-      exit 0
+      case "$BODY" in
+        *"\"version\":\"$VER\""*)
+          echo "完成：健康检查与版本断言通过，$VER 已上线（https://$(grep -E '^NAS_IP=' "$ENV_FILE" | cut -d= -f2):$PORT）"
+          exit 0
+          ;;
+        *)
+          # 容器起来了但自报版本不是请求版本：绝对不算成功（tag 与程序版本分裂是最难查的事故）
+          echo "错误：health 版本与 $VER 不一致（多半是容器还没换完或镜像里 VERSION 不对）：$BODY" >&2
+          exit 2
+          ;;
+      esac
       ;;
   esac
   i=$((i + 1))

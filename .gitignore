@@ -37,3 +37,6 @@ data/
 
 # NAS 生产部署（deploy/production/.env 含真实密钥，绝不进 git）
 deploy/production/
+
+# 版本化发布包（scripts/release.mjs 生成；每版一个 git 短哈希目录）
+releases/
