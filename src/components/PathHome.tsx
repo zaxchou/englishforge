@@ -8,6 +8,7 @@ import { useMemo } from 'react'
 import type { AdaptedQuestion, ProgressV2 } from '../types'
 import { lessons } from '../data/course'
 import type { EvidenceReport } from '../learning/evidence'
+import { LADDER_STEPS, levelStatuses, unlockedLevel } from '../learning/ladder'
 import type { TodayBrief } from './Dashboard'
 import './path-home.css'
 
@@ -42,6 +43,12 @@ export function PathHome({
   const total = pool.filter((q) => q.skill === current.id).length
   const lesson = lessonOf.get(current.id)
 
+  // 深度阶梯（有 level>1 题的知识点才画；老题库全部 level=1 → 不画，行为不变）
+  const ladder = useMemo(() => levelStatuses(pool, progress, current.id), [pool, progress, current.id])
+  const showLadder = ladder.length > 1
+  const unlocked = showLadder ? unlockedLevel(pool, progress, current.id) : 0
+  const ladderGap = ladder.find((s) => s.level === unlocked && !s.passed)?.gap ?? ''
+
   // 路径：每个知识点一个点，位置 = 课程顺序
   const path = skills.map((s, i) => {
     const st = evidence.bySkill[s.id]?.state ?? 'unseen'
@@ -73,6 +80,42 @@ export function PathHome({
             )}
             <div className="next-count">做过 {done}/{total} 题 · 不必做完所有题，达标即可前进</div>
           </div>
+
+          {showLadder && (
+            <div className="ladder" aria-label="深度阶梯">
+              <div className="ladder-head">
+                <b>深度阶梯 · 共 {ladder.length} 档</b>
+                <span>
+                  当前第 {unlocked} 档：
+                  {LADDER_STEPS.find((s) => s.level === unlocked)?.name ?? ''}
+                </span>
+              </div>
+              <div className="ladder-steps">
+                {ladder.map((st) => {
+                  const step = LADDER_STEPS.find((s) => s.level === st.level)
+                  const isNow = st.level === unlocked && !st.passed
+                  return (
+                    <div
+                      key={st.level}
+                      className={`lstep${st.passed ? ' done' : ''}${isNow ? ' now' : ''}`}
+                      title={`${step?.name ?? ''}${st.gap ? ` · ${st.gap}` : st.passed ? ' · 已过' : ''}`}
+                    >
+                      <i>{st.passed ? '✓' : st.level}</i>
+                      <span className="lstep-short">{step?.short}</span>
+                      <span className="lstep-name">{step?.name}</span>
+                    </div>
+                  )
+                })}
+              </div>
+              <div className={`ladder-gap${ladder.every((s) => s.passed) ? ' done' : ''}`}>
+                {ladder.every((s) => s.passed)
+                  ? '六档全部走完 —— 同一个知识点，从认到释都过了；剩余题目只作复习素材。'
+                  : ladderGap
+                    ? `本档还差：${ladderGap}（过了才开下一档）`
+                    : '本档已过，下一档已开启。'}
+              </div>
+            </div>
+          )}
 
           <button className="primary next-btn" onClick={brief.hasResume ? onResume : onStartToday}>
             {brief.hasResume ? '继续上次练习' : '继续下一步'} <span>→</span>

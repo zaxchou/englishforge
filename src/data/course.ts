@@ -13,8 +13,11 @@ import { lesson10qB } from './lesson10-q-b'
 // R1-02 种子题：由真实语料派生（出处见 docs/curriculum/corpus-coverage-spike.md）
 // 一律 draft，供练习与试用；未人工审核前不参与能力认证
 import { subjectObjectPilot } from './pilots/subject-object'
+// 深度阶梯样板：把"层层递进"做成可解锁的档位（1 认→2 造→3 辨→4 说→5 迁→6 释）
+import { ladderDemoQuestions, ladderDemoLesson } from './ladder-demo'
 
 const rawQuestions: Question[] = [
+  ...ladderDemoQuestions,
   ...questionsA, ...questionsB, ...questionsC, ...questionsD, ...questionsE,
   ...lesson10qA, ...lesson10qB,
   ...subjectObjectPilot,
@@ -39,6 +42,12 @@ export function questionsOfSkill(skillId: string): AdaptedQuestion[] {
 
 export const modules: Module[] = [
   {
+    id: 'm-ldd',
+    name: '样板 · 深度阶梯',
+    desc: '同一个知识点从"认"到"释"的六档递进（试用，可整段移除）',
+    lessons: ['ldd'],
+  },
+  {
     id: 'm-c',
     name: '模块 C · 一个含义一个形式',
     desc: '第 7 课：直线型思维——整套体系的根源',
@@ -59,6 +68,8 @@ export const modules: Module[] = [
 ]
 
 export const lessons: Record<string, Lesson> = {
+  // 样板课排在最前：skillOrder 由这里推导，所以打开应用的"当前知识点"就是深度阶梯
+  ldd: ladderDemoLesson,
   l07: lesson07,
   l10: lesson10,
 }

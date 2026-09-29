@@ -50,6 +50,7 @@ export function adaptQuestion(q: Question): AdaptedQuestion {
     orderIds,
     answerId,
     mode: q.mode ?? inferMode(q),
+    level: q.level ?? 1,
     variantGroupId: q.variantGroupId ?? q.id,
     objectiveId: q.objectiveId ?? q.skill,
     contentVersion: q.contentVersion ?? 1,

@@ -5,6 +5,7 @@ import type {
 import { INTERVALS } from '../types'
 import { seededShuffle, localDateStr } from '../store/progress'
 import { buildEvidence } from './evidence'
+import { ladderFilter, hasLadder } from './ladder'
 
 const DAY = 24 * 60 * 60 * 1000
 export const QUEUE_SIZE = 10
@@ -240,11 +241,14 @@ export function buildTodayQueue(
 ): QueueItem[] {
   const now = Date.now()
   const used = new Set<string>()
-  const items: QueueItem[] = []
+  let items: QueueItem[] = []
   const score = srsScore(p, now)
 
+  // 档位门控：只放行已达标的档。无阶梯的老题库原样通过（ladderFilter 不动它们）。
+  const qpool = ladderFilter(pool, p)
+
   // 1. 到期（最多 7，保留 3 个变化位）
-  const due = dueQuestions(p, pool, now, opts?.criticalQids)
+  const due = dueQuestions(p, qpool, now, opts?.criticalQids)
   const dueTake = due.length <= 4 ? due.length : Math.min(due.length, 7)
   for (const q of due.slice(0, dueTake)) {
     items.push(makeQueueItem(q, sessionId, { isDueReview: true }))
@@ -253,18 +257,26 @@ export function buildTodayQueue(
 
   const remain = () => QUEUE_SIZE - items.length
 
-  // 2. 当前知识点
-  const skillOrder = opts?.skillOrder ?? [...new Set(pool.map((q) => q.skill))]
+  // 2. 当前知识点（recommendSkill 仍看原池：证据口径不该被门控改写）
+  const skillOrder = opts?.skillOrder ?? [...new Set(qpool.map((q) => q.skill))]
   const skill = recommendSkill(p, pool, skillOrder)
-  const curPool = (skill ? pool.filter((q) => q.skill === skill) : [])
+  // 注意：必须用**未过滤的原池**判断有没有阶梯 —— 用 qpool 判断的话，
+  // 初始状态只剩第 1 档 → ladderLevels 只剩 [1] → 被误判成"无阶梯"，门控整个失效。
+  const ladderOn = hasLadder(pool, skill)
+  // 阶梯技能：当前档的题在队列里**排最前**。构成不变（到期复习照常入选、一条不丢），
+  // 只调顺序 —— 首页那句"下一步做什么"的答案就是当前档，不能让 7 条旧复习挡在前面。
+  const ladderLead = ladderOn && skill ? new Set(qpool.filter((q) => q.skill === skill).map((q) => q.id)) : null
+  const curPool = (skill ? qpool.filter((q) => q.skill === skill) : [])
     .filter((q) => !used.has(q.id))
     .sort((a, b) => score(b) - score(a))
 
   // 3. 情境/表达任务（优先当前技能，不足再从全池补）
-  const situCandidates = [
-    ...curPool.filter(isSituational),
-    ...pool.filter((q) => !used.has(q.id) && isSituational(q) && q.skill !== skill),
-  ]
+  const situCandidates = ladderOn
+    ? curPool.filter(isSituational)     // 阶梯技能：不跨技能捞题，这一档的纯粹性要保住
+    : [
+        ...curPool.filter(isSituational),
+        ...qpool.filter((q) => !used.has(q.id) && isSituational(q) && q.skill !== skill),
+      ]
   const situTake = Math.min(2, remain(), situCandidates.length)
   for (const q of situCandidates.slice(0, situTake)) {
     items.push(makeQueueItem(q, sessionId, { isDueReview: !!p.questionStates[q.id]?.total && p.questionStates[q.id].dueAt <= now }))
@@ -279,9 +291,12 @@ export function buildTodayQueue(
     used.add(q.id)
   }
 
-  // 5. 没有新内容/本技能抽完：全池补足（含未到期已练题当变式；都空则全部复习）
+  // 5. 没有新内容/本技能抽完：全池补足
+  //    阶梯技能且本档还有题 → 只在本技能内补（把阶梯走完，别被无关题打断）；
+  //    本档已抽空 → 回到全池补足，否则队列会被压成 1~2 条、当天做不成一次训练。
   if (remain() > 0) {
-    const rest = pool
+    const ladderLeft = ladderOn && qpool.some((q) => q.skill === skill && !used.has(q.id))
+    const rest = (ladderLeft ? qpool.filter((q) => q.skill === skill) : qpool)
       .filter((q) => !used.has(q.id))
       .sort((a, b) => score(b) - score(a))
     for (const q of rest) {
@@ -299,6 +314,13 @@ export function buildTodayQueue(
     }
   }
 
+  // 阶梯技能：当前档置顶（只换顺序，不增减任务）
+  if (ladderLead) {
+    items = [
+      ...items.filter((i) => ladderLead.has(i.qid)),
+      ...items.filter((i) => !ladderLead.has(i.qid)),
+    ]
+  }
   return items
 }
 
@@ -351,7 +373,7 @@ export function buildSkillQueue(
   skillBox: number,
 ): QueueItem[] {
   const now = Date.now()
-  const pool = eligible(skillQuestions)
+  const pool = ladderFilter(eligible(skillQuestions), p)   // 单技能练习同样按档放行
   const score = srsScore(p, now)
   const specials = pool.filter(isSpecial)
   const core = pool.filter((q) => !isSpecial(q))

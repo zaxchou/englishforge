@@ -29,8 +29,10 @@ __pycache__/
 *.pyc
 
 # 进度数据库（用户数据；本仓库是公开的，这类数据一律不进 git）
-# 默认落在仓库外的 JunEnglish/data/englishforge/，这里再兜一道底
-data/
+# 默认落在仓库外的 JunEnglish/data/englishforge/，这里再兜一道底。
+# 必须带前导斜杠锚到仓库根：写成 data/ 会把 src/data/（课程题库源码）一起忽略掉 ——
+# 新增的题目文件会静默进不了 git（本条正是被这个坑到才加的注释）
+/data/
 *.db
 *.db-wal
 *.db-shm

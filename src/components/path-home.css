@@ -19,6 +19,26 @@
 .next-goal.done b { color: #39471d; }
 .next-goal.done p { color: #4c6b1f; }
 .next-count { margin-top: 12px; font-size: 12px; color: var(--sub); }
+
+/* ---- 深度阶梯：把"层层递进"画出来（只有带 level>1 题的知识点才出现） ---- */
+.ladder { margin: 0 0 22px; padding: 16px 18px; border-radius: 16px; background: #f5f4f8; }
+.ladder-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.ladder-head b { font-size: 13px; font-weight: 600; }
+.ladder-head span { font-size: 12px; color: var(--sub); }
+.ladder-steps { display: flex; gap: 4px; margin-top: 12px; }
+.lstep { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 5px; text-align: center; }
+.lstep i {
+  display: grid; place-items: center; width: 26px; height: 26px; border-radius: 50%;
+  background: #e7e4ee; color: #6c6879; font-style: normal; font-size: 11px; font-weight: 600;
+}
+.lstep-short { font-size: 12px; font-weight: 600; color: #6c6879; }
+.lstep-name { font-size: 10px; color: var(--sub); line-height: 1.35; }
+.lstep.done i { background: #151519; color: #fff; }
+.lstep.done .lstep-short { color: #39471d; }
+.lstep.now i { background: #cef34e; color: #39471d; outline: 2px solid #151519; outline-offset: 2px; }
+.lstep.now .lstep-short { color: #39471d; }
+.ladder-gap { margin-top: 12px; font-size: 12px; color: #4c5165; line-height: 1.8; }
+.ladder-gap.done { color: #39471d; font-weight: 600; }
 .next-btn { width: 100%; margin: 0; min-height: 58px; font-size: 17px; border-radius: 999px; display: flex; align-items: center; justify-content: center; gap: 16px; }
 .next-note { margin-top: 12px; text-align: center; font-size: 12px; color: var(--sub); line-height: 1.8; }
 
@@ -53,4 +73,5 @@
   .next-card h1 { font-size: 26px; }
   .next-example { font-size: 16px; }
   .path-dot { width: 64px; }
+  .lstep-name { display: none; }   /* 窄屏只留编号+单字，全名在标题行与悬停提示里 */
 }
