@@ -28,6 +28,8 @@ grep -q "^ENGLISHFORGE_TAG=" "$ENV_FILE" || { echo "错误：.env 缺少 ENGLISH
 
 echo "== 更新 englishforge -> $VER =="
 sed -n '1,8p' "$REL/manifest.json"
+# 阶段计时（方法论检查清单：每轮记录构建耗时，它是"缓存是否还有效"的信号）
+T0=$(date +%s)
 
 # 磁盘粗检（构建需约 1GB 余量）
 AVAIL_KB=$(df -Pk "$(dirname "$PROJ")" | awk 'NR==2 {print $4}')
@@ -38,6 +40,7 @@ fi
 
 echo "[1/4] 构建镜像 englishforge:$VER（发布包已预编译：npm ci 层应全程 CACHED）"
 docker build -t "englishforge:$VER" "$REL"
+T1=$(date +%s)
 
 echo "[2/4] 更新 .env 版本标签"
 sed -i "s/^ENGLISHFORGE_TAG=.*/ENGLISHFORGE_TAG=$VER/" "$ENV_FILE"
@@ -45,6 +48,7 @@ grep -q "^ENGLISHFORGE_TAG=$VER\$" "$ENV_FILE" || { echo "错误：.env 标签�
 
 echo "[3/4] 重建容器"
 docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --force-recreate
+T2=$(date +%s)
 
 echo "[4/4] 健康检查 + **版本断言**"
 PORT=$(grep -E '^ENGLISHFORGE_PORT=' "$ENV_FILE" | cut -d= -f2 | tr -d ' ')
@@ -65,7 +69,9 @@ while [ $i -lt 60 ]; do
     *'"ok":true'*)
       case "$BODY" in
         *"\"version\":\"$VER\""*)
+          T3=$(date +%s)
           echo "完成：健康检查与版本断言通过，$VER 已上线（https://$(grep -E '^NAS_IP=' "$ENV_FILE" | cut -d= -f2):$PORT）"
+          echo "阶段耗时：构建 $((T1-T0))s · 换标签 $((T2-T1))s · 重建+健康断言 $((T3-T2))s · 总计 $((T3-T0))s"
           exit 0
           ;;
         *)
