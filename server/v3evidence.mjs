@@ -162,7 +162,7 @@ export function recordAttempt(accountId, payload = {}) {
       conn.prepare(
         `INSERT INTO evidence_events (account_id, evidence_id, attempt_id, objective_id, skill, complexity,
            kind, condition, pass, basis, created_at) VALUES (?,?,?,?,?,?,'dispute','transcript_low_confidence',NULL,?,?)`)
-        .run(accountId, `ev_dispute_${attemptId}_${oid}`, attemptId, oid,
+        .run(accountId, `ev_dispute_tx_${attemptId}_${oid}`, attemptId, oid,
           activity.skillByObjective?.[oid] ?? 'reading', 'base',
           JSON.stringify({ reason: 'TRANSCRIPT_LOW_CONFIDENCE' }), ts)
     }

@@ -741,6 +741,7 @@ describe('W5/T7 口语与真实材料', () => {
     const r = await call(`/api/v1/accounts/${id}/attempts/oral`, {
       attemptId: 'oral-free-1', mediaId: media, activityId: 'les_l3_oral_recap',
       transcript: '团队预期人们选更安静的路线，实际有人走向拥挤的房间；地图按设计正常，假设不完整；下一步问访客为什么。',
+      transcriptOrigin: 'asr',
       conditions: { firstExposure: true, hintLevel: 0, lookupUsed: false, responseMode: 'oral_recording' },
     }, 'POST')
     expect(r.status).toBe(200)
@@ -795,7 +796,14 @@ describe('W5/T7 口语与真实材料', () => {
     const ev2 = (await call(`/api/v1/accounts/${id}/evidence?objective=O-K190-01`)).json
     expect(ev2.states[0].state).toBe('trained')
     expect(ev2.states[0].flags.join(',')).not.toContain('disputed')
-    expect((await call(`/api/v1/accounts/${id}/oral-reviews`, { dimensions: {} }, 'POST')).status).toBe(400)
+    expect((await call(`/api/v1/accounts/${id}/oral-reviews`, { evaluator: 'x', dimensions: {} }, 'POST')).status).toBe(400)
+    // 对争议中的 attempt 再发 content-report：不撞事件主键（500 回归）
+    const rep = await call(`/api/v1/accounts/${id}/content-reports`, { attemptId: 'oral-noisy-1', description: '补报' }, 'POST')
+    expect(rep.status).toBe(200)
+    // 删除录音：DB 行与文件一并移除，回放 404
+    const del = await call(`/api/v1/accounts/${id}/oral/${media}`, {}, 'DELETE')
+    expect(del.json.deleted).toBe(true)
+    expect((await call(`/api/v1/accounts/${id}/oral/${media}/audio`)).status).toBe(404)
   })
 
   it('真实素材门：license 未确认/不可播 → 不可用于认证（A7）', async () => {

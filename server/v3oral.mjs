@@ -11,7 +11,7 @@
 // · 真实素材（YouTube 等）：license 未确认 / 不可播放 → MEDIA_UNAVAILABLE，不得进入
 //   掌握认证（A7）。YouTube Digest 复用是候选工程，未验证授权前不接（16 §2）。
 import { createHash, randomBytes } from 'node:crypto'
-import { mkdirSync, writeFileSync, readFileSync, existsSync, statSync } from 'node:fs'
+import { mkdirSync, writeFileSync, readFileSync, existsSync, statSync, unlinkSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { ApiError } from './db.mjs'
@@ -47,13 +47,14 @@ export function createOralIntent(accountId, { activityId, mime, bytes, durationM
   return { mediaId, uploadUrl: `/api/v1/accounts/${accountId}/oral/${mediaId}`, token, expiresInMs: 10 * 60 * 1000, limits: LIMITS }
 }
 
-/** PUT 录音字节：一次性票据；落盘仓库外 + 校验和；播放检查通过才置 playable */
+/** PUT 录音字节：一次性票据（10 分钟过期）；落盘仓库外 + 校验和。开发初值：落盘即 playable=1（真实设备试产后加入最小字节校验与真实时长检测） */
 export function storeOralAudio(accountId, mediaId, token, buf) {
   requireAccount(accountId)
   const conn = ensureV3Schema()
   const row = conn.prepare('SELECT * FROM media_assets WHERE media_id = ? AND account_id = ?').get(mediaId, accountId)
   if (!row || row.kind !== 'oral_recording') throw new ApiError(404, 'MEDIA_NOT_FOUND: ' + mediaId)
   if (!row.upload_token || row.upload_token !== token) throw new ApiError(403, 'UPLOAD_TOKEN_INVALID')
+  if (Date.now() - row.created_at > 10 * 60 * 1000) throw new ApiError(403, 'UPLOAD_TOKEN_EXPIRED')
   if (!buf?.length) throw new ApiError(400, 'EMPTY_UPLOAD')
   if (buf.length > LIMITS.maxBytes) throw new ApiError(400, 'MEDIA_TOO_LARGE')
   const dir = join(ORAL_ROOT, accountId)
@@ -64,6 +65,25 @@ export function storeOralAudio(accountId, mediaId, token, buf) {
     `UPDATE media_assets SET upload_token = NULL, storage_path = ?, sha256 = ?, playable = 1 WHERE media_id = ?`,
   ).run(path, createHash('sha256').update(buf).digest('hex'), mediaId)
   return { mediaId, playable: true, bytes: buf.length, sha256: conn.prepare('SELECT sha256 FROM media_assets WHERE media_id = ?').get(mediaId).sha256 }
+}
+
+/**
+ * 录音保留与删除规格（15 §4 / 13 §6 的「语音实现前确定」，开发期口径）：
+ * · 归属：录音只属上传账户，DELETE /oral/:mediaId 随时物理删除（DB 行 + 文件）；
+ * · 保留期：开发期无自动过期，保留至用户删除；多人版前必须给出可见的保留期设置；
+ * · 导出：回放接口即导出（所有者可取回原字节）；未来接真实 ASR/云服务前，须先公告
+ *   第三方传输范围并征得同意。
+ */
+export function deleteOralAudio(accountId, mediaId) {
+  requireAccount(accountId)
+  const conn = ensureV3Schema()
+  const row = conn.prepare('SELECT * FROM media_assets WHERE media_id = ? AND account_id = ?').get(mediaId, accountId)
+  if (!row) throw new ApiError(404, 'MEDIA_NOT_FOUND: ' + mediaId)
+  if (row.storage_path && existsSync(row.storage_path)) {
+    try { unlinkSync(row.storage_path) } catch { /* 文件已不在：照删记录 */ }
+  }
+  conn.prepare('DELETE FROM media_assets WHERE media_id = ? AND account_id = ?').run(mediaId, accountId)
+  return { deleted: true, mediaId }
 }
 
 /** GET 音频回放：只限资产所有者 */
@@ -89,7 +109,8 @@ export function submitOralAttempt(accountId, payload = {}) {
   const transcript = String(payload.transcript ?? '').slice(0, 4000)
   // 转写版本 0 = ASR 原稿；用户修改另起新版本，原版保留
   const versions = JSON.parse(media.transcript_versions || '[]')
-  versions.push({ text: transcript, origin: payload.transcriptOrigin ?? 'asr', at: Date.now() })
+  const origin = ['asr', 'user_typed'].includes(payload.transcriptOrigin) ? payload.transcriptOrigin : 'user_typed'
+  versions.push({ text: transcript, origin, at: Date.now() })
   conn.prepare('UPDATE media_assets SET transcript_versions = ?, attempt_id = COALESCE(attempt_id, ?) WHERE media_id = ?')
     .run(JSON.stringify(versions), payload.attemptId ?? null, mediaId)
 
@@ -128,7 +149,8 @@ export function correctTranscript(accountId, mediaId, text, { origin = 'user_cor
 export function signOralReview(accountId, { attemptId, mediaId, dimensions, evidenceRefs = [], evaluator, machineEval = null, disagreement = null, note } = {}) {
   requireAccount(accountId)
   if (!evaluator) throw new ApiError(400, 'SIGN_NEEDS_REVIEWER')
-  if (!dimensions || typeof dimensions !== 'object') throw new ApiError(400, 'REVIEW_NEEDS_DIMENSIONS')
+  const dimVals = Object.values(dimensions ?? {}).filter((v) => typeof v === 'number' && v >= 0 && v <= 3)
+  if (!dimVals.length) throw new ApiError(400, 'REVIEW_NEEDS_DIMENSIONS: 至少一个 0–3 维度分')
   const conn = ensureV3Schema()
   const reviewId = `or_${Date.now().toString(36)}_${randomBytes(3).toString('hex')}`
   conn.prepare(
@@ -149,15 +171,22 @@ export function signOralReview(accountId, { attemptId, mediaId, dimensions, evid
       const overall = ['信息与关系', '可理解度', '语言资源', '组织与互动'].some((k) => (dimensions[k] ?? dimensions[k.replace(/与/g, '_')]) >= 2)
       conn.prepare("UPDATE learner_attempts_v3 SET evaluation_status = 'evaluated', evaluation = ? WHERE account_id = ? AND attempt_id = ?")
         .run(JSON.stringify({ pass: overall, dimensions, evaluator: 'human', confidence: 'signed', humanReviewId: reviewId }), accountId, attemptId)
-      conn.prepare("DELETE FROM evidence_events WHERE account_id = ? AND attempt_id = ? AND basis LIKE '%\"oralDeferred\":true%'")
-        .run(accountId, attemptId)
+      // 机器评估史保留（append-only）：recomputeStates 本就跳过 oralDeferred 事件，human 事件按序覆盖
+      // 复核结论同时解除该 attempt 上的争议（15 §5 复核结束再更正）——用反向事件，不删历史
+      const cond = JSON.parse(attempt.conditions || '{}')
+      const condition = cond.firstExposure && !(cond.hintLevel > 0) ? 'first_independent' : 'supported'
       for (const oid of JSON.parse(attempt.objective_ids || '[]')) {
         const act = attempt.activity_id
         conn.prepare(
           `INSERT INTO evidence_events (account_id, evidence_id, attempt_id, objective_id, skill, complexity,
-             kind, condition, pass, basis, created_at) VALUES (?,?,?,?,?,?,'observed','first_independent',?,?,?)`)
+             kind, condition, pass, basis, created_at) VALUES (?,?,?,?,?,?,'dispute_cleared','human_review',NULL,?,?)`)
+          .run(accountId, `ev_clear_${reviewId}_${oid}`, attemptId, oid,
+            activitySkill(conn, act, oid), 'base', JSON.stringify({ humanReviewId: reviewId }), Date.now())
+        conn.prepare(
+          `INSERT INTO evidence_events (account_id, evidence_id, attempt_id, objective_id, skill, complexity,
+             kind, condition, pass, basis, created_at) VALUES (?,?,?,?,?,?,'observed',?,?,?,?)`)
           .run(accountId, `ev_human_${reviewId}_${oid}`, attemptId, oid,
-            activitySkill(conn, act, oid), 'base', overall ? 1 : 0,
+            activitySkill(conn, act, oid), 'base', condition, overall ? 1 : 0,
             JSON.stringify({ role: attempt.role, taskFamilyId: attempt.task_family_id, evaluator: 'human', humanReviewId: reviewId }), Date.now())
       }
       recomputeStates(accountId)

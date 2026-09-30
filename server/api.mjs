@@ -339,9 +339,11 @@ export function apiMiddleware() {
   return async function (req, res, next) {
     const url = new URL(req.url ?? '/', 'http://localhost')
     if (!url.pathname.startsWith('/api/')) return next()
+    // 口语音频上传走 raw 二进制直通（W5 /oral 合同）；其余仍是 JSON
+    const isOralUpload = req.method === 'PUT' && /^\/api\/v1\/accounts\/[^/]+\/oral\/[^/]+$/.test(url.pathname)
     let body = null
     try {
-      body = await readJsonBody(req)
+      body = isOralUpload ? await readRawBody(req, 12 * 1024 * 1024) : await readJsonBody(req)
     } catch (err) {
       res.statusCode = err instanceof HttpError ? err.status : 400
       res.setHeader('content-type', 'application/json; charset=utf-8')
@@ -356,6 +358,17 @@ export function apiMiddleware() {
     res.setHeader('cache-control', 'no-store')
     res.end(JSON.stringify(out.json))
   }
+}
+
+async function readRawBody(req, maxBytes) {
+  const chunks = []
+  let size = 0
+  for await (const chunk of req) {
+    size += chunk.length
+    if (size > maxBytes) throw new HttpError(413, '音频过大')
+    chunks.push(chunk)
+  }
+  return Buffer.concat(chunks)
 }
 
 async function readJsonBody(req) {

@@ -378,21 +378,35 @@ function LessonRunner({ accountId, pkg, onDone }: {
               <button className="v4-primary" disabled={!answers[act.activityId]?.trim() || !!feedback[act.activityId]}
                 onClick={() => submit(act)}>提交</button>
             )}
-            {feedback[act.activityId] && (
+            {feedback[act.activityId] && !act.oralTask && (
               <span className={feedback[act.activityId].pass ? 'v4-ok' : 'v4-no'}>
                 {feedback[act.activityId].status === 'disputed' ? '已标争议，不扣能力'
                   : feedback[act.activityId].pass ? '关系抓到了' : '还有关系没抓到——按下方逐项看'}
               </span>
             )}
+            {feedback[act.activityId]?.status === 'disputed' && act.oralTask && (
+              <span className="v4-advise">转写置信度低：已标争议，不影响你的能力记录；可纠正转写后供复核。</span>
+            )}
           </div>
           {feedback[act.activityId]?.relations && (
-            <ul className="v4-relations">
-              {feedback[act.activityId].relations!.map((rel) => (
-                <li key={rel.id} className={rel.hit ? 'v4-ok' : 'v4-no'}>
-                  {rel.hit ? '✓' : '✗'} {rel.label}{rel.required ? '' : '（加分项）'}
-                </li>
-              ))}
-            </ul>
+            act.oralTask ? (
+              <div className="v4-advise">
+                <b>练习建议（机器词表检查，低置信，不用于口语认证；转写词错≠你的错）：</b>
+                <ul>
+                  {feedback[act.activityId].relations!.map((rel) => (
+                    <li key={rel.id}>{rel.hit ? '转写里涉及' : '转写里没提到'}「{rel.label}」{rel.required ? '' : '（加分项）'}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <ul className="v4-relations">
+                {feedback[act.activityId].relations!.map((rel) => (
+                  <li key={rel.id} className={rel.hit ? 'v4-ok' : 'v4-no'}>
+                    {rel.hit ? '✓' : '✗'} {rel.label}{rel.required ? '' : '（加分项）'}
+                  </li>
+                ))}
+              </ul>
+            )
           )}
         </div>
       ))}
@@ -416,6 +430,8 @@ function OralRecorder({ accountId, activityId, onSubmitted }: {
   const [asrSupported, setAsrSupported] = useState(true)
   const [mediaId, setMediaId] = useState('')
   const [corrected, setCorrected] = useState(false)
+  const [micDenied, setMicDenied] = useState(false)
+  const [deleted, setDeleted] = useState(false)
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
   const recRef = useRef<MediaRecorder | null>(null)
@@ -455,11 +471,17 @@ function OralRecorder({ accountId, activityId, onSubmitted }: {
             for (let i = 0; i < e.results.length; i++) text += e.results[i][0].transcript + ' '
             setTranscript(text.trim())
           }
-          asr.onerror = (e) => { if (e.error === 'not-allowed' || e.error === 'service-not-allowed') setAsrSupported(false) }
+          asr.onerror = (e) => {
+            // no-speech/网络/超时都不是用户的错：如实标注 ASR 不可用，转写可手打
+            if (e.error !== 'no-speech') setAsrSupported(false)
+          }
           asr.start()
         } else setAsrSupported(false)
       } catch { setAsrSupported(false) }
-    } catch (e) { setErr('麦克风不可用：' + (e as Error).message + '（可改用文字练习，口语证据保持未测）') }
+    } catch (e) {
+      setMicDenied(true)
+      setErr('麦克风不可用：' + (e as Error).message + '——用下方文字练习代替（口语证据保持未测，不算你的错）')
+    }
   }
 
   function stop() { recRef.current?.stop(); setRecording(false) }
@@ -494,12 +516,25 @@ function OralRecorder({ accountId, activityId, onSubmitted }: {
     } catch (e) { setErr(String(e)) }
   }
 
+  async function remove() {
+    if (!mediaId) return
+    setErr('')
+    try {
+      await fetch(`/api/v1/accounts/${accountId}/oral/${mediaId}`, { method: 'DELETE' })
+      setDeleted(true)
+    } catch (e) { setErr(String(e)) }
+  }
+
   return (
     <div className="v4-oral">
-      {!audioUrl && (
+      {!audioUrl && !micDenied && (
         <button className="v4-primary" onClick={recording ? stop : start}>
           {recording ? '⏹ 停止录音' : '🎙️ 开始录音（默认不录，点击才开始）'}
         </button>
+      )}
+      {micDenied && (
+        <textarea value={transcript} rows={3} onChange={(e) => setTranscript(e.target.value)}
+          placeholder="麦克风不可用：把要说的内容打字写下来（文字练习，口语证据保持未测）" />
       )}
       {audioUrl && <audio controls src={audioUrl} />}
       <textarea value={transcript} rows={2} onChange={(e) => setTranscript(e.target.value)}
@@ -509,6 +544,8 @@ function OralRecorder({ accountId, activityId, onSubmitted }: {
         <button className="v4-ghost" onClick={correct}>转写有误？纠正并保留原版</button>
       )}
       {corrected && <span className="v4-ok">已提交纠正版（原版保留，供复核对照）</span>}
+      {mediaId && !deleted && <button className="v4-ghost" onClick={remove}>删除这段录音</button>}
+      {deleted && <span className="v4-dim">录音已删除（数据库与文件一并移除）</span>}
       {err && <div className="v4-err">{err}</div>}
     </div>
   )

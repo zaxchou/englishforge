@@ -11,7 +11,7 @@ import { startDiagnostic, getDiagnostic, advanceDiagnostic } from './v3diag.mjs'
 import { getPlan, recomputePlan } from './v3plan.mjs'
 import { serveLesson, revealHint, completeLesson, listLessons, seedLessons, withdrawLesson, publishLesson, signLesson } from './v3lessons.mjs'
 import { ensureWindow, reestimateWindow, generationMetrics, listJobs, startGenerationJob } from './v3gen.mjs'
-import { createOralIntent, storeOralAudio, readOralAudio, submitOralAttempt, correctTranscript, signOralReview, mediaUsableForCertification } from './v3oral.mjs'
+import { createOralIntent, storeOralAudio, readOralAudio, deleteOralAudio, submitOralAttempt, correctTranscript, signOralReview, mediaUsableForCertification } from './v3oral.mjs'
 
 export const V3_ROUTES = [
   ['GET', '/api/v1/health', () => {
@@ -146,6 +146,8 @@ export const V3_ROUTES = [
   ['POST', '/api/v1/accounts/:id/oral/:mediaId/transcript', (ctx) => correctTranscript(
     ctx.params.id, ctx.params.mediaId, body_str(ctx, 'text'), { origin: body_str(ctx, 'origin') || 'user_corrected' })],
   ['POST', '/api/v1/accounts/:id/oral-reviews', (ctx) => signOralReview(ctx.params.id, ctx.body ?? {})],
+  // 录音删除控制（15 §4：可删除；保留期规格见 v3oral.mjs 头注）
+  ['DELETE', '/api/v1/accounts/:id/oral/:mediaId', (ctx) => deleteOralAudio(ctx.params.id, ctx.params.mediaId)],
 ]
 
 export function requireAccount(id) {
