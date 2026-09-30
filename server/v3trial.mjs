@@ -8,6 +8,7 @@ import { randomBytes } from 'node:crypto'
 import { ApiError } from './db.mjs'
 import { ensureV3Schema } from './v3db.mjs'
 import { requireAccount } from './v3api.mjs'
+import { activityById } from './v3evidence.mjs'
 
 // 试学注册表：trial_registrations（先于任何基线作答创建，注册后不可改任务定义）
 function ensureTrialSchema(conn) {
@@ -86,14 +87,35 @@ export function recordObservation(accountId, { trialId, phase, attemptId, materi
   if (task.taskFamilyId && attempt.task_family_id !== task.taskFamilyId) {
     throw new ApiError(400, 'TRIAL_TASK_FAMILY_MISMATCH: 该 attempt 不是预注册的任务家族')
   }
+  // C3（F7 残留）：材料版本绑定——预注册了 activityId / materialVersion 时逐一核对，
+  // 防止"同名材料换版本"或"错材料"混进正式比较
+  const actDef = activityById(attempt.activity_id)
+  if (task.activityId && attempt.activity_id !== task.activityId) {
+    throw new ApiError(400, 'TRIAL_MATERIAL_MISMATCH: 该 attempt 不是预注册的材料')
+  }
+  if (task.materialVersion && (actDef?.version ?? 1) !== task.materialVersion) {
+    throw new ApiError(400, `TRIAL_MATERIAL_VERSION_MISMATCH: 预注册版本 ${task.materialVersion}，实际 ${actDef?.version ?? 1}`)
+  }
+  // C3（F7 残留）：曝光核对由服务端判定，覆盖自报——同一材料在此观察前被该账户作答过
+  // 一次，材料就不再陌生（materialWasNovel 自报 true 也不计入正式比较）
+  const prior = conn.prepare(
+    'SELECT COUNT(*) AS n FROM learner_attempts_v3 WHERE account_id = ? AND activity_id = ? AND attempt_id <> ? AND created_at <= ?')
+    .get(accountId, attempt.activity_id, attemptId, attempt.created_at).n
+  let exposureNote = null
+  if (prior > 0 && materialWasNovel) {
+    materialWasNovel = false
+    exposureNote = `该材料此前已被作答 ${prior} 次：服务端判定非陌生，不计入正式比较（覆盖自报）`
+  }
   conn.prepare(
     `INSERT INTO trial_observations (account_id, trial_id, phase, attempt_id, material_was_novel, support_snapshot, created_at)
      VALUES (?,?,?,?,?,?,?)`,
-  ).run(accountId, trialId, phase, attemptId, materialWasNovel ? 1 : 0, JSON.stringify(support), Date.now())
-  return { ok: true, trialId, phase, counted: !!materialWasNovel }
+  ).run(accountId, trialId, phase, attemptId, materialWasNovel ? 1 : 0, JSON.stringify({ ...support, serverExposureNote: exposureNote }), Date.now())
+  return { ok: true, trialId, phase, counted: !!materialWasNovel, exposureNote }
 }
 
-/** 对比：同条件陌生材料前后测并排（原始作品 + 支持条件 + 分维度结论留白给人工） */
+/** 对比：同条件陌生材料前后测并排（原始作品 + 支持条件 + 分维度结论留白给人工）。
+ * C3：可比性由服务端按关键支持条件判定——条件不同可展示，但不标"同条件"（20 号 F7 验收）。 */
+const SAME_CONDITION_KEYS = ['firstExposure', 'transcriptShown', 'hintLevel', 'lookupUsed', 'playCount']
 export function compareTrial(accountId, trialId) {
   requireAccount(accountId)
   const conn = ensureTrialSchema(ensureV3Schema())
@@ -110,10 +132,18 @@ export function compareTrial(accountId, trialId) {
       counted: !!o.material_was_novel, support: JSON.parse(o.support_snapshot || '{}'),
     } : null
   }
+  const baseline = pick('baseline')
+  const post = pick('post')
+  const sameCondition = !!(baseline && post && baseline.counted && post.counted
+    && SAME_CONDITION_KEYS.every((k) => JSON.stringify(baseline.conditions?.[k]) === JSON.stringify(post.conditions?.[k])))
   return {
     trialId, label: reg.label, skill: reg.skill,
     registration: { baseline: JSON.parse(reg.baseline_task), post: JSON.parse(reg.post_task), delay: reg.delay_task ? JSON.parse(reg.delay_task) : null },
-    baseline: pick('baseline'), post: pick('post'), delay: pick('delay'),
+    baseline, post, delay: pick('delay'),
+    sameCondition,
+    comparabilityNote: sameCondition
+      ? '关键支持条件一致且双方均计为新材料：可并排人工比较'
+      : '支持条件不同或材料非陌生：只作展示，不构成同条件比较',
     verdict: null,
     note: '机制只负责并排原始作品与条件；效果结论由人工按预注册量表判定——熟题提速不算达标（A10），N=1 只验证本人',
   }

@@ -909,11 +909,11 @@ describe('W5/T7 口语与真实材料', () => {
 describe('W6/T9 试学工具包', () => {
   it('预注册→观察→对比：陌生性计数、家族一致性、原始作品与条件保留', async () => {
     const id = await mkAccount('W6-T9')
-    // 早期作答（早于预注册 → 之后不能计入观察）
+    // 早期作答（早于预注册 → 之后不能计入观察）。用不同活动，保持基线材料的陌生性
     await call(`/api/v1/accounts/${id}/attempts`, {
-      attemptId: 't9-pre', activityId: 'les_l1_sensor_read',
-      response: { kind: 'text', text: '出问题的是实验室里准的那颗传感器；现在可用于室内测试；安装被推迟到灯光检查。' },
-      conditions: { firstExposure: true, hintLevel: 0, lookupUsed: false, responseMode: 'typed_summary' },
+      attemptId: 't9-pre', activityId: 'ct01_which_probe',
+      response: { kind: 'text', text: 'A 的 which 指投影仪这台设备；B 的 which 指投影仪坏掉这件事，后半解释后果。' },
+      conditions: { firstExposure: true, hintLevel: 0, transcriptShown: false, playCount: 1, lookupUsed: false, responseMode: 'typed_summary' },
     }, 'POST')
     // F7：先预注册（作答必须晚于预注册，事后补录不计入）
     const reg0 = (await call(`/api/v1/accounts/${id}/trials`, {
@@ -928,12 +928,12 @@ describe('W6/T9 试学工具包', () => {
     await call(`/api/v1/accounts/${id}/attempts`, {
       attemptId: 't9-base', activityId: 'les_l1_sensor_read',
       response: { kind: 'text', text: '出问题的是实验室里准的那颗传感器；现在可用于室内测试；安装被推迟到灯光检查。' },
-      conditions: { firstExposure: true, hintLevel: 0, lookupUsed: false, responseMode: 'typed_summary' },
+      conditions: { firstExposure: true, hintLevel: 0, transcriptShown: false, playCount: 1, lookupUsed: false, responseMode: 'typed_summary' },
     }, 'POST')
     await call(`/api/v1/accounts/${id}/attempts`, {
       attemptId: 't9-post', activityId: 'rep_film_postpone_read',
       response: { kind: 'text', text: '保留视觉序列，推迟配音测试；原因是环境吵，不能推出影片本身差。' },
-      conditions: { firstExposure: true, hintLevel: 0, lookupUsed: false, responseMode: 'typed_summary' },
+      conditions: { firstExposure: true, hintLevel: 0, transcriptShown: false, playCount: 1, lookupUsed: false, responseMode: 'typed_summary' },
     }, 'POST')
     // 再注册一份（同家族 → 400；缺维度 → 400）
     expect((await call(`/api/v1/accounts/${id}/trials`, { label: 'x', skill: 'reading', baselineTask: { taskFamilyId: 'a', materialRef: 'm1', dimensions: ['d'] }, postTask: { taskFamilyId: 'a', materialRef: 'm2', dimensions: ['主张与限制'] } }, 'POST')).status).toBe(400)
@@ -949,9 +949,62 @@ describe('W6/T9 试学工具包', () => {
     expect(cmp.post.conditions.firstExposure).toBe(true)
     expect(cmp.registration.post.dimensions).toEqual(['对象归属', '限制保留'])
     expect(cmp.verdict).toBeNull()
+    expect(cmp.sameCondition).toBe(true) // 关键支持条件一致且双方均计新材料 → 可比
     expect(cmp.note).toContain('熟题提速不算达标')
     // 未注册的观察 → 404
     expect((await call(`/api/v1/accounts/${id}/trials/nope/observations`, { phase: 'baseline', attemptId: 't9-base' }, 'POST')).status).toBe(404)
+  })
+
+  it('C3 残留：材料版本绑定、服务端曝光核对覆盖自报、条件不同不标同条件', async () => {
+    const id = await mkAccount('W6-C3')
+    // 材料版本绑定：先注册（materialVersion=99）后施测——完整预注册顺序
+    const regV = (await call(`/api/v1/accounts/${id}/trials`, {
+      label: '版本绑定', skill: 'reading',
+      baselineTask: { taskFamilyId: 'projector_reference_probe', materialRef: 'm1', materialVersion: 99, activityId: 'ct01_which_probe', dimensions: ['所指'] },
+      postTask: { taskFamilyId: 'exhibit_hardware_reference', materialRef: 'm2', dimensions: ['所指'] },
+    }, 'POST')).json
+    await call(`/api/v1/accounts/${id}/attempts`, {
+      attemptId: 'c3-b1', activityId: 'ct01_which_probe',
+      response: { kind: 'text', text: 'A 的 which 指投影仪这台设备；B 的 which 指投影仪坏掉这件事，后半解释后果。' },
+      conditions: { firstExposure: true, hintLevel: 0, transcriptShown: false, playCount: 1, lookupUsed: false, responseMode: 'typed_summary' },
+    }, 'POST')
+    expect((await call(`/api/v1/accounts/${id}/trials/${regV.trialId}/observations`, { phase: 'baseline', attemptId: 'c3-b1' }, 'POST')).json.error).toContain('TRIAL_MATERIAL_VERSION_MISMATCH')
+    // 版本正确（用零曝光的 ct02）→ 通过并计数
+    const regOk = (await call(`/api/v1/accounts/${id}/trials`, {
+      label: '版本正确', skill: 'reading',
+      baselineTask: { taskFamilyId: 'exhibit_hardware_reference', materialRef: 'm1', materialVersion: 1, activityId: 'ct02_nested_which', dimensions: ['所指'] },
+      postTask: { taskFamilyId: 'voice_decision_semantics', materialRef: 'm2', dimensions: ['语义'] },
+    }, 'POST')).json
+    await call(`/api/v1/accounts/${id}/attempts`, {
+      attemptId: 'c3-t2', activityId: 'ct02_nested_which',
+      response: { kind: 'text', text: '第一处 which 指媒体实验室最近买了设备；第二处指更换电源并继续展出这件事。主线：投影仪在展览中坏了。' },
+      conditions: { firstExposure: true, hintLevel: 0, transcriptShown: false, playCount: 1, lookupUsed: false, responseMode: 'typed_summary' },
+    }, 'POST')
+    expect((await call(`/api/v1/accounts/${id}/trials/${regOk.trialId}/observations`, { phase: 'baseline', attemptId: 'c3-t2' }, 'POST')).json.counted).toBe(true)
+    // 服务端曝光核对覆盖自报：同一活动第二次作答仍自报"陌生" → 服务端改判不计入
+    const regEx = (await call(`/api/v1/accounts/${id}/trials`, {
+      label: '曝光核对', skill: 'reading',
+      baselineTask: { taskFamilyId: 'exhibit_hardware_reference', materialRef: 'm1', dimensions: ['所指'] },
+      postTask: { taskFamilyId: 'voice_decision_semantics', materialRef: 'm2', dimensions: ['语义'] },
+    }, 'POST')).json
+    await call(`/api/v1/accounts/${id}/attempts`, {
+      attemptId: 'c3-b2', activityId: 'ct02_nested_which',
+      response: { kind: 'text', text: '第一处 which 指实验室；第二处指换电源继续展出这件事。' },
+      conditions: { firstExposure: true, hintLevel: 0, transcriptShown: false, playCount: 1, lookupUsed: false, responseMode: 'typed_summary' },
+    }, 'POST')
+    const exObs = (await call(`/api/v1/accounts/${id}/trials/${regEx.trialId}/observations`, { phase: 'baseline', attemptId: 'c3-b2', materialWasNovel: true }, 'POST')).json
+    expect(exObs.counted).toBe(false) // 服务端判定：该材料此前已作答过
+    expect(exObs.exposureNote).toContain('非陌生')
+    // 条件不同 → 不标同条件：baseline hintLevel 0，post hintLevel 2
+    await call(`/api/v1/accounts/${id}/attempts`, {
+      attemptId: 'c3-p1', activityId: 'ct03_semantics_guard',
+      response: { kind: 'text', text: '团队保留了手势，暂缓语音；因为展厅里多人同时说话时原型表现不好，他们并未完全放弃语音。' },
+      conditions: { firstExposure: true, hintLevel: 2, transcriptShown: false, playCount: 1, lookupUsed: false, responseMode: 'typed_summary' },
+    }, 'POST')
+    await call(`/api/v1/accounts/${id}/trials/${regEx.trialId}/observations`, { phase: 'post', attemptId: 'c3-p1', materialWasNovel: true }, 'POST')
+    const cmp = (await call(`/api/v1/accounts/${id}/trials/${regEx.trialId}/compare`)).json
+    expect(cmp.sameCondition).toBe(false)
+    expect(cmp.comparabilityNote).toContain('不构成同条件比较')
   })
 })
 
