@@ -11,6 +11,7 @@ import { startDiagnostic, getDiagnostic, advanceDiagnostic } from './v3diag.mjs'
 import { getPlan, recomputePlan } from './v3plan.mjs'
 import { serveLesson, revealHint, completeLesson, listLessons, seedLessons, withdrawLesson, publishLesson, signLesson } from './v3lessons.mjs'
 import { ensureWindow, reestimateWindow, generationMetrics, listJobs, startGenerationJob } from './v3gen.mjs'
+import { createOralIntent, storeOralAudio, readOralAudio, submitOralAttempt, correctTranscript, signOralReview, mediaUsableForCertification } from './v3oral.mjs'
 
 export const V3_ROUTES = [
   ['GET', '/api/v1/health', () => {
@@ -126,10 +127,25 @@ export const V3_ROUTES = [
     return r // fire-and-forget：{jobId}；任务完成看 GET /generation
   }],
 
-  // 诚实的未实现状态：录音在 W5 接入，不伪装
-  ['POST', '/api/v1/accounts/:id/oral', () => {
-    throw new ApiError(501, 'ORAL_NOT_READY: 站内录音在 W5 接入；先按 16 号合同打通浏览器录音链路')
+  // W5：口语（15 §8 /oral 合同）。录音由用户明确触发；机器评分只作练习建议；
+  // 只有 oral_reviews 人审签署才能升级口语状态。
+  ['POST', '/api/v1/accounts/:id/oral/intent', (ctx) => createOralIntent(ctx.params.id, {
+    activityId: body_str(ctx, 'activityId'),
+    mime: body_str(ctx, 'mime'),
+    bytes: num(ctx.body?.bytes, 0),
+    durationMs: num(ctx.body?.durationMs, 0) || null,
+  })],
+  // 一次性票据上传（二进制体）；body 是 Buffer（测试里传 Buffer，线上是 raw 字节）
+  ['PUT', '/api/v1/accounts/:id/oral/:mediaId', (ctx) => storeOralAudio(
+    ctx.params.id, ctx.params.mediaId, body_str(ctx, 'token') || String(ctx.query.get('token') || ''), ctx.body)],
+  ['GET', '/api/v1/accounts/:id/oral/:mediaId/audio', (ctx) => {
+    const { buf, mime } = readOralAudio(ctx.params.id, ctx.params.mediaId)
+    return { audioBase64: buf.toString('base64'), mime } // 中间件是 JSON 形状；真实流式播放走同路径的 raw 分支
   }],
+  ['POST', '/api/v1/accounts/:id/attempts/oral', (ctx) => submitOralAttempt(ctx.params.id, ctx.body ?? {})],
+  ['POST', '/api/v1/accounts/:id/oral/:mediaId/transcript', (ctx) => correctTranscript(
+    ctx.params.id, ctx.params.mediaId, body_str(ctx, 'text'), { origin: body_str(ctx, 'origin') || 'user_corrected' })],
+  ['POST', '/api/v1/accounts/:id/oral-reviews', (ctx) => signOralReview(ctx.params.id, ctx.body ?? {})],
 ]
 
 export function requireAccount(id) {

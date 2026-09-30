@@ -501,8 +501,8 @@ describe('W2/附加 幂等与诚实状态', () => {
 
   it('课程包服务、提示逐层揭晓、完成/撤回；录音接口诚实未实现（W5）', async () => {
     const id = await mkAccount('W3-课程包')
-    // 录音接口仍然诚实 501
-    expect((await call(`/api/v1/accounts/${id}/oral`, {}, 'POST')).status).toBe(501)
+    // W5 起 /oral 是真实合同：裸 POST 提示走 intent 上传链路
+    expect([400, 404]).toContain((await call(`/api/v1/accounts/${id}/oral`, {}, 'POST')).status)
     // 无诊断时不给推荐（不用旧题凑数）
     const empty = (await call(`/api/v1/accounts/${id}/plan`)).json
     expect(empty.decision).toBeNull()
@@ -719,4 +719,97 @@ describe('W4/T5+T6 按需生成供给', () => {
     const w2 = (await call(`/api/v1/accounts/${id}/window`)).json
     expect(w2.slots.every((s) => s.status !== 'generating')).toBe(true)
   }, 30000)
+})
+
+// ==================================================================
+// W5 / T7：口语 —— 跟读与自主表达证据分离；噪声低置信争议不降级；人审签署才升级
+// ==================================================================
+describe('W5/T7 口语与真实材料', () => {
+  async function uploadOral(id, tag, mime = 'audio/webm') {
+    const intent = (await call(`/api/v1/accounts/${id}/oral/intent`, {
+      activityId: 'les_l3_oral_recap', mime, bytes: 1024, durationMs: 45_000,
+    }, 'POST')).json
+    expect(intent.token).toBeTruthy()
+    const put = await call(`/api/v1/accounts/${id}/oral/${intent.mediaId}`, Buffer.from(`fake-audio-${tag}`), 'PUT', new URLSearchParams({ token: intent.token }))
+    expect(put.json.playable).toBe(true)
+    return intent.mediaId
+  }
+
+  it('上传→作答：机器只是建议、口语状态保持未测；自由复述与跟读证据分离', async () => {
+    const id = await mkAccount('W5-T7')
+    const media = await uploadOral(id, 'free-recall')
+    const r = await call(`/api/v1/accounts/${id}/attempts/oral`, {
+      attemptId: 'oral-free-1', mediaId: media, activityId: 'les_l3_oral_recap',
+      transcript: '团队预期人们选更安静的路线，实际有人走向拥挤的房间；地图按设计正常，假设不完整；下一步问访客为什么。',
+      conditions: { firstExposure: true, hintLevel: 0, lookupUsed: false, responseMode: 'oral_recording' },
+    }, 'POST')
+    expect(r.status).toBe(200)
+    expect(r.json.evaluationStatus).toBe('evaluated')
+    expect(r.json.machineFeedback.note).toContain('不用于口语认证')
+    expect(r.json.transcriptVersions[0].origin).toBe('asr')
+    const ev = (await call(`/api/v1/accounts/${id}/evidence?objective=O-K190-01`)).json
+    expect(ev.states.filter((s) => s.skill === 'speaking').every((s) => s.state === 'unmeasured')).toBe(true)
+    // 跟读类（另一活动、另一媒体）：证据按活动分开记，互不兑换
+    const media2 = await uploadOral(id, 'shadowing')
+    const r2 = await call(`/api/v1/accounts/${id}/attempts/oral`, {
+      attemptId: 'oral-shadow-1', mediaId: media2, activityId: 'diag_d3_oral_typed',
+      transcript: 'The team expected a quieter route, but some visitors walked to the crowded rooms.',
+      conditions: { firstExposure: true, hintLevel: 0, lookupUsed: false, responseMode: 'oral_recording' },
+    }, 'POST')
+    expect(r2.json.evaluationStatus).toBe('evaluated')
+    const ev2 = (await call(`/api/v1/accounts/${id}/evidence`)).json
+    expect(ev2.states.filter((s) => s.skill === 'speaking').every((s) => s.state === 'unmeasured')).toBe(true)
+    // 回放：只有所有者能取
+    const audio = await call(`/api/v1/accounts/${id}/oral/${media}/audio`)
+    expect(audio.json.audioBase64).toBeTruthy()
+    const other = await mkAccount('W5-他人')
+    expect((await call(`/api/v1/accounts/${other}/oral/${media}/audio`)).status).toBe(404)
+  })
+
+  it('噪声低置信 → 争议不降级；用户可纠转写且原版保留；人审签署才升级口语状态', async () => {
+    const id = await mkAccount('W5-T7噪声')
+    const media = await uploadOral(id, 'noisy')
+    const r = await call(`/api/v1/accounts/${id}/attempts/oral`, {
+      attemptId: 'oral-noisy-1', mediaId: media, activityId: 'les_l3_oral_recap',
+      transcript: '呃 the team expect… 安静 route… but 拥挤…',
+      transcriptOrigin: 'asr',
+      conditions: { firstExposure: true, hintLevel: 0, lookupUsed: false, responseMode: 'oral_recording', transcriptReliability: 'low' },
+    }, 'POST')
+    expect(r.json.evaluationStatus).toBe('disputed')
+    expect(r.json.nextAction).toBe('review_transcript')
+    const ev = (await call(`/api/v1/accounts/${id}/evidence?objective=O-K190-01`)).json
+    expect(ev.states[0].flags).toContain('disputed')
+    const c = await call(`/api/v1/accounts/${id}/oral/${media}/transcript`, {
+      text: '团队预期更安静的路线，但有人走向拥挤的房间；地图正常，假设不完整。',
+    }, 'POST')
+    expect(c.json.versions.length).toBe(2)
+    expect(c.json.versions[0].origin).toBe('asr')
+    expect(c.json.versions[1].origin).toBe('user_corrected')
+    const rev = await call(`/api/v1/accounts/${id}/oral-reviews`, {
+      attemptId: 'oral-noisy-1', mediaId: media,
+      dimensions: { '信息与关系': 2, '可理解度': 2, '语言资源': 1, '组织与互动': 2 },
+      evidenceRefs: ['00:12-00:18 假设不完整一句清楚'],
+      evaluator: '真人复核（抽样）', note: '按 18 §7 量表，噪声不影响关系判定',
+    }, 'POST')
+    expect(rev.json.signed).toBe(true)
+    const ev2 = (await call(`/api/v1/accounts/${id}/evidence?objective=O-K190-01`)).json
+    expect(ev2.states[0].state).toBe('trained')
+    expect(ev2.states[0].flags.join(',')).not.toContain('disputed')
+    expect((await call(`/api/v1/accounts/${id}/oral-reviews`, { dimensions: {} }, 'POST')).status).toBe(400)
+  })
+
+  it('真实素材门：license 未确认/不可播 → 不可用于认证（A7）', async () => {
+    const { mediaUsableForCertification } = await import('./v3oral.mjs')
+    const id = await mkAccount('W5-素材门')
+    const media = await uploadOral(id, 'ok')
+    expect(mediaUsableForCertification(media).usable).toBe(true)
+    const { getDb } = await import('./db.mjs')
+    const conn = (await import('./v3db.mjs')).ensureV3Schema(getDb())
+    conn.prepare(
+      `INSERT INTO media_assets (media_id, account_id, kind, source_type, license_status, playable, created_at)
+       VALUES ('m_yt_candidate', ?, 'real_material', 'youtube', 'unverified', 0, ?)`).run(id, Date.now())
+    const verdict = mediaUsableForCertification('m_yt_candidate')
+    expect(verdict.usable).toBe(false)
+    expect(verdict.reason).toBe('LICENSE_UNCONFIRMED')
+  })
 })

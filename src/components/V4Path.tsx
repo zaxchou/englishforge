@@ -3,7 +3,7 @@
 // 与旧首页的双轨纪律：这里是新域（目标/证据/计划），旧 XP/题量/箱数**不进**本页，
 // 页面常驻“旧进度不换算”的说明 —— 两个系统不能给用户互相矛盾的“掌握率”。
 // 口语录音（W5）接入前，口述任务以文字版走通并如实标注“口语证据未测”。
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import './v4.css'
 
 type Plan = {
@@ -23,7 +23,7 @@ type LessonPkg = {
   whyNow: string
   teachingNote: string | null
   devSampleNotice: string | null
-  activities: { activityId: string; role: string; prompt: string; hintStageCount: number; firstHint: string | null; simulatesAudio: boolean; fixtureNotice: string | null }[]
+  activities: { activityId: string; role: string; prompt: string; hintStageCount: number; firstHint: string | null; simulatesAudio: boolean; fixtureNotice: string | null; oralTask?: boolean }[]
   nextCandidates: string[]
   holdout: { lessonId: string; answersIncluded: boolean } | null
 }
@@ -367,11 +367,17 @@ function LessonRunner({ accountId, pkg, onDone }: {
               揭示下一层提示（{revealed[act.activityId]?.length ?? 0}/{act.hintStageCount}）
             </button>
           )}
-          <textarea value={answers[act.activityId] ?? ''} rows={3} onChange={(e) => setAnswers((a) => ({ ...a, [act.activityId]: e.target.value }))}
-            placeholder="用自己的话回答" />
+          {act.oralTask
+            ? <OralRecorder accountId={accountId} activityId={act.activityId} onSubmitted={(fb) => setFeedback((f) => ({ ...f, [act.activityId]: fb }))} />
+            : (
+                <textarea value={answers[act.activityId] ?? ''} rows={3} onChange={(e) => setAnswers((a) => ({ ...a, [act.activityId]: e.target.value }))}
+                  placeholder="用自己的话回答" />
+              )}
           <div className="v4-act-foot">
-            <button className="v4-primary" disabled={!answers[act.activityId]?.trim() || !!feedback[act.activityId]}
-              onClick={() => submit(act)}>提交</button>
+            {!act.oralTask && (
+              <button className="v4-primary" disabled={!answers[act.activityId]?.trim() || !!feedback[act.activityId]}
+                onClick={() => submit(act)}>提交</button>
+            )}
             {feedback[act.activityId] && (
               <span className={feedback[act.activityId].pass ? 'v4-ok' : 'v4-no'}>
                 {feedback[act.activityId].status === 'disputed' ? '已标争议，不扣能力'
@@ -393,6 +399,117 @@ function LessonRunner({ accountId, pkg, onDone }: {
       <button className="v4-primary" disabled={!allDone} onClick={complete}>完成这一课（重算推荐）</button>
       {err && <div className="v4-err">{err}</div>}
       <input type="hidden" value={attemptedKey} readOnly />
+    </div>
+  )
+}
+
+/** 口语任务：浏览器录音（用户点按钮才录）→ 回放 → 提交 → 机器建议 + 可纠转写（15 §9 录音页） */
+function OralRecorder({ accountId, activityId, onSubmitted }: {
+  accountId: string
+  activityId: string
+  onSubmitted: (fb: { pass: boolean | null; status: string; relations?: { id: string; label: string; hit: boolean; required: boolean }[] }) => void
+}) {
+  const [recording, setRecording] = useState(false)
+  const [audioUrl, setAudioUrl] = useState('')
+  const [blob, setBlob] = useState<Blob | null>(null)
+  const [transcript, setTranscript] = useState('')
+  const [asrSupported, setAsrSupported] = useState(true)
+  const [mediaId, setMediaId] = useState('')
+  const [corrected, setCorrected] = useState(false)
+  const [err, setErr] = useState('')
+  const [busy, setBusy] = useState(false)
+  const recRef = useRef<MediaRecorder | null>(null)
+  const chunksRef = useRef<Blob[]>([])
+
+  async function start() {
+    setErr('')
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      chunksRef.current = []
+      const rec = new MediaRecorder(stream)
+      rec.ondataavailable = (e) => chunksRef.current.push(e.data)
+      rec.onstop = () => {
+        const b = new Blob(chunksRef.current, { type: 'audio/webm' })
+        setBlob(b)
+        setAudioUrl(URL.createObjectURL(b))
+        stream.getTracks().forEach((t) => t.stop())
+      }
+      recRef.current = rec
+      rec.start()
+      setRecording(true)
+      try {
+        const w = window as unknown as { SpeechRecognition?: new () => {
+          lang: string; continuous: boolean; interimResults: boolean
+          onresult: (e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void
+          onerror: (e: { error: string }) => void
+          start: () => void
+        } }
+        const SR = w.SpeechRecognition
+        if (SR) {
+          const asr = new SR()
+          asr.lang = 'en-US'
+          asr.continuous = true
+          asr.interimResults = false
+          asr.onresult = (e) => {
+            let text = ''
+            for (let i = 0; i < e.results.length; i++) text += e.results[i][0].transcript + ' '
+            setTranscript(text.trim())
+          }
+          asr.onerror = (e) => { if (e.error === 'not-allowed' || e.error === 'service-not-allowed') setAsrSupported(false) }
+          asr.start()
+        } else setAsrSupported(false)
+      } catch { setAsrSupported(false) }
+    } catch (e) { setErr('麦克风不可用：' + (e as Error).message + '（可改用文字练习，口语证据保持未测）') }
+  }
+
+  function stop() { recRef.current?.stop(); setRecording(false) }
+
+  async function submit() {
+    if (!blob) return
+    setBusy(true)
+    setErr('')
+    try {
+      const intent = await api<{ mediaId: string; uploadUrl: string; token: string }>('/accounts/' + accountId + '/oral/intent', {
+        activityId, mime: blob.type || 'audio/webm', bytes: blob.size, durationMs: 0,
+      }, 'POST')
+      const put = await fetch(intent.uploadUrl + '?token=' + encodeURIComponent(intent.token), { method: 'PUT', body: blob })
+      if (!put.ok) throw new Error('上传失败 ' + put.status)
+      const r = await api<{ pass: boolean | null; evaluationStatus: string; dimensions?: { relations?: { id: string; label: string; hit: boolean; required: boolean }[] }; mediaId: string }>(
+        '/accounts/' + accountId + '/attempts/oral', {
+        attemptId: `oral-${activityId}`, mediaId: intent.mediaId, activityId,
+        transcript, transcriptOrigin: 'asr',
+        conditions: { firstExposure: true, hintLevel: 0, lookupUsed: false, responseMode: 'oral_recording' },
+      }, 'POST')
+      setMediaId(r.mediaId)
+      onSubmitted({ pass: r.pass, status: r.evaluationStatus, relations: r.dimensions?.relations })
+    } catch (e) { setErr(String(e)) } finally { setBusy(false) }
+  }
+
+  async function correct() {
+    if (!mediaId || !transcript.trim()) return
+    setErr('')
+    try {
+      await api(`/accounts/${accountId}/oral/${mediaId}/transcript`, { text: transcript }, 'POST')
+      setCorrected(true)
+    } catch (e) { setErr(String(e)) }
+  }
+
+  return (
+    <div className="v4-oral">
+      {!audioUrl && (
+        <button className="v4-primary" onClick={recording ? stop : start}>
+          {recording ? '⏹ 停止录音' : '🎙️ 开始录音（默认不录，点击才开始）'}
+        </button>
+      )}
+      {audioUrl && <audio controls src={audioUrl} />}
+      <textarea value={transcript} rows={2} onChange={(e) => setTranscript(e.target.value)}
+        placeholder={asrSupported ? '语音转写（可手动纠正后再提交）' : '浏览器不支持语音识别：请打字写下你说的内容'} />
+      <button className="v4-primary" disabled={!blob || busy} onClick={submit}>提交口语作答</button>
+      {mediaId && !corrected && (
+        <button className="v4-ghost" onClick={correct}>转写有误？纠正并保留原版</button>
+      )}
+      {corrected && <span className="v4-ok">已提交纠正版（原版保留，供复核对照）</span>}
+      {err && <div className="v4-err">{err}</div>}
     </div>
   )
 }

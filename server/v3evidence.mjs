@@ -40,6 +40,7 @@ export function publicActivity(a) {
     activityId: a.activityId, version: a.version, role: a.role, taskFamilyId: a.taskFamilyId,
     objectiveIds: a.objectiveIds, responseKind: a.responseKind, prompt: a.prompt, hints: a.hints,
     simulatesAudio: !!a.simulatesAudio, conditionsSpec: a.conditionsSpec,
+    oralTask: !!a.oralEvidenceDeferred,
     fixtureNotice: a.simulatesAudio || a.oralEvidenceDeferred || a.locating || a.holdout
       ? '开发 fixture：仅用于验收，正式材料见 18 号文档的发布检查表' : null,
   }
@@ -155,6 +156,18 @@ export function recordAttempt(accountId, payload = {}) {
 
   const attemptRow = conn.prepare('SELECT * FROM learner_attempts_v3 WHERE account_id = ? AND attempt_id = ?').get(accountId, attemptId)
 
+  if (evalStatus === 'disputed' && evaluation?.reason === 'TRANSCRIPT_LOW_CONFIDENCE') {
+    // 坏转写：追加争议事件（不降级、留待复核），机器不给结论
+    for (const oid of activity.objectiveIds) {
+      conn.prepare(
+        `INSERT INTO evidence_events (account_id, evidence_id, attempt_id, objective_id, skill, complexity,
+           kind, condition, pass, basis, created_at) VALUES (?,?,?,?,?,?,'dispute','transcript_low_confidence',NULL,?,?)`)
+        .run(accountId, `ev_dispute_${attemptId}_${oid}`, attemptId, oid,
+          activity.skillByObjective?.[oid] ?? 'reading', 'base',
+          JSON.stringify({ reason: 'TRANSCRIPT_LOW_CONFIDENCE' }), ts)
+    }
+    recomputeStates(accountId)
+  }
   if (evalStatus === 'evaluated') {
     appendObservedEvents(conn, accountId, attemptRow, activity, effectiveConditions)
     recomputeStates(accountId)
@@ -242,8 +255,14 @@ export function recomputeStates(accountId) {
     if (e.kind === 'dispute_cleared') { s.flags.delete('disputed'); openDisputeAt.delete(key); continue }
     if (e.kind === 'repair') { s.flags.add('needs_repair'); continue }
     if (e.kind !== 'observed') continue
-    if (openDisputeAt.has(key) && e.created_at >= openDisputeAt.get(key)) continue // 争议后的事件暂停计入
     const basis = JSON.parse(e.basis || '{}')
+    const frozen = openDisputeAt.has(key) && e.created_at >= openDisputeAt.get(key)
+    if (frozen && basis.evaluator !== 'human') continue // 争议后的事件暂停计入……
+    if (frozen && basis.evaluator === 'human') {
+      // ……除非这是复核结论（人审）：解除争议冻结并清除争议标志（15 §5 复核结束再更正）
+      s.flags.delete('disputed')
+      openDisputeAt.delete(key)
+    }
     if (basis.oralDeferred) continue // 口语证据在真录音（W5）前不升级状态
 
     if (e.pass) {

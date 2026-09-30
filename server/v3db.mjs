@@ -241,6 +241,43 @@ CREATE TABLE IF NOT EXISTS generated_activities (
   created_at  INTEGER NOT NULL
 );
 
+-- W5：媒体资产（15 §4）。字幕/校对稿与原音分版本；撤销使用权即禁止新分发。
+-- 音频大文件不进数据库，这里只存受账户校验保护的引用 + 时长/校验和/可播放状态。
+CREATE TABLE IF NOT EXISTS media_assets (
+  media_id        TEXT PRIMARY KEY,
+  account_id      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  attempt_id      TEXT,                        -- 绑定的作答（可空：素材类资产）
+  kind            TEXT NOT NULL,               -- oral_recording | lesson_audio | real_material
+  source_type     TEXT NOT NULL DEFAULT 'original', -- original | youtube | licensed（真实素材的来源）
+  license_status  TEXT NOT NULL DEFAULT 'unverified', -- unverified | confirmed | revoked
+  mime            TEXT,
+  bytes           INTEGER,
+  duration_ms     INTEGER,
+  sha256          TEXT,
+  storage_path    TEXT,                        -- 仓库外路径（data/oral/…，不进 git）
+  playable        INTEGER NOT NULL DEFAULT 0,  -- 播放检查通过才可分发
+  transcript_versions TEXT NOT NULL DEFAULT '[]', -- JSON：[{text, origin: asr|user_corrected|proofread, at}]
+  upload_token    TEXT,                        -- 一次性上传票据（PUT 用后作废）
+  created_at      INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_media_account ON media_assets(account_id, created_at);
+
+-- W5：口语人审（13 §6/15 §15）。机器评分只给练习建议；只有人审签署过的事件才可升级口语状态。
+CREATE TABLE IF NOT EXISTS oral_reviews (
+  review_id       TEXT PRIMARY KEY,
+  account_id      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  attempt_id      TEXT,
+  media_id        TEXT,
+  transcript_version INTEGER NOT NULL DEFAULT 0, -- 审的是哪一版转写
+  dimensions      TEXT NOT NULL,               -- JSON：信息与关系/可理解度韵律/语言资源/组织互动 各 0–3
+  evidence_refs   TEXT NOT NULL DEFAULT '[]',  -- JSON：引用录音时间点/转写片段
+  evaluator       TEXT NOT NULL,               -- 人审者
+  machine_eval    TEXT,                        -- JSON：机器当时给的建议与置信（供分歧对照）
+  disagreement    TEXT,                        -- JSON：人机分歧说明
+  note            TEXT,
+  created_at      INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS diagnostic_sessions (
   account_id    TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
   diagnostic_id TEXT NOT NULL,

@@ -1,0 +1,185 @@
+// W5：口语与真实材料（docs/curriculum-v4/15 §8 /oral 合同、13 §6、16 §4）。
+//
+// 铁律：
+// · 录音由用户明确触发；数据库只存引用（路径/时长/校验和），音频文件存仓库外
+//   data/oral/<account>/（gitignored），读取校验账户范围；
+// · 上传受大小/类型/时长/一次性票据约束（具体数值冻结前为开发初值）；
+// · 机器评分（词表匹配式关系检查）只作练习建议并标低置信；口语证据在真人复核前
+//   不升级状态（recomputeStates 的 oralDeferred 规则）——人审签署的 oral_reviews
+//   才追加可升级的 observed 事件；
+// · ASR 转写低置信 → 争议（不降级）；用户可改转写，原版保留（media_assets.transcript_versions）；
+// · 真实素材（YouTube 等）：license 未确认 / 不可播放 → MEDIA_UNAVAILABLE，不得进入
+//   掌握认证（A7）。YouTube Digest 复用是候选工程，未验证授权前不接（16 §2）。
+import { createHash, randomBytes } from 'node:crypto'
+import { mkdirSync, writeFileSync, readFileSync, existsSync, statSync } from 'node:fs'
+import { dirname, join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { ApiError } from './db.mjs'
+import { ensureV3Schema } from './v3db.mjs'
+import { requireAccount } from './v3api.mjs'
+import { recordAttempt, recomputeStates } from './v3evidence.mjs'
+
+const HERE = dirname(fileURLToPath(import.meta.url))
+const ORAL_ROOT = resolve(HERE, '..', 'data', 'oral') // 仓库外：data/ 被 gitignore
+
+// 开发初值；真实设备试产后冻结（15 §8）。上传上限 10MB / 120 秒 / 配额每日 50 条。
+const LIMITS = { maxBytes: 10 * 1024 * 1024, maxDurationMs: 120_000, dailyQuota: 50 }
+const ALLOWED_MIME = ['audio/webm', 'audio/ogg', 'audio/wav', 'audio/mp4', 'audio/mpeg']
+
+// ---------------------------------------------------------------- 上传意图 → 一次性票据
+
+export function createOralIntent(accountId, { activityId, mime, bytes, durationMs } = {}) {
+  requireAccount(accountId)
+  if (!ALLOWED_MIME.includes(mime)) throw new ApiError(400, 'MEDIA_TYPE_REJECTED: ' + mime)
+  if (!Number.isFinite(bytes) || bytes <= 0 || bytes > LIMITS.maxBytes) throw new ApiError(400, 'MEDIA_TOO_LARGE')
+  if (Number.isFinite(durationMs) && durationMs > LIMITS.maxDurationMs) throw new ApiError(400, 'MEDIA_TOO_LONG')
+  const conn = ensureV3Schema()
+  const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0)
+  const today = conn.prepare('SELECT COUNT(*) AS n FROM media_assets WHERE account_id = ? AND created_at >= ?')
+    .get(accountId, dayStart.getTime()).n
+  if (today >= LIMITS.dailyQuota) throw new ApiError(429, 'DAILY_QUOTA_EXCEEDED')
+  const mediaId = `m_${Date.now().toString(36)}_${randomBytes(3).toString('hex')}`
+  const token = 'up_' + randomBytes(16).toString('hex')
+  conn.prepare(
+    `INSERT INTO media_assets (media_id, account_id, kind, mime, bytes, duration_ms, upload_token, created_at)
+     VALUES (?,?,?,?,?,?,?,?)`,
+  ).run(mediaId, accountId, 'oral_recording', mime, bytes, durationMs ?? null, token, Date.now())
+  return { mediaId, uploadUrl: `/api/v1/accounts/${accountId}/oral/${mediaId}`, token, expiresInMs: 10 * 60 * 1000, limits: LIMITS }
+}
+
+/** PUT 录音字节：一次性票据；落盘仓库外 + 校验和；播放检查通过才置 playable */
+export function storeOralAudio(accountId, mediaId, token, buf) {
+  requireAccount(accountId)
+  const conn = ensureV3Schema()
+  const row = conn.prepare('SELECT * FROM media_assets WHERE media_id = ? AND account_id = ?').get(mediaId, accountId)
+  if (!row || row.kind !== 'oral_recording') throw new ApiError(404, 'MEDIA_NOT_FOUND: ' + mediaId)
+  if (!row.upload_token || row.upload_token !== token) throw new ApiError(403, 'UPLOAD_TOKEN_INVALID')
+  if (!buf?.length) throw new ApiError(400, 'EMPTY_UPLOAD')
+  if (buf.length > LIMITS.maxBytes) throw new ApiError(400, 'MEDIA_TOO_LARGE')
+  const dir = join(ORAL_ROOT, accountId)
+  mkdirSync(dir, { recursive: true })
+  const path = join(dir, mediaId + '.' + String(row.mime || 'audio/webm').split('/')[1].split(';')[0])
+  writeFileSync(path, buf)
+  conn.prepare(
+    `UPDATE media_assets SET upload_token = NULL, storage_path = ?, sha256 = ?, playable = 1 WHERE media_id = ?`,
+  ).run(path, createHash('sha256').update(buf).digest('hex'), mediaId)
+  return { mediaId, playable: true, bytes: buf.length, sha256: conn.prepare('SELECT sha256 FROM media_assets WHERE media_id = ?').get(mediaId).sha256 }
+}
+
+/** GET 音频回放：只限资产所有者 */
+export function readOralAudio(accountId, mediaId) {
+  requireAccount(accountId)
+  const conn = ensureV3Schema()
+  const row = conn.prepare('SELECT * FROM media_assets WHERE media_id = ? AND account_id = ?').get(mediaId, accountId)
+  if (!row || !row.storage_path || !existsSync(row.storage_path)) throw new ApiError(404, 'MEDIA_UNAVAILABLE: ' + mediaId)
+  return { buf: readFileSync(row.storage_path), mime: row.mime, bytes: statSync(row.storage_path).size }
+}
+
+// ---------------------------------------------------------------- 口语作答（机器建议 + 转写复核）
+
+/**
+ * 口语作答：先按 /oral 合同上传音频，再走 attempts（response.kind='audio_ref'）。
+ * 机器评估只给练习建议（confidence=low，永不升级口语状态）；转写低置信 → 争议。
+ */
+export function submitOralAttempt(accountId, payload = {}) {
+  const conn = ensureV3Schema()
+  const mediaId = String(payload.mediaId || '')
+  const media = conn.prepare('SELECT * FROM media_assets WHERE media_id = ? AND account_id = ?').get(mediaId, accountId)
+  if (!media || !media.playable) throw new ApiError(404, 'MEDIA_UNAVAILABLE: ' + mediaId)
+  const transcript = String(payload.transcript ?? '').slice(0, 4000)
+  // 转写版本 0 = ASR 原稿；用户修改另起新版本，原版保留
+  const versions = JSON.parse(media.transcript_versions || '[]')
+  versions.push({ text: transcript, origin: payload.transcriptOrigin ?? 'asr', at: Date.now() })
+  conn.prepare('UPDATE media_assets SET transcript_versions = ?, attempt_id = COALESCE(attempt_id, ?) WHERE media_id = ?')
+    .run(JSON.stringify(versions), payload.attemptId ?? null, mediaId)
+
+  const result = recordAttempt(accountId, {
+    ...payload,
+    response: { kind: 'audio_ref', text: transcript, mediaId },
+    conditions: { ...(payload.conditions ?? {}), responseMode: 'oral_recording' },
+  })
+  // 低置信转写：证据层已标争议；机器建议照给，但明确"不用于认证"
+  return {
+    ...result,
+    mediaId,
+    transcriptVersions: versions.map((v, i) => ({ version: i, origin: v.origin, text: v.text })),
+    machineFeedback: result.evaluationStatus === 'evaluated'
+      ? { note: '机器关系检查只是练习建议（低置信），不用于口语认证；真人复核后才计入证据', relations: result.dimensions ?? null }
+      : null,
+  }
+}
+
+/** 用户纠正转写：追加新版本，原版保留（16 §4：修正转写时保留原版） */
+export function correctTranscript(accountId, mediaId, text, { origin = 'user_corrected' } = {}) {
+  requireAccount(accountId)
+  const conn = ensureV3Schema()
+  const media = conn.prepare('SELECT * FROM media_assets WHERE media_id = ? AND account_id = ?').get(mediaId, accountId)
+  if (!media) throw new ApiError(404, 'MEDIA_NOT_FOUND: ' + mediaId)
+  const versions = JSON.parse(media.transcript_versions || '[]')
+  if (!versions.length) throw new ApiError(400, 'NO_TRANSCRIPT_TO_CORRECT')
+  versions.push({ text: String(text).slice(0, 4000), origin, at: Date.now() })
+  conn.prepare('UPDATE media_assets SET transcript_versions = ? WHERE media_id = ?').run(JSON.stringify(versions), mediaId)
+  return { mediaId, versions: versions.map((v, i) => ({ version: i, origin: v.origin, text: v.text })) }
+}
+
+// ---------------------------------------------------------------- 人审（唯一能升级口语状态的通道）
+
+/** 人审签署：0–3 分维度 + 证据位置 + 人机分歧。签署后追加 evaluator=human 的 observed 事件 */
+export function signOralReview(accountId, { attemptId, mediaId, dimensions, evidenceRefs = [], evaluator, machineEval = null, disagreement = null, note } = {}) {
+  requireAccount(accountId)
+  if (!evaluator) throw new ApiError(400, 'SIGN_NEEDS_REVIEWER')
+  if (!dimensions || typeof dimensions !== 'object') throw new ApiError(400, 'REVIEW_NEEDS_DIMENSIONS')
+  const conn = ensureV3Schema()
+  const reviewId = `or_${Date.now().toString(36)}_${randomBytes(3).toString('hex')}`
+  conn.prepare(
+    `INSERT INTO oral_reviews (review_id, account_id, attempt_id, media_id, transcript_version, dimensions,
+       evidence_refs, evaluator, machine_eval, disagreement, note, created_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+  ).run(
+    reviewId, accountId, attemptId ?? null, mediaId ?? null,
+    (() => { const m = mediaId && conn.prepare('SELECT transcript_versions FROM media_assets WHERE media_id=?').get(mediaId); return m ? JSON.parse(m.transcript_versions || '[]').length - 1 : 0 })(),
+    JSON.stringify(dimensions), JSON.stringify(evidenceRefs), String(evaluator).slice(0, 100),
+    machineEval ? JSON.stringify(machineEval) : null, disagreement ? JSON.stringify(disagreement) : null,
+    String(note || '').slice(0, 500), Date.now(),
+  )
+  if (attemptId) {
+    const attempt = conn.prepare('SELECT * FROM learner_attempts_v3 WHERE account_id = ? AND attempt_id = ?').get(accountId, attemptId)
+    if (attempt) {
+      // 人审通过 = 可认证证据：覆盖 attempt 评估 + 追加 evaluator=human 的 observed 事件（不再 oralDeferred）
+      const overall = ['信息与关系', '可理解度', '语言资源', '组织与互动'].some((k) => (dimensions[k] ?? dimensions[k.replace(/与/g, '_')]) >= 2)
+      conn.prepare("UPDATE learner_attempts_v3 SET evaluation_status = 'evaluated', evaluation = ? WHERE account_id = ? AND attempt_id = ?")
+        .run(JSON.stringify({ pass: overall, dimensions, evaluator: 'human', confidence: 'signed', humanReviewId: reviewId }), accountId, attemptId)
+      conn.prepare("DELETE FROM evidence_events WHERE account_id = ? AND attempt_id = ? AND basis LIKE '%\"oralDeferred\":true%'")
+        .run(accountId, attemptId)
+      for (const oid of JSON.parse(attempt.objective_ids || '[]')) {
+        const act = attempt.activity_id
+        conn.prepare(
+          `INSERT INTO evidence_events (account_id, evidence_id, attempt_id, objective_id, skill, complexity,
+             kind, condition, pass, basis, created_at) VALUES (?,?,?,?,?,?,'observed','first_independent',?,?,?)`)
+          .run(accountId, `ev_human_${reviewId}_${oid}`, attemptId, oid,
+            activitySkill(conn, act, oid), 'base', overall ? 1 : 0,
+            JSON.stringify({ role: attempt.role, taskFamilyId: attempt.task_family_id, evaluator: 'human', humanReviewId: reviewId }), Date.now())
+      }
+      recomputeStates(accountId)
+    }
+  }
+  return { reviewId, signed: true }
+}
+
+function activitySkill(conn, activityId, objectiveId) {
+  const row = conn.prepare('SELECT definition FROM generated_activities WHERE activity_id = ?').get(activityId)
+  const def = row ? JSON.parse(row.definition) : null
+  return def?.skillByObjective?.[objectiveId] ?? 'speaking'
+}
+
+/** 课包素材可用性检查（A7：不可播/无授权 → 不可用于认证，给可理解的替代状态） */
+export function mediaUsableForCertification(mediaId) {
+  const row = ensureV3Schema().prepare('SELECT * FROM media_assets WHERE media_id = ?').get(mediaId)
+  if (!row) return { usable: false, reason: 'MEDIA_UNAVAILABLE' }
+  // 学习者自己的录音：可播放即可用（无第三方授权问题）；真实/课程素材：授权+可播放缺一不可
+  if (row.kind === 'oral_recording') return row.playable ? { usable: true } : { usable: false, reason: 'NOT_PLAYABLE' }
+  if (row.license_status !== 'confirmed') return { usable: false, reason: 'LICENSE_UNCONFIRMED' }
+  if (!row.playable) return { usable: false, reason: 'NOT_PLAYABLE' }
+  return { usable: true }
+}
+

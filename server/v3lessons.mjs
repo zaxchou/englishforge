@@ -136,6 +136,7 @@ export function serveLesson(accountId, lessonId) {
         role: ref.role ?? act.role,
         prompt: act.prompt,
         simulatesAudio: !!act.simulatesAudio,
+        oralTask: !!act.oralEvidenceDeferred,
         conditionsSpec: act.conditionsSpec,
         fixtureNotice: act.simulatesAudio || act.oralEvidenceDeferred
           ? '开发 fixture：仅用于验收，正式材料见 18 号文档的发布检查表' : null,
