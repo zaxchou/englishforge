@@ -408,13 +408,13 @@ describe('W2/T2 三种画像 → 三种后继', () => {
 describe('W2/T3 争议与坏材料', () => {
   it('报告坏题 → 该次证据争议、状态不降级、材料隔离', async () => {
     const id = await mkAccount('T3-坏题')
-    // R3 后正分证据来自封闭题：用 ct03（closed）做争议基底
+    // R3 后正分证据来自封闭题：用 ct03（closed 槽位）做争议基底
     const post = (attemptId, text) => call(`/api/v1/accounts/${id}/attempts`, {
       attemptId, activityId: 'ct03_semantics_guard',
-      response: { kind: 'text', text },
+      response: { kind: 'choice', text, answers: { decision: 'A' } },
       conditions: { firstExposure: true, hintLevel: 0, transcriptShown: false, playCount: 1, lookupUsed: false, responseMode: 'typed_summary' },
     }, 'POST')
-    const good = await post('t3-ct03-good', 'a；因为多人同时说话时原型在展厅表现不好，他们并未完全放弃语音，仍想再测试。')
+    const good = await post('t3-ct03-good', '因为多人同时说话时原型在展厅表现不好，他们并未完全放弃语音，仍想再测试。')
     expect(good.json.pass).toBe(true)
     const before = (await call(`/api/v1/accounts/${id}/evidence?objective=O-K115-03`)).json
     expect(before.states[0].state).toBe('trained')
@@ -616,7 +616,7 @@ describe('W2/附加 幂等与诚实状态', () => {
     // 撤回改用一次性课包（les-listening-v1 保持可用，供 T6 窗口测试）
     await call(`/api/v1/accounts/${id}/attempts`, {
       attemptId: 'disp-1', activityId: 'ct02_nested_which',
-      response: { kind: 'text', text: '第一处 which 说媒体实验室最近买了设备；第二处指更换电源并继续展出这件事，使访客仍能看到装置；主线是投影仪在展览中坏了。' },
+      response: { kind: 'choice', text: '第一处 which 说媒体实验室最近买了设备；第二处指更换电源并继续展出这件事，使访客仍能看到装置。', answers: { which_1: 'LAB', which_2: 'POWER', software_why: 'RUNNING_OK' } },
       conditions: { firstExposure: true, hintLevel: 0, transcriptShown: false, playCount: 1, lookupUsed: false, responseMode: 'typed_summary' },
     }, 'POST')
     expect((await call('/api/v1/lessons/les-disposable-v1/withdraw', { reason: 'x' }, 'POST')).status).toBe(400) // 无 confirm
@@ -804,7 +804,7 @@ describe('W4/T5+T6 按需生成供给', () => {
     // R3 后用封闭题（ct03）产生真实证据事件；开放题纯练习不写事件、也不该作废缓存（计划没变）
     await call(`/api/v1/accounts/${id}/attempts`, {
       attemptId: 't6-extra', activityId: 'ct03_semantics_guard',
-      response: { kind: 'text', text: 'a；因为多人同时说话时原型在展厅表现不好，他们并未完全放弃语音。' },
+      response: { kind: 'choice', text: '因为多人同时说话时原型在展厅表现不好，他们并未完全放弃语音。', answers: { decision: 'A' } },
       conditions: { firstExposure: true, hintLevel: 0, transcriptShown: false, playCount: 1, lookupUsed: false, responseMode: 'typed_summary' },
     }, 'POST')
     const re = (await call(`/api/v1/accounts/${id}/window/reestimate`, { trigger: 'after_lesson' }, 'POST')).json
@@ -940,7 +940,7 @@ describe('W6/T9 试学工具包', () => {
     // 早期作答（早于预注册 → 之后不能计入观察）。用不同活动，保持基线材料的陌生性
     await call(`/api/v1/accounts/${id}/attempts`, {
       attemptId: 't9-pre', activityId: 'ct01_which_probe',
-      response: { kind: 'text', text: 'A 的 which 指投影仪这台设备；B 的 which 指投影仪坏掉这件事，后半解释后果。' },
+      response: { kind: 'choice', text: 'A 的 which 指投影仪这台设备；B 的 which 指投影仪坏掉这件事，后半解释后果。', answers: { which_a: 'DEVICE', which_b: 'EVENT', tail_role: 'B' } },
       conditions: { firstExposure: true, hintLevel: 0, transcriptShown: false, playCount: 1, lookupUsed: false, responseMode: 'typed_summary' },
     }, 'POST')
     // F7：先预注册（作答必须晚于预注册，事后补录不计入）
@@ -995,19 +995,19 @@ describe('W6/T9 试学工具包', () => {
     }, 'POST')).json
     await call(`/api/v1/accounts/${id}/attempts`, {
       attemptId: 'c3-b1', activityId: 'ct01_which_probe',
-      response: { kind: 'text', text: 'A 的 which 指投影仪这台设备；B 的 which 指投影仪坏掉这件事，后半解释后果。' },
+      response: { kind: 'choice', text: 'A 的 which 指投影仪这台设备；B 的 which 指投影仪坏掉这件事，后半解释后果。', answers: { which_a: 'DEVICE', which_b: 'EVENT', tail_role: 'B' } },
       conditions: { firstExposure: true, hintLevel: 0, transcriptShown: false, playCount: 1, lookupUsed: false, responseMode: 'typed_summary' },
     }, 'POST')
     expect((await call(`/api/v1/accounts/${id}/trials/${regV.trialId}/observations`, { phase: 'baseline', attemptId: 'c3-b1' }, 'POST')).json.error).toContain('TRIAL_MATERIAL_VERSION_MISMATCH')
     // 版本正确（用零曝光的 ct02）→ 通过并计数
     const regOk = (await call(`/api/v1/accounts/${id}/trials`, {
       label: '版本正确', skill: 'reading',
-      baselineTask: { taskFamilyId: 'exhibit_hardware_reference', materialRef: 'm1', materialVersion: 1, activityId: 'ct02_nested_which', dimensions: ['所指'] },
-      postTask: { taskFamilyId: 'voice_decision_semantics', materialRef: 'm2', materialVersion: 1, activityId: 'ct03_semantics_guard', dimensions: ['语义'] },
+      baselineTask: { taskFamilyId: 'exhibit_hardware_reference', materialRef: 'm1', materialVersion: 2, activityId: 'ct02_nested_which', dimensions: ['所指'] },
+      postTask: { taskFamilyId: 'voice_decision_semantics', materialRef: 'm2', materialVersion: 2, activityId: 'ct03_semantics_guard', dimensions: ['语义'] },
     }, 'POST')).json
     await call(`/api/v1/accounts/${id}/attempts`, {
       attemptId: 'c3-t2', activityId: 'ct02_nested_which',
-      response: { kind: 'text', text: '第一处 which 指媒体实验室最近买了设备；第二处指更换电源并继续展出这件事。主线：投影仪在展览中坏了。' },
+      response: { kind: 'choice', text: '第一处 which 指媒体实验室最近买了设备；第二处指更换电源并继续展出这件事。', answers: { which_1: 'LAB', which_2: 'POWER', software_why: 'RUNNING_OK' } },
       conditions: { firstExposure: true, hintLevel: 0, transcriptShown: false, playCount: 1, lookupUsed: false, responseMode: 'typed_summary' },
     }, 'POST')
     const regOkObs = (await call(`/api/v1/accounts/${id}/trials/${regOk.trialId}/observations`, { phase: 'baseline', attemptId: 'c3-t2' }, 'POST')).json
@@ -1017,12 +1017,12 @@ describe('W6/T9 试学工具包', () => {
     // R7：注册带版本化绑定 → measurement 档 → 曝光核对才生效
     const regEx = (await call(`/api/v1/accounts/${id}/trials`, {
       label: '曝光核对', skill: 'reading',
-      baselineTask: { taskFamilyId: 'exhibit_hardware_reference', materialRef: 'm1', materialVersion: 1, activityId: 'ct02_nested_which', dimensions: ['所指'] },
-      postTask: { taskFamilyId: 'voice_decision_semantics', materialRef: 'm2', materialVersion: 1, activityId: 'ct03_semantics_guard', dimensions: ['语义'] },
+      baselineTask: { taskFamilyId: 'exhibit_hardware_reference', materialRef: 'm1', materialVersion: 2, activityId: 'ct02_nested_which', dimensions: ['所指'] },
+      postTask: { taskFamilyId: 'voice_decision_semantics', materialRef: 'm2', materialVersion: 2, activityId: 'ct03_semantics_guard', dimensions: ['语义'] },
     }, 'POST')).json
     await call(`/api/v1/accounts/${id}/attempts`, {
       attemptId: 'c3-b2', activityId: 'ct02_nested_which',
-      response: { kind: 'text', text: '第一处 which 指实验室；第二处指换电源继续展出这件事。' },
+      response: { kind: 'choice', text: '第一处 which 指实验室；第二处指换电源继续展出这件事。', answers: { which_1: 'LAB', which_2: 'POWER', software_why: 'RUNNING_OK' } },
       conditions: { firstExposure: true, hintLevel: 0, transcriptShown: false, playCount: 1, lookupUsed: false, responseMode: 'typed_summary' },
     }, 'POST')
     const exObs = (await call(`/api/v1/accounts/${id}/trials/${regEx.trialId}/observations`, { phase: 'baseline', attemptId: 'c3-b2', materialWasNovel: true }, 'POST')).json
@@ -1031,7 +1031,7 @@ describe('W6/T9 试学工具包', () => {
     // 条件不同 → 不标同条件：baseline hintLevel 0，post hintLevel 2
     await call(`/api/v1/accounts/${id}/attempts`, {
       attemptId: 'c3-p1', activityId: 'ct03_semantics_guard',
-      response: { kind: 'text', text: '团队保留了手势，暂缓语音；因为展厅里多人同时说话时原型表现不好，他们并未完全放弃语音。' },
+      response: { kind: 'choice', text: '团队保留了手势，暂缓语音；因为展厅里多人同时说话时原型表现不好，他们并未完全放弃语音。', answers: { decision: 'A' } },
       conditions: { firstExposure: true, hintLevel: 2, transcriptShown: false, playCount: 1, lookupUsed: false, responseMode: 'typed_summary' },
     }, 'POST')
     await call(`/api/v1/accounts/${id}/trials/${regEx.trialId}/observations`, { phase: 'post', attemptId: 'c3-p1', materialWasNovel: true }, 'POST')
@@ -1184,7 +1184,7 @@ describe('复审二轮（子代理审出）回归', () => {
     }, 'POST')).json
     await call(`/api/v1/accounts/${id}/attempts`, {
       attemptId: 'rv-delay-att', activityId: 'ct03_semantics_guard',
-      response: { kind: 'text', text: '团队保留了手势，暂缓语音；多人说话表现不好；并未放弃语音。' },
+      response: { kind: 'choice', text: '团队保留了手势，暂缓语音；多人说话表现不好；并未放弃语音。', answers: { decision: 'A' } },
       conditions: { firstExposure: true, hintLevel: 0, transcriptShown: false, playCount: 1, lookupUsed: false, responseMode: 'typed_summary' },
     }, 'POST')
     const r = await call(`/api/v1/accounts/${id}/trials/${reg.trialId}/observations`, { phase: 'delay', attemptId: 'rv-delay-att' }, 'POST')
@@ -1256,40 +1256,51 @@ describe('复审回归 F1–F8', () => {
     }, 'POST')).json.error).toContain('ORAL_RECORDING_REQUIRED')
   })
 
-  it('F4/R3：CT03 封闭选择——决策对由选项锁定；词袋/角色反转/同义反转在选项空间无从成立；R1 逐目标映射 A/B 分离', async () => {
+  it('F4/R3/D0-1：CT03 槽位判题——决策由槽位锁定；缺槽/错选/争议理由/文本后门都不放行；R1 逐目标映射 A/B 分离', async () => {
     const id = await mkAccount('F4-反例')
-    const post = (attemptId, text) => call(`/api/v1/accounts/${id}/attempts`, {
+    const post = (attemptId, text, answers = { decision: 'A' }) => call(`/api/v1/accounts/${id}/attempts`, {
       attemptId, activityId: 'ct03_semantics_guard',
-      response: { kind: 'text', text },
+      response: { kind: 'choice', text, answers },
       conditions: { firstExposure: true, hintLevel: 0, transcriptShown: false, playCount: 1, lookupUsed: false, responseMode: 'typed_summary' },
     }, 'POST')
-    // 正确选项 + 原因 → met
-    const good = await post('f4-good', 'a；因为多人说话时这个原型在展厅里表现不好，他们想再测试；他们并未完全放弃语音。')
+    // 正确槽位 + 原因 → met
+    const good = await post('f4-good', '因为多人说话时这个原型在展厅里表现不好，他们想再测试；他们并未完全放弃语音。')
     expect(good.json.pass).toBe(true)
     expect(good.json.objectiveResults['O-K115-03']).toBe('met')
-    // 词袋（无选项字母）→ unmet：词表在封闭题里没有发言权
-    const bag = await post('f4-bag', 'gesture delay crowded still want')
+    expect(good.json.slotResults[0].status).toBe('correct')
+    // 缺槽（只有理由没有选择）→ unmet：选择对错由槽位决定，理由写得再好也代替不了
+    const bag = await post('f4-bag', 'gesture delay crowded still want', {})
     expect(bag.json.pass).toBe(false)
+    expect(bag.json.slotResults[0].status).toBe('missing')
     expect(bag.json.objectiveResults['O-K115-03']).toBe('unmet')
     // 角色反转选 B → unmet（选项空间里这就是另一个答案，不需要词表反推）
-    const swapped = await post('f4-swap', 'b；因为展厅里多人同时说话。')
+    const swapped = await post('f4-swap', '因为展厅里多人同时说话。', { decision: 'B' })
     expect(swapped.json.pass).toBe(false)
     expect(swapped.json.objectiveResults['O-K115-03']).toBe('unmet')
-    // 反向动作同义改述（"搁置手势，采用语音"）→ 不含字母 a → 不得通过（24 号 R3 原案）
-    const synSwapped = await post('f4-syn', '他们搁置手势，采用语音，因为多人同时说话，仍想探索。')
+    // 同义反转（"搁置手势，采用语音"）选 B → 一样 unmet（代号与语义都在同一答案空间里判定）
+    const synSwapped = await post('f4-syn', '他们搁置手势，采用语音，因为多人同时说话，仍想探索。', { decision: 'B' })
     expect(synSwapped.json.pass).toBe(false)
-    // 过度推广出现在原因里 → mustNot 仍拦（选项对也不能带"所有语音都失败"）
-    const over = await post('f4-over', 'a；因为所有语音系统在拥挤处都失败。')
+    // 过度推广出现在理由里 → mustNot 仍拦（选项对也不能带"所有语音都失败"）
+    const over = await post('f4-over', '因为所有语音系统在拥挤处都失败。')
     expect(over.json.pass).toBe(false)
-    // R3：CT01 也转封闭代号——自由文本（口诀）没有代号 → unmet（21§2 的 partial 语义由选项设计的部分分承接）
-    const ct01 = (attemptId, text) => call(`/api/v1/accounts/${id}/attempts`, {
-      attemptId, activityId: 'ct01_which_probe',
-      response: { kind: 'text', text },
+    // 理由双否定 → 争议：即使槽位对，也不给 met（26 号 N1：理由争议不认证）
+    const amb = await post('f4-amb', '只是展厅里多人同时说话时表现不好；他们并不是不仍想再测试。')
+    expect(amb.json.evaluationStatus).toBe('disputed')
+    // D0-1：封闭槽位题不再收自由文本提交——"a b c d" 全选的老后门以 400 关闭
+    const textOnly = await call(`/api/v1/accounts/${id}/attempts`, {
+      attemptId: 'f4-textonly', activityId: 'ct03_semantics_guard',
+      response: { kind: 'text', text: 'a b c d DEVICE EVENT B' },
       conditions: { firstExposure: true, hintLevel: 0, transcriptShown: false, playCount: 1, lookupUsed: false, responseMode: 'typed_summary' },
     }, 'POST')
-    const slogan = await ct01('f4-slogan', 'which 都是指前面的东西。')
-    expect(slogan.json.objectiveResults['O-K115-02']).toBe('unmet')
-    expect(slogan.json.pass).toBe(false)
+    expect(textOnly.status).toBe(400)
+    expect(textOnly.json.error).toContain('CLOSED_STRUCTURED_REQUIRED')
+    // CT01 三槽同理：自由文本口号（无结构化答案）→ 400，不再有"词袋蒙混"路径
+    const slogan = await call(`/api/v1/accounts/${id}/attempts`, {
+      attemptId: 'f4-slogan', activityId: 'ct01_which_probe',
+      response: { kind: 'text', text: 'which 都是指前面的东西。' },
+      conditions: { firstExposure: true, hintLevel: 0, transcriptShown: false, playCount: 1, lookupUsed: false, responseMode: 'typed_summary' },
+    }, 'POST')
+    expect(slogan.status).toBe(400)
     // R1（24 号）：逐目标映射——alpha 只归 A、beta 只归 B 时，只答 alpha = A met、B unmet（不再混算）
     const ab = await call(`/api/v1/accounts/${id}/attempts`, {
       attemptId: 'f4-ab', activityId: 'ab_map_fixture',
@@ -1299,6 +1310,48 @@ describe('复审回归 F1–F8', () => {
     expect(ab.status).toBe(200)
     expect(ab.json.objectiveResults['O-K115-01']).toBe('met')
     expect(ab.json.objectiveResults['O-K115-03']).toBe('unmet')
+  })
+
+  it('N1/D0-1 槽位反例（纯函数）：全选/错序/漏槽/未知选项/多给都不通过；单槽正确只影响其归属目标；N2 串题与泄题修复', async () => {
+    const { evaluateAttempt } = await import('./v3evidence.mjs')
+    // 双目标双槽：alpha 槽只归 O-A，beta 槽只归 O-B（逐目标隔离的最小再现）
+    const act = {
+      activityId: 'unit_slots', version: 1, objectiveIds: ['O-A', 'O-B'],
+      evaluationContract: {
+        dimensions: ['d'],
+        slots: [
+          { slotId: 'alpha', prompt: '第一空', options: ['X', 'Y'], accept: 'X', objectiveIds: ['O-A'] },
+          { slotId: 'beta', prompt: '第二空', options: ['P', 'Q'], accept: 'Q', objectiveIds: ['O-B'] },
+        ],
+      },
+    }
+    const sub = (answers) => evaluateAttempt(act, { kind: 'choice', text: '', answers })
+    // 全对 → pass，逐目标 met
+    expect(sub({ alpha: 'X', beta: 'Q' }).evaluation.pass).toBe(true)
+    // 全选（把每个槽塞成数组）→ 槽 multiple，不通过
+    const all = sub({ alpha: ['X', 'Y'], beta: ['P', 'Q'] })
+    expect(all.evaluation.pass).toBe(false)
+    expect(all.evaluation.slotResults.map((s) => s.status)).toEqual(['multiple', 'multiple'])
+    // 错序（两空交换）→ 都错
+    expect(sub({ alpha: 'Q', beta: 'X' }).evaluation.slotResults.map((s) => s.status)).toEqual(['invalid', 'invalid'])
+    // 漏槽 → missing，不通过
+    expect(sub({ alpha: 'X' }).evaluation.pass).toBe(false)
+    expect(sub({ alpha: 'X' }).evaluation.slotResults[1].status).toBe('missing')
+    // 未知选项 → invalid
+    expect(sub({ alpha: 'Z', beta: 'Q' }).evaluation.slotResults[0].status).toBe('invalid')
+    // 单槽正确只影响对应目标：alpha 对 beta 错 = O-A met、O-B unmet（不再混算）
+    const half = sub({ alpha: 'X', beta: 'P' })
+    expect(half.evaluation.objectiveResults['O-A']).toBe('met')
+    expect(half.evaluation.objectiveResults['O-B']).toBe('unmet')
+    expect(half.evaluation.evaluatorVersion).toBe('deterministic-contract-v2')
+
+    // N2（26 号）：ct02 题面不再串入 L2 的"地图/假设"，格式示例不再给出答案序列
+    const registry = JSON.parse((await (await import('node:fs/promises')).readFile(new URL('./data/v3-activities.json', import.meta.url), 'utf8')))
+    const ct02 = (Array.isArray(registry) ? registry : registry.activities).find((a) => a.activityId === 'ct02_nested_which')
+    expect(ct02.prompt).not.toContain('ASSUMPTION')
+    expect(ct02.prompt).not.toContain('例：LAB')
+    expect(ct02.evaluationContract.slots.some((s) => s.slotId === 'software_why' && s.accept === 'RUNNING_OK')).toBe(true)
+    expect(ct02.prompt).toContain('running normally') // 第三问的答案在材料里有据可查
   })
 
   it('F6：诊断乱序拒绝；幂等重放不二次推进', async () => {

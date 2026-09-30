@@ -137,6 +137,10 @@ export function serveLesson(accountId, lessonId) {
       const act = activityById(ref.activityId)
       const stages = ref.hintStages ?? act?.hints ?? []
       const audio = audioPublicInfo(act)
+      // D0-1：封闭槽位题只下发槽位结构（slotId/题干/合法选项），accept 绝不下发
+      const slots = Array.isArray(act?.evaluationContract?.slots)
+        ? act.evaluationContract.slots.map((s) => ({ slotId: s.slotId, prompt: s.prompt, options: s.options }))
+        : null
       return {
         activityId: act.activityId,
         version: act.version,
@@ -144,6 +148,8 @@ export function serveLesson(accountId, lessonId) {
         prompt: act.prompt,
         simulatesAudio: !!act.simulatesAudio,
         oralTask: !!act.oralEvidenceDeferred,
+        slots,
+        reasonLabel: act?.evaluationContract?.reason?.label ?? null,
         audio, // synthetic 合成音频；转写不在这（首听隐藏），l2b 的校对稿在题面里
         conditionsSpec: act.conditionsSpec,
         // 与 publicActivity 同口径：看解析后的 manifest 行，audioRef 悬空（清单缺行）时如实显示 fixture

@@ -1111,7 +1111,7 @@
   },
   {
    "activityId": "ct01_which_probe",
-   "version": 1,
+   "version": 2,
    "role": "practice",
    "taskFamilyId": "projector_reference_probe",
    "objectiveIds": [
@@ -1122,7 +1122,7 @@
    },
    "responseKind": "text",
    "sourceDoc": "21 §2",
-   "prompt": "读两句，按顺序写三个代号（空格分隔）。\n\nA. The projector, which we borrowed from the media lab, stopped working during the exhibition.\nB. The projector stopped working during the exhibition, which meant that we had to change the installation.\n\n第 1 问：A 的 which 指什么？ DEVICE（设备）/ EVENT（整件事）\n第 2 问：B 的 which 指什么？ DEVICE（设备）/ EVENT（整件事）\n第 3 问：哪一句的 which 部分在解释后果？ A / B\n\n例：DEVICE DEVICE B",
+   "prompt": "读两句，逐空选择代号。\n\nA. The projector, which we borrowed from the media lab, stopped working during the exhibition.\nB. The projector stopped working during the exhibition, which meant that we had to change the installation.\n\n第 1 问：A 的 which 指什么？ DEVICE（设备）/ EVENT（整件事）\n第 2 问：B 的 which 指什么？ DEVICE（设备）/ EVENT（整件事）\n第 3 问：哪一句的 which 部分在解释后果？ A / B\n\n（用页面上的选项按钮逐空作答；三个空都对才算过。）",
    "hints": [
     "被借来的是设备，还是整个事件？",
     "B 中 meant 在说明某件事产生的结果。"
@@ -1140,17 +1140,45 @@
      "所指单位",
      "后果句"
     ],
-    "relations": [],
-    "mustNot": [],
+    "slots": [
+     {
+      "slotId": "which_a",
+      "prompt": "A 的 which 指什么？",
+      "options": [
+       "DEVICE",
+       "EVENT"
+      ],
+      "accept": "DEVICE",
+      "objectiveIds": [
+       "O-K115-02"
+      ]
+     },
+     {
+      "slotId": "which_b",
+      "prompt": "B 的 which 指什么？",
+      "options": [
+       "DEVICE",
+       "EVENT"
+      ],
+      "accept": "EVENT",
+      "objectiveIds": [
+       "O-K115-02"
+      ]
+     },
+     {
+      "slotId": "tail_role",
+      "prompt": "哪一句的 which 部分在解释后果？",
+      "options": [
+       "A",
+       "B"
+      ],
+      "accept": "B",
+      "objectiveIds": [
+       "O-K115-02"
+      ]
+     }
+    ],
     "mustNotNegationGuard": true,
-    "choice": {
-     "accept": [
-      "device",
-      "event",
-      "b"
-     ],
-     "mode": "all"
-    },
     "unmeasuredObjectives": []
    },
    "complexityBand": 2,
@@ -1158,7 +1186,7 @@
   },
   {
    "activityId": "ct02_nested_which",
-   "version": 1,
+   "version": 2,
    "role": "practice",
    "taskFamilyId": "exhibit_hardware_reference",
    "objectiveIds": [
@@ -1169,10 +1197,11 @@
    },
    "responseKind": "text",
    "sourceDoc": "21 §3",
-   "prompt": "The projector that our team borrowed from the media lab, which had recently bought new equipment, stopped working during the exhibition. The technician who checked it said that the power supply was faulty. We replaced the supply and continued the show, which meant that visitors could still see the installation. We did not replace the software, because it was running normally. The team now plans to test the borrowed hardware before the next event.\n\n【作答方式】按顺序写三个代号（空格分隔）：\n第 1 问：第一处 which 说谁买了新设备？ LAB（媒体实验室）/ PROJECTOR（投影仪）\n第 2 问：第二处 which 说哪件事使访客仍能看到装置？ POWER（换电源继续展出）/ SOFTWARE（没换软件）\n第 3 问：but 对照的核心判定是？ ASSUMPTION（假设不完整）/ MAP（地图失灵）\n\n例：LAB POWER ASSUMPTION",
+   "prompt": "The projector that our team borrowed from the media lab, which had recently bought new equipment, stopped working during the exhibition. The technician who checked it said that the power supply was faulty. We replaced the supply and continued the show, which meant that visitors could still see the installation. We did not replace the software, because it was running normally. The team now plans to test the borrowed hardware before the next event.\n\n【作答方式】逐空用选项按钮选择：\n第 1 问：第一处 which 说谁买了新设备？ LAB（媒体实验室）/ PROJECTOR（投影仪）\n第 2 问：第二处 which 说哪件事使访客仍能看到装置？ POWER（换电源继续展出）/ SOFTWARE（没换软件）\n第 3 问：团队为什么没有更换软件？ RUNNING_OK（它运行正常）/ NO_TIME（他们没有时间）\n\n（题面不给出答案序列；三个空都对才算过。）",
    "hints": [
     "第一处 which 前面是 the media lab。",
-    "第二处 which 在“换了电源、继续展出”之后。"
+    "第二处 which 在“换了电源、继续展出”之后。",
+    "看 because 后面给出的原因。"
    ],
    "conditionsSpec": [
     "firstExposure",
@@ -1186,26 +1215,54 @@
     "dimensions": [
      "第一处所指",
      "第二处所指",
-     "核心判定"
+     "未换软件的原因"
     ],
-    "relations": [],
-    "mustNot": [],
-    "mustNotNegationGuard": true,
-    "choice": {
-     "accept": [
-      "lab",
-      "power",
-      "assumption"
-     ],
-     "mode": "all"
-    }
+    "slots": [
+     {
+      "slotId": "which_1",
+      "prompt": "第一处 which 说谁买了新设备？",
+      "options": [
+       "LAB",
+       "PROJECTOR"
+      ],
+      "accept": "LAB",
+      "objectiveIds": [
+       "O-K115-02"
+      ]
+     },
+     {
+      "slotId": "which_2",
+      "prompt": "第二处 which 说哪件事使访客仍能看到装置？",
+      "options": [
+       "POWER",
+       "SOFTWARE"
+      ],
+      "accept": "POWER",
+      "objectiveIds": [
+       "O-K115-02"
+      ]
+     },
+     {
+      "slotId": "software_why",
+      "prompt": "团队为什么没有更换软件？",
+      "options": [
+       "RUNNING_OK",
+       "NO_TIME"
+      ],
+      "accept": "RUNNING_OK",
+      "objectiveIds": [
+       "O-K115-02"
+      ]
+     }
+    ],
+    "mustNotNegationGuard": true
    },
    "complexityBand": 4,
    "certification": "closed"
   },
   {
    "activityId": "ct03_semantics_guard",
-   "version": 1,
+   "version": 2,
    "role": "practice",
    "taskFamilyId": "voice_decision_semantics",
    "objectiveIds": [
@@ -1216,7 +1273,7 @@
    },
    "responseKind": "text",
    "sourceDoc": "21 §4",
-   "prompt": "沿用展览控制方案的背景，回答：团队现在保留了什么？为什么暂缓另一种？他们对语音交互的计划是否等于永久放弃？\n\n【作答方式】先写选项字母，再用一句话说明原因。选项：\nA. 保留手势控制，暂缓语音控制\nB. 保留语音控制，暂缓手势控制\nC. 两种控制都永久放弃\nD. 两种控制都立刻全面铺开",
+   "prompt": "沿用展览控制方案的背景，回答：团队现在保留了什么？为什么暂缓另一种？他们对语音交互的计划是否等于永久放弃？\n\n【作答方式】先选择决定（单选），再用一句话在理由框里说明原因。选项：\nA. 保留手势控制，暂缓语音控制\nB. 保留语音控制，暂缓手势控制\nC. 两种控制都永久放弃\nD. 两种控制都立刻全面铺开",
    "hints": [],
    "conditionsSpec": [
     "firstExposure",
@@ -1232,85 +1289,101 @@
      "原因",
      "保留计划"
     ],
-    "relations": [
+    "slots": [
      {
-      "id": "reason_crowd",
-      "label": "原因：多人说话时该原型在展厅表现不好（否定语境不算）",
-      "anyOf": [
-       "多人",
-       "crowded",
-       "同时说话",
-       "展厅",
-       "exhibition",
-       "spoke at once",
-       "several groups"
+      "slotId": "decision",
+      "prompt": "团队现在的决定是？",
+      "options": [
+       "A",
+       "B",
+       "C",
+       "D"
       ],
-      "negationAware": true,
-      "required": false,
-      "objectiveIds": [
-       "O-K115-03"
-      ]
-     },
-     {
-      "id": "not_permanent",
-      "label": "保留计划：未完全放弃/仍要探索（锚点=完整的保留表述，裸否定词不算——'没试过'不是'没放弃'）",
-      "anyOf": [
-       "未完全放弃",
-       "没完全放弃",
-       "并未放弃",
-       "没有放弃",
-       "不是永久",
-       "非永久",
-       "不会永久",
-       "不是最终",
-       "仍想",
-       "仍要",
-       "仍打算",
-       "还想",
-       "再测试",
-       "会再测",
-       "继续探索",
-       "still want",
-       "still plan",
-       "want to explore",
-       "plan to explore",
-       "still explore",
-       "not ruled out",
-       "haven't ruled out",
-       "没有完全排除",
-       "未完全排除",
-       "explore",
-       "探索"
-      ],
-      "negationAware": true,
-      "required": false,
+      "accept": "A",
       "objectiveIds": [
        "O-K115-03"
       ]
      }
     ],
-    "mustNot": [
-     {
-      "label": "过度推广：所有语音系统在拥挤处都失败",
-      "anyOf": [
-       "所有语音",
-       "all voice",
-       "always fail",
-       "都失败",
-       "总是失败"
-      ],
-      "objectiveIds": [
-       "O-K115-03"
-      ]
-     }
-    ],
-    "mustNotNegationGuard": true,
-    "choice": {
-     "accept": [
-      "a"
+    "reason": {
+     "label": "原因与保留计划（用自己的话；选择对不等于说清原因）",
+     "objectiveIds": [
+      "O-K115-03"
      ],
-     "note": "封闭选择：决策对由选项锁定，角色反转/词袋在选项空间里无从成立"
-    }
+     "relations": [
+      {
+       "id": "reason_crowd",
+       "label": "原因：多人说话时该原型在展厅表现不好（否定语境不算）",
+       "anyOf": [
+        "多人",
+        "crowded",
+        "同时说话",
+        "展厅",
+        "exhibition",
+        "spoke at once",
+        "several groups"
+       ],
+       "negationAware": true,
+       "required": false,
+       "objectiveIds": [
+        "O-K115-03"
+       ]
+      },
+      {
+       "id": "not_permanent",
+       "label": "保留计划：未完全放弃/仍要探索（锚点=完整的保留表述，裸否定词不算——'没试过'不是'没放弃'）",
+       "anyOf": [
+        "未完全放弃",
+        "没完全放弃",
+        "并未放弃",
+        "没有放弃",
+        "不是永久",
+        "非永久",
+        "不会永久",
+        "不是最终",
+        "仍想",
+        "仍要",
+        "仍打算",
+        "还想",
+        "再测试",
+        "会再测",
+        "继续探索",
+        "still want",
+        "still plan",
+        "want to explore",
+        "plan to explore",
+        "still explore",
+        "not ruled out",
+        "haven't ruled out",
+        "没有完全排除",
+        "未完全排除",
+        "explore",
+        "探索"
+       ],
+       "negationAware": true,
+       "required": false,
+       "objectiveIds": [
+        "O-K115-03"
+       ]
+      }
+     ],
+     "mustNot": [
+      {
+       "label": "过度推广：所有语音系统在拥挤处都失败",
+       "anyOf": [
+        "所有语音",
+        "all voice",
+        "always fail",
+        "都失败",
+        "总是失败"
+       ],
+       "objectiveIds": [
+        "O-K115-03"
+       ]
+      }
+     ]
+    },
+    "mustNotNegationGuard": true
    },
    "certification": "closed"
   },

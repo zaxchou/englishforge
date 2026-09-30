@@ -21,6 +21,10 @@ const call = (p, b, m = 'GET') => api.handleApi({ method: m, pathname: p.split('
 const lines = []
 const say = (s) => { lines.push(s); console.log(s) }
 
+// 活动注册表（本地文件）：封闭槽位题的 accept/options 只在这里——公开活动视图不带合同（防泄露）
+const registry = JSON.parse(await (await import('node:fs/promises')).readFile(new URL('../server/data/v3-activities.json', import.meta.url), 'utf8'))
+const regById = (aid) => registry.activities.find((x) => x.activityId === aid)
+
 // 通过答案：按活动逐个给出真实合格回答（合规格答覆盖关系与保留条件）；误判=角色反转
 const ANSWER_BANK = {
   les_l1_sensor_read: '出问题的是实验室里看起来准、在舞台灯下不稳的那颗传感器；现在还可以继续在室内测试用它；但在公开活动前的灯光环境检查之前，先不安装到现场——这不是永久禁用。',
@@ -36,15 +40,17 @@ const ANSWER_BANK = {
   diag_d1b_contrast: '工具在小房间（安静的）可用，在大房间（吵的）失败。',
   diag_d3_oral_typed: '我们从 AI 助手学到：它能帮我们找到值得读的论文，但摘要可能漏掉原文的重要限制，所以使用前必须自己读。我的项目里我会用它找材料，但会自己核查来源。',
 }
-const passAnswerFor = (act) => ANSWER_BANK[act.activityId]
-  ?? (() => {
-    const rels = act.relations ?? act.evaluationContract?.relations ?? []
-    if (!rels.length) return '它按设计正常工作，但我们对用户需求的假设不完整；并未放弃后续计划。'
-    return rels.map((r) => r.anyOf?.[0] ?? r.label).join('；') + '。并未完全放弃，仍想再测试。'
-  })()
+// D0-1：封闭槽位题按槽提交（accept 只从本地注册表取——公开活动视图不带合同，防泄露）
+const passAnswerFor = (act) => {
+  const slots = regById(act.activityId)?.evaluationContract?.slots
+  if (slots) return { answers: Object.fromEntries(slots.map((s) => [s.slotId, s.accept])), text: ANSWER_BANK[act.activityId] ?? '' }
+  return ANSWER_BANK[act.activityId]
+    ?? '它按设计正常工作，但我们对用户需求的假设不完整；并未放弃后续计划。'
+}
 function failAnswerFor(act) {
-  const rels = act.relations ?? act.evaluationContract?.relations ?? []
-  return rels.map((r) => r.anyOf?.[0] ?? '').reverse().join(' 然后 ') + '（角色反了）'
+  const slots = regById(act.activityId)?.evaluationContract?.slots
+  if (slots) return { answers: Object.fromEntries(slots.map((s) => [s.slotId, s.options.find((o) => o !== s.accept) ?? s.accept])), text: '（每个槽都选了错误选项）' }
+  return '他们做了一个展览。（角色反了）'
 }
 
 const id = (await call('/api/accounts', { name: 'walk-匿名' }, 'POST')).json.account.id
@@ -117,9 +123,10 @@ for (let step = 1; step <= 9 && completed < 5; step++) {
         const isRetakeDemo = completed === 0 && act.activityId === pkg.activities[0].activityId
         const isHintDemo = completed === 1 && act.activityId === pkg.activities[0].activityId
         if (isRetakeDemo) {
+          const fa = failAnswerFor(act)
           const bad = await call(`/api/v1/accounts/${id}/attempts`, {
             attemptId: `w-${pkg.lessonId}-${act.activityId}-r1`, activityId: act.activityId,
-            response: { kind: 'text', text: failAnswerFor(act) },
+            response: typeof fa === 'object' ? { kind: 'choice', text: fa.text, answers: fa.answers } : { kind: 'text', text: fa },
             conditions: { firstExposure: true, hintLevel: 0, transcriptShown: false, playCount: 1, lookupUsed: false, responseMode: 'typed_summary' },
           }, 'POST')
           say(`   · ${act.activityId} v${act.version} 误判作答 → pass=${bad.json.pass} 逐目标=${JSON.stringify(bad.json.objectiveResults ?? {})}`)
@@ -128,9 +135,10 @@ for (let step = 1; step <= 9 && completed < 5; step++) {
           await call(`/api/v1/accounts/${id}/lessons/${pkg.lessonId}/hints`, { activityId: act.activityId, level: 1 }, 'POST')
           say(`   · ${act.activityId} 揭示提示 1（记为支持）`)
         }
+        const pa = passAnswerFor(act)
         const r = await call(`/api/v1/accounts/${id}/attempts`, {
           attemptId: `w-${pkg.lessonId}-${act.activityId}${isRetakeDemo ? '-r2' : ''}`, activityId: act.activityId,
-          response: { kind: 'text', text: passAnswerFor(act) },
+          response: typeof pa === 'object' ? { kind: 'choice', text: pa.text, answers: pa.answers } : { kind: 'text', text: pa },
           conditions: {
             firstExposure: !isRetakeDemo, hintLevel: isHintDemo ? 1 : 0,
             transcriptShown: false, playCount: act.audio ? 2 : 1, lookupUsed: false, responseMode: 'typed_summary',
@@ -174,15 +182,15 @@ for (let step = 1; step <= 9 && completed < 5; step++) {
 // ---- 收尾：R6 端到端分槽验证（真实提交，不是手插事件行）——
 // ct01（band2 简单定位）与 ct02（band4 嵌套）同属 O-K115-02，必须落不同复杂度槽
 say(`\n## R6 端到端：同目标两档复杂度分槽`)
-const registry = JSON.parse(await (await import('node:fs/promises')).readFile(new URL('../server/data/v3-activities.json', import.meta.url), 'utf8'))
-for (const [aid, ans] of [
-  ['ct01_which_probe', 'DEVICE EVENT B'],
-  ['ct02_nested_which', 'LAB POWER ASSUMPTION'],
+// D0-1：封闭槽位题按槽提交（slotId→accept），不再有文本代号后门
+for (const [aid, answers] of [
+  ['ct01_which_probe', { which_a: 'DEVICE', which_b: 'EVENT', tail_role: 'B' }],
+  ['ct02_nested_which', { which_1: 'LAB', which_2: 'POWER', software_why: 'RUNNING_OK' }],
 ]) {
   const reg = registry.activities.find((x) => x.activityId === aid)
   const r = await call(`/api/v1/accounts/${id}/attempts`, {
     attemptId: `walk-r6-${aid}`, activityId: aid,
-    response: { kind: 'text', text: ans },
+    response: { kind: 'choice', text: '', answers },
     conditions: { firstExposure: true, hintLevel: 0, transcriptShown: false, playCount: 1, lookupUsed: false, responseMode: 'typed_summary' },
   }, 'POST')
   say(`   ${aid}（声明带 band${reg.complexityBand}）→ pass=${r.json.pass}`)

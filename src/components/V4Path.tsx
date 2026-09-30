@@ -23,7 +23,7 @@ type LessonPkg = {
   whyNow: string
   teachingNote: string | null
   devSampleNotice: string | null
-  activities: { activityId: string; role: string; prompt: string; hintStageCount: number; firstHint: string | null; simulatesAudio: boolean; fixtureNotice: string | null; oralTask?: boolean; audio?: AudioInfo | null }[]
+  activities: { activityId: string; role: string; prompt: string; hintStageCount: number; firstHint: string | null; simulatesAudio: boolean; fixtureNotice: string | null; oralTask?: boolean; audio?: AudioInfo | null; slots?: { slotId: string; prompt: string; options: string[] }[] | null; reasonLabel?: string | null }[]
   nextCandidates: string[]
   holdout: { lessonId: string; answersIncluded: boolean } | null
 }
@@ -376,8 +376,10 @@ function LessonRunner({ accountId, pkg, onDone }: {
   onDone: () => void
 }) {
   const [answers, setAnswers] = useState<Record<string, string>>({})
+  // D0-1：封闭槽位题的逐槽选择（activityId → slotId → 选项代号）
+  const [slotPicks, setSlotPicks] = useState<Record<string, Record<string, string>>>({})
   const [revealed, setRevealed] = useState<Record<string, string[]>>({})
-  const [feedback, setFeedback] = useState<Record<string, { pass: boolean | null; status: string; practiceOnly?: boolean; relations?: { id: string; label: string; hit: boolean; required: boolean }[] }>>({})
+  const [feedback, setFeedback] = useState<Record<string, { pass: boolean | null; status: string; practiceOnly?: boolean; relations?: { id: string; label: string; hit: boolean; required: boolean }[]; slotResults?: { slotId: string; prompt: string; given: string | null; status: string }[] }>>({})
   const [pkgLive, setPkgLive] = useState(pkg)
   const [err, setErr] = useState('')
   const [done, setDone] = useState(false)
@@ -409,17 +411,22 @@ function LessonRunner({ accountId, pkg, onDone }: {
     setErr('')
     const take = takes[act.activityId] ?? 1
     const attemptId = take === 1 ? `les-${pkgLive.lessonId}-${act.activityId}` : `les-${pkgLive.lessonId}-${act.activityId}-t${take}`
+    // D0-1：封闭槽位题提交结构化 answers；开放题提交自由文本
+    const isSlots = !!act.slots?.length
+    const response = isSlots
+      ? { kind: 'choice', text: answers[act.activityId] ?? '', answers: slotPicks[act.activityId] ?? {} }
+      : { kind: 'text', text: answers[act.activityId] ?? '' }
     try {
-      const r = await api<{ pass: boolean | null; evaluationStatus: string; practiceOnly?: boolean; dimensions?: { relations?: { id: string; label: string; hit: boolean; required: boolean }[] } }>(`/accounts/${accountId}/attempts`, {
+      const r = await api<{ pass: boolean | null; evaluationStatus: string; practiceOnly?: boolean; dimensions?: { relations?: { id: string; label: string; hit: boolean; required: boolean }[] }; slotResults?: { slotId: string; prompt: string; given: string | null; status: string }[] }>(`/accounts/${accountId}/attempts`, {
         attemptId,
         activityId: act.activityId,
-        response: { kind: 'text', text: answers[act.activityId] ?? '' },
+        response,
         conditions: {
           firstExposure: take === 1, hintLevel: revealed[act.activityId]?.length ?? 0,
           transcriptShown: false, playCount: playsRef.current[act.activityId] ?? 0, lookupUsed: false, responseMode: 'typed_summary',
         },
       }, 'POST')
-      setFeedback((f) => ({ ...f, [act.activityId]: { pass: r.pass, status: r.evaluationStatus, practiceOnly: r.practiceOnly, relations: r.dimensions?.relations } }))
+      setFeedback((f) => ({ ...f, [act.activityId]: { pass: r.pass, status: r.evaluationStatus, practiceOnly: r.practiceOnly, relations: r.dimensions?.relations, slotResults: r.slotResults } }))
       // 门控活动（如未预告追问）在前提活动提交后才出现：重取课包
       const fresh = await api<LessonPkg>(`/accounts/${accountId}/lessons/${pkgLive.lessonId}`)
       if (fresh.activities.length > visibleActs.length) setPkgLive(fresh)
@@ -470,13 +477,40 @@ function LessonRunner({ accountId, pkg, onDone }: {
           )}
           {act.oralTask
             ? <OralRecorder accountId={accountId} activityId={act.activityId} onSubmitted={(fb) => setFeedback((f) => ({ ...f, [act.activityId]: fb }))} />
-            : (
-                <textarea value={answers[act.activityId] ?? ''} rows={3} onChange={(e) => setAnswers((a) => ({ ...a, [act.activityId]: e.target.value }))}
-                  placeholder="用自己的话回答" />
-              )}
+            : act.slots?.length ? (
+                // D0-1：封闭槽位题——逐空按钮选择；正确答案不下发到前端，对错由服务端判
+                <div className="v4-slots">
+                  {act.slots.map((s) => (
+                    <div key={s.slotId} className="v4-slot">
+                      <span>{s.prompt}</span>
+                      <div className="v4-slot-opts">
+                        {s.options.map((o) => (
+                          <button key={o}
+                            className={slotPicks[act.activityId]?.[s.slotId] === o ? 'v4-opt on' : 'v4-opt'}
+                            onClick={() => setSlotPicks((p) => ({ ...p, [act.activityId]: { ...(p[act.activityId] ?? {}), [s.slotId]: o } }))}>
+                            {o}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  {act.reasonLabel && (
+                    <textarea value={answers[act.activityId] ?? ''} rows={2}
+                      onChange={(e) => setAnswers((a) => ({ ...a, [act.activityId]: e.target.value }))}
+                      placeholder={act.reasonLabel} />
+                  )}
+                </div>
+              )
+              : (
+                  <textarea value={answers[act.activityId] ?? ''} rows={3} onChange={(e) => setAnswers((a) => ({ ...a, [act.activityId]: e.target.value }))}
+                    placeholder="用自己的话回答" />
+                )}
           <div className="v4-act-foot">
             {!act.oralTask && !feedback[act.activityId] && (
-              <button className="v4-primary" disabled={!answers[act.activityId]?.trim()}
+              <button className="v4-primary"
+                disabled={!(act.slots?.length
+                  ? act.slots.every((s) => slotPicks[act.activityId]?.[s.slotId])
+                  : answers[act.activityId]?.trim())}
                 onClick={() => submit(act)}>提交</button>
             )}
             {feedback[act.activityId] && !act.oralTask && (
@@ -496,6 +530,16 @@ function LessonRunner({ accountId, pkg, onDone }: {
           {feedback[act.activityId]?.practiceOnly && (
             <p className="v4-advise">这是机器词表检查的<b>练习反馈</b>——帮你对照关系，不计入能力记录；能力证据来自封闭题与真人复核。</p>
           )}
+          {feedback[act.activityId]?.slotResults?.length ? (
+            <ul className="v4-relations">
+              {feedback[act.activityId].slotResults!.map((s) => (
+                <li key={s.slotId} className={s.status === 'correct' ? 'v4-ok' : 'v4-no'}>
+                  {s.status === 'correct' ? '✓' : '✗'} {s.prompt}
+                  {s.status !== 'correct' && `（${s.status === 'missing' ? '这空没选' : s.status === 'multiple' ? '选了多个' : s.status === 'invalid' ? '选了无效选项' : '选错了'}）`}
+                </li>
+              ))}
+            </ul>
+          ) : null}
           {feedback[act.activityId]?.relations && (
             act.oralTask ? (
               <div className="v4-advise">

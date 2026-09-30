@@ -149,7 +149,7 @@
    "activities": [
     {
      "activityId": "ct01_which_probe",
-     "version": 1,
+     "version": 2,
      "role": "practice",
      "hintStages": [
       "被借来的是设备，还是整个事件？"
@@ -157,7 +157,7 @@
     },
     {
      "activityId": "ct02_nested_which",
-     "version": 1,
+     "version": 2,
      "role": "practice",
      "hintStages": []
     }

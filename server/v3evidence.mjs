@@ -38,11 +38,17 @@ export function activityById(id) {
 export function publicActivity(a) {
   if (!a) return null
   const audio = audioPublicInfo(a)
+  // D0-1：封闭槽位题只下发槽位结构（slotId/题干/合法选项）；accept（正确答案）绝不下发
+  const slots = Array.isArray(a.evaluationContract?.slots)
+    ? a.evaluationContract.slots.map((s) => ({ slotId: s.slotId, prompt: s.prompt, options: s.options }))
+    : null
   return {
     activityId: a.activityId, version: a.version, role: a.role, taskFamilyId: a.taskFamilyId,
     objectiveIds: a.objectiveIds, responseKind: a.responseKind, prompt: a.prompt, hints: a.hints,
     simulatesAudio: !!a.simulatesAudio, conditionsSpec: a.conditionsSpec,
     oralTask: !!a.oralEvidenceDeferred,
+    slots,
+    reasonLabel: a.evaluationContract?.reason?.label ?? null,
     audio, // synthetic 合成音频（21 §6.2）：mediaId/声源标注/时长；无音频时为 null
     fixtureNotice: audio ? null
       : (a.simulatesAudio || a.oralEvidenceDeferred || a.locating || a.holdout)
@@ -101,49 +107,11 @@ export function evaluateAttempt(activity, response) {
   const c = activity.evaluationContract
   if (!c) return { status: 'pending', evaluation: null }
   const text = norm(typeof response === 'string' ? response : response?.text)
-  // R3（24 号）：认证级别。'closed'＝封闭选择/槽位题，答案空间受控，可以写掌握证据；
-  // 'keyword'＝开放文本词表匹配，**只能给练习反馈**——bag/同义反转词表判不了关系是否成立
-  // （"手势 语音 多人 仍想"、"搁置手势采用语音"都会骗过词表）。默认 keyword：不写掌握正分。
-  const certification = c.choice ? 'closed' : (activity.certification ?? 'keyword')
+  // R3（24 号）+ D0-1（27 号）：认证级别。'closed'＝结构化槽位题（slotId/options/accept），
+  // 答案空间受控、逐槽判，可以写掌握证据；'keyword'＝开放文本词表匹配，**只能给练习反馈**——
+  // bag/同义反转词表判不了关系是否成立。默认 keyword：不写掌握正分。
+  const certification = c.slots ? 'closed' : (activity.certification ?? 'keyword')
 
-  // 封闭选择题：c.choice = { accept: ['a', …], mode: 'any'|'all' }——只认独立代号（整词匹配），
-  // 措辞歧义在选项设计里消除，不靠词表猜语义。mode 'all'＝多空全对（如三问三个代号）。
-  // 理由栏的自由文本仍受 mustNot 约束
-  if (c.choice) {
-    const tokenPresent = (a) => {
-      const letter = norm(a).replace(/[^a-z0-9]/g, '')
-      return !!letter && new RegExp('(^|[^a-z0-9])' + letter + '($|[^a-z0-9])').test(text)
-    }
-    const pick = c.choice.mode === 'all' ? c.choice.accept.every(tokenPresent) : c.choice.accept.some(tokenPresent)
-    const relations = (c.relations ?? []).map((r) => ({ id: r.id, label: r.label, required: !!r.required, hit: pick, objectiveIds: Array.isArray(r.objectiveIds) ? r.objectiveIds : null }))
-    const mustNotMode = c.mustNotNegationGuard === false ? 'any' : 'nonNegated'
-    const violated = (c.mustNot ?? []).filter((m) => m.anyOf.some((k) => {
-      const needle = norm(k)
-      let from = 0
-      while (true) {
-        const at = text.indexOf(needle, from)
-        if (at < 0) return false
-        const scan = negationScan(text, at)
-        if (scan.ambiguous) { from = at + needle.length; continue }
-        if (!scan.negated) return true
-        from = at + needle.length
-      }
-    })).map((m) => m.label)
-    const objectiveResults = {}
-    for (const oid of activity.objectiveIds) {
-      const iViolated = (c.mustNot ?? []).some((m) => (m.objectiveIds ?? activity.objectiveIds).includes(oid) && violated.includes(m.label))
-      objectiveResults[oid] = pick && !iViolated ? 'met' : 'unmet'
-    }
-    return {
-      status: 'evaluated',
-      evaluation: {
-        pass: pick && violated.length === 0,
-        dimensions: c.dimensions, relations, mustNotViolations: violated,
-        objectiveResults, certification, choice: { accepted: pick, accept: c.choice.accept },
-        evaluator: 'deterministic-contract-v1', confidence: 'fixture',
-      },
-    }
-  }
   // 锚点命中扫描（21§4 收尾）：同一锚点可能出现多次，逐次看前置 14 字窗口里的否定词。
   // mode: 'any' 出现即命中 | 'nonNegated' 至少一次非否定出现（关系为真才会说的话）
   // | 'negated' 至少一次否定语境出现（关系本身是"否定了某主张"，如"并未放弃"）
@@ -167,6 +135,79 @@ export function evaluateAttempt(activity, response) {
     return { hit: sawNonNeg || sawNeg, ambiguous: ambiguous && !(sawNonNeg || sawNeg), present }
   }
   const modeOf = (r) => (r.polarity === 'negated' ? 'negated' : (r.negationAware ? 'nonNegated' : 'any'))
+
+  // D0-1（27 号）/N1（26 号）：结构化槽位判题——逐槽独立，全选/错序/漏槽/未知选项都过不了；
+  // 单个槽正确只影响它归属的目标；理由栏（可选）独立评估，理由有争议 → 整题 disputed，
+  // 不能因为选择对就把争议理由也认证掉。文本反匹配（在句子里搜代号）彻底废弃。
+  if (c.slots) {
+    const answers = (response && typeof response === 'object' && !Array.isArray(response)) ? response.answers : null
+    const code = (v) => (typeof v === 'string' ? norm(v).replace(/[^a-z0-9]/g, '') : null)
+    const slotResults = c.slots.map((s) => {
+      const given = answers ? answers[s.slotId] : undefined
+      const g = Array.isArray(given) ? null : code(given)
+      const opts = s.options.map(code)
+      const status = given === undefined || given === null || given === ''
+        ? 'missing'
+        : Array.isArray(given) ? 'multiple'
+          : !opts.includes(g) ? 'invalid'
+            : g === code(s.accept) ? 'correct' : 'wrong'
+      return { slotId: s.slotId, prompt: s.prompt, given: Array.isArray(given) ? '[multiple]' : (given ?? null), status }
+    })
+    const bySlot = Object.fromEntries(slotResults.map((r) => [r.slotId, r]))
+    const allCorrect = slotResults.every((r) => r.status === 'correct')
+
+    // 理由栏（可选）：复用关系锚点的否定感知扫描，但结论独立于槽位
+    const rc = c.reason ?? null
+    const relScansR = (rc?.relations ?? []).map((r) => {
+      let hit = false
+      let present = 0
+      let ambiguousCount = 0
+      for (const k of r.anyOf) {
+        const one = anchorHit(norm(k), modeOf(r))
+        if (!one.present) continue
+        present++
+        if (one.hit) { hit = true; break }
+        if (one.ambiguous) ambiguousCount++
+        else break
+      }
+      return { rel: r, hit, allAmbiguous: present > 0 && ambiguousCount === present }
+    })
+    const reasonRelations = relScansR.map(({ rel, hit }) => ({
+      id: rel.id, label: rel.label, required: !!rel.required, hit,
+      objectiveIds: Array.isArray(rel.objectiveIds) ? rel.objectiveIds : null,
+    }))
+    const mustNotMode = c.mustNotNegationGuard === false ? 'any' : 'nonNegated'
+    const reasonViolated = (rc?.mustNot ?? []).filter((m) => m.anyOf.some((k) => anchorHit(norm(k), mustNotMode).hit)).map((m) => m.label)
+    const reasonAmbiguous = relScansR.some(({ hit, allAmbiguous }) => !hit && allAmbiguous)
+    const reasonReqOk = reasonRelations.filter((r) => r.required).every((r) => r.hit)
+
+    const objectiveResults = {}
+    for (const oid of activity.objectiveIds) {
+      const mine = c.slots.filter((s) => (s.objectiveIds ?? activity.objectiveIds).includes(oid))
+      const slotOk = mine.length > 0 && mine.every((s) => bySlot[s.slotId].status === 'correct')
+      const reasonMine = !!rc && (rc.objectiveIds ?? activity.objectiveIds).includes(oid)
+      const rViolMine = reasonMine ? reasonViolated.filter((label) =>
+        (rc.mustNot ?? []).some((m) => m.label === label && (m.objectiveIds ?? rc.objectiveIds ?? activity.objectiveIds).includes(oid))) : []
+      objectiveResults[oid] = slotOk && (!reasonMine || (reasonReqOk && rViolMine.length === 0)) ? 'met' : 'unmet'
+    }
+
+    const evaluation = {
+      pass: allCorrect && reasonReqOk && reasonViolated.length === 0,
+      dimensions: c.dimensions,
+      slotResults,
+      relations: reasonRelations,
+      mustNotViolations: reasonViolated,
+      objectiveResults,
+      certification,
+      slots: true,
+      evaluator: 'deterministic-contract-v2',
+      evaluatorVersion: 'deterministic-contract-v2',
+      confidence: 'fixture',
+    }
+    // 理由争议：整题转人工复核，不给任何目标写 met（26 号 N1 验收）
+    if (reasonAmbiguous) return { status: 'disputed', evaluation: { ...evaluation, reason: 'NEGATION_AMBIGUOUS' } }
+    return { status: 'evaluated', evaluation }
+  }
   const relScans = c.relations.map((r) => {
     let hit = false
     let present = 0
@@ -219,6 +260,7 @@ export function evaluateAttempt(activity, response) {
     certification, // 'keyword'：开放文本词表匹配——练习反馈可以，掌握证据不行（R3）
     keywordOnly: certification === 'keyword',
     evaluator: 'deterministic-contract-v1',
+    evaluatorVersion: 'deterministic-contract-v1',
     confidence: 'fixture', // 开发合同，不是校准过的评分器
   }
   // 双否定类歧义：机器定不了极性 → 争议待复核，不硬判对错（也不写正分证据）
@@ -304,6 +346,14 @@ export function recordAttempt(accountId, payload = {}) {
       throw new ApiError(400, 'LISTENING_PLAYBACK_REQUIRED: 先播放音频再作答（未播放不产生听力证据）')
     }
   }
+  // D0-1（27 号/N1）：封闭槽位题只收结构化 answers（slotId→选项代号）。
+  // 文本提交在这里拒绝（不入库、不给练习分），不再有"在句子里搜代号"的后门。
+  if (activity.evaluationContract?.slots) {
+    const ans = payload.response?.answers
+    if (!ans || typeof ans !== 'object' || Array.isArray(ans)) {
+      throw new ApiError(400, 'CLOSED_STRUCTURED_REQUIRED: 该活动为逐槽封闭题，请按槽提交 answers（slotId→选项代号）')
+    }
+  }
   const disputedSet = disputedActivities(accountId)
 
   let evaluation, evalStatus
@@ -311,7 +361,11 @@ export function recordAttempt(accountId, payload = {}) {
     evalStatus = 'disputed'
     evaluation = { reason: 'ACTIVITY_DISPUTED', evaluator: null }
   } else {
-    const r = evaluateAttempt(activity, responseText)
+    // D0-1：结构化槽位作答要连同 answers 一起进判题器（text 单独传会丢逐槽选择）
+    const responseForEval = payload.response && typeof payload.response === 'object'
+      ? { text: responseText, answers: payload.response.answers ?? null }
+      : responseText
+    const r = evaluateAttempt(activity, responseForEval)
     evaluation = r.evaluation
     evalStatus = r.status
     if (conditions.transcriptReliability === 'low') { // 转写低置信：争议，不扣能力（13 §6/A6）
@@ -329,7 +383,11 @@ export function recordAttempt(accountId, payload = {}) {
   ).run(
     accountId, attemptId, String(payload.sessionId || ''), activity.activityId, activity.version,
     JSON.stringify(activity.objectiveIds), activity.taskFamilyId, activity.role, activity.responseKind,
-    JSON.stringify({ kind: payload.response?.kind ?? 'text', text: responseText, mediaId: payload.response?.mediaId ?? null }),
+    JSON.stringify({
+      kind: payload.response?.kind ?? 'text', text: responseText,
+      answers: payload.response?.answers ?? null, // D0-1：结构化槽位作答原样留档（可追溯）
+      mediaId: payload.response?.mediaId ?? null,
+    }),
     JSON.stringify(effectiveConditions), evalStatus, JSON.stringify(evaluation),
     evalStatus === 'disputed' ? (evaluation?.reason ?? 'DISPUTED') : null, hash, ts,
   )
@@ -378,6 +436,8 @@ function attemptResult(conn, accountId, row, activity) {
     // F4/21§1：逐目标结果 met/partial/unmet/unmeasured/disputed —— 未问的目标就是 unmeasured
     objectiveResults: isHoldout ? undefined : (evaluation?.objectiveResults ?? undefined),
     dimensions: isHoldout ? undefined : (evaluation?.relations ?? undefined),
+    // D0-1：逐槽结果（correct/wrong/missing/multiple/invalid）——holdout 不泄露哪槽对
+    slotResults: isHoldout ? undefined : (evaluation?.slotResults ?? undefined),
     mustNotViolations: isHoldout ? undefined : evaluation?.mustNotViolations,
     // R3：keyword-only（开放文本词表）——前端要明示"练习反馈，不计入能力记录"
     practiceOnly: evaluation?.keywordOnly === true,

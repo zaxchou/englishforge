@@ -138,6 +138,27 @@
 }
 .v4-hint { color: #c9d96a; font-size: 13px !important; }
 
+/* D0-1：封闭槽位题——逐空选项按钮 */
+.v4-slots { display: flex; flex-direction: column; gap: 8px; }
+.v4-slot { display: flex; flex-direction: column; gap: 4px; }
+.v4-slot > span { font-size: 13px; color: var(--ink-dim, #9a9aa2); }
+.v4-slot-opts { display: flex; gap: 6px; flex-wrap: wrap; }
+.v4-opt {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--ink, #ececf1);
+  border: 1px solid var(--line, #2a2a31);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.v4-opt.on {
+  background: var(--accent, #cef34e);
+  color: #101013;
+  font-weight: 700;
+  border-color: var(--accent, #cef34e);
+}
+
 .v4-act { border-top: 1px dashed var(--line, #2a2a31); padding-top: 12px; display: flex; flex-direction: column; gap: 8px; }
 .v4-act-head { display: flex; gap: 10px; align-items: center; }
 .v4-act-foot { display: flex; gap: 12px; align-items: center; }
