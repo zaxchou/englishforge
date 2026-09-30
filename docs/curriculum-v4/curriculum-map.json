@@ -1,0 +1,2590 @@
+{
+  "version": "4.0-design-2026-09-30",
+  "runtime": false,
+  "note": "设计规格。复杂度不是必修顺序；前置是相关概念证据，不要求该单元全部四技能通过。来源是范围对照，未逐项核验正文。",
+  "units": [
+    {
+      "id": "U01",
+      "complexity_band": 1,
+      "title": "表达的组合单位",
+      "prerequisites": [],
+      "transcript_anchors": [
+        "C01",
+        "C07",
+        "C08",
+        "C12"
+      ],
+      "reference_scope": [
+        "CGEL-1",
+        "CGEL-2",
+        "CGEL-4"
+      ],
+      "knowledge": [
+        {
+          "id": "K001",
+          "title": "词类与职能",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K002",
+          "title": "短语中心和边界",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K003",
+          "title": "分句主干与参与者",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "说明自己项目里谁对什么做了什么",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U02",
+      "complexity_band": 1,
+      "title": "熟词的声音识别",
+      "prerequisites": [],
+      "transcript_anchors": [
+        "P03",
+        "C02",
+        "C04"
+      ],
+      "reference_scope": [
+        "PH"
+      ],
+      "knowledge": [
+        {
+          "id": "K004",
+          "title": "音素对比和词典音频",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K005",
+          "title": "音节重音与拼写线索",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K006",
+          "title": "声音到含义匹配",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "辨认陌生说话者读出的已知词",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U03",
+      "complexity_band": 1,
+      "title": "连续语流",
+      "prerequisites": [
+        "U02"
+      ],
+      "transcript_anchors": [
+        "C02"
+      ],
+      "reference_scope": [
+        "PH"
+      ],
+      "knowledge": [
+        {
+          "id": "K007",
+          "title": "弱读连读省音",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K008",
+          "title": "语调分组与句重音",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K009",
+          "title": "缩约形式和词界",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "无字幕跟住短对话并定位漏听处",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U04",
+      "complexity_band": 1,
+      "title": "动词需要哪些参与者",
+      "prerequisites": [
+        "U01"
+      ],
+      "transcript_anchors": [
+        "C10",
+        "C12"
+      ],
+      "reference_scope": [
+        "CGEL-4"
+      ],
+      "knowledge": [
+        {
+          "id": "K010",
+          "title": "及物与不及物",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K011",
+          "title": "系词和宾语补足",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K012",
+          "title": "双宾语与必需介词补足",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "选用give、explain、put等不同结构",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U05",
+      "complexity_band": 1,
+      "title": "事物与数量",
+      "prerequisites": [
+        "U01"
+      ],
+      "transcript_anchors": [
+        "C07",
+        "C08"
+      ],
+      "reference_scope": [
+        "CGEL-5"
+      ],
+      "knowledge": [
+        {
+          "id": "K013",
+          "title": "可数性及语境转义",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K014",
+          "title": "单复数集合与度量",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K015",
+          "title": "部分量数词和数量表达",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "说清设备材料数据费用",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U06",
+      "complexity_band": 1,
+      "title": "指出是哪一个",
+      "prerequisites": [
+        "U05"
+      ],
+      "transcript_anchors": [
+        "C08"
+      ],
+      "reference_scope": [
+        "CGEL-5"
+      ],
+      "knowledge": [
+        {
+          "id": "K016",
+          "title": "a/the/零冠词",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K017",
+          "title": "泛指特指类指",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K018",
+          "title": "限定词量词组合和范围",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "介绍并再次指回某个项目",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U07",
+      "complexity_band": 1,
+      "title": "人物与物体的指代",
+      "prerequisites": [
+        "U01",
+        "U05"
+      ],
+      "transcript_anchors": [
+        "C07",
+        "C08",
+        "C18"
+      ],
+      "reference_scope": [
+        "CGEL-5",
+        "CGEL-17"
+      ],
+      "knowledge": [
+        {
+          "id": "K019",
+          "title": "人称格与物主形式",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K020",
+          "title": "反身相互和强调",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K021",
+          "title": "指示不定代词与单数they",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "跨句追踪人物及所属关系",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U08",
+      "complexity_band": 1,
+      "title": "主干与动词配合",
+      "prerequisites": [
+        "U04",
+        "U05",
+        "U07"
+      ],
+      "transcript_anchors": [
+        "C07",
+        "C09"
+      ],
+      "reference_scope": [
+        "CGEL-3",
+        "CGEL-18"
+      ],
+      "knowledge": [
+        {
+          "id": "K022",
+          "title": "限定与非限定动词组",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K023",
+          "title": "一致及规则词尾",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K024",
+          "title": "不规则变化与助动词位置",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "保留必要动词信息并辨认谓语动词组",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U09",
+      "complexity_band": 1,
+      "title": "属性描述",
+      "prerequisites": [
+        "U05",
+        "U06"
+      ],
+      "transcript_anchors": [
+        "C08",
+        "C12"
+      ],
+      "reference_scope": [
+        "CGEL-6"
+      ],
+      "knowledge": [
+        {
+          "id": "K025",
+          "title": "形容词位置与表语",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K026",
+          "title": "补足与可分级性",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K027",
+          "title": "多修饰语顺序和范围",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "描述装置外观功能和适用对象",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U10",
+      "complexity_band": 1,
+      "title": "方式频率与立场",
+      "prerequisites": [
+        "U04",
+        "U09"
+      ],
+      "transcript_anchors": [
+        "C07",
+        "C08",
+        "C12"
+      ],
+      "reference_scope": [
+        "CGEL-6",
+        "CGEL-8"
+      ],
+      "knowledge": [
+        {
+          "id": "K028",
+          "title": "形副区别与同形",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K029",
+          "title": "方式频率程度位置",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K030",
+          "title": "句子副词和焦点副词",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "区分说话者判断与动作方式",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U11",
+      "complexity_band": 1,
+      "title": "介词与关系",
+      "prerequisites": [
+        "U01",
+        "U05"
+      ],
+      "transcript_anchors": [
+        "C06",
+        "C08"
+      ],
+      "reference_scope": [
+        "CGEL-7"
+      ],
+      "knowledge": [
+        {
+          "id": "K031",
+          "title": "空间路径时间",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K032",
+          "title": "介词补足及固定关系",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K033",
+          "title": "小品词与介词",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "说明路线安排及依赖关系",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U12",
+      "complexity_band": 1,
+      "title": "提问与否定",
+      "prerequisites": [
+        "U04",
+        "U08"
+      ],
+      "transcript_anchors": [
+        "C12",
+        "C16"
+      ],
+      "reference_scope": [
+        "CGEL-9",
+        "CGEL-10"
+      ],
+      "knowledge": [
+        {
+          "id": "K034",
+          "title": "倒装与do支撑",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K035",
+          "title": "主语问句和选择问句",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K036",
+          "title": "否定短答和否定祈使",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "询问并核对别人做了什么",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U13",
+      "complexity_band": 2,
+      "title": "现在与当前变化",
+      "prerequisites": [
+        "U08",
+        "U10"
+      ],
+      "transcript_anchors": [
+        "C10",
+        "C11"
+      ],
+      "reference_scope": [
+        "CGEL-3"
+      ],
+      "knowledge": [
+        {
+          "id": "K037",
+          "title": "一般现在",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K038",
+          "title": "进行体的取景",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K039",
+          "title": "状态动词的语境读法",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "说明长期方向与当前工作",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U14",
+      "complexity_band": 2,
+      "title": "过去的事情",
+      "prerequisites": [
+        "U13"
+      ],
+      "transcript_anchors": [
+        "C11"
+      ],
+      "reference_scope": [
+        "CGEL-3"
+      ],
+      "knowledge": [
+        {
+          "id": "K040",
+          "title": "一次与重复的过去事件",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K041",
+          "title": "过去进行与背景",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K042",
+          "title": "used to和would",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "讲一次项目失败及背景",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U15",
+      "complexity_band": 2,
+      "title": "未来安排",
+      "prerequisites": [
+        "U13",
+        "U12"
+      ],
+      "transcript_anchors": [
+        "C11"
+      ],
+      "reference_scope": [
+        "CGEL-3"
+      ],
+      "knowledge": [
+        {
+          "id": "K043",
+          "title": "will与going to",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K044",
+          "title": "现在形式谈未来",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K045",
+          "title": "将来进行和be to/about to",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "区分安排预测承诺和临时决定",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U16",
+      "complexity_band": 2,
+      "title": "过去关联当前",
+      "prerequisites": [
+        "U14"
+      ],
+      "transcript_anchors": [
+        "C11"
+      ],
+      "reference_scope": [
+        "CGEL-3"
+      ],
+      "knowledge": [
+        {
+          "id": "K046",
+          "title": "现在完成经验与结果",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K047",
+          "title": "持续状态for/since",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K048",
+          "title": "完成与已结束过去时间",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "回答做过什么多久以及何时做",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U17",
+      "complexity_band": 2,
+      "title": "过程结果参照点",
+      "prerequisites": [
+        "U16",
+        "U13"
+      ],
+      "transcript_anchors": [
+        "C11"
+      ],
+      "reference_scope": [
+        "CGEL-3"
+      ],
+      "knowledge": [
+        {
+          "id": "K049",
+          "title": "完成简单与完成进行",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K050",
+          "title": "过去完成",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K051",
+          "title": "将来完成及持续到未来",
+          "verification": "designed_not_leaf_source_verified",
+          "extra_prerequisites": [
+            "U15"
+          ]
+        }
+      ],
+      "exit_task": "汇报结果数量过程与先后",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U18",
+      "complexity_band": 2,
+      "title": "整段时间线",
+      "prerequisites": [
+        "U14",
+        "U15",
+        "U17"
+      ],
+      "transcript_anchors": [
+        "C11"
+      ],
+      "reference_scope": [
+        "CGEL-3",
+        "CGEL-11"
+      ],
+      "knowledge": [
+        {
+          "id": "K052",
+          "title": "叙事锚点",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K053",
+          "title": "过去视角的将来",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K054",
+          "title": "时态配合和历史现在",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "让听者复原项目经过",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U19",
+      "complexity_band": 2,
+      "title": "能力许可义务建议",
+      "prerequisites": [
+        "U12",
+        "U13"
+      ],
+      "transcript_anchors": [
+        "C14",
+        "C17"
+      ],
+      "reference_scope": [
+        "CGEL-3"
+      ],
+      "knowledge": [
+        {
+          "id": "K055",
+          "title": "can与be able to",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K056",
+          "title": "must/have to/need及否定",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K057",
+          "title": "should/ought to/had better",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "分清不能无需必须和最好",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U20",
+      "complexity_band": 2,
+      "title": "可能与推断",
+      "prerequisites": [
+        "U13",
+        "U19"
+      ],
+      "transcript_anchors": [
+        "C17"
+      ],
+      "reference_scope": [
+        "CGEL-3"
+      ],
+      "knowledge": [
+        {
+          "id": "K058",
+          "title": "情态推断",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K059",
+          "title": "不确定与不可能",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K060",
+          "title": "立场强度与程度副词",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "讨论AI结果可信度",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U21",
+      "complexity_band": 2,
+      "title": "过去可能与遗憾",
+      "prerequisites": [
+        "U17",
+        "U20"
+      ],
+      "transcript_anchors": [
+        "C17"
+      ],
+      "reference_scope": [
+        "CGEL-3"
+      ],
+      "knowledge": [
+        {
+          "id": "K061",
+          "title": "情态完成",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K062",
+          "title": "本可本应与事实",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K063",
+          "title": "情态进行完成被动组合",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "解释当时可能发生和应采取的行动",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U22",
+      "complexity_band": 2,
+      "title": "要求与澄清",
+      "prerequisites": [
+        "U12",
+        "U19"
+      ],
+      "transcript_anchors": [
+        "C12",
+        "C17"
+      ],
+      "reference_scope": [
+        "CGEL-10",
+        "PH"
+      ],
+      "knowledge": [
+        {
+          "id": "K064",
+          "title": "礼貌请求",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K065",
+          "title": "反意回声负问句",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K066",
+          "title": "祈使感叹祝愿与语调",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "请老师解释并确认理解",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U23",
+      "complexity_band": 2,
+      "title": "受影响对象视角",
+      "prerequisites": [
+        "U04",
+        "U08",
+        "U14"
+      ],
+      "transcript_anchors": [
+        "C14"
+      ],
+      "reference_scope": [
+        "CGEL-3",
+        "CGEL-4",
+        "CGEL-16"
+      ],
+      "knowledge": [
+        {
+          "id": "K067",
+          "title": "主动被动语义角色",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K068",
+          "title": "被动和施事省略",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K069",
+          "title": "动作被动与状态",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "说明装置如何使用和损坏",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U24",
+      "complexity_band": 2,
+      "title": "被动进入研究叙述",
+      "prerequisites": [
+        "U23",
+        "U17",
+        "U19"
+      ],
+      "transcript_anchors": [
+        "C14"
+      ],
+      "reference_scope": [
+        "CGEL-3",
+        "CGEL-4",
+        "CGEL-16"
+      ],
+      "knowledge": [
+        {
+          "id": "K070",
+          "title": "双宾语介词get被动",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K071",
+          "title": "复合动词组的被动",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K072",
+          "title": "报道被动和自然度边界",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "保留含义与焦点改写研究说明",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U25",
+      "complexity_band": 3,
+      "title": "平行连接",
+      "prerequisites": [
+        "U01",
+        "U12"
+      ],
+      "transcript_anchors": [
+        "C15",
+        "C18"
+      ],
+      "reference_scope": [
+        "CGEL-15",
+        "CGEL-20"
+      ],
+      "knowledge": [
+        {
+          "id": "K073",
+          "title": "词短语分句并列",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K074",
+          "title": "连词与连接副词",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K075",
+          "title": "协调范围标点和共享成分",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "把观点连成有逻辑的表达",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U26",
+      "complexity_band": 3,
+      "title": "事件嵌入事件",
+      "prerequisites": [
+        "U04",
+        "U08"
+      ],
+      "transcript_anchors": [
+        "C13"
+      ],
+      "reference_scope": [
+        "CGEL-14"
+      ],
+      "knowledge": [
+        {
+          "id": "K076",
+          "title": "ing事件与to结构",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K077",
+          "title": "动词名词化与非限定分句",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K078",
+          "title": "非限定主语与否定范围",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "谈活动计划及避免的行为",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U27",
+      "complexity_band": 3,
+      "title": "动词补足选择",
+      "prerequisites": [
+        "U26"
+      ],
+      "transcript_anchors": [
+        "C03",
+        "C06",
+        "C13"
+      ],
+      "reference_scope": [
+        "CGEL-4",
+        "CGEL-14"
+      ],
+      "knowledge": [
+        {
+          "id": "K079",
+          "title": "只接ing或to",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K080",
+          "title": "两者异同及stop/remember/try",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K081",
+          "title": "介词to与不定式to",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "按语境和用法选择补足",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U28",
+      "complexity_band": 3,
+      "title": "谁真正去做",
+      "prerequisites": [
+        "U27",
+        "U07"
+      ],
+      "transcript_anchors": [
+        "C13"
+      ],
+      "reference_scope": [
+        "CGEL-4",
+        "CGEL-14"
+      ],
+      "knowledge": [
+        {
+          "id": "K082",
+          "title": "宾语加不定式",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K083",
+          "title": "控制与提升",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K084",
+          "title": "感官使役裸不定式和被动",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "理解promise/ask/seem等不同参与者",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U29",
+      "complexity_band": 3,
+      "title": "不定式的扩展",
+      "prerequisites": [
+        "U27",
+        "U17",
+        "U23"
+      ],
+      "transcript_anchors": [
+        "C13"
+      ],
+      "reference_scope": [
+        "CGEL-14"
+      ],
+      "knowledge": [
+        {
+          "id": "K085",
+          "title": "完成进行被动不定式",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K086",
+          "title": "for主语及wh不定式",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K087",
+          "title": "目的结果与名形补足",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "解释设计目的及结果",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U30",
+      "complexity_band": 3,
+      "title": "分词补充信息",
+      "prerequisites": [
+        "U26",
+        "U23",
+        "U14"
+      ],
+      "transcript_anchors": [
+        "C13",
+        "C18"
+      ],
+      "reference_scope": [
+        "CGEL-14"
+      ],
+      "knowledge": [
+        {
+          "id": "K088",
+          "title": "分词修饰",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K089",
+          "title": "附加语逻辑主语",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K090",
+          "title": "完成被动分词与悬垂",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "压缩事件并保持施受关系",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U31",
+      "complexity_band": 3,
+      "title": "独立参与者与无动词表达",
+      "prerequisites": [
+        "U30",
+        "U11"
+      ],
+      "transcript_anchors": [
+        "C18"
+      ],
+      "reference_scope": [
+        "CGEL-14"
+      ],
+      "knowledge": [
+        {
+          "id": "K091",
+          "title": "独立主格及with结构",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K092",
+          "title": "无动词附加语",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K093",
+          "title": "与完整从句的替换边界",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "按清晰度选择展开或压缩",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U32",
+      "complexity_band": 3,
+      "title": "把判断作为内容",
+      "prerequisites": [
+        "U01",
+        "U08"
+      ],
+      "transcript_anchors": [
+        "C15"
+      ],
+      "reference_scope": [
+        "CGEL-11"
+      ],
+      "knowledge": [
+        {
+          "id": "K094",
+          "title": "that从句的位置",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K095",
+          "title": "引导词省略",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K096",
+          "title": "内容作主宾表",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "区分外层主张与内层事实",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U33",
+      "complexity_band": 3,
+      "title": "嵌入问题",
+      "prerequisites": [
+        "U12",
+        "U32"
+      ],
+      "transcript_anchors": [
+        "C15",
+        "C16"
+      ],
+      "reference_scope": [
+        "CGEL-11"
+      ],
+      "knowledge": [
+        {
+          "id": "K097",
+          "title": "嵌入问句语序",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K098",
+          "title": "whether/if/wh",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K099",
+          "title": "主语wh与层级提问",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "礼貌询问并说明不确定点",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U34",
+      "complexity_band": 3,
+      "title": "准确转述",
+      "prerequisites": [
+        "U18",
+        "U32",
+        "U33"
+      ],
+      "transcript_anchors": [
+        "C15",
+        "C16"
+      ],
+      "reference_scope": [
+        "CGEL-11",
+        "CGEL-17"
+      ],
+      "knowledge": [
+        {
+          "id": "K100",
+          "title": "直接间接引语",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K101",
+          "title": "回溯时态和例外",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K102",
+          "title": "报告动词及指代变化",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "转述老师意见并保留态度时间",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U35",
+      "complexity_band": 3,
+      "title": "名词容纳命题",
+      "prerequisites": [
+        "U06",
+        "U32"
+      ],
+      "transcript_anchors": [
+        "C15",
+        "C18"
+      ],
+      "reference_scope": [
+        "CGEL-5",
+        "CGEL-11",
+        "CGEL-15"
+      ],
+      "knowledge": [
+        {
+          "id": "K103",
+          "title": "名词补足与同位",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K104",
+          "title": "内容that与关系that",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K105",
+          "title": "补充说明和标点",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "区分观点的内容与哪个观点",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U36",
+      "complexity_band": 3,
+      "title": "从句锁定对象",
+      "prerequisites": [
+        "U01",
+        "U07",
+        "U08"
+      ],
+      "transcript_anchors": [
+        "C15"
+      ],
+      "reference_scope": [
+        "CGEL-12"
+      ],
+      "knowledge": [
+        {
+          "id": "K106",
+          "title": "修饰对象和空位",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K107",
+          "title": "who/which/that",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K108",
+          "title": "主语宾语关系",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "准确指认参与者和作品",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U37",
+      "complexity_band": 4,
+      "title": "关系从句中的关系",
+      "prerequisites": [
+        "U36",
+        "U11"
+      ],
+      "transcript_anchors": [
+        "C15"
+      ],
+      "reference_scope": [
+        "CGEL-12"
+      ],
+      "knowledge": [
+        {
+          "id": "K109",
+          "title": "where/when/why",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K110",
+          "title": "介词前置滞留",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K111",
+          "title": "whose所属",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "说明时间地点工具和所属",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U38",
+      "complexity_band": 4,
+      "title": "限定还是补充",
+      "prerequisites": [
+        "U36",
+        "U25"
+      ],
+      "transcript_anchors": [
+        "C15"
+      ],
+      "reference_scope": [
+        "CGEL-12",
+        "CGEL-15",
+        "CGEL-20"
+      ],
+      "knowledge": [
+        {
+          "id": "K112",
+          "title": "限制与非限制",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K113",
+          "title": "关系词省略",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K114",
+          "title": "整句which",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "用标点停顿区分筛选和补充",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U39",
+      "complexity_band": 4,
+      "title": "嵌套与长距离",
+      "prerequisites": [
+        "U36",
+        "U33"
+      ],
+      "transcript_anchors": [
+        "C15",
+        "C18"
+      ],
+      "reference_scope": [
+        "CGEL-12",
+        "CGEL-14"
+      ],
+      "knowledge": [
+        {
+          "id": "K115",
+          "title": "嵌套及依赖距离",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K116",
+          "title": "融合关系what/whatever",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K117",
+          "title": "非限定关系与长距离空位",
+          "verification": "designed_not_leaf_source_verified",
+          "extra_prerequisites": [
+            "U30"
+          ]
+        }
+      ],
+      "exit_task": "复杂修饰中保持主线",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U40",
+      "complexity_band": 4,
+      "title": "时间关系",
+      "prerequisites": [
+        "U18",
+        "U25"
+      ],
+      "transcript_anchors": [
+        "C15"
+      ],
+      "reference_scope": [
+        "CGEL-8"
+      ],
+      "knowledge": [
+        {
+          "id": "K118",
+          "title": "when/while/as",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K119",
+          "title": "before/after/until/since",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K120",
+          "title": "未来时间从句及省略",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "复述先后同时与截止边界",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U41",
+      "complexity_band": 4,
+      "title": "原因目的结果",
+      "prerequisites": [
+        "U25",
+        "U12"
+      ],
+      "transcript_anchors": [
+        "C15"
+      ],
+      "reference_scope": [
+        "CGEL-8"
+      ],
+      "knowledge": [
+        {
+          "id": "K121",
+          "title": "原因及证据",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K122",
+          "title": "目的",
+          "verification": "designed_not_leaf_source_verified",
+          "extra_prerequisites": [
+            "U29"
+          ]
+        },
+        {
+          "id": "K123",
+          "title": "结果与程度",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "解释设计决策并区分意图和结果",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U42",
+      "complexity_band": 4,
+      "title": "开放条件",
+      "prerequisites": [
+        "U15",
+        "U25"
+      ],
+      "transcript_anchors": [
+        "C17"
+      ],
+      "reference_scope": [
+        "CGEL-8",
+        "CGEL-3"
+      ],
+      "knowledge": [
+        {
+          "id": "K124",
+          "title": "事实与开放未来条件",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K125",
+          "title": "unless/provided/as long as",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K126",
+          "title": "条件与时间及是否",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "说明方案条件与备选",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U43",
+      "complexity_band": 4,
+      "title": "遥远假设与反事实",
+      "prerequisites": [
+        "U42",
+        "U17",
+        "U21"
+      ],
+      "transcript_anchors": [
+        "C17"
+      ],
+      "reference_scope": [
+        "CGEL-3",
+        "CGEL-8"
+      ],
+      "knowledge": [
+        {
+          "id": "K127",
+          "title": "现在未来遥远假设",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K128",
+          "title": "过去反事实",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K129",
+          "title": "混合时间及隐含条件",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "比较未采用方案及后果",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U44",
+      "complexity_band": 4,
+      "title": "愿望与建议",
+      "prerequisites": [
+        "U43",
+        "U32",
+        "U19"
+      ],
+      "transcript_anchors": [
+        "C17"
+      ],
+      "reference_scope": [
+        "CGEL-3",
+        "CGEL-11"
+      ],
+      "knowledge": [
+        {
+          "id": "K130",
+          "title": "wish/hope/if only",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K131",
+          "title": "would rather/it's time/as if",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K132",
+          "title": "建议型原形及公式祝愿",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "区分希望遗憾正式要求",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U45",
+      "complexity_band": 4,
+      "title": "让步与限制",
+      "prerequisites": [
+        "U25",
+        "U42"
+      ],
+      "transcript_anchors": [
+        "C15"
+      ],
+      "reference_scope": [
+        "CGEL-8"
+      ],
+      "knowledge": [
+        {
+          "id": "K133",
+          "title": "although/though/even though",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K134",
+          "title": "even if",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K135",
+          "title": "despite及让步前置",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "回应质疑并保留适用条件",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U46",
+      "complexity_band": 4,
+      "title": "方式类比比例",
+      "prerequisites": [
+        "U11",
+        "U25"
+      ],
+      "transcript_anchors": [
+        "C15"
+      ],
+      "reference_scope": [
+        "CGEL-7",
+        "CGEL-8",
+        "CGEL-13"
+      ],
+      "knowledge": [
+        {
+          "id": "K136",
+          "title": "as/like/as if",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K137",
+          "title": "whereas/while对照",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K138",
+          "title": "比例与the more…the more",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "对比交互方式并限制类比",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U47",
+      "complexity_band": 4,
+      "title": "比较与程度",
+      "prerequisites": [
+        "U09",
+        "U06"
+      ],
+      "transcript_anchors": [
+        "C07",
+        "C09",
+        "C18"
+      ],
+      "reference_scope": [
+        "CGEL-6",
+        "CGEL-13"
+      ],
+      "knowledge": [
+        {
+          "id": "K139",
+          "title": "比较最高级与修饰",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K140",
+          "title": "as/than及数量比较",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K141",
+          "title": "比较省略平行和歧义",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "按一致标准比较方案",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U48",
+      "complexity_band": 4,
+      "title": "否定与量词范围",
+      "prerequisites": [
+        "U12",
+        "U06",
+        "U20",
+        "U32"
+      ],
+      "transcript_anchors": [
+        "C13"
+      ],
+      "reference_scope": [
+        "CGEL-9"
+      ],
+      "knowledge": [
+        {
+          "id": "K142",
+          "title": "not all与all…not",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K143",
+          "title": "never/hardly和极性",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K144",
+          "title": "否定提升对比与歧义",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "不把结论在复述中反转",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U49",
+      "complexity_band": 5,
+      "title": "组织新旧信息",
+      "prerequisites": [
+        "U25",
+        "U32",
+        "U38"
+      ],
+      "transcript_anchors": [
+        "C12",
+        "C14",
+        "C16"
+      ],
+      "reference_scope": [
+        "CGEL-16"
+      ],
+      "knowledge": [
+        {
+          "id": "K145",
+          "title": "话题焦点新旧",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K146",
+          "title": "句末重心与长成分",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K147",
+          "title": "语序和重音",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "按问答背景组织同一事实",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U50",
+      "complexity_band": 5,
+      "title": "存现与形式成分",
+      "prerequisites": [
+        "U32",
+        "U29",
+        "U49"
+      ],
+      "transcript_anchors": [
+        "C16"
+      ],
+      "reference_scope": [
+        "CGEL-4",
+        "CGEL-16"
+      ],
+      "knowledge": [
+        {
+          "id": "K148",
+          "title": "存在与地点there",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K149",
+          "title": "天气时间形式it",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K150",
+          "title": "外置和预备宾语it",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "介绍问题评估困难并分清指代",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U51",
+      "complexity_band": 5,
+      "title": "有条件的倒装",
+      "prerequisites": [
+        "U12",
+        "U48",
+        "U49"
+      ],
+      "transcript_anchors": [
+        "C16"
+      ],
+      "reference_scope": [
+        "CGEL-16"
+      ],
+      "knowledge": [
+        {
+          "id": "K151",
+          "title": "否定与only状语",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K152",
+          "title": "地点方向引语倒装",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K153",
+          "title": "条件倒装和so/neither",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "理解变式并避免滥用倒装",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U52",
+      "complexity_band": 5,
+      "title": "精确聚焦",
+      "prerequisites": [
+        "U32",
+        "U49"
+      ],
+      "transcript_anchors": [
+        "C16"
+      ],
+      "reference_scope": [
+        "CGEL-16"
+      ],
+      "knowledge": [
+        {
+          "id": "K154",
+          "title": "it分裂句",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K155",
+          "title": "wh伪分裂",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K156",
+          "title": "前后话题与强调do",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "纠正误解并指出真正分歧",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U53",
+      "complexity_band": 5,
+      "title": "恢复未说出的信息",
+      "prerequisites": [
+        "U25",
+        "U08",
+        "U33"
+      ],
+      "transcript_anchors": [
+        "C18"
+      ],
+      "reference_scope": [
+        "CGEL-15",
+        "CGEL-17"
+      ],
+      "knowledge": [
+        {
+          "id": "K157",
+          "title": "助动词和to后省略",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K158",
+          "title": "协调及比较缺省",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K159",
+          "title": "片段回答与恢复条件",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "按上下文还原而不臆造内容",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U54",
+      "complexity_band": 5,
+      "title": "跨句衔接",
+      "prerequisites": [
+        "U07",
+        "U53"
+      ],
+      "transcript_anchors": [
+        "C18"
+      ],
+      "reference_scope": [
+        "CGEL-17"
+      ],
+      "knowledge": [
+        {
+          "id": "K160",
+          "title": "one/do so/so/not替代",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K161",
+          "title": "跨句前指与歧义",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K162",
+          "title": "时间地点人称视角",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "追踪多方对话并澄清模糊指代",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U55",
+      "complexity_band": 5,
+      "title": "学术压缩与展开",
+      "prerequisites": [
+        "U30",
+        "U35",
+        "U49"
+      ],
+      "transcript_anchors": [
+        "C18"
+      ],
+      "reference_scope": [
+        "CGEL-5",
+        "CGEL-14",
+        "CGEL-19"
+      ],
+      "knowledge": [
+        {
+          "id": "K163",
+          "title": "动作名词化与施受隐藏",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K164",
+          "title": "补足与名词串",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K165",
+          "title": "压缩展开和可读性",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "读懂密集表达并写清楚摘要",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U56",
+      "complexity_band": 5,
+      "title": "复杂名词短语",
+      "prerequisites": [
+        "U06",
+        "U09",
+        "U35",
+        "U38"
+      ],
+      "transcript_anchors": [
+        "C08",
+        "C12",
+        "C15"
+      ],
+      "reference_scope": [
+        "CGEL-5",
+        "CGEL-6"
+      ],
+      "knowledge": [
+        {
+          "id": "K166",
+          "title": "层叠修饰和附着",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K167",
+          "title": "属格of与双重属格",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K168",
+          "title": "限定组合中心省略和名词化形容词",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "找到复杂主语中心与各层修饰",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U57",
+      "complexity_band": 5,
+      "title": "复杂一致与格",
+      "prerequisites": [
+        "U08",
+        "U25",
+        "U56"
+      ],
+      "transcript_anchors": [
+        "C07",
+        "C09"
+      ],
+      "reference_scope": [
+        "CGEL-5",
+        "CGEL-18"
+      ],
+      "knowledge": [
+        {
+          "id": "K169",
+          "title": "长距离一致与干扰",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K170",
+          "title": "集合和意义一致",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K171",
+          "title": "并列存现比例及变体",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "区别自然变体和实际错误",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U58",
+      "complexity_band": 5,
+      "title": "词族与构词边界",
+      "prerequisites": [
+        "U01",
+        "U05",
+        "U09"
+      ],
+      "transcript_anchors": [
+        "C03",
+        "C04",
+        "C05",
+        "C09"
+      ],
+      "reference_scope": [
+        "CGEL-18",
+        "CGEL-19"
+      ],
+      "knowledge": [
+        {
+          "id": "K172",
+          "title": "屈折派生转换复合",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K173",
+          "title": "词缀重音及限制",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K174",
+          "title": "多义同形异义和词源证据",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "推测后核对用法",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U59",
+      "complexity_band": 5,
+      "title": "书写呈现结构",
+      "prerequisites": [
+        "U25",
+        "U38",
+        "U35"
+      ],
+      "transcript_anchors": [
+        "C09",
+        "C12"
+      ],
+      "reference_scope": [
+        "CGEL-20"
+      ],
+      "knowledge": [
+        {
+          "id": "K175",
+          "title": "句界和逗号拼接",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K176",
+          "title": "分号冒号破折号引语",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K177",
+          "title": "大小写撇号拼写连字符",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "编辑邮件与项目文本",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U60",
+      "complexity_band": 5,
+      "title": "语域与变体",
+      "prerequisites": [
+        "U22",
+        "U34",
+        "U49"
+      ],
+      "transcript_anchors": [
+        "C17",
+        "C18"
+      ],
+      "reference_scope": [
+        "VAR"
+      ],
+      "knowledge": [
+        {
+          "id": "K178",
+          "title": "口语书面正式程度",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K179",
+          "title": "美英差异及可接受变体",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K180",
+          "title": "话语标记与口语片段",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "向同学导师分别表达同一要求",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U61",
+      "complexity_band": 1,
+      "title": "Chunks的主动调用",
+      "prerequisites": [
+        "U01",
+        "U02"
+      ],
+      "transcript_anchors": [
+        "C03",
+        "C05",
+        "C06"
+      ],
+      "reference_scope": [
+        "LEX"
+      ],
+      "knowledge": [
+        {
+          "id": "K181",
+          "title": "声音语境整块意义",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K182",
+          "title": "固定和可替换槽位",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K183",
+          "title": "搭配小品词习语与检索",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "在新场景脱稿调用并调整语块",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U62",
+      "complexity_band": 4,
+      "title": "跟住讲授",
+      "prerequisites": [
+        "U03",
+        "U39",
+        "U40",
+        "U41"
+      ],
+      "transcript_anchors": [
+        "C02",
+        "C15"
+      ],
+      "reference_scope": [
+        "CEFR"
+      ],
+      "knowledge": [
+        {
+          "id": "K184",
+          "title": "讲授信号和证据",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K185",
+          "title": "关系笔记",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K186",
+          "title": "漏听恢复及缺口诊断",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "复述新讲授的论点证据限制",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U63",
+      "complexity_band": 4,
+      "title": "阅读论证",
+      "prerequisites": [
+        "U35",
+        "U39",
+        "U45",
+        "U48"
+      ],
+      "transcript_anchors": [
+        "C15"
+      ],
+      "reference_scope": [
+        "CEFR"
+      ],
+      "knowledge": [
+        {
+          "id": "K187",
+          "title": "长句和指代链",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K188",
+          "title": "段落论证与隐含关系",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K189",
+          "title": "速度推断和查证",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "解释作者究竟支持什么",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U64",
+      "complexity_band": 3,
+      "title": "自主说明一件事",
+      "prerequisites": [
+        "U25",
+        "U41",
+        "U61"
+      ],
+      "transcript_anchors": [
+        "C12",
+        "C15"
+      ],
+      "reference_scope": [
+        "CEFR"
+      ],
+      "knowledge": [
+        {
+          "id": "K190",
+          "title": "无原稿检索释义",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K191",
+          "title": "步骤理由例子",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K192",
+          "title": "语音分组停顿修正",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "脱稿介绍作品并补充理由",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U65",
+      "complexity_band": 4,
+      "title": "互动协作",
+      "prerequisites": [
+        "U22",
+        "U33",
+        "U45",
+        "U64"
+      ],
+      "transcript_anchors": [
+        "C17"
+      ],
+      "reference_scope": [
+        "CEFR"
+      ],
+      "knowledge": [
+        {
+          "id": "K193",
+          "title": "轮次与插话",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K194",
+          "title": "回应异议追问",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K195",
+          "title": "复述确认协商",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "共同解决有信息差的任务",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U66",
+      "complexity_band": 3,
+      "title": "段落表达",
+      "prerequisites": [
+        "U25",
+        "U32",
+        "U41"
+      ],
+      "transcript_anchors": [
+        "C12",
+        "C15"
+      ],
+      "reference_scope": [
+        "CEFR"
+      ],
+      "knowledge": [
+        {
+          "id": "K196",
+          "title": "主题展开",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K197",
+          "title": "例证理由限制",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K198",
+          "title": "改写摘要和保留立场",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "修改后在新题中独立写一段",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U67",
+      "complexity_band": 5,
+      "title": "项目与研究写作",
+      "prerequisites": [
+        "U55",
+        "U60",
+        "U66"
+      ],
+      "transcript_anchors": [
+        "C15",
+        "C18"
+      ],
+      "reference_scope": [
+        "CEFR"
+      ],
+      "knowledge": [
+        {
+          "id": "K199",
+          "title": "摘要陈述邮件",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K200",
+          "title": "来源归属引用转述",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K201",
+          "title": "论证强度修订和读者",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "形成短项目提案",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U68",
+      "complexity_band": 2,
+      "title": "生活连续问答",
+      "prerequisites": [
+        "U03",
+        "U12",
+        "U22",
+        "U61"
+      ],
+      "transcript_anchors": [
+        "C02",
+        "C12",
+        "C17"
+      ],
+      "reference_scope": [
+        "CEFR"
+      ],
+      "knowledge": [
+        {
+          "id": "K202",
+          "title": "信息询问和限制",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K203",
+          "title": "数字日期姓名拼读",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K204",
+          "title": "局部澄清确认行动",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "完成预约或开户模拟对话",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U69",
+      "complexity_band": 5,
+      "title": "面试追问",
+      "prerequisites": [
+        "U18",
+        "U43",
+        "U64",
+        "U65"
+      ],
+      "transcript_anchors": [
+        "C17"
+      ],
+      "reference_scope": [
+        "CEFR"
+      ],
+      "knowledge": [
+        {
+          "id": "K205",
+          "title": "经历动机",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K206",
+          "title": "即时追问和未知问题",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K207",
+          "title": "表达限制回问修正",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "脱稿解释作品和选择",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U70",
+      "complexity_band": 5,
+      "title": "字面之外的含义",
+      "prerequisites": [
+        "U48",
+        "U54",
+        "U60"
+      ],
+      "transcript_anchors": [
+        "C05",
+        "C17"
+      ],
+      "reference_scope": [
+        "VAR",
+        "CEFR"
+      ],
+      "knowledge": [
+        {
+          "id": "K208",
+          "title": "预设隐含和语境",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K209",
+          "title": "委婉幽默语调",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K210",
+          "title": "特殊固定结构和语用",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "区分事实暗示与猜测",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U71",
+      "complexity_band": 6,
+      "title": "课堂到讨论到提案",
+      "prerequisites": [
+        "U62",
+        "U63",
+        "U65",
+        "U67",
+        "U69"
+      ],
+      "transcript_anchors": [
+        "C01",
+        "C15",
+        "C17",
+        "C18"
+      ],
+      "reference_scope": [
+        "CEFR"
+      ],
+      "knowledge": [
+        {
+          "id": "K211",
+          "title": "跨来源综合与中介",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K212",
+          "title": "定义问题证据取舍",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K213",
+          "title": "听说读写和突发变化",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "听读新材料讨论写提案并回答质疑",
+      "content_status": "specified_not_produced"
+    },
+    {
+      "id": "U72",
+      "complexity_band": 6,
+      "title": "全图回查与持续进阶",
+      "prerequisites": [
+        "U71",
+        "U21",
+        "U24",
+        "U31",
+        "U44",
+        "U46",
+        "U47",
+        "U50",
+        "U51",
+        "U52",
+        "U53",
+        "U56",
+        "U57",
+        "U58",
+        "U70"
+      ],
+      "transcript_anchors": [
+        "C01",
+        "C18"
+      ],
+      "reference_scope": [
+        "ALL"
+      ],
+      "knowledge": [
+        {
+          "id": "K214",
+          "title": "低频高级结构与变体",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K215",
+          "title": "分领域长期迁移",
+          "verification": "designed_not_leaf_source_verified"
+        },
+        {
+          "id": "K216",
+          "title": "真实材料新增知识",
+          "verification": "designed_not_leaf_source_verified"
+        }
+      ],
+      "exit_task": "完成全范围审计并持续拓展",
+      "content_status": "specified_not_produced"
+    }
+  ]
+}

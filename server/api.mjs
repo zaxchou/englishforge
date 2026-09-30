@@ -11,6 +11,7 @@ import {
   upsertCatalog, writeSnapshot, writeRunLog, getDb,
 } from './db.mjs'
 import { enrichCauses, rewriteQuestions, reviewQuestions } from './content-ai.mjs'
+import { V3_ROUTES } from './v3api.mjs'
 import { invalidateLlmConfig, llmStatus, DEFAULT_MODEL } from './llm.mjs'
 
 const MAX_BODY = 64 * 1024 * 1024   // 首次把浏览器里的整份进度搬进库时会有一次大包
@@ -24,6 +25,7 @@ export class HttpError extends Error {
 
 /** 路由表：pattern 用 :name 占位 */
 const ROUTES = [
+  ...V3_ROUTES,
   ['GET', '/api/health', () => ({ ok: true, ...dbInfo(), accounts: listAccounts(), time: Date.now() })],
 
   ['GET', '/api/accounts', () => ({ accounts: listAccounts() })],

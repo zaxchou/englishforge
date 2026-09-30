@@ -1,0 +1,170 @@
+[
+  {
+    "id": "P01",
+    "file": "01-先导片-1.md",
+    "characters": 1148,
+    "lines": 17,
+    "sha256": "691EB350DC8CF21A7B8BC09EC5884C6DE5358ED117700480E8B97EF26A0FEFA6",
+    "read_status": "full_text_read"
+  },
+  {
+    "id": "P02",
+    "file": "02-先导片-2.md",
+    "characters": 1174,
+    "lines": 16,
+    "sha256": "EC73AD34AF40144D60A85449AD61FF260095A3C464C83C3D52B99BA7FC37BE26",
+    "read_status": "full_text_read"
+  },
+  {
+    "id": "P03",
+    "file": "03-先导片-3.md",
+    "characters": 1004,
+    "lines": 15,
+    "sha256": "C5202BB0424C8C5A08BC456E150035A876E8A8FE818B660037ECCFFCDCB2DC85",
+    "read_status": "full_text_read"
+  },
+  {
+    "id": "C01",
+    "file": "04-第01课-英语到底学什么.md",
+    "characters": 15878,
+    "lines": 201,
+    "sha256": "0262BF4214AE6C376B693B6A3F4B1E5EC57B202A712AB1C87DEB764D7FF4FE7B",
+    "read_status": "full_text_read"
+  },
+  {
+    "id": "C02",
+    "file": "05-第02课-音标是唯一的发音标准.md",
+    "characters": 11655,
+    "lines": 149,
+    "sha256": "4B26549B0676FD7AE46129F30BDA9AF0E9F0CA0B697DA95F05986981AC61F61C",
+    "read_status": "full_text_read"
+  },
+  {
+    "id": "C03",
+    "file": "06-第03课-词源是背单词最快的方法.md",
+    "characters": 17179,
+    "lines": 218,
+    "sha256": "DA3B64C0DCDE00FE7E10D8746CF6D8DDB216D64AF743C679F7BAF2B6EBB822E6",
+    "read_status": "full_text_read"
+  },
+  {
+    "id": "C04",
+    "file": "07-第04课-先会才能学：原始词汇源自生活.md",
+    "characters": 16508,
+    "lines": 210,
+    "sha256": "679DBEFA22931ED4B5BEFC89A9ECC7583BEDDF44250C819EEF5AAB45314F879D",
+    "read_status": "full_text_read"
+  },
+  {
+    "id": "C05",
+    "file": "08-第05课-不存在一词多义.md",
+    "characters": 14559,
+    "lines": 184,
+    "sha256": "9B477070972611A0B52E9C9A2AC6CB861A12468B265ACCEF5F481D963577E110",
+    "read_status": "full_text_read"
+  },
+  {
+    "id": "C06",
+    "file": "09-第06课-一切取决于含义.md",
+    "characters": 12240,
+    "lines": 155,
+    "sha256": "EE563095606F22A51E6053A7D6E07DE6B199490607CE5830829875F81BEB0F20",
+    "read_status": "full_text_read"
+  },
+  {
+    "id": "C07",
+    "file": "10-第07课-英语是直线型思维.md",
+    "characters": 7872,
+    "lines": 102,
+    "sha256": "135C6AE7D890375E31ADF4806A5141F301A523529CF655C520E780EF8CBC1B9C",
+    "read_status": "full_text_read"
+  },
+  {
+    "id": "C08",
+    "file": "11-第08课-英语的基础：单词.md",
+    "characters": 13211,
+    "lines": 171,
+    "sha256": "C513D6D9F21A1FB1863BD9ED29FD1BBB15B519548862C61B26667F9D3425833B",
+    "read_status": "full_text_read"
+  },
+  {
+    "id": "C09",
+    "file": "12-第09课-词形变化的根源：发音.md",
+    "characters": 13818,
+    "lines": 174,
+    "sha256": "C142A38465681D57F3AA827FF5E5ECD9F809F0AFC83B2850B31093F7CA5798CB",
+    "read_status": "full_text_read"
+  },
+  {
+    "id": "C10",
+    "file": "13-第10课-动词不只是动作.md",
+    "characters": 10307,
+    "lines": 133,
+    "sha256": "3FEB77984CE423B30523CBC45C00CF5B2C43CE5C30D6EDED3D21B967798DCD63",
+    "read_status": "full_text_read"
+  },
+  {
+    "id": "C11",
+    "file": "14-第11课-时态=时间+状态.md",
+    "characters": 13045,
+    "lines": 161,
+    "sha256": "11D584C3B2E3541DB89A83348302538FC39049F29B44941DC5726AE532C9FDA0",
+    "read_status": "full_text_read"
+  },
+  {
+    "id": "C12",
+    "file": "15-第12课-简单句：基础作文的满分思维.md",
+    "characters": 11778,
+    "lines": 151,
+    "sha256": "A35475EEFD842D497419DB8D5BCEB6679DE002FB0B40E6AD7EA8654137DDDB8B",
+    "read_status": "full_text_read"
+  },
+  {
+    "id": "C13",
+    "file": "16-第13课-一句话一个谓语.md",
+    "characters": 16587,
+    "lines": 210,
+    "sha256": "45E1D11CA971382A63ACA2B1FADE279DE41788BAAEE55BE143CA055EFB812F64",
+    "read_status": "full_text_read"
+  },
+  {
+    "id": "C14",
+    "file": "17-第14课-主语并非那么主要：主动与被动.md",
+    "characters": 9168,
+    "lines": 119,
+    "sha256": "D532142B92940799F3226BF58453918D5AD3611A0A626C7EF6FFD786E35194B7",
+    "read_status": "full_text_read"
+  },
+  {
+    "id": "C15",
+    "file": "18-第15课-复合句：1+1=1.md",
+    "characters": 12971,
+    "lines": 164,
+    "sha256": "F9BFB3878F915151333D1DFC61089392DA7BC191DAD499C387FE8F6E4573F64F",
+    "read_status": "full_text_read"
+  },
+  {
+    "id": "C16",
+    "file": "19-第16课-为什么非得正着说.md",
+    "characters": 10646,
+    "lines": 138,
+    "sha256": "CD6570213D54AF0DA476E389222D2C58C21B79F1264CE7A5FB9F429E4E02F8F8",
+    "read_status": "full_text_read"
+  },
+  {
+    "id": "C17",
+    "file": "20-第17课-语言是有情绪的.md",
+    "characters": 11285,
+    "lines": 145,
+    "sha256": "865F1BA096E797708C7F2A184F316ECEE4EDEE91A7A8944174E608C0036BF7CA",
+    "read_status": "full_text_read"
+  },
+  {
+    "id": "C18",
+    "file": "21-第18课-英语的灵魂：简单原则.md",
+    "characters": 14277,
+    "lines": 180,
+    "sha256": "783B41F86189CF2CBD30FC01B298BF76694FE005DA1E746E5CD6E21DD957D1BD",
+    "read_status": "full_text_read"
+  }
+]
