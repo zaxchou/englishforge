@@ -188,7 +188,12 @@ export function evaluateAttempt(activity, response) {
       const reasonMine = !!rc && (rc.objectiveIds ?? activity.objectiveIds).includes(oid)
       const rViolMine = reasonMine ? reasonViolated.filter((label) =>
         (rc.mustNot ?? []).some((m) => m.label === label && (m.objectiveIds ?? rc.objectiveIds ?? activity.objectiveIds).includes(oid))) : []
-      objectiveResults[oid] = slotOk && (!reasonMine || (reasonReqOk && rViolMine.length === 0)) ? 'met' : 'unmet'
+      // A1（29 号）：开放理由的语义与冲突词表判不了，不参与 met 认证——
+      // 槽位对 = 选择定位成功 → partial（理由/自由表达本次未测，待人审或后续把理由封闭化）；
+      // 槽错或踩 mustNot → unmet。无 reason 合同的纯封闭题（如 ct01/ct02）槽全对即 met。
+      objectiveResults[oid] = !slotOk || rViolMine.length > 0 ? 'unmet'
+        : reasonMine ? 'partial'
+          : 'met'
     }
 
     const evaluation = {
@@ -200,6 +205,7 @@ export function evaluateAttempt(activity, response) {
       objectiveResults,
       certification,
       slots: true,
+      reasonAssessed: !rc, // false = 该活动的理由栏未参与认证（本次未测理由/自由表达）
       evaluator: 'deterministic-contract-v2',
       evaluatorVersion: 'deterministic-contract-v2',
       confidence: 'fixture',
@@ -313,6 +319,15 @@ export function recordAttempt(accountId, payload = {}) {
     if (prev.body_hash === hash) {
       // F6：幂等重放返回首次结果且标记 replayed —— 调用方不得再次推进诊断/流程
       return { attemptIdUsed: attemptId, ...attemptResult(conn, accountId, prev, activityById(prev.activity_id)), replayed: true }
+    }
+    // 29 号 A2 护栏：真正的新作答才 bump。同内容重发在网络重试场景可能已落过 -tN 行——
+    // 只看 ID 占用会让"重发相同内容"再落新行（复审实测 Y→t2→Y→t3）。
+    // 因此先按内容幂等回查：同账户同活动同正文的行已存在 → 幂等返回那一次。
+    const sameBody = conn.prepare(
+      'SELECT * FROM learner_attempts_v3 WHERE account_id = ? AND body_hash = ? AND activity_id = ? ORDER BY created_at DESC LIMIT 1')
+      .get(accountId, hash, activity.activityId)
+    if (sameBody) {
+      return { attemptIdUsed: sameBody.attempt_id, ...attemptResult(conn, accountId, sameBody, activity), replayed: true }
     }
     const m = attemptId.match(/^(.*?)-t(\d+)$/)
     const base = m ? m[1] : attemptId
@@ -508,10 +523,14 @@ function appendObservedEvents(conn, accountId, attemptRow, activity, conditions)
          VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
       ).run(
         accountId, `ev_${attemptRow.attempt_id}_${oid}`, attemptRow.attempt_id, oid, skill, complexity,
-        'observed', condition, (perObj === 'met') ? 1 : 0,
+        'observed', condition,
+        // 29 号 A1：closed 槽位题的事件成败按**槽位全对**（=活动级 pass）计——理由未认证把
+        // 目标结果压到 partial，但那不是"作答失败"，不得累计连败、也不得抬成 met
+        (perObj === 'met' || (evaluation.slots && evaluation.pass && perObj === 'partial')) ? 1 : 0,
         JSON.stringify({ role: activity.role, taskFamilyId: activity.taskFamilyId, evaluator: evaluation.evaluator ?? null,
           confidence: evaluation.confidence ?? null, oralDeferred: !!activity.oralEvidenceDeferred,
-          locating: !!activity.locating, perObjective: perObj, ...basisExtra }),
+          locating: !!activity.locating, perObjective: perObj,
+          reasonAssessed: evaluation.reasonAssessed ?? null, ...basisExtra }),
         Date.now(),
       )
     }

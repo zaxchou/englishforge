@@ -22,13 +22,15 @@
 
 | 项 | 内容 | 状态 |
 |---|---|---|
-| D0-1 判题层与合同（a） | ct01/ct02/ct03 迁移结构化 slots 合同（slotId/options/accept/objectiveIds，版本升 2）；判题引擎 slots 分支（逐槽 correct/wrong/missing/multiple/invalid、逐目标按槽归属、理由栏独立评估、理由争议→整题 disputed 不认证、evaluatorVersion=deterministic-contract-v2）；`CLOSED_STRUCTURED_REQUIRED` 拒绝非结构化提交（文本搜代号后门关闭）；publicActivity/serveLesson 下发槽位结构且**绝不含 accept**；前端 LessonRunner 槽位按钮 UI + 逐槽反馈；ct02 顺带修 N2（第三问换成本材料可测的"为什么没换软件"、删除泄题示例） | **完成**（2026-10-01，回归 229/229 + tsc/oxlint/build + TRAJECTORY_OK；证据见 [2026-10-01 D0-1 槽位判题](evidence/2026-10-01-D0-1槽位判题与内容校订.md)） |
-| D0-1 证据版本（b） | 作答响应暴露 slotResults；attempt 行已带 activity_version；answers 原样留档 | 完成（随 a） |
-| D0-1 页面走查（c） | 带槽位课进入正常推荐/窗口后的完整页面交互走查（正常路径逐项反馈证据） | **未决 → D0-1b**（les-disposable 是撤回演示课，不在正常推荐路径；D1 内容进入窗口后补录） |
-| D0-2 | 统一 issuedTaskId/sessionId；播放事件绑定成功分发的材料版本（N3：`/support/play` 现在只查 manifest 行，未验证分发）；practiceOnly=true 不写理解 met（N3 后半：keyword 听力受限证据的单列）；录音解析修复（N4：WAV 伪 chunk 边界、WebM VINT/TimecodeScale、缺元数据兜底确认） | 未开工 |
-| N2 内容校订 | ct02 串题+泄题已随 D0-1a 修复（含内容回归断言）；O-K115-02 生成样本来源命题串挂、首条三课整体校订 | 部分（其余未开工） |
+| D0-1 判题层与合同（a） | ct01/ct02/ct03 迁移结构化 slots 合同（slotId/options/accept/objectiveIds，版本升 2）；判题引擎 slots 分支（逐槽 correct/wrong/missing/multiple/invalid、逐目标按槽归属、理由栏独立评估、理由争议→整题 disputed 不认证、evaluatorVersion=deterministic-contract-v2）；`CLOSED_STRUCTURED_REQUIRED` 拒绝非结构化提交（文本搜代号后门关闭）；publicActivity/serveLesson 下发槽位结构且**绝不含 accept**；前端 LessonRunner 槽位按钮 UI + 逐槽反馈；ct02 顺带修 N2（第三问换成本材料可测的"为什么没换软件"、删除泄题示例） | **完成**（2026-10-01；证据见 [D0-1 槽位判题](evidence/2026-10-01-D0-1槽位判题与内容校订.md)） |
+| D0-1 理由认证边界（29 号 A1） | 开放理由不参与 met 认证：带 reason 合同的槽位题选对 → **partial**（明示"理由/自由表达本次未测"，basis 记 reasonAssessed）；踩 mustNot/槽错 → unmet；纯封闭题（ct01/02）槽全对即 met。成对回归：空理由/反向同义改述/正常改述一律 partial | **完成**（2026-10-01） |
+| D0-1 证据版本（b） | 作答响应暴露 slotResults/attemptIdUsed；attempt 行带 activity_version；answers 原样留档 | 完成 |
+| D0-1 页面走查（c） | 带槽位课进入正常推荐/窗口后的完整页面交互走查 | **未决 → D0-1b**（les-disposable 不在推荐路径；D1 内容进窗口后补录） |
+| D0-1 重试幂等（用户实测 + 29 号 A2） | 课程提交 409（刷新后 take 计数丢失）：同 ID 异正文自动 bump take 落新行 + **按内容幂等回查**（重发相同内容不重复落行，`attemptIdUsed` 返回）；浏览器实测含刷新场景整课闭环 | **完成**（2026-10-01；证据见 [课程 409 刷新重提修复](evidence/2026-10-01-课程409刷新重提修复.md)；长期稳定 take/request ID 协议归 D0-2 issuedTaskId） |
+| D0-2 | 统一 issuedTaskId/sessionId（所发材料版本、用途、支持事件、客户端持久 take）；播放事件绑定成功分发的材料版本（N3）；practiceOnly=true 不写理解 met（N3 后半）；录音解析修复（N4：WAV 伪 chunk 边界、WebM VINT/TimecodeScale、缺元数据兜底确认） | 未开工 |
+| N2 内容校订 | ct02 串题+泄题已随 D0-1a 修复（含内容回归断言）；O-K115-02 生成样本来源命题串挂、首条三课整体校订、ct02 第三问的目标归属核对（A1 附注：软件原因空不能代表 which 指代掌握——已有 unmeasuredObjectives 机制，归属核对随三课校订） | 部分 |
 | N5 测量会话 | 首次听音误排除（priorSupport 不分会话）；正式首测可达性 | 未开工 |
-| N6 | 页面逐关系反馈接 API 数据（客户端读 `r.dimensions?.relations` 而 API 已直接返回数组） | 未开工（slots 反馈已直用 slotResults，keyword 活动的 relations 读取待修） |
+| N6 | 页面逐关系反馈接 API 数据（客户端读 `r.dimensions?.relations` 而 API 已直接返回数组）；slots 反馈已直用 slotResults | 未开工 |
 | D0-3 | N1–N6 反例全部进回归（N1 已进）+ 旧证据纠正迁移演练 + D0 验收报告 | 未开工 |
 
 ### D0-1a 过程教训（进回归的护栏）

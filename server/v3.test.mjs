@@ -1264,11 +1264,18 @@ describe('复审回归 F1–F8', () => {
       response: { kind: 'choice', text, answers },
       conditions: { firstExposure: true, hintLevel: 0, transcriptShown: false, playCount: 1, lookupUsed: false, responseMode: 'typed_summary' },
     }, 'POST')
-    // 正确槽位 + 原因 → met
+    // 正确槽位 + 理由 → pass；但理由是开放文本，词表判不了语义冲突 → **不参与 met 认证**（29 号 A1）
     const good = await post('f4-good', '因为多人说话时这个原型在展厅里表现不好，他们想再测试；他们并未完全放弃语音。')
     expect(good.json.pass).toBe(true)
-    expect(good.json.objectiveResults['O-K115-03']).toBe('met')
+    expect(good.json.objectiveResults['O-K115-03']).toBe('partial') // 选择定位成功、理由本次未测
     expect(good.json.slotResults[0].status).toBe('correct')
+    // A1 成对回归：空理由 / 反向同义改述 / 正常改述 —— 一律 partial（不 met、也不算失败连败）
+    const emptyReason = await post('f4-empty', '')
+    expect(emptyReason.json.pass).toBe(true)
+    expect(emptyReason.json.objectiveResults['O-K115-03']).toBe('partial')
+    const synReason = await post('f4-synreason', '他们搁置手势，采用语音，因为多人同时说话，仍想探索。')
+    expect(synReason.json.objectiveResults['O-K115-03']).toBe('partial') // 理由与选项冲突也拦不住，所以不认证
+    expect(synReason.json.evaluationStatus).toBe('evaluated')
     // 缺槽（只有理由没有选择）→ unmet：选择对错由槽位决定，理由写得再好也代替不了
     const bag = await post('f4-bag', 'gesture delay crowded still want', {})
     expect(bag.json.pass).toBe(false)
@@ -1345,6 +1352,7 @@ describe('复审回归 F1–F8', () => {
     expect(half.evaluation.objectiveResults['O-A']).toBe('met')
     expect(half.evaluation.objectiveResults['O-B']).toBe('unmet')
     expect(half.evaluation.evaluatorVersion).toBe('deterministic-contract-v2')
+    expect(half.evaluation.reasonAssessed).toBe(true) // 无 reason 合同的纯封闭题：选择即认证
 
     // N2（26 号）：ct02 题面不再串入 L2 的"地图/假设"，格式示例不再给出答案序列
     const registry = JSON.parse((await (await import('node:fs/promises')).readFile(new URL('./data/v3-activities.json', import.meta.url), 'utf8')))
@@ -1455,10 +1463,19 @@ describe('复审回归 F1–F8', () => {
     expect(fixed.replayed).toBeUndefined()
     expect(fixed.attemptIdUsed).toBe(`${baseId}-t2`)
     expect(fixed.pass).toBe(true)
+    // 29 号 A2 验收：Y 的**网络重发**必须幂等回到同一条 -t2 记录，绝不能再落 -t3
+    const fixedReplay = (await post(baseId, '出问题的是实验室里看起来准、在舞台灯下不稳的那颗传感器；先在室内继续测；灯光检查前不装到现场——这不是永久禁用。')).json
+    expect(fixedReplay.replayed).toBe(true)
+    expect(fixedReplay.attemptIdUsed).toBe(`${baseId}-t2`)
     // -t2 再网络重试 → 幂等；再改内容 → bump -t3（向上递增到空闲为止）
     expect((await post(`${baseId}-t2`, '出问题的是实验室里看起来准、在舞台灯下不稳的那颗传感器；先在室内继续测；灯光检查前不装到现场——这不是永久禁用。')).json.replayed).toBe(true)
     const third = (await post(baseId, '另一个新答案。')).json
     expect(third.attemptIdUsed).toBe(`${baseId}-t3`)
+    // 落库核验：同 ID 系列只有 3 行（首轮 + 2 次真正的新作答），重试没有制造重复
+    const { getDb } = await import('./db.mjs')
+    const conn = (await import('./v3db.mjs')).ensureV3Schema(getDb())
+    const rows = conn.prepare("SELECT attempt_id FROM learner_attempts_v3 WHERE account_id = ? AND activity_id = 'les_l1_sensor_read' ORDER BY attempt_id").all(id)
+    expect(rows.map((r) => r.attempt_id)).toEqual([baseId, `${baseId}-t2`, `${baseId}-t3`])
   })
 
   it('F2：完成课程立即重算且不再推荐已完成课；重复完成不重复更新', async () => {
