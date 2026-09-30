@@ -132,6 +132,42 @@
    ],
    "holdoutRef": null,
    "holdoutNote": "L4 独立保留题：须另制同规格、未曝光的新版本（换讲者、换情节、原声），脚本/答案/追问只在审核端与服务端保存；18 的公开样本不得当正式保留题。"
+  },
+  {
+   "lessonId": "les-disposable-v1",
+   "version": 1,
+   "title": "which 指代定位练习（撤回测试专用）",
+   "whyNow": "O-K115-02 的 which 指代定位需要专项练习（CT01/CT02）。",
+   "strategyId": "short_explain",
+   "objectiveIds": [
+    "O-K115-02"
+   ],
+   "difficultyDims": [
+    "reference_distance"
+   ],
+   "teachingNote": "which 指一个名词还是前面整件事：先找 which 紧前的单位，再判断它在说明谁。",
+   "activities": [
+    {
+     "activityId": "ct01_which_probe",
+     "version": 1,
+     "role": "practice",
+     "hintStages": [
+      "被借来的是设备，还是整个事件？"
+     ]
+    },
+    {
+     "activityId": "ct02_nested_which",
+     "version": 1,
+     "role": "practice",
+     "hintStages": []
+    }
+   ],
+   "nextCandidates": [],
+   "sourceRefs": [
+    "G1",
+    "G2"
+   ],
+   "holdoutRef": null
   }
  ]
 }

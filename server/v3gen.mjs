@@ -80,9 +80,11 @@ export function validateGeneratedPackage(pkg, ctx) {
     && a.relations.every((r) => r.id && r.label && Array.isArray(r.anyOf) && r.anyOf.length >= 2))
   gates.sourcesUsable = Array.isArray(pkg.sourceRefs) && pkg.sourceRefs.length >= 1
     && pkg.sourceRefs.every((s) => s.ref && ctx.allowedSourceCodes.includes(String(s.ref).split(':')[0]))
+  // F8：术语门带感知——band≤3 基础组禁术语；band≥5 高级组允许精确术语（禁“从句”会妨碍高级解释）
+  const termGate = (ctx.band ?? 1) >= 5 ? [] : TERM_BLACKLIST
   gates.explanationClean = typeof pkg.teachingNote === 'string'
-    && !TERM_BLACKLIST.some((t) => pkg.teachingNote.includes(t))
-    && pkg.activities.every((a) => !(a.explain && TERM_BLACKLIST.some((t) => a.explain.includes(t))))
+    && !termGate.some((t) => pkg.teachingNote.includes(t))
+    && pkg.activities.every((a) => !(a.explain && termGate.some((t) => a.explain.includes(t))))
   gates.familyFresh = Array.isArray(pkg.activities) && pkg.activities.every((a) =>
     a.taskFamilyId && !ctx.recentFamilies.includes(a.taskFamilyId))
   gates.holdoutIsolated = gates.schemaComplete && pkg.activities.every((a) => a.role !== 'holdout')
@@ -102,6 +104,10 @@ function rejectReasons(gates) {
 const COOLDOWN_MS = 10 * 60 * 1000 // 失败后 10 分钟内不为同目标重射任务（防 GET 反复烧钱；§7 撤出候选）
 
 export function startGenerationJob(accountId, { objectiveId, strategyId, chat = chatWithMeta, await: awaitIt = false, force = false } = {}) {
+  // F8：统一开关判定——字符串 '0'/'false' 不算开启；直接接口与窗口同受控
+  if (!['1', 'true'].includes(String(process.env.ENGLISHFORGE_V4_GENERATION ?? ''))) {
+    throw new ApiError(409, 'GENERATION_DISABLED: 设 ENGLISHFORGE_V4_GENERATION=1 显式开启按需生成（防误计费）')
+  }
   const conn = ensureV3Schema()
   const dup = conn.prepare("SELECT job_id FROM generation_jobs WHERE account_id = ? AND objective_id = ? AND status IN ('queued','running')")
     .get(accountId, objectiveId)
@@ -118,11 +124,26 @@ export function startGenerationJob(accountId, { objectiveId, strategyId, chat = 
   const obj = conn.prepare('SELECT * FROM objective_versions WHERE objective_id = ? ORDER BY version DESC').get(objectiveId)
   if (!obj) throw new ApiError(404, 'OBJECTIVE_NOT_FOUND: ' + objectiveId)
   const jobId = `job_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`
+  // F8：输入带个人学习证据——证据版本、该目标当前状态/根因、最近错误样本与家族
+  const states = conn.prepare('SELECT * FROM learner_states WHERE account_id = ? AND objective_id = ?').all(accountId, objectiveId)
+  const failSamples = conn.prepare(
+    `SELECT task_family_id, response FROM learner_attempts_v3
+     WHERE account_id = ? AND json_extract(evaluation, '$.pass') = 0 ORDER BY created_at DESC LIMIT 3`).all(accountId)
+  const lastDiag = conn.prepare("SELECT tentative FROM diagnostic_sessions WHERE account_id = ? AND status = 'completed' ORDER BY updated_at DESC LIMIT 1").get(accountId)
+  const evRow = conn.prepare('SELECT value FROM v3_counters WHERE account_id = ? AND name = ?').get(accountId, 'evidence')
   conn.prepare(
     `INSERT INTO generation_jobs (account_id, job_id, objective_id, strategy_id, input_spec, contract_version,
        status, created_at) VALUES (?,?,?,?,?,?, 'queued', ?)`,
   ).run(accountId, jobId, objectiveId, strategyId ?? null,
-    JSON.stringify({ objective: rowToObjective(obj), contract: GEN_CONTRACT_V1.version }),
+    JSON.stringify({
+      objective: rowToObjective(obj), contract: GEN_CONTRACT_V1.version,
+      learnerEvidence: {
+        evidenceVersion: evRow?.value ?? 0,
+        states: states.map((x) => ({ skill: x.skill, complexity: x.complexity, state: x.state, flags: JSON.parse(x.flags || '[]') })),
+        rootHypotheses: lastDiag?.tentative ? (JSON.parse(lastDiag.tentative).hypotheses ?? []) : [],
+        recentFailSamples: failSamples.map((r) => ({ taskFamilyId: r.task_family_id, text: String(r.response || '').slice(0, 200) })),
+      },
+    }),
     GEN_CONTRACT_V1.version, Date.now())
   const p = Promise.resolve(runJob(jobId, { chat }))
   if (!awaitIt) p.catch((e) => console.error('[v3gen] job', jobId, 'crashed:', e.message))
@@ -139,9 +160,17 @@ async function runJob(jobId, { chat = chatWithMeta } = {}) {
 
   const recentRows = conn.prepare('SELECT task_family_id FROM learner_attempts_v3 WHERE account_id = ? ORDER BY created_at DESC LIMIT 5')
     .all(job().account_id)
+  const groupRow = conn.prepare('SELECT g.complexity_band AS band FROM coverage_groups g WHERE g.group_id = ?')
+    .get(objective.parentGroup)
+  const learnerEvidence = spec.learnerEvidence ?? {}
   const ctx = {
-    recentFamilies: recentRows.map((r) => r.task_family_id).filter(Boolean),
+    recentFamilies: [...new Set([...(learnerEvidence.recentFamilies ?? []), ...recentRows.map((r) => r.task_family_id).filter(Boolean)])],
+    // F8：来源可用性按目标声明过的来源核验（标签≠事实核验，但不许越出已核范围）
     allowedSourceCodes: ['G1', 'G2', 'G3', 'G4', 'G5', 'C1', 'T'],
+    objectiveDeclaredSources: [...new Set((objective.sourceRefs ?? []).map((r) => String(typeof r === 'string' ? r : (r.ref ?? '')).split(':')[0]).filter(Boolean))],
+    // F8：术语门带感知——band≤3 基础组禁术语；band≥5 高级组允许精确术语
+    band: Number(groupRow?.band ?? 1),
+    learnerEvidence,
     // 声音/口述目标的文本课不能记听力/口语证据（15 §5 技能不互升）——这类目标强制人审
     audioOralDependent: primarySkill(objective) !== 'reading' && primarySkill(objective) !== 'writing'
       || (Array.isArray(objective.flags) ? objective.flags : JSON.parse(objective.flags || '[]')).includes('needs_audio'),
@@ -159,6 +188,10 @@ async function runJob(jobId, { chat = chatWithMeta } = {}) {
 边界：${objective.boundary}`,
         `可用来源代号：${ctx.allowedSourceCodes.join('、')}`,
         `最近用过的任务家族（不得重复）：${ctx.recentFamilies.join('、') || '（无）'}`,
+        `该目标声明过的来源（生成的 sourceRefs 只能从中选）：${ctx.objectiveDeclaredSources.join('、') || '（无）'}`,
+        ctx.learnerEvidence.states?.length ? `学习者当前状态：${JSON.stringify(ctx.learnerEvidence.states)}` : '',
+        ctx.learnerEvidence.rootHypotheses?.length ? `根因假设：${ctx.learnerEvidence.rootHypotheses.join('、')}` : '',
+        ctx.learnerEvidence.recentFailSamples?.length ? `最近错误样本（据此选难度与策略，不得复读原句）：${JSON.stringify(ctx.learnerEvidence.recentFailSamples).slice(0, 500)}` : '',
       ].join('\n')
       // chat 统一返回 {text, finishReason, usage}；测试注入的纯字符串在这里归一化
       let raw, finishReason = 'stop'
@@ -263,7 +296,8 @@ export function ensureWindow(accountId, { chat = chatWithMeta } = {}) {
   const objectives = conn.prepare("SELECT * FROM objective_versions WHERE status != 'retired' ORDER BY objective_id").all().map(rowToObjective)
   const snapshot = buildLiteSnapshot(conn, accountId)
   const decision = decide(objectives, readStates(conn, accountId), snapshot)
-  const order = [decision.primaryGoal, ...snap((decision.candidates ?? []).map((n) => n.objectiveId))]
+  // F3：窗口只消费 eligibleRankedCandidates（notChosen/免修/缺前置不进生成队列）
+  const order = [decision.primaryGoal, ...snap(decision.eligibleRankedCandidates ?? [])]
     .filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).slice(0, WINDOW_LESSONS + WINDOW_CANDIDATES)
 
   const slots = []
@@ -276,20 +310,25 @@ export function ensureWindow(accountId, { chat = chatWithMeta } = {}) {
       return
     }
     const obj = objectives.find((o) => o.objectiveId === oid)
-    const existing = (slot === 0 && snapshot.diagnostic?.strategyId && lessonForStrategy(snapshot.diagnostic.strategyId))
-      || lessonForObjective(oid)
+    // F3：课程按主目标匹配（真实版本），策略匹配只作兜底
+    const existing = lessonForObjective(oid, { excludeCompletedFor: accountId })
+      ?? (slot === 0 && snapshot.diagnostic?.strategyId && lessonForStrategy(snapshot.diagnostic.strategyId, { excludeCompletedFor: accountId }) || null)
     if (existing?.lessonId) {
-      cacheLesson(accountId, oid, existing.lessonId, 1, slot)
+      cacheLesson(accountId, oid, existing.lessonId, existing.version ?? 1, slot)
       slots.push({ slot, objectiveId: oid, lessonId: existing.lessonId, status: 'ready', kind: wantLesson ? 'lesson' : 'candidate' })
       return
     }
     if (!wantLesson) { slots.push({ slot, objectiveId: oid, status: 'candidate_position_only' }); return }
-    if (!process.env.ENGLISHFORGE_V4_GENERATION) {
-      // 生成默认关闭：诚实告知，不悄悄计费（16 §5：付费/模型使用要显式开启）
-      slots.push({ slot, objectiveId: oid, status: 'generation_disabled', note: '设 ENGLISHFORGE_V4_GENERATION=1 开启按需生成' })
-      return
+    try {
+      const job = startGenerationJob(accountId, { objectiveId: oid, strategyId: obj?.strategies?.[0], chat })
+      slots.push({ slot, objectiveId: oid, jobId: job.jobId, jobReused: !!job.reused, cooledDown: !!job.cooledDown, status: job.cooledDown ? 'generation_cooldown' : 'generating' })
+    } catch (e) {
+      if (String(e.message).startsWith('GENERATION_DISABLED')) {
+        slots.push({ slot, objectiveId: oid, status: 'generation_disabled', note: '设 ENGLISHFORGE_V4_GENERATION=1 开启按需生成' })
+      } else if (String(e.message).startsWith('GENERATION_COOLDOWN')) {
+        slots.push({ slot, objectiveId: oid, status: 'generation_cooldown', note: '同目标近期失败，冷却中' })
+      } else throw e
     }
-    const job = startGenerationJob(accountId, { objectiveId: oid, strategyId: obj?.strategies?.[0], chat })
     slots.push({ slot, objectiveId: oid, jobId: job.jobId, jobReused: !!job.reused, status: 'generating' })
   })
   return { accountId, windowVersion: getMeta(accountId, 'window_version') ?? 0, slots }

@@ -52,14 +52,43 @@ function norm(s) {
   return String(s ?? '').toLowerCase().replace(/[，。！？、；：""''（）,.!?;:'"()]/g, ' ').replace(/\s+/g, ' ')
 }
 
+const NEGATION = ['没', '未', '不', '别', '无', '并非', '并未', 'not', "n't", 'never', 'neither']
+
 export function evaluateAttempt(activity, response) {
   const c = activity.evaluationContract
   if (!c) return { status: 'pending', evaluation: null }
   const text = norm(typeof response === 'string' ? response : response?.text)
   const relations = c.relations.map((r) => ({ id: r.id, label: r.label, required: !!r.required, hit: r.anyOf.some((k) => text.includes(norm(k))) }))
-  const violated = (c.mustNot ?? []).filter((m) => m.anyOf.some((k) => text.includes(norm(k)))).map((m) => m.label)
+  // mustNot 否定语境守卫（F4/21§4）：“并未完全放弃”不是“完全放弃”。命中点往前找否定词则不判违规
+  const guard = c.mustNotNegationGuard !== false
+  const violated = (c.mustNot ?? []).filter((m) => m.anyOf.some((k) => {
+    const needle = norm(k)
+    let from = 0
+    while (true) {
+      const at = text.indexOf(needle, from)
+      if (at < 0) return false
+      const window = text.slice(Math.max(0, at - 14), at)
+      if (!guard || !NEGATION.some((n) => window.includes(norm(n)))) return true
+      from = at + needle.length
+    }
+  })).map((m) => m.label)
   const requiredOk = relations.filter((r) => r.required).every((r) => r.hit)
   const pass = requiredOk && violated.length === 0
+  // 逐目标结果（F4/21§1）：活动级 pass 只控流程；每个目标按其归属关系单独判
+  const tagOf = (r) => r.objectiveIds ?? activity.objectiveIds // 未标注的关系保持旧行为（全部归属）
+  const objectiveResults = {}
+  for (const oid of activity.objectiveIds) {
+    const mine = relations.filter((r) => tagOf(r).includes(oid))
+    const iViolated = (c.mustNot ?? []).some((m) => (m.objectiveIds ?? activity.objectiveIds).includes(oid) &&
+      violated.includes(m.label))
+    if (!mine.length || (c.unmeasuredObjectives ?? []).includes(oid)) { objectiveResults[oid] = 'unmeasured'; continue }
+    const req = mine.filter((r) => r.required)
+    const hits = req.filter((r) => r.hit).length
+    if (iViolated) objectiveResults[oid] = 'unmet'
+    else if (req.length && hits === req.length) objectiveResults[oid] = 'met'
+    else if (hits > 0 || mine.some((r) => r.hit)) objectiveResults[oid] = 'partial'
+    else objectiveResults[oid] = 'unmet'
+  }
   return {
     status: 'evaluated',
     evaluation: {
@@ -67,6 +96,7 @@ export function evaluateAttempt(activity, response) {
       dimensions: c.dimensions,
       relations,
       mustNotViolations: violated,
+      objectiveResults,
       evaluator: 'deterministic-contract-v1',
       confidence: 'fixture', // 开发合同，不是校准过的评分器
     },
@@ -104,9 +134,14 @@ export function recordAttempt(accountId, payload = {}) {
   const prev = conn.prepare('SELECT * FROM learner_attempts_v3 WHERE account_id = ? AND attempt_id = ?').get(accountId, attemptId)
   if (prev) {
     if (prev.body_hash !== hash) throw new ApiError(409, 'REQUEST_ID_REUSED_WITH_DIFFERENT_BODY: ' + attemptId)
-    return attemptResult(conn, accountId, prev, activityById(prev.activity_id))
+    // F6：幂等重放返回首次结果且标记 replayed —— 调用方不得再次推进诊断/流程
+    return { ...attemptResult(conn, accountId, prev, activityById(prev.activity_id)), replayed: true }
   }
 
+  // F1：声明口语录音作答就必须真的带了录音引用（缺录音不得产生口语证据）
+  if (payload.conditions?.responseMode === 'oral_recording' && !payload.response?.mediaId) {
+    throw new ApiError(400, 'ORAL_RECORDING_REQUIRED: responseMode=oral_recording 需要 mediaId')
+  }
   const conditions = payload.conditions ?? null
   if (!conditions || typeof conditions !== 'object') throw new ApiError(400, 'CONDITIONS_REQUIRED')
   for (const k of activity.conditionsSpec ?? []) {
@@ -150,7 +185,7 @@ export function recordAttempt(accountId, payload = {}) {
   ).run(
     accountId, attemptId, String(payload.sessionId || ''), activity.activityId, activity.version,
     JSON.stringify(activity.objectiveIds), activity.taskFamilyId, activity.role, activity.responseKind,
-    JSON.stringify({ kind: payload.response?.kind ?? 'text', text: responseText }),
+    JSON.stringify({ kind: payload.response?.kind ?? 'text', text: responseText, mediaId: payload.response?.mediaId ?? null }),
     JSON.stringify(effectiveConditions), evalStatus, JSON.stringify(evaluation), null, hash, ts,
   )
 
@@ -176,6 +211,14 @@ export function recordAttempt(accountId, payload = {}) {
   return attemptResult(conn, accountId, attemptRow, activity)
 }
 
+/** F6：幂等重放——attemptId 已存在时返回首次结果（不推进任何流程） */
+export function getStoredAttempt(accountId, attemptId) {
+  const conn = ensureV3Schema()
+  const row = conn.prepare('SELECT * FROM learner_attempts_v3 WHERE account_id = ? AND attempt_id = ?').get(accountId, attemptId)
+  if (!row) return null
+  return { ...attemptResult(conn, accountId, row, activityById(row.activity_id)), replayed: true }
+}
+
 function attemptResult(conn, accountId, row, activity) {
   const evaluation = JSON.parse(row.evaluation || 'null')
   const isHoldout = activity?.role === 'holdout'
@@ -185,6 +228,8 @@ function attemptResult(conn, accountId, row, activity) {
     evaluationStatus: row.evaluation_status,
     // holdout 只给结论：维度命中会泄露保留题的评分要点
     pass: evaluation ? evaluation.pass : null,
+    // F4/21§1：逐目标结果 met/partial/unmet/unmeasured/disputed —— 未问的目标就是 unmeasured
+    objectiveResults: isHoldout ? undefined : (evaluation?.objectiveResults ?? undefined),
     dimensions: isHoldout ? undefined : (evaluation?.relations ?? undefined),
     mustNotViolations: isHoldout ? undefined : evaluation?.mustNotViolations,
     evidenceEventIds: conn.prepare('SELECT evidence_id FROM evidence_events WHERE account_id = ? AND attempt_id = ?')
@@ -202,32 +247,50 @@ function appendObservedEvents(conn, accountId, attemptRow, activity, conditions)
     : conditions.transcriptShown ? 'transcript_shown'
       : conditions.hintLevel > 0 ? 'hinted' : 'supported'
   for (const oid of activity.objectiveIds) {
-    const skill = activity.skillByObjective?.[oid] ?? 'reading'
+    // F4/21§1：未测到的目标不写事件（unmeasured 就是 unmeasured，不搭车）
+    const perObj = evaluation.objectiveResults?.[oid]
+    if (perObj === 'unmeasured') continue
+    let skill = activity.skillByObjective?.[oid] ?? 'reading'
+    const basisExtra = {}
+    // F1：文字模拟的“音频”只可测阅读——listening 证据重定向到 reading，原样可追溯
+    if (activity.simulatesAudio && skill === 'listening') {
+      skill = 'reading'
+      basisExtra.textSimAudioRedirected = true
+    }
+    // F1：复杂度分档（目标父组的复杂度带），不同带的表现不互相覆盖
+    const complexity = complexityBandFor(conn, oid)
     conn.prepare(
       `INSERT INTO evidence_events (account_id, evidence_id, attempt_id, objective_id, skill, complexity,
          kind, condition, pass, basis, created_at)
        VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
     ).run(
-      accountId, `ev_${attemptRow.attempt_id}_${oid}`, attemptRow.attempt_id, oid, skill, 'base',
-      'observed', condition, evaluation.pass ? 1 : 0,
+      accountId, `ev_${attemptRow.attempt_id}_${oid}`, attemptRow.attempt_id, oid, skill, complexity,
+      'observed', condition, (perObj === 'met') ? 1 : 0,
       JSON.stringify({ role: activity.role, taskFamilyId: activity.taskFamilyId, evaluator: evaluation.evaluator ?? null,
         confidence: evaluation.confidence ?? null, oralDeferred: !!activity.oralEvidenceDeferred,
-        locating: !!activity.locating }),
+        locating: !!activity.locating, perObjective: perObj, ...basisExtra }),
       Date.now(),
     )
-    // 被斩掉的目标又独立失败 → 追加 repair 事件（决策层据此开局部短修复，不批量重刷）
-    if (!evaluation.pass) {
+    // 被斩掉的目标又失败 → repair 事件（决策层据此开局部短修复，不批量重刷）
+    if (perObj === 'unmet' || perObj === 'partial' && evaluation.pass === false) {
       const st = conn.prepare('SELECT flags FROM learner_states WHERE account_id=? AND objective_id=? AND skill=? AND complexity=?')
-        .get(accountId, oid, skill, 'base')
+        .get(accountId, oid, skill, 'base') // 状态聚合槽
       if (st && JSON.parse(st.flags || '[]').includes('waived_by_user')) {
         conn.prepare(
           `INSERT INTO evidence_events (account_id, evidence_id, attempt_id, objective_id, skill, complexity,
              kind, condition, pass, basis, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-        ).run(accountId, `ev_${attemptRow.attempt_id}_${oid}_repair`, attemptRow.attempt_id, oid, skill, 'base',
+        ).run(accountId, `ev_${attemptRow.attempt_id}_${oid}_repair`, attemptRow.attempt_id, oid, skill, complexity,
           'repair', condition, 0, JSON.stringify({ cause: 'waived_objective_failed' }), Date.now())
       }
     }
   }
+}
+
+/** 目标 → 复杂度带（父组定义；查不到回落 'base'） */
+function complexityBandFor(conn, objectiveId) {
+  const row = conn.prepare('SELECT g.complexity_band AS band FROM objective_versions o JOIN coverage_groups g ON g.group_id = o.parent_group WHERE o.objective_id = ? ORDER BY o.version DESC LIMIT 1')
+    .get(objectiveId)
+  return row?.band ? `band${row.band}` : 'base'
 }
 
 // ---------------------------------------------------------------- 状态回放（evidence_events → learner_states）
@@ -238,6 +301,14 @@ function appendObservedEvents(conn, accountId, attemptRow, activity, conditions)
 export function recomputeStates(accountId) {
   const conn = ensureV3Schema()
   const events = conn.prepare('SELECT * FROM evidence_events WHERE account_id = ? ORDER BY created_at, evidence_id').all(accountId)
+  // F1 历史重算：事件只追加不改写；重放时按活动**当前定义**纠正模态错位
+  // （旧事件把文字模拟音频记成 listening —— 重放归位到 reading，原始事件保留可追溯）
+  const activityOf = (() => {
+    const m = new Map(
+      conn.prepare('SELECT attempt_id, activity_id FROM learner_attempts_v3 WHERE account_id = ?').all(accountId)
+        .map((r) => [r.attempt_id, r.activity_id]))
+    return (attemptId) => (attemptId && m.get(attemptId) ? activityById(m.get(attemptId)) : null)
+  })()
 
   const acc = new Map() // key obj|skill → {state, flags:Set, independentFamilies:Set, failStreak}
   const slot = (obj, skill) => {
@@ -248,7 +319,7 @@ export function recomputeStates(accountId) {
   const openDisputeAt = new Map() // slot key → 争议提出时间（该时刻后的争议材料事件不再计入）
 
   for (const e of events) {
-    const s = slot(e.objective_id, e.skill)
+    const s = slot(e.objective_id, e.skill) // 状态聚合槽：objective×skill（复杂度在事件里保留审计粒度）
     const key = e.objective_id + '|' + e.skill
     if (e.kind === 'waive') { s.flags.add('waived_by_user'); continue }
     if (e.kind === 'dispute') { s.flags.add('disputed'); if (!openDisputeAt.has(key)) openDisputeAt.set(key, e.created_at); continue }
@@ -256,29 +327,34 @@ export function recomputeStates(accountId) {
     if (e.kind === 'repair') { s.flags.add('needs_repair'); continue }
     if (e.kind !== 'observed') continue
     const basis = JSON.parse(e.basis || '{}')
-    const frozen = openDisputeAt.has(key) && e.created_at >= openDisputeAt.get(key)
+    // F1 重算：文字模拟音频的历史 listening 事件 → reading 槽位
+    let skill = e.skill
+    const actDef = activityOf(e.attempt_id)
+    if (actDef?.simulatesAudio && skill === 'listening') skill = 'reading'
+    const s2 = slot(e.objective_id, skill)
+    const frozen = openDisputeAt.has(e.objective_id + '|' + skill) && e.created_at >= (openDisputeAt.get(e.objective_id + '|' + skill) ?? 0)
     if (frozen && basis.evaluator !== 'human') continue // 争议后的事件暂停计入……
     if (frozen && basis.evaluator === 'human') {
       // ……除非这是复核结论（人审）：解除争议冻结并清除争议标志（15 §5 复核结束再更正）
-      s.flags.delete('disputed')
-      openDisputeAt.delete(key)
+      s2.flags.delete('disputed')
+      openDisputeAt.delete(e.objective_id + '|' + skill)
     }
     if (basis.oralDeferred) continue // 口语证据在真录音（W5）前不升级状态
 
     if (e.pass) {
-      s.failStreak = 0
-      const rank = STATE_RANK[s.state]
+      s2.failStreak = 0
+      const rank = STATE_RANK[s2.state]
       if (basis.locating) { if (rank < 1) s.state = 'tentative'; continue } // 定位题不算掌握证据
       if (e.condition === 'transcript_shown') { if (rank < 2) s.state = 'trained'; continue } // 看稿成功≤trained，且已重定向到 reading
       if (e.condition === 'hinted' || e.condition === 'supported') { if (rank < 2) s.state = 'trained'; continue }
       // first_independent
-      s.independentFamilies.add(basis.taskFamilyId ?? '?')
-      if (basis.role === 'transfer' && s.independentFamilies.size >= 2) s.state = 'transferred'
-      else if (s.independentFamilies.size >= 2) s.state = 'independent'
-      else if (rank < 2) s.state = 'trained'
+      s2.independentFamilies.add(basis.taskFamilyId ?? '?')
+      if (basis.role === 'transfer' && s2.independentFamilies.size >= 2) s2.state = 'transferred'
+      else if (s2.independentFamilies.size >= 2) s2.state = 'independent'
+      else if (rank < 2) s2.state = 'trained'
     } else {
-      s.failStreak += 1
-      if (s.failStreak >= 2) s.flags.add('needs_repair') // 两次同类失败先换策略，不硬刷
+      s2.failStreak += 1
+      if (s2.failStreak >= 2) s2.flags.add('needs_repair') // 两次同类失败先换策略，不硬刷
     }
   }
 
@@ -297,15 +373,18 @@ export function recomputeStates(accountId) {
 // ---------------------------------------------------------------- 免修与争议
 
 /** POST /waivers：用户免修 = waived_by_user 标志，状态值不动，永远不会变成 retained */
-export function waive(accountId, { objectiveId, skill, complexity = 'base', reason } = {}) {
+export function waive(accountId, { objectiveId, skill, complexity, reason } = {}) {
   requireAccount(accountId)
   if (!objectiveId || !skill) throw new ApiError(400, 'WAVIER_NEEDS_OBJECTIVE_AND_SKILL')
   const conn = ensureV3Schema()
+  // 事件带父组复杂度带（审计粒度）；状态聚合槽仍是 'base'（recompute 的聚合口径）
+  const bandComplexity = complexity || complexityBandFor(conn, objectiveId)
+  complexity = 'base'
   conn.prepare(
     `INSERT INTO evidence_events (account_id, evidence_id, attempt_id, objective_id, skill, complexity,
        kind, condition, pass, basis, created_at)
      VALUES (?,?,NULL,?,?,?,'waive','user_waiver',NULL,?,?)`,
-  ).run(accountId, `ev_waive_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, objectiveId, skill, complexity,
+  ).run(accountId, `ev_waive_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, objectiveId, skill, bandComplexity,
     JSON.stringify({ reason: String(reason || '').slice(0, 500) }), Date.now())
   recomputeStates(accountId)
   const st = conn.prepare('SELECT * FROM learner_states WHERE account_id=? AND objective_id=? AND skill=? AND complexity=?')

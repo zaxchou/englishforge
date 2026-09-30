@@ -44,7 +44,11 @@
        "gesture",
        "手势"
       ],
-      "required": true
+      "required": true,
+      "objectiveIds": [
+       "O-K115-03",
+       "O-K184-02"
+      ]
      },
      {
       "id": "delayed",
@@ -55,7 +59,11 @@
        "暂缓",
        "延后"
       ],
-      "required": true
+      "required": true,
+      "objectiveIds": [
+       "O-K115-03",
+       "O-K184-02"
+      ]
      },
      {
       "id": "reason",
@@ -67,7 +75,11 @@
        "exhibition",
        "展厅"
       ],
-      "required": true
+      "required": true,
+      "objectiveIds": [
+       "O-K115-03",
+       "O-K184-02"
+      ]
      },
      {
       "id": "limit",
@@ -84,7 +96,11 @@
        "没有完全放弃",
        "并非永久"
       ],
-      "required": true
+      "required": true,
+      "objectiveIds": [
+       "O-K115-03",
+       "O-K184-02"
+      ]
      }
     ],
     "mustNot": [
@@ -98,7 +114,12 @@
        "永远放弃"
       ]
      }
-    ]
+    ],
+    "unmeasuredObjectives": [
+     "O-K115-01",
+     "O-K115-02"
+    ],
+    "mustNotNegationGuard": true
    }
   },
   {
@@ -135,7 +156,10 @@
        "小房间",
        "安静"
       ],
-      "required": true
+      "required": true,
+      "objectiveIds": [
+       "O-K115-01"
+      ]
      },
      {
       "id": "fails_large",
@@ -146,7 +170,10 @@
        "大房间",
        "吵"
       ],
-      "required": true
+      "required": true,
+      "objectiveIds": [
+       "O-K115-01"
+      ]
      }
     ],
     "mustNot": []
@@ -204,7 +231,11 @@
        "找到了论文",
        "找到值得"
       ],
-      "required": true
+      "required": true,
+      "objectiveIds": [
+       "O-K184-01",
+       "O-K184-02"
+      ]
      },
      {
       "id": "must_read",
@@ -216,7 +247,11 @@
        "check",
        "自己看"
       ],
-      "required": true
+      "required": true,
+      "objectiveIds": [
+       "O-K184-01",
+       "O-K184-02"
+      ]
      },
      {
       "id": "problem",
@@ -230,7 +265,11 @@
        "summary",
        "摘要"
       ],
-      "required": true
+      "required": true,
+      "objectiveIds": [
+       "O-K184-01",
+       "O-K184-02"
+      ]
      },
      {
       "id": "initial",
@@ -243,7 +282,11 @@
        "found papers",
        "找到了"
       ],
-      "required": false
+      "required": false,
+      "objectiveIds": [
+       "O-K184-01",
+       "O-K184-02"
+      ]
      }
     ],
     "mustNot": [
@@ -304,7 +347,11 @@
        "找到了论文",
        "找到值得"
       ],
-      "required": true
+      "required": true,
+      "objectiveIds": [
+       "O-K184-01",
+       "O-K184-02"
+      ]
      },
      {
       "id": "must_read",
@@ -316,7 +363,11 @@
        "check",
        "自己看"
       ],
-      "required": true
+      "required": true,
+      "objectiveIds": [
+       "O-K184-01",
+       "O-K184-02"
+      ]
      }
     ],
     "mustNot": []
@@ -360,7 +411,10 @@
        "find",
        "找"
       ],
-      "required": true
+      "required": true,
+      "objectiveIds": [
+       "O-K190-01"
+      ]
      },
      {
       "id": "caveat",
@@ -372,7 +426,10 @@
        "check",
        "但"
       ],
-      "required": true
+      "required": true,
+      "objectiveIds": [
+       "O-K190-01"
+      ]
      },
      {
       "id": "own_take",
@@ -386,7 +443,10 @@
        "use it",
        "我想"
       ],
-      "required": true
+      "required": true,
+      "objectiveIds": [
+       "O-K194-01"
+      ]
      }
     ],
     "mustNot": []
@@ -438,7 +498,10 @@
        "looked accurate",
        "准"
       ],
-      "required": true
+      "required": true,
+      "objectiveIds": [
+       "O-K115-01"
+      ]
      },
      {
       "id": "usable_now",
@@ -447,7 +510,10 @@
        "indoor",
        "室内"
       ],
-      "required": true
+      "required": true,
+      "objectiveIds": [
+       "O-K115-03"
+      ]
      },
      {
       "id": "postponed",
@@ -460,7 +526,10 @@
        "舞台灯",
        "灯光"
       ],
-      "required": true
+      "required": true,
+      "objectiveIds": [
+       "O-K184-02"
+      ]
      },
      {
       "id": "advice",
@@ -473,7 +542,10 @@
        "检查",
        "建议"
       ],
-      "required": false
+      "required": false,
+      "objectiveIds": [
+       "O-K115-03"
+      ]
      }
     ],
     "mustNot": [
@@ -528,7 +600,10 @@
        "画面",
        "sequence"
       ],
-      "required": true
+      "required": true,
+      "objectiveIds": [
+       "O-K115-01"
+      ]
      },
      {
       "id": "postponed",
@@ -538,7 +613,10 @@
        "配音",
        "voice-over"
       ],
-      "required": true
+      "required": true,
+      "objectiveIds": [
+       "O-K115-03"
+      ]
      },
      {
       "id": "environment",
@@ -550,7 +628,10 @@
        "大厅",
        "环境"
       ],
-      "required": true
+      "required": true,
+      "objectiveIds": [
+       "O-K115-03"
+      ]
      }
     ],
     "mustNot": [
@@ -607,7 +688,12 @@
        "book",
        "预约"
       ],
-      "required": true
+      "required": true,
+      "objectiveIds": [
+       "O-K184-01",
+       "O-K184-02",
+       "O-K184-03"
+      ]
      },
      {
       "id": "rejected",
@@ -618,7 +704,12 @@
        "规律",
        "prove"
       ],
-      "required": true
+      "required": true,
+      "objectiveIds": [
+       "O-K184-01",
+       "O-K184-02",
+       "O-K184-03"
+      ]
      },
      {
       "id": "limitation",
@@ -630,7 +721,12 @@
        "试点",
        "短"
       ],
-      "required": true
+      "required": true,
+      "objectiveIds": [
+       "O-K184-01",
+       "O-K184-02",
+       "O-K184-03"
+      ]
      },
      {
       "id": "next",
@@ -641,7 +737,12 @@
        "compare",
        "比较"
       ],
-      "required": true
+      "required": true,
+      "objectiveIds": [
+       "O-K184-01",
+       "O-K184-02",
+       "O-K184-03"
+      ]
      }
     ],
     "mustNot": []
@@ -692,7 +793,11 @@
        "没坏",
        "按设计"
       ],
-      "required": true
+      "required": true,
+      "objectiveIds": [
+       "O-K184-01",
+       "O-K184-02"
+      ]
      },
      {
       "id": "assumption_incomplete",
@@ -703,7 +808,11 @@
        "incomplete",
        "不完整"
       ],
-      "required": true
+      "required": true,
+      "objectiveIds": [
+       "O-K184-01",
+       "O-K184-02"
+      ]
      },
      {
       "id": "visitor_motive",
@@ -714,7 +823,11 @@
        "以为",
        "thought"
       ],
-      "required": false
+      "required": false,
+      "objectiveIds": [
+       "O-K184-01",
+       "O-K184-02"
+      ]
      }
     ],
     "mustNot": [
@@ -769,7 +882,11 @@
        "map",
        "地图"
       ],
-      "required": true
+      "required": true,
+      "objectiveIds": [
+       "O-K184-01",
+       "O-K184-02"
+      ]
      },
      {
       "id": "motive",
@@ -780,7 +897,11 @@
        "游客",
        "people"
       ],
-      "required": true
+      "required": true,
+      "objectiveIds": [
+       "O-K184-01",
+       "O-K184-02"
+      ]
      },
      {
       "id": "question",
@@ -794,7 +915,11 @@
        "为什么",
        "能不能"
       ],
-      "required": true
+      "required": true,
+      "objectiveIds": [
+       "O-K184-01",
+       "O-K184-02"
+      ]
      }
     ],
     "mustNot": []
@@ -844,7 +969,10 @@
        "安静",
        "quieter"
       ],
-      "required": true
+      "required": true,
+      "objectiveIds": [
+       "O-K190-01"
+      ]
      },
      {
       "id": "actually",
@@ -856,7 +984,10 @@
        "拥挤",
        "crowded"
       ],
-      "required": true
+      "required": true,
+      "objectiveIds": [
+       "O-K190-01"
+      ]
      },
      {
       "id": "conclusion",
@@ -868,7 +999,10 @@
        "不完整",
        "designed"
       ],
-      "required": true
+      "required": true,
+      "objectiveIds": [
+       "O-K190-02"
+      ]
      },
      {
       "id": "advice",
@@ -880,7 +1014,10 @@
        "为什么",
        "next"
       ],
-      "required": false
+      "required": false,
+      "objectiveIds": [
+       "O-K190-02"
+      ]
      }
     ],
     "mustNot": []
@@ -926,7 +1063,10 @@
        "to learn",
        "为了"
       ],
-      "required": true
+      "required": true,
+      "objectiveIds": [
+       "O-K194-02"
+      ]
      },
      {
       "id": "scope_honesty",
@@ -940,10 +1080,452 @@
        "可能",
        "we will"
       ],
-      "required": false
+      "required": false,
+      "objectiveIds": [
+       "O-K194-02"
+      ]
      }
     ],
     "mustNot": []
+   }
+  },
+  {
+   "activityId": "ct01_which_probe",
+   "version": 1,
+   "role": "practice",
+   "taskFamilyId": "projector_reference_probe",
+   "objectiveIds": [
+    "O-K115-02"
+   ],
+   "skillByObjective": {
+    "O-K115-02": "reading"
+   },
+   "responseKind": "text",
+   "sourceDoc": "21 §2",
+   "prompt": "A. The projector, which we borrowed from the media lab, stopped working during the exhibition.\nB. The projector stopped working during the exhibition, which meant that we had to change the installation.\n\n问：A/B 的 which 各在指什么？哪一句的 which 部分在解释“发生这件事的后果”？",
+   "hints": [
+    "被借来的是设备，还是整个事件？",
+    "B 中 meant 在说明某件事产生的结果。"
+   ],
+   "conditionsSpec": [
+    "firstExposure",
+    "hintLevel",
+    "transcriptShown",
+    "playCount",
+    "lookupUsed",
+    "responseMode"
+   ],
+   "evaluationContract": {
+    "dimensions": [
+     "A 的所指",
+     "B 的所指",
+     "后果指向"
+    ],
+    "relations": [
+     {
+      "id": "a_device",
+      "label": "A 的 which 指投影仪/设备（借来的说明）",
+      "anyOf": [
+       "projector",
+       "投影仪",
+       "投影",
+       "设备",
+       "borrowed",
+       "借"
+      ],
+      "required": true,
+      "objectiveIds": [
+       "O-K115-02"
+      ]
+     },
+     {
+      "id": "b_event",
+      "label": "B 的 which 指投影仪坏这件事（事件）",
+      "anyOf": [
+       "坏",
+       "broke",
+       "stopped working",
+       "这件事",
+       "事件",
+       "情况"
+      ],
+      "required": true,
+      "objectiveIds": [
+       "O-K115-02"
+      ]
+     },
+     {
+      "id": "consequence",
+      "label": "指出 B 的 which 在解释后果（meant/不得不/结果）",
+      "anyOf": [
+       "meant",
+       "后果",
+       "结果",
+       "导致",
+       "不得不",
+       "change"
+      ],
+      "required": true,
+      "objectiveIds": [
+       "O-K115-02"
+      ]
+     }
+    ],
+    "mustNot": [
+     {
+      "label": "只答“都指 projector”",
+      "anyOf": [
+       "都指 projector",
+       "都指投影仪",
+       "都一样"
+      ],
+      "objectiveIds": [
+       "O-K115-02"
+      ]
+     }
+    ],
+    "mustNotNegationGuard": true
+   }
+  },
+  {
+   "activityId": "ct02_nested_which",
+   "version": 1,
+   "role": "practice",
+   "taskFamilyId": "exhibit_hardware_reference",
+   "objectiveIds": [
+    "O-K115-02"
+   ],
+   "skillByObjective": {
+    "O-K115-02": "reading"
+   },
+   "responseKind": "text",
+   "sourceDoc": "21 §3",
+   "prompt": "The projector that our team borrowed from the media lab, which had recently bought new equipment, stopped working during the exhibition. The technician who checked it said that the power supply was faulty. We replaced the supply and continued the show, which meant that visitors could still see the installation. We did not replace the software, because it was running normally. The team now plans to test the borrowed hardware before the next event.\n\n1. 第一处 which 说谁买了新设备？不要只答“前面的东西”。\n2. 第二处 which 说哪件事使访客仍能看到装置？\n3. 用一条短句说清首句主线；再列出附加说明。",
+   "hints": [
+    "第一处 which 前面是 the media lab。",
+    "第二处 which 在“换了电源、继续展出”之后。"
+   ],
+   "conditionsSpec": [
+    "firstExposure",
+    "hintLevel",
+    "transcriptShown",
+    "playCount",
+    "lookupUsed",
+    "responseMode"
+   ],
+   "evaluationContract": {
+    "dimensions": [
+     "第一处所指",
+     "第二处所指",
+     "主线分离"
+    ],
+    "relations": [
+     {
+      "id": "w1_lab",
+      "label": "第一处 which：媒体实验室最近买了设备",
+      "anyOf": [
+       "media lab",
+       "实验室",
+       "lab"
+      ],
+      "required": true,
+      "objectiveIds": [
+       "O-K115-02"
+      ]
+     },
+     {
+      "id": "w2_event",
+      "label": "第二处 which：更换电源并继续展出这件事",
+      "anyOf": [
+       "换",
+       "replace",
+       "更换",
+       "继续",
+       "continued",
+       "电源"
+      ],
+      "required": true,
+      "objectiveIds": [
+       "O-K115-02"
+      ]
+     },
+     {
+      "id": "mainline",
+      "label": "主线：投影仪在展览中坏了（嵌入信息分开说）",
+      "anyOf": [
+       "投影仪",
+       "projector",
+       "坏",
+       "stopped",
+       "出故障"
+      ],
+      "required": true,
+      "objectiveIds": [
+       "O-K115-02"
+      ]
+     }
+    ],
+    "mustNot": [
+     {
+      "label": "把第一处 which 指成投影仪买了设备",
+      "anyOf": [
+       "投影仪买",
+       "projector bought",
+       "投影仪最近买"
+      ],
+      "objectiveIds": [
+       "O-K115-02"
+      ]
+     }
+    ],
+    "mustNotNegationGuard": true
+   }
+  },
+  {
+   "activityId": "ct03_semantics_guard",
+   "version": 1,
+   "role": "practice",
+   "taskFamilyId": "voice_decision_semantics",
+   "objectiveIds": [
+    "O-K115-03"
+   ],
+   "skillByObjective": {
+    "O-K115-03": "reading"
+   },
+   "responseKind": "text",
+   "sourceDoc": "21 §4",
+   "prompt": "沿用展览控制方案的背景，回答：团队现在保留了什么？为什么暂缓另一种？他们对语音交互的计划是否等于永久放弃？（评分器验收用：正确改述、否定中的合法答案、角色反转、过度推广应得到不同结果）",
+   "hints": [],
+   "conditionsSpec": [
+    "firstExposure",
+    "hintLevel",
+    "transcriptShown",
+    "playCount",
+    "lookupUsed",
+    "responseMode"
+   ],
+   "evaluationContract": {
+    "dimensions": [
+     "当前决定",
+     "原因",
+     "保留计划"
+    ],
+    "relations": [
+     {
+      "id": "kept_gesture",
+      "label": "保留的是手势控制",
+      "anyOf": [
+       "手势",
+       "gesture"
+      ],
+      "required": true,
+      "objectiveIds": [
+       "O-K115-03"
+      ]
+     },
+     {
+      "id": "hold_voice",
+      "label": "暂缓/延后的是语音控制（角色不能反）",
+      "anyOf": [
+       "语音",
+       "voice"
+      ],
+      "required": true,
+      "objectiveIds": [
+       "O-K115-03"
+      ]
+     },
+     {
+      "id": "reason_crowd",
+      "label": "原因：多人说话时该原型在展厅表现不好",
+      "anyOf": [
+       "多人",
+       "crowded",
+       "同时说话",
+       "展厅",
+       "exhibition"
+      ],
+      "required": true,
+      "objectiveIds": [
+       "O-K115-03"
+      ]
+     },
+     {
+      "id": "not_permanent",
+      "label": "保留计划：未完全放弃/仍要探索",
+      "anyOf": [
+       "没",
+       "未",
+       "not",
+       "haven't",
+       "仍",
+       "still",
+       "探索",
+       "explore",
+       "再测试"
+      ],
+      "required": true,
+      "objectiveIds": [
+       "O-K115-03"
+      ]
+     }
+    ],
+    "mustNot": [
+     {
+      "label": "角色反转：暂缓手势/保留语音",
+      "anyOf": [
+       "暂缓手势",
+       "保留语音",
+       "delayed gesture",
+       "kept voice"
+      ],
+      "objectiveIds": [
+       "O-K115-03"
+      ]
+     },
+     {
+      "label": "过度推广：所有语音系统在拥挤处都失败",
+      "anyOf": [
+       "所有语音",
+       "all voice",
+       "always fail",
+       "都失败",
+       "总是失败"
+      ],
+      "objectiveIds": [
+       "O-K115-03"
+      ]
+     },
+     {
+      "label": "改成永久放弃",
+      "anyOf": [
+       "永久放弃",
+       "permanently abandoned"
+      ],
+      "objectiveIds": [
+       "O-K115-03"
+      ]
+     }
+    ],
+    "mustNotNegationGuard": true
+   }
+  },
+  {
+   "activityId": "ct04_oral_followup",
+   "version": 1,
+   "role": "practice",
+   "taskFamilyId": "nav_app_oral_followup",
+   "objectiveIds": [
+    "O-K190-02",
+    "O-K194-02"
+   ],
+   "skillByObjective": {
+    "O-K190-02": "speaking",
+    "O-K194-02": "interaction"
+   },
+   "responseKind": "text",
+   "oralEvidenceDeferred": true,
+   "sourceDoc": "21 §5",
+   "prompt": "（开发 fixture：正式版为英文录音+未预告追问；文字版不计口语证据。）\n\n场景：Our team tested a navigation app on campus. The route was shorter, but several new students found the instructions hard to follow. We will revise the instructions before we recommend the app to new students.\n\n用英文说清：优点、问题、下一步。然后回答未预告问题：“Would a shorter route always be a better route? Why?”",
+   "hints": [
+    "优点/问题/下一步 三段说；追问要正面回答并给理由。"
+   ],
+   "conditionsSpec": [
+    "firstExposure",
+    "hintLevel",
+    "transcriptShown",
+    "playCount",
+    "lookupUsed",
+    "responseMode"
+   ],
+   "evaluationContract": {
+    "dimensions": [
+     "优点",
+     "问题",
+     "下一步",
+     "追问回应"
+    ],
+    "relations": [
+     {
+      "id": "pro",
+      "label": "优点：路线较短",
+      "anyOf": [
+       "shorter",
+       "较短",
+       "短",
+       "省"
+      ],
+      "required": true,
+      "objectiveIds": [
+       "O-K190-02"
+      ]
+     },
+     {
+      "id": "con",
+      "label": "问题：新生跟指示有困难",
+      "anyOf": [
+       "instructions",
+       "指示",
+       "跟",
+       "困难",
+       "hard to follow",
+       "新生",
+       "new students"
+      ],
+      "required": true,
+      "objectiveIds": [
+       "O-K190-02"
+      ]
+     },
+     {
+      "id": "next",
+      "label": "下一步：先修订指示再推荐",
+      "anyOf": [
+       "修订",
+       "revise",
+       "改",
+       "再推荐",
+       "before we recommend"
+      ],
+      "required": true,
+      "objectiveIds": [
+       "O-K190-02"
+      ]
+     },
+     {
+      "id": "answer_q",
+      "label": "直接回答 shorter≠always better 并给理由",
+      "anyOf": [
+       "not always",
+       "不一定",
+       "未必",
+       "看情况",
+       "depends",
+       "because",
+       "因为",
+       "更安全",
+       "迷路"
+      ],
+      "required": false,
+      "objectiveIds": [
+       "O-K194-02"
+      ]
+     }
+    ],
+    "mustNot": [
+     {
+      "label": "强加事实：所有使用者都失败",
+      "anyOf": [
+       "都失败",
+       "all failed",
+       "所有人"
+      ],
+      "objectiveIds": [
+       "O-K190-02"
+      ]
+     }
+    ],
+    "mustNotNegationGuard": true
    }
   }
  ]

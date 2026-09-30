@@ -9,7 +9,7 @@ import { ensureV3Schema, getMeta, nextCounter } from './v3db.mjs'
 import { requireAccount } from './v3api.mjs'
 import { activityById } from './v3evidence.mjs'
 import { rowToObjective } from './v3map.mjs'
-import { lessonForStrategy } from './v3lessons.mjs'
+import { lessonForStrategy, lessonForObjective } from './v3lessons.mjs'
 
 const STATE_RANK = { unmeasured: 0, tentative: 1, trained: 2, independent: 3, transferred: 4, retained: 5 }
 const STRATEGY_LESSONS = {
@@ -91,13 +91,15 @@ function buildSnapshot(conn, accountId, objectives, states) {
     }))
   // 最近一场完成的入口诊断（D4 摘要）进快照：决策引用它，重放才成立
   const lastDiag = conn.prepare(
-    "SELECT tentative FROM diagnostic_sessions WHERE account_id = ? AND status = 'completed' ORDER BY updated_at DESC LIMIT 1").get(accountId)
+    "SELECT tentative, updated_at FROM diagnostic_sessions WHERE account_id = ? AND status = 'completed' ORDER BY updated_at DESC LIMIT 1").get(accountId)
   return {
     mapVersion: 'map-v1',
+    accountId,
     evidenceVersion: nextCounter2(conn, accountId),
     states: [...states.values()],
     recentAttempts: recent,
     diagnostic: lastDiag?.tentative ? JSON.parse(lastDiag.tentative) : null,
+    diagnosticCreatedAt: lastDiag?.updated_at ?? 0,
     disputedActivities: JSON.parse(getMeta(accountId, 'disputed_activities') || '[]'),
     waivers: [...states.values()].filter((s) => s.flags.includes('waived_by_user'))
       .map((s) => ({ objectiveId: s.objectiveId, skill: s.skill })),
@@ -155,6 +157,7 @@ export function decide(objectives, states, snapshot) {
     })
   }
 
+
   // ④–⑦ 排序选主；⑤ 已斩掉的目标直接出列（同层同质练习不再进推荐）
   const eligible = live.filter((obj) => {
     if (isWaived(obj.objectiveId)) {
@@ -167,7 +170,13 @@ export function decide(objectives, states, snapshot) {
     }
     return true
   })
+  // F2：诊断是可修正的假设。诊断晚于最近作答时才有路线发言权；且路线目标必须仍 eligible
+  const lastAttemptAt = snapshot.recentAttempts[0]?.createdAt ?? 0
+  const diag = snapshot.diagnostic
+  const diagFresh = !!snapshot.diagnosticCreatedAt && snapshot.diagnosticCreatedAt >= lastAttemptAt
+  const diagRouteApplicable = diagFresh && !!(diag?.primaryGoal && eligible.some((o) => o.objectiveId === diag.primaryGoal))
   const ranked = [...eligible].sort((a, b) => {
+    // F3：eligibleRanked 与 exclusions 分离——下游（生成窗口）只消费前者
     const imp = (o) => (o.firstPath ? 2 : 1)
     const weak = (o) => STATE_RANK[stateOf(o.objectiveId).state] ?? 0
     if (imp(b) !== imp(a)) return imp(b) - imp(a)               // 目标重要性
@@ -187,24 +196,25 @@ export function decide(objectives, states, snapshot) {
   }
 
   const primary = ranked[0] ?? null
+  const eligibleRanked = ranked.map((o) => o.objectiveId)
   if (!primary) {
     return {
       primaryGoal: null, strategyId: 'material_review', hypotheses, candidates,
       uncertainAreas: snapshot.diagnostic?.unmeasured ?? ['all_first_path'],
       reason: '当前候选材料均处争议复核或前置未就绪：不降级用户状态，等复核结束再推荐',
-      lesson: null, fallback: null, status: 'ready', snapshot,
+      lesson: null, fallback: null, status: 'ready', snapshot, eligibleRanked,
     }
   }
 
   // ⑦ 策略：修复 > 诊断路线 > 默认挑战先行
   const repairTarget = findRepairTarget(snapshot, objectives)
-  const diag = snapshot.diagnostic
   let strategyId, lessonActivityId, reason
   if (repairTarget) {
     strategyId = 'short_repair'
     lessonActivityId = STRATEGY_LESSONS.short_repair
     reason = `复杂任务失败暴露 ${repairTarget} 的可靠缺口（该目标已被用户斩掉）：只开局部短修复定位，不批量重刷基础`
-  } else if (diag?.route) {
+  } else if (diagRouteApplicable && diag?.route) {
+    // F2：诊断路线只在其目标仍 eligible 且诊断足够新时生效；否则按最新证据选择
     strategyId = diag.strategyId
     lessonActivityId = STRATEGY_LESSONS[diag.strategyId] ?? null
     reason = strategyReason(diag, stateOf)
@@ -218,11 +228,13 @@ export function decide(objectives, states, snapshot) {
     reason = `${primary.objectiveId} 证据薄弱（${stateOf(primary.objectiveId).state}）且能打开 ${unlocks(primary.objectiveId)} 条后继：短讲后练`
   }
 
+  const finalGoal = repairTarget ?? (diagRouteApplicable ? diag.primaryGoal : null) ?? primary.objectiveId
   return finalize({
-    primaryGoal: repairTarget ?? diag?.primaryGoal ?? primary.objectiveId,
+    primaryGoal: finalGoal,
     strategyId, reason, hypotheses, candidates,
     lessonActivityId, snapshot, live, stateOf,
     uncertainAreas: diag?.unmeasured ?? ['listening_real_audio', 'speaking_free_oral', 'writing'],
+    accountId: snapshot.accountId, eligibleRanked,
   })
 }
 
@@ -245,10 +257,12 @@ function strategyReason(diag, stateOf) {
   }
 }
 
-function finalize({ primaryGoal, strategyId, reason, hypotheses, candidates, lessonActivityId, snapshot, uncertainAreas }) {
+function finalize({ primaryGoal, strategyId, reason, hypotheses, candidates, lessonActivityId, snapshot, uncertainAreas, accountId, eligibleRanked }) {
   const activity = lessonActivityId ? activityById(lessonActivityId) : null
   if (lessonActivityId && !activity) throw new ApiError(500, 'REGISTRY_INCONSISTENT: ' + lessonActivityId)
-  const pkg = lessonForStrategy(strategyId) // W3：{lessonId, devOnly} 或 null
+  // F3：课程检索核对目标——先按主目标找课（排除本账户已完成），再按策略兜底；带真实版本
+  const pkg = lessonForObjective(primaryGoal, { excludeCompletedFor: accountId })
+    ?? lessonForStrategy(strategyId, { excludeCompletedFor: accountId })
   // 诚实的状态三分：有课包→published（devSample 按 release channel）；只有 fixture 活动→fixture_dev_only；都没有→content_pending
   let lesson
   if (pkg) {
@@ -273,6 +287,7 @@ function finalize({ primaryGoal, strategyId, reason, hypotheses, candidates, les
     lesson,
     fallback: null,
     status: 'ready',
+    eligibleRankedCandidates: eligibleRanked ?? [],
     snapshotVersion: snapshot.evidenceVersion,
   }
 }

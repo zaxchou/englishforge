@@ -6,8 +6,8 @@
 import { ApiError, getAccount } from './db.mjs'
 import { ensureV3Schema, oldRecordMap } from './v3db.mjs'
 import { mapIndex, rowToObjective } from './v3map.mjs'
-import { recordAttempt, evidenceSummary, waive, reportContent } from './v3evidence.mjs'
-import { startDiagnostic, getDiagnostic, advanceDiagnostic } from './v3diag.mjs'
+import { recordAttempt, evidenceSummary, waive, reportContent, getStoredAttempt } from './v3evidence.mjs'
+import { startDiagnostic, getDiagnostic, advanceDiagnostic, expectedActivityFor } from './v3diag.mjs'
 import { getPlan, recomputePlan } from './v3plan.mjs'
 import { serveLesson, revealHint, completeLesson, listLessons, seedLessons, withdrawLesson, publishLesson, signLesson } from './v3lessons.mjs'
 import { ensureWindow, reestimateWindow, generationMetrics, listJobs, startGenerationJob } from './v3gen.mjs'
@@ -55,9 +55,20 @@ export const V3_ROUTES = [
 
   // 新尝试：服务端持有答案与角色；重复 attemptId 幂等，同 ID 异正文 409
   ['POST', '/api/v1/accounts/:id/attempts', (ctx) => {
-    const result = recordAttempt(ctx.params.id, ctx.body ?? {})
     const sessionId = ctx.body?.sessionId
-    const diag = sessionId
+    // F6：诊断会话只接受“当前步骤实际发出的活动”——乱序/跨会话提交在落库前拒绝
+    if (sessionId) {
+      const expected = expectedActivityFor(ctx.params.id, sessionId)
+      if (expected && expected.activityId !== ctx.body?.activityId) {
+        // F6：步骤不匹配但 attemptId 已存在 → 是重放，返回首次结果（不推进）
+        const stored = getStoredAttempt(ctx.params.id, String(ctx.body?.attemptId || ''))
+        if (stored) return { ...stored, diagnostic: getDiagnostic(ctx.params.id, sessionId) }
+        throw new ApiError(400, `DIAGNOSTIC_STEP_MISMATCH: 当前应答 ${expected.step}/${expected.activityId}`)
+      }
+    }
+    const result = recordAttempt(ctx.params.id, ctx.body ?? {})
+    // F6：幂等重放不产生第二次推进；未判定/争议不强行分流
+    const diag = sessionId && !result.replayed
       ? advanceDiagnostic(ctx.params.id, sessionId, {
         activityId: ctx.body?.activityId,
         pass: result.pass === true,
@@ -98,13 +109,20 @@ export const V3_ROUTES = [
     const pkg = serveLesson(ctx.params.id, ctx.params.lessonId)
     // 取课即把指向它的 ready 计划置为 served（15 §5：candidate→ready→served→completed）
     ensureV3Schema().prepare(
-      "UPDATE plan_decisions SET status = 'served' WHERE account_id = ? AND status = 'ready' AND served_lesson_id = ?")
-      .run(ctx.params.id, ctx.params.lessonId)
+      "UPDATE plan_decisions SET status = 'served', served_at = ? WHERE account_id = ? AND status = 'ready' AND served_lesson_id = ?")
+      .run(Date.now(), ctx.params.id, ctx.params.lessonId)
     return pkg
   }],
   ['POST', '/api/v1/accounts/:id/lessons/:lessonId/hints', (ctx) => revealHint(
     ctx.params.id, ctx.params.lessonId, body_str(ctx, 'activityId'), num(ctx.body?.level, 1))],
-  ['POST', '/api/v1/accounts/:id/lessons/:lessonId/complete', (ctx) => completeLesson(ctx.params.id, ctx.params.lessonId)],
+  ['POST', '/api/v1/accounts/:id/lessons/:lessonId/complete', (ctx) => {
+    const done = completeLesson(ctx.params.id, ctx.params.lessonId)
+    // F2：完成事件立即触发重算，返回可直接展示的新推荐（重复完成不重复更新）
+    const decision = done.replanNeeded
+      ? recomputePlan(ctx.params.id, { requestId: `lessonCompleted:${ctx.params.lessonId}`, triggerEvent: `lessonCompleted:${ctx.params.lessonId}` })
+      : null
+    return { ...done, decision }
+  }],
   ['POST', '/api/v1/lessons/:lessonId/publish', (ctx) => publishLesson(ctx.params.lessonId, {
     acknowledgeUnreviewed: !!ctx.body?.acknowledgeUnreviewed,
     by: body_str(ctx, 'by') || 'operator',

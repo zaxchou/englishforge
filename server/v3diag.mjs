@@ -35,6 +35,17 @@ export function startDiagnostic(accountId, { requestId, note } = {}) {
   return sessionView(row, { note })
 }
 
+/** F6：会话当前应答的步骤与活动（服务端据此拒绝乱序/跨会话提交） */
+export function expectedActivityFor(accountId, sessionId) {
+  const conn = ensureV3Schema()
+  const row = conn.prepare('SELECT * FROM diagnostic_sessions WHERE account_id = ? AND diagnostic_id = ?').get(accountId, sessionId)
+  if (!row || row.status !== 'open') return null
+  const steps = JSON.parse(row.steps || '[]')
+  const stepName = steps.length ? steps[steps.length - 1].nextStep : 'D1'
+  if (!stepName || !STEP_FLOW[stepName]) return null
+  return { step: stepName, activityId: STEP_FLOW[stepName].activityId }
+}
+
 export function getDiagnostic(accountId, diagnosticId) {
   requireAccount(accountId)
   const row = ensureV3Schema().prepare('SELECT * FROM diagnostic_sessions WHERE account_id = ? AND diagnostic_id = ?')
@@ -51,6 +62,11 @@ export function advanceDiagnostic(accountId, sessionId, { activityId, pass, eval
   const conn = ensureV3Schema()
   const row = conn.prepare('SELECT * FROM diagnostic_sessions WHERE account_id = ? AND diagnostic_id = ?').get(accountId, sessionId)
   if (!row || row.status !== 'open') return null
+  // F6：只有已判定（evaluated）的结论才推进流程；disputed/pending 保留待处理
+  if (evaluationStatus !== 'evaluated') {
+    const fresh0 = conn.prepare('SELECT * FROM diagnostic_sessions WHERE account_id = ? AND diagnostic_id = ?').get(accountId, sessionId)
+    return sessionView(fresh0, { note: '该次作答有争议/未判定：保留待处理，诊断流程不推进、不降级' })
+  }
   const session = { steps: JSON.parse(row.steps || '[]') }
   const stepName = Object.entries(STEP_FLOW).find(([, v]) => v.activityId === activityId)?.[0]
   if (!stepName) return null

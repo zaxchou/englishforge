@@ -215,6 +215,7 @@ function DiagPanel({ accountId, onDone }: { accountId: string; onDone: () => voi
   const [text, setText] = useState('')
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
+  const [hintShown, setHintShown] = useState(false)
 
   useEffect(() => {
     if (diag?.status === 'completed') onDone()
@@ -232,7 +233,7 @@ function DiagPanel({ accountId, onDone }: { accountId: string; onDone: () => voi
         activityId: diag.activity.activityId,
         response: { kind: 'text', text },
         conditions: {
-          firstExposure: true, hintLevel: 0, transcriptShown: diag.step === 'D2b',
+          firstExposure: true, hintLevel: hintShown ? 1 : 0, transcriptShown: diag.step === 'D2b',
           playCount: 1, lookupUsed: false, responseMode: 'typed_summary',
         },
       }, 'POST')
@@ -273,7 +274,10 @@ function DiagPanel({ accountId, onDone }: { accountId: string; onDone: () => voi
     <div className="v4-card">
       <h3>入口诊断 · {diag.step}</h3>
       <pre className="v4-prompt">{diag.activity?.prompt}</pre>
-      {diag.activity?.hints?.[0] && <p className="v4-dim">提示：{diag.activity.hints[0]}</p>}
+      {hintShown && diag.activity?.hints?.[0] && <p className="v4-hint">提示：{diag.activity.hints[0]}</p>}
+      {!hintShown && !!diag.activity?.hints?.length && (
+        <button className="v4-ghost" onClick={() => setHintShown(true)}>看提示（将记为支持）</button>
+      )}
       <textarea value={text} onChange={(e) => setText(e.target.value)} rows={4}
         placeholder="用自己的话回答（中英文都可以）" />
       <button className="v4-primary" disabled={busy || !text.trim()} onClick={submit}>提交这一步</button>
@@ -358,13 +362,12 @@ function LessonRunner({ accountId, pkg, onDone }: {
             {act.simulatesAudio && <span className="v4-dev">文字模拟音频 · 听力证据未测</span>}
           </div>
           <pre className="v4-prompt">{act.prompt}</pre>
-          {act.firstHint && <p className="v4-hint">提示 1：{act.firstHint}</p>}
           {(revealed[act.activityId] ?? []).map((h, i) => (
-            <p key={i} className="v4-hint">提示 {i + 2}：{h}</p>
+            <p key={i} className="v4-hint">提示 {i + 1}：{h}</p>
           ))}
-          {(revealed[act.activityId]?.length ?? 0) + 1 < act.hintStageCount && (
+          {(revealed[act.activityId]?.length ?? 0) < act.hintStageCount && (
             <button className="v4-ghost" onClick={() => reveal(act)}>
-              揭示下一层提示（{revealed[act.activityId]?.length ?? 0}/{act.hintStageCount}）
+              看提示（记为支持，{revealed[act.activityId]?.length ?? 0}/{act.hintStageCount}）
             </button>
           )}
           {act.oralTask
@@ -498,13 +501,18 @@ function OralRecorder({ accountId, activityId, onSubmitted }: {
       if (!put.ok) throw new Error('上传失败 ' + put.status)
       const r = await api<{ pass: boolean | null; evaluationStatus: string; dimensions?: { relations?: { id: string; label: string; hit: boolean; required: boolean }[] }; mediaId: string }>(
         '/accounts/' + accountId + '/attempts/oral', {
-        attemptId: `oral-${activityId}`, mediaId: intent.mediaId, activityId,
+        attemptId: `oral-${activityId}-${Date.now()}`, mediaId: intent.mediaId, activityId,
         transcript, transcriptOrigin: 'asr',
         conditions: { firstExposure: true, hintLevel: 0, lookupUsed: false, responseMode: 'oral_recording' },
       }, 'POST')
       setMediaId(r.mediaId)
       onSubmitted({ pass: r.pass, status: r.evaluationStatus, relations: r.dimensions?.relations })
     } catch (e) { setErr(String(e)) } finally { setBusy(false) }
+  }
+
+  function retake() {
+    // F5 验收：支持重新录一遍——新 take/新 attempt ID，旧作答保留
+    setBlob(null); setAudioUrl(''); setTranscript(''); setMediaId(''); setCorrected(false)
   }
 
   async function correct() {
@@ -544,6 +552,7 @@ function OralRecorder({ accountId, activityId, onSubmitted }: {
         <button className="v4-ghost" onClick={correct}>转写有误？纠正并保留原版</button>
       )}
       {corrected && <span className="v4-ok">已提交纠正版（原版保留，供复核对照）</span>}
+      {mediaId && <button className="v4-ghost" onClick={retake}>重新录一遍（新 take）</button>}
       {mediaId && !deleted && <button className="v4-ghost" onClick={remove}>删除这段录音</button>}
       {deleted && <span className="v4-dim">录音已删除（数据库与文件一并移除）</span>}
       {err && <div className="v4-err">{err}</div>}

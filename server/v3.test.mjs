@@ -292,12 +292,16 @@ describe('W2/T2 三种画像 → 三种后继', () => {
     const { session } = await runDiagnostic(id, { D1: ANSWERS.rich_d1, D2: ANSWERS.pass_d2, D3: ANSWERS.pass_d3 }, 'rq-p1')
     expect(session.tentative.route).toBe('challenge_first')
     const plan = (await call(`/api/v1/accounts/${id}/plan`)).json.decision
-    expect(plan.primaryGoal).toBe('O-K184-03')
-    expect(plan.strategyId).toBe('challenge_first')
-    expect(plan.lesson.activityId).toBe('rep_film_postpone_read')
+    // F1/21§1 新语义：D1 不含对象定位题 → O-K115-01 unmeasured → 诚实的下一步是 L1 关系课
+    expect(plan.primaryGoal).toBe('O-K115-01')
+    expect(plan.strategyId).toBe('short_explain')
+    expect(plan.lesson.lessonId).toBe('les-relations-v1')
     expect(plan.reason).toBeTruthy()
-    const dropped = plan.notChosen.find((n) => n.objectiveId === 'O-K115-01')
-    expect(dropped.reason).toContain('证据')
+    // 逐目标结果：D1 不再给 O-K115-01/02 搭车认证（unmeasured）
+    const d1 = (await call(`/api/v1/accounts/${id}/evidence?objective=O-K115-02`)).json
+    expect(d1.states.length).toBe(0) // 未问的目标没有成绩
+    const dropped = plan.notChosen.find((n) => n.objectiveId === 'O-K190-01')
+    expect(dropped.reason).toBeTruthy()
   })
 
   it('P2 文字会声音卡 → L2 声音支线；文字证据保留，音频课诚实等待', async () => {
@@ -312,10 +316,10 @@ describe('W2/T2 三种画像 → 三种后继', () => {
     expect(plan.lesson.lessonId).toBe('les-listening-v1')
     expect(plan.lesson.status).toBe('published')
     expect(plan.lesson.devSample).toBe(true)
-    const dropped = plan.notChosen.find((n) => n.objectiveId === 'O-K115-01')
-    expect(dropped.reason).toContain('不整条回退')
-    // 文字层证据保留
-    const ev = (await call(`/api/v1/accounts/${id}/evidence?objective=O-K115-01`)).json
+    // 路由生效时 ranked[0] 不进 notChosen：排除项非空即可
+    expect(plan.notChosen.length).toBeGreaterThan(0)
+    // 文字层证据保留（D1 met → O-K115-03 trained；O-K115-01 unmeasured 如实无成绩）
+    const ev = (await call(`/api/v1/accounts/${id}/evidence?objective=O-K115-03`)).json
     expect(ev.states[0].state).toBe('trained')
   })
 
@@ -385,7 +389,7 @@ describe('W2/T3 争议与坏材料', () => {
   it('报告坏题 → 该次证据争议、状态不降级、材料隔离', async () => {
     const id = await mkAccount('T3-坏题')
     const { responses } = await runDiagnostic(id, { D1: ANSWERS.rich_d1, D2: ANSWERS.pass_d2, D3: ANSWERS.pass_d3 }, 'rq-t3')
-    const before = (await call(`/api/v1/accounts/${id}/evidence?objective=O-K115-01`)).json
+    const before = (await call(`/api/v1/accounts/${id}/evidence?objective=O-K115-03`)).json
     expect(before.states[0].state).toBe('trained')
 
     const d1Attempt = responses.find((r) => r.dimensions)?.attemptId
@@ -395,7 +399,7 @@ describe('W2/T3 争议与坏材料', () => {
     expect(rep.status).toBe(200)
     expect(rep.json.certificationPaused).toBe(true)
 
-    const after = (await call(`/api/v1/accounts/${id}/evidence?objective=O-K115-01`)).json
+    const after = (await call(`/api/v1/accounts/${id}/evidence?objective=O-K115-03`)).json
     expect(after.states[0].state).toBe('trained') // 不降级
     expect(after.states[0].flags).toContain('disputed') // 只挂争议
     expect(after.disputedAttempts.length).toBeGreaterThan(0)
@@ -469,7 +473,8 @@ describe('W2/T4 斩掉与局部修复', () => {
     // 状态：免修保留 + 需要修复标志，仍不降级为已认证
     const ev = (await call(`/api/v1/accounts/${id}/evidence?objective=O-K115-01`)).json
     expect(ev.states[0].flags).toEqual(expect.arrayContaining(['waived_by_user', 'needs_repair']))
-    expect(ev.states[0].state).toBe('trained')
+    // F1 语义：O-K115-01 未被 D1 认证过（unmeasured）——免修+待修复成立，但不冒充 trained
+    expect(ev.states[0].state).toBe('unmeasured')
   })
 })
 
@@ -580,19 +585,24 @@ describe('W2/附加 幂等与诚实状态', () => {
     const l3b = (await call(`/api/v1/accounts/${id}/lessons/les-oral-v1`)).json
     expect(l3b.activities.length).toBe(2) // 追问现在才解锁
 
-    // 撤回：停止分发 + 受影响证据复核事件，历史保留；需 confirm；withdrawn 不可复活
-    expect((await call('/api/v1/lessons/les-listening-v1/withdraw', { reason: 'x' }, 'POST')).status).toBe(400) // 无 confirm
-    const wd = await call('/api/v1/lessons/les-listening-v1/withdraw', { reason: '测试撤回：字幕与音频不一致', confirm: 'les-listening-v1' }, 'POST')
+    // 撤回改用一次性课包（les-listening-v1 保持可用，供 T6 窗口测试）
+    await call(`/api/v1/accounts/${id}/attempts`, {
+      attemptId: 'disp-1', activityId: 'ct02_nested_which',
+      response: { kind: 'text', text: '第一处 which 说媒体实验室最近买了设备；第二处指更换电源并继续展出这件事，使访客仍能看到装置；主线是投影仪在展览中坏了。' },
+      conditions: { firstExposure: true, hintLevel: 0, transcriptShown: false, playCount: 1, lookupUsed: false, responseMode: 'typed_summary' },
+    }, 'POST')
+    expect((await call('/api/v1/lessons/les-disposable-v1/withdraw', { reason: 'x' }, 'POST')).status).toBe(400) // 无 confirm
+    const wd = await call('/api/v1/lessons/les-disposable-v1/withdraw', { reason: '测试撤回：字幕与音频不一致', confirm: 'les-disposable-v1' }, 'POST')
     expect(wd.json.ok).toBe(true)
     expect(wd.json.affectedRecheckEvents).toBeGreaterThan(0)
-    expect((await call(`/api/v1/accounts/${id}/lessons/les-listening-v1`)).status).toBe(404) // 停止新分发
+    expect((await call(`/api/v1/accounts/${id}/lessons/les-disposable-v1`)).status).toBe(404) // 停止新分发
     const again = await call('/api/v1/lessons')
-    expect(again.json.lessons.find((l) => l.lessonId === 'les-listening-v1').contentStatus).toBe('withdrawn')
+    expect(again.json.lessons.find((l) => l.lessonId === 'les-disposable-v1').contentStatus).toBe('withdrawn')
     const { getDb: gd } = await import('./db.mjs')
     const c2 = (await import('./v3db.mjs')).ensureV3Schema(gd())
     let resurrect = ''
     try {
-      c2.prepare("UPDATE lesson_versions SET content_status = 'published' WHERE lesson_id = 'les-listening-v1'").run()
+      c2.prepare("UPDATE lesson_versions SET content_status = 'published' WHERE lesson_id = 'les-disposable-v1'").run()
     } catch (e) { resurrect = String(e?.message) }
     expect(resurrect).toContain('LESSON_WITHDRAWN_TERMINAL')
   })
@@ -601,9 +611,11 @@ describe('W2/附加 幂等与诚实状态', () => {
     const id = await mkAccount('W3-fixture')
     await runDiagnostic(id, { D1: ANSWERS.rich_d1, D2: ANSWERS.pass_d2, D3: ANSWERS.pass_d3 }, 'rq-fx')
     const plan = (await call(`/api/v1/accounts/${id}/plan`)).json.decision
-    expect(plan.strategyId).toBe('challenge_first')
-    expect(plan.lesson.status).toBe('fixture_dev_only') // 该策略无课包：不冒充 published
-    expect(plan.lesson.devSample).toBeUndefined()
+    // F1 新语义：诊断路线目标 O-K184-03 不再 eligible → 回落到最新证据的候选
+    expect(plan.primaryGoal).toBe('O-K115-01')
+    expect(plan.strategyId).toBe('short_explain')
+    expect(plan.lesson.lessonId).toBe('les-relations-v1')
+    expect(plan.lesson.devSample).toBe(true)
     // 签署路径：pending → signed（mainline）；机器不能代签
     expect((await call('/api/v1/lessons/les-oral-v1/sign', { note: 'x' }, 'POST')).status).toBe(400) // 无 reviewer
     const sg = await call('/api/v1/lessons/les-oral-v1/sign', { reviewer: '张俊杰教学思路复核（placeholder）', note: '待真人签署' }, 'POST')
@@ -629,6 +641,8 @@ describe('W2/附加 幂等与诚实状态', () => {
 // W4 / T5：生成质量门 —— 坏输出全部不得发布；T6：窗口重估与模型失败回退
 // ==================================================================
 describe('W4/T5+T6 按需生成供给', () => {
+  beforeAll(() => { process.env.ENGLISHFORGE_V4_GENERATION = '1' })
+  afterAll(() => { delete process.env.ENGLISHFORGE_V4_GENERATION })
   const goodPkg = {
     title: '把转折接回主张', whyNow: 'D2 首听漏结论：先抓 but 之前的主张，再看它对照什么。',
     teachingNote: '说话人先说一件事看起来不错，再用 but 换到另一面：but 前是他承认的，but 后才是他真正要说的。',
@@ -789,10 +803,12 @@ describe('W5/T7 口语与真实材料', () => {
     const rev = await call(`/api/v1/accounts/${id}/oral-reviews`, {
       attemptId: 'oral-noisy-1', mediaId: media,
       dimensions: { '信息与关系': 2, '可理解度': 2, '语言资源': 1, '组织与互动': 2 },
+      objectiveResults: { 'O-K190-01': 'met', 'O-K190-02': 'partial' }, // 21 §5：实际测到的项才可计
       evidenceRefs: ['00:12-00:18 假设不完整一句清楚'],
       evaluator: '真人复核（抽样）', note: '按 18 §7 量表，噪声不影响关系判定',
     }, 'POST')
     expect(rev.json.signed).toBe(true)
+    expect(rev.json.certifiedObjectives).toEqual(['O-K190-01'])
     const ev2 = (await call(`/api/v1/accounts/${id}/evidence?objective=O-K190-01`)).json
     expect(ev2.states[0].state).toBe('trained')
     expect(ev2.states[0].flags.join(',')).not.toContain('disputed')
@@ -828,7 +844,22 @@ describe('W5/T7 口语与真实材料', () => {
 describe('W6/T9 试学工具包', () => {
   it('预注册→观察→对比：陌生性计数、家族一致性、原始作品与条件保留', async () => {
     const id = await mkAccount('W6-T9')
-    // 先做两个"作答"当基线/后测（复用 W3 课包活动，家族不同）
+    // 早期作答（早于预注册 → 之后不能计入观察）
+    await call(`/api/v1/accounts/${id}/attempts`, {
+      attemptId: 't9-pre', activityId: 'les_l1_sensor_read',
+      response: { kind: 'text', text: '出问题的是实验室里准的那颗传感器；现在可用于室内测试；安装被推迟到灯光检查。' },
+      conditions: { firstExposure: true, hintLevel: 0, lookupUsed: false, responseMode: 'typed_summary' },
+    }, 'POST')
+    // F7：先预注册（作答必须晚于预注册，事后补录不计入）
+    const reg0 = (await call(`/api/v1/accounts/${id}/trials`, {
+      label: '课堂主张抓取·首周', skill: 'reading',
+      baselineTask: { taskFamilyId: 'sensor_stage_lights_read_B', materialRef: 'baseline-m1', dimensions: ['对象归属', '限制保留'] },
+      postTask: { taskFamilyId: 'film_lobby_read_C', materialRef: 'post-n1', dimensions: ['对象归属', '限制保留'] },
+    }, 'POST')).json
+    expect(reg0.trialId).toBeTruthy()
+    // 事后补录被拒：预注册"之前"的作答观察 → 400
+    expect((await call(`/api/v1/accounts/${id}/trials/${reg0.trialId}/observations`, { phase: 'baseline', attemptId: 't9-pre' }, 'POST')).status).toBe(400)
+    // 正式作答（晚于预注册）
     await call(`/api/v1/accounts/${id}/attempts`, {
       attemptId: 't9-base', activityId: 'les_l1_sensor_read',
       response: { kind: 'text', text: '出问题的是实验室里准的那颗传感器；现在可用于室内测试；安装被推迟到灯光检查。' },
@@ -839,14 +870,10 @@ describe('W6/T9 试学工具包', () => {
       response: { kind: 'text', text: '保留视觉序列，推迟配音测试；原因是环境吵，不能推出影片本身差。' },
       conditions: { firstExposure: true, hintLevel: 0, lookupUsed: false, responseMode: 'typed_summary' },
     }, 'POST')
-    // 预注册：缺维度 → 400；同家族 → 400
-    expect((await call(`/api/v1/accounts/${id}/trials`, { label: 'x', skill: 'reading', baselineTask: { taskFamilyId: 'a', materialRef: 'm1' }, postTask: { taskFamilyId: 'a', materialRef: 'm2', dimensions: ['主张与限制'] } }, 'POST')).status).toBe(400)
-    const reg = (await call(`/api/v1/accounts/${id}/trials`, {
-      label: '课堂主张抓取·首周', skill: 'reading',
-      baselineTask: { taskFamilyId: 'sensor_stage_lights_read_B', materialRef: 'baseline-m1', dimensions: ['对象归属', '限制保留'] },
-      postTask: { taskFamilyId: 'film_lobby_read_C', materialRef: 'post-n1', dimensions: ['对象归属', '限制保留'] },
-    }, 'POST')).json
-    expect(reg.trialId).toBeTruthy()
+    // 再注册一份（同家族 → 400；缺维度 → 400）
+    expect((await call(`/api/v1/accounts/${id}/trials`, { label: 'x', skill: 'reading', baselineTask: { taskFamilyId: 'a', materialRef: 'm1', dimensions: ['d'] }, postTask: { taskFamilyId: 'a', materialRef: 'm2', dimensions: ['主张与限制'] } }, 'POST')).status).toBe(400)
+    expect((await call(`/api/v1/accounts/${id}/trials`, { label: 'x', skill: 'reading', baselineTask: { taskFamilyId: 'a', materialRef: 'm1' }, postTask: { taskFamilyId: 'b', materialRef: 'm2', dimensions: ['主张与限制'] } }, 'POST')).status).toBe(400)
+    const reg = reg0
     // 观察：家族不匹配 → 400；正确 → 计数
     expect((await call(`/api/v1/accounts/${id}/trials/${reg.trialId}/observations`, { phase: 'baseline', attemptId: 't9-post' }, 'POST')).status).toBe(400)
     expect((await call(`/api/v1/accounts/${id}/trials/${reg.trialId}/observations`, { phase: 'baseline', attemptId: 't9-base', support: { hintLevel: 0, transcriptShown: false } }, 'POST')).json.counted).toBe(true)
@@ -860,5 +887,133 @@ describe('W6/T9 试学工具包', () => {
     expect(cmp.note).toContain('熟题提速不算达标')
     // 未注册的观察 → 404
     expect((await call(`/api/v1/accounts/${id}/trials/nope/observations`, { phase: 'baseline', attemptId: 't9-base' }, 'POST')).status).toBe(404)
+  })
+})
+
+// ==================================================================
+// 复审 20 号报告 F1–F8 失败路径回归（每条对应报告 §3 的复现）
+// ==================================================================
+describe('复审回归 F1–F8', () => {
+  it('F1：文字模拟音频不改听力（证据归 reading）；无录音不产生口语证据', async () => {
+    const id = await mkAccount('F1-模态')
+    await runDiagnostic(id, { D1: ANSWERS.rich_d1, D2: ANSWERS.pass_d2, D3: ANSWERS.pass_d3 }, 'rq-f1')
+    // D2 是 simulatesAudio 的文字活动：O-K184-01 只有 reading 证据，listening 保持无状态
+    const ev = (await call(`/api/v1/accounts/${id}/evidence?objective=O-K184-01`)).json
+    expect(ev.states.some((st) => st.skill === 'listening')).toBe(false)
+    expect(ev.states.some((st) => st.skill === 'reading' && ['trained', 'tentative'].includes(st.state))).toBe(true)
+    const ev7 = (await call(`/api/v1/accounts/${id}/evidence?objective=O-K007-02`)).json
+    expect(ev7.states.some((st) => st.skill === 'listening')).toBe(false)
+    // F5 交叉：文字作答声明 oral_recording 但没带录音 → 拒绝
+    expect((await call(`/api/v1/accounts/${id}/attempts`, {
+      attemptId: 'f1-oral-nomedia', activityId: 'les_l3_oral_recap',
+      response: { kind: 'text', text: 'x' },
+      conditions: { firstExposure: true, hintLevel: 0, lookupUsed: false, responseMode: 'oral_recording' },
+    }, 'POST')).json.error).toContain('ORAL_RECORDING_REQUIRED')
+  })
+
+  it('F4：CT03 反例——词袋拒、否定语境收、角色反转拒；逐目标 met/unmet 分明', async () => {
+    const id = await mkAccount('F4-反例')
+    const post = (attemptId, text) => call(`/api/v1/accounts/${id}/attempts`, {
+      attemptId, activityId: 'ct03_semantics_guard',
+      response: { kind: 'text', text },
+      conditions: { firstExposure: true, hintLevel: 0, transcriptShown: false, playCount: 1, lookupUsed: false, responseMode: 'typed_summary' },
+    }, 'POST')
+    const good = await post('f4-good', '团队保留手势，暂缓语音。因为多人说话时这个原型在展厅里表现不好，他们想再测试；他们并未完全放弃语音。')
+    expect(good.json.pass).toBe(true)
+    expect(good.json.objectiveResults['O-K115-03']).toBe('met')
+    const bag = await post('f4-bag', 'gesture delay crowded still want')
+    expect(bag.json.pass).toBe(false)
+    // 词袋只算 partial（部分词命中但关系缺失）：pass=false → 只写失败事件，无能力升级
+    expect(bag.json.objectiveResults['O-K115-03']).toBe('partial')
+    const swapped = await post('f4-swap', 'They delayed gesture control and kept voice control because the exhibition was crowded.')
+    expect(swapped.json.pass).toBe(false)
+    const over = await post('f4-over', 'They kept gesture control because all voice systems always fail in crowded places.')
+    expect(over.json.pass).toBe(false)
+  })
+
+  it('F6：诊断乱序拒绝；幂等重放不二次推进', async () => {
+    const id = await mkAccount('F6-诊断')
+    const diag = (await call(`/api/v1/accounts/${id}/diagnostics`, { requestId: 'rq-f6' }, 'POST')).json
+    expect((await call(`/api/v1/accounts/${id}/attempts`, {
+      attemptId: 'f6-skip', sessionId: diag.diagnosticId, activityId: 'diag_d2_listen_sim',
+      response: { kind: 'text', text: 'x' },
+      conditions: { firstExposure: true, hintLevel: 0, transcriptShown: false, playCount: 1, lookupUsed: false, responseMode: 'typed_summary' },
+    }, 'POST')).json.error).toContain('DIAGNOSTIC_STEP_MISMATCH')
+    const d1 = await call(`/api/v1/accounts/${id}/attempts`, {
+      attemptId: 'f6-d1', sessionId: diag.diagnosticId, activityId: 'diag_d1_read',
+      response: { kind: 'text', text: ANSWERS.rich_d1 },
+      conditions: { firstExposure: true, hintLevel: 0, lookupUsed: false, responseMode: 'typed_summary' },
+    }, 'POST')
+    expect(d1.json.diagnostic.step).toBe('D2')
+    const replay = await call(`/api/v1/accounts/${id}/attempts`, {
+      attemptId: 'f6-d1', sessionId: diag.diagnosticId, activityId: 'diag_d1_read',
+      response: { kind: 'text', text: ANSWERS.rich_d1 },
+      conditions: { firstExposure: true, hintLevel: 0, lookupUsed: false, responseMode: 'typed_summary' },
+    }, 'POST')
+    expect(replay.json.replayed).toBe(true)
+    expect(replay.json.diagnostic.step).toBe('D2') // 没有第二次推进
+  })
+
+  it('F2：完成课程立即重算且不再推荐已完成课；重复完成不重复更新', async () => {
+    const id = await mkAccount('F2-推进')
+    await runDiagnostic(id, { D1: ANSWERS.rich_d1, D2: ANSWERS.fail_d2, D2b: ANSWERS.pass_d2, D3: ANSWERS.pass_d3 }, 'rq-f2')
+    await call(`/api/v1/accounts/${id}/lessons/les-listening-v1`)
+    await call(`/api/v1/accounts/${id}/attempts`, {
+      attemptId: 'f2-l2a', activityId: 'les_l2_museum_map_audio',
+      response: { kind: 'text', text: '地图按设计正常工作，不完整的是对访客需求的假设；有访客以为里面有意思才走向拥挤的房间。' },
+      conditions: { firstExposure: true, hintLevel: 0, transcriptShown: false, playCount: 1, lookupUsed: false, responseMode: 'typed_summary' },
+    }, 'POST')
+    await call(`/api/v1/accounts/${id}/attempts`, {
+      attemptId: 'f2-l2b', activityId: 'les_l2b_museum_transcript',
+      response: { kind: 'text', text: 'that 从句修饰地图；because 解释部分访客的动机；Could we ask visitors why they chose that route?' },
+      conditions: { firstExposure: true, transcriptShown: true, playCount: 1, lookupUsed: false, responseMode: 'typed_summary' },
+    }, 'POST')
+    const done = (await call(`/api/v1/accounts/${id}/lessons/les-listening-v1/complete`, {}, 'POST')).json
+    expect(done.planCompleted).toBe(true)
+    expect(done.decision).toBeTruthy()
+    const again = (await call(`/api/v1/accounts/${id}/lessons/les-listening-v1/complete`, {}, 'POST')).json
+    expect(again.replanNeeded).toBe(false)
+    const plan = (await call(`/api/v1/accounts/${id}/plan`)).json.decision
+    expect(plan.lesson?.lessonId ?? '').not.toBe('les-listening-v1')
+  })
+
+  it('F5：无录音不能签口语；内容不过关不给证据', async () => {
+    const id = await mkAccount('F5-签署')
+    await call(`/api/v1/accounts/${id}/attempts`, {
+      attemptId: 'f5-read', activityId: 'les_l1_sensor_read',
+      response: { kind: 'text', text: '出问题的是实验室里准的那颗传感器；现在可用于室内测试；安装被推迟到灯光检查。' },
+      conditions: { firstExposure: true, hintLevel: 0, lookupUsed: false, responseMode: 'typed_summary' },
+    }, 'POST')
+    const rev = await call(`/api/v1/accounts/${id}/oral-reviews`, {
+      attemptId: 'f5-read', mediaId: 'm_nonexistent',
+      dimensions: { '信息与关系': 0, '可理解度': 3, '语言资源': 0, '组织与互动': 0 },
+      objectiveResults: { 'O-K190-01': 'met' }, evaluator: 'x',
+    }, 'POST')
+    expect(rev.status).toBe(404) // 无录音 → 不能签
+    const intent = (await call(`/api/v1/accounts/${id}/oral/intent`, { activityId: 'les_l3_oral_recap', mime: 'audio/webm', bytes: 1024, durationMs: 45000 }, 'POST')).json
+    await call(`/api/v1/accounts/${id}/oral/${intent.mediaId}`, Buffer.from('audio'), 'PUT', new URLSearchParams({ token: intent.token }))
+    await call(`/api/v1/accounts/${id}/attempts/oral`, {
+      attemptId: 'f5-oral', mediaId: intent.mediaId, activityId: 'les_l3_oral_recap',
+      transcript: 'anything', transcriptOrigin: 'user_typed',
+      conditions: { firstExposure: true, hintLevel: 0, lookupUsed: false, responseMode: 'oral_recording' },
+    }, 'POST')
+    const rev2 = await call(`/api/v1/accounts/${id}/oral-reviews`, {
+      attemptId: 'f5-oral', mediaId: intent.mediaId,
+      dimensions: { '信息与关系': 0, '可理解度': 3, '语言资源': 0, '组织与互动': 0 },
+      objectiveResults: { 'O-K190-01': 'met' }, evaluator: 'x',
+    }, 'POST')
+    expect(rev2.json.signed).toBe(false) // 内容门：发音清晰不能覆盖内容失败
+    const ev = (await call(`/api/v1/accounts/${id}/evidence?objective=O-K190-01`)).json
+    expect(ev.states.some((st) => st.skill === 'speaking' && st.state !== 'unmeasured')).toBe(false)
+  })
+
+  it('F8：开关字符串 0 不启用；直接接口也被拒', async () => {
+    const id = await mkAccount('F8-开关')
+    process.env.ENGLISHFORGE_V4_GENERATION = '0'
+    try {
+      const r = await call(`/api/v1/accounts/${id}/generation/start`, { objectiveId: 'O-K115-01' }, 'POST')
+      expect(r.status).toBe(409)
+      expect(r.json.error).toContain('GENERATION_DISABLED')
+    } finally { delete process.env.ENGLISHFORGE_V4_GENERATION }
   })
 })

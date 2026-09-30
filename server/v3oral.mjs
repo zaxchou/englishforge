@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url'
 import { ApiError } from './db.mjs'
 import { ensureV3Schema } from './v3db.mjs'
 import { requireAccount } from './v3api.mjs'
-import { recordAttempt, recomputeStates } from './v3evidence.mjs'
+import { recordAttempt, recomputeStates, activityById } from './v3evidence.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const ORAL_ROOT = resolve(HERE, '..', 'data', 'oral') // 仓库外：data/ 被 gitignore
@@ -145,60 +145,76 @@ export function correctTranscript(accountId, mediaId, text, { origin = 'user_cor
 
 // ---------------------------------------------------------------- 人审（唯一能升级口语状态的通道）
 
-/** 人审签署：0–3 分维度 + 证据位置 + 人机分歧。签署后追加 evaluator=human 的 observed 事件 */
-export function signOralReview(accountId, { attemptId, mediaId, dimensions, evidenceRefs = [], evaluator, machineEval = null, disagreement = null, note } = {}) {
+/**
+ * 人审签署（F5 硬门）：
+ * · 必须绑定真实录音：media 属于该账户、playable、且 attempt 的 response 是 audio_ref 并指向该 media；
+ * · attempt 的活动必须是口语任务（oralEvidenceDeferred）；阅读活动永不被口语签署升级；
+ * · 内容与任务完成是门槛：「信息与关系」<2 则整体不通过（发音清晰不能覆盖内容错误）；
+ * · 只为人审**实际评定**的目标写证据（objectiveResults.met 才升级），机器评估史保留。
+ */
+export function signOralReview(accountId, { attemptId, mediaId, dimensions, objectiveResults = {}, evidenceRefs = [], evaluator, machineEval = null, disagreement = null, note } = {}) {
   requireAccount(accountId)
   if (!evaluator) throw new ApiError(400, 'SIGN_NEEDS_REVIEWER')
   const dimVals = Object.values(dimensions ?? {}).filter((v) => typeof v === 'number' && v >= 0 && v <= 3)
   if (!dimVals.length) throw new ApiError(400, 'REVIEW_NEEDS_DIMENSIONS: 至少一个 0–3 维度分')
+  if (!attemptId || !mediaId) throw new ApiError(400, 'SIGN_NEEDS_ATTEMPT_AND_MEDIA: 口语签署必须绑定具体录音与作答')
   const conn = ensureV3Schema()
+  const media = conn.prepare('SELECT * FROM media_assets WHERE media_id = ? AND account_id = ?').get(mediaId, accountId)
+  if (!media || !media.playable) throw new ApiError(404, 'MEDIA_UNAVAILABLE: 无可播放录音，不能签署口语')
+  const attempt = conn.prepare('SELECT * FROM learner_attempts_v3 WHERE account_id = ? AND attempt_id = ?').get(accountId, attemptId)
+  if (!attempt) throw new ApiError(404, 'ATTEMPT_NOT_FOUND: ' + attemptId)
+  if (media.attempt_id !== attemptId) throw new ApiError(400, 'MEDIA_ATTEMPT_MISMATCH: 录音与作答不绑定')
+  const resp = JSON.parse(attempt.response || '{}')
+  if (resp.kind !== 'audio_ref' || resp.mediaId !== mediaId) throw new ApiError(400, 'ATTEMPT_NOT_ORAL: 该作答没有真实录音（文字练习不能被口语签署认证）')
+  const act = activityById(attempt.activity_id)
+  if (!act?.oralEvidenceDeferred) throw new ApiError(400, 'ACTIVITY_NOT_ORAL_TASK: 该活动不是口语任务')
+  // 内容门：信息与关系（或内容与任务）必须 ≥2
+  const contentKey = Object.keys(dimensions).find((k) => k.includes('信息') || k.includes('内容'))
+  const contentScore = contentKey ? dimensions[contentKey] : null
+  if (contentScore === null || contentScore < 2) {
+    return { signed: false, reason: 'CONTENT_GATE: 内容/任务完成维度未达 2，不产生能力证据（发音清晰不能覆盖内容错误）；可给练习性反馈后重录' }
+  }
+  // 只为人审实际评定为 met 的目标写证据（21 §5：实际测到的项才可计）
+  const toCertify = Object.entries(objectiveResults).filter(([, v]) => v === 'met').map(([k]) => k)
+  const overall = dimVals.filter((v) => v >= 2).length >= 2
   const reviewId = `or_${Date.now().toString(36)}_${randomBytes(3).toString('hex')}`
   conn.prepare(
     `INSERT INTO oral_reviews (review_id, account_id, attempt_id, media_id, transcript_version, dimensions,
        evidence_refs, evaluator, machine_eval, disagreement, note, created_at)
      VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
   ).run(
-    reviewId, accountId, attemptId ?? null, mediaId ?? null,
-    (() => { const m = mediaId && conn.prepare('SELECT transcript_versions FROM media_assets WHERE media_id=?').get(mediaId); return m ? JSON.parse(m.transcript_versions || '[]').length - 1 : 0 })(),
+    reviewId, accountId, attemptId, mediaId,
+    JSON.parse(media.transcript_versions || '[]').length - 1,
     JSON.stringify(dimensions), JSON.stringify(evidenceRefs), String(evaluator).slice(0, 100),
     machineEval ? JSON.stringify(machineEval) : null, disagreement ? JSON.stringify(disagreement) : null,
     String(note || '').slice(0, 500), Date.now(),
   )
-  if (attemptId) {
-    const attempt = conn.prepare('SELECT * FROM learner_attempts_v3 WHERE account_id = ? AND attempt_id = ?').get(accountId, attemptId)
-    if (attempt) {
-      // 人审通过 = 可认证证据：覆盖 attempt 评估 + 追加 evaluator=human 的 observed 事件（不再 oralDeferred）
-      const overall = ['信息与关系', '可理解度', '语言资源', '组织与互动'].some((k) => (dimensions[k] ?? dimensions[k.replace(/与/g, '_')]) >= 2)
-      conn.prepare("UPDATE learner_attempts_v3 SET evaluation_status = 'evaluated', evaluation = ? WHERE account_id = ? AND attempt_id = ?")
-        .run(JSON.stringify({ pass: overall, dimensions, evaluator: 'human', confidence: 'signed', humanReviewId: reviewId }), accountId, attemptId)
-      // 机器评估史保留（append-only）：recomputeStates 本就跳过 oralDeferred 事件，human 事件按序覆盖
-      // 复核结论同时解除该 attempt 上的争议（15 §5 复核结束再更正）——用反向事件，不删历史
-      const cond = JSON.parse(attempt.conditions || '{}')
-      const condition = cond.firstExposure && !(cond.hintLevel > 0) ? 'first_independent' : 'supported'
-      for (const oid of JSON.parse(attempt.objective_ids || '[]')) {
-        const act = attempt.activity_id
-        conn.prepare(
-          `INSERT INTO evidence_events (account_id, evidence_id, attempt_id, objective_id, skill, complexity,
-             kind, condition, pass, basis, created_at) VALUES (?,?,?,?,?,?,'dispute_cleared','human_review',NULL,?,?)`)
-          .run(accountId, `ev_clear_${reviewId}_${oid}`, attemptId, oid,
-            activitySkill(conn, act, oid), 'base', JSON.stringify({ humanReviewId: reviewId }), Date.now())
-        conn.prepare(
-          `INSERT INTO evidence_events (account_id, evidence_id, attempt_id, objective_id, skill, complexity,
-             kind, condition, pass, basis, created_at) VALUES (?,?,?,?,?,?,'observed',?,?,?,?)`)
-          .run(accountId, `ev_human_${reviewId}_${oid}`, attemptId, oid,
-            activitySkill(conn, act, oid), 'base', condition, overall ? 1 : 0,
-            JSON.stringify({ role: attempt.role, taskFamilyId: attempt.task_family_id, evaluator: 'human', humanReviewId: reviewId }), Date.now())
-      }
-      recomputeStates(accountId)
+  if (toCertify.length) {
+    const cond = JSON.parse(attempt.conditions || '{}')
+    const condition = cond.firstExposure && !(cond.hintLevel > 0) ? 'first_independent' : 'supported'
+    for (const oid of toCertify) {
+      if (!act.objectiveIds.includes(oid)) throw new ApiError(400, 'OBJECTIVE_NOT_IN_ACTIVITY: ' + oid)
+      conn.prepare(
+        `INSERT INTO evidence_events (account_id, evidence_id, attempt_id, objective_id, skill, complexity,
+           kind, condition, pass, basis, created_at) VALUES (?,?,?,?,?,?,'dispute_cleared','human_review',NULL,?,?)`)
+        .run(accountId, `ev_clear_${reviewId}_${oid}`, attemptId, oid,
+          activitySkill(attempt.activity_id, oid), 'base', JSON.stringify({ humanReviewId: reviewId }), Date.now())
+      conn.prepare(
+        `INSERT INTO evidence_events (account_id, evidence_id, attempt_id, objective_id, skill, complexity,
+           kind, condition, pass, basis, created_at) VALUES (?,?,?,?,?,?,'observed',?,?,?,?)`)
+        .run(accountId, `ev_human_${reviewId}_${oid}`, attemptId, oid,
+          activitySkill(attempt.activity_id, oid), 'base', condition, overall ? 1 : 0,
+          JSON.stringify({ role: attempt.role, taskFamilyId: attempt.task_family_id, evaluator: 'human', humanReviewId: reviewId }), Date.now())
     }
+    recomputeStates(accountId)
   }
-  return { reviewId, signed: true }
+  return { reviewId, signed: true, certifiedObjectives: toCertify,
+    note: '开发期签署者为自报身份；多人版前须接入身份鉴权（15 §4 边界）' }
 }
 
-function activitySkill(conn, activityId, objectiveId) {
-  const row = conn.prepare('SELECT definition FROM generated_activities WHERE activity_id = ?').get(activityId)
-  const def = row ? JSON.parse(row.definition) : null
-  return def?.skillByObjective?.[objectiveId] ?? 'speaking'
+function activitySkill(activityId, objectiveId) {
+  // F5：静态与生成活动统一查技能（此前生成查到了、静态默认成 speaking）
+  return activityById(activityId)?.skillByObjective?.[objectiveId] ?? 'speaking'
 }
 
 /** 课包素材可用性检查（A7：不可播/无授权 → 不可用于认证，给可理解的替代状态） */

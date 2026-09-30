@@ -67,13 +67,27 @@ export function recordObservation(accountId, { trialId, phase, attemptId, materi
   if (!reg) throw new ApiError(404, 'TRIAL_NOT_FOUND: ' + trialId)
   const attempt = conn.prepare('SELECT * FROM learner_attempts_v3 WHERE account_id = ? AND attempt_id = ?').get(accountId, attemptId)
   if (!attempt) throw new ApiError(404, 'ATTEMPT_NOT_FOUND: ' + attemptId)
+  // F7：事后预注册不能计入既往作答——观察必须晚于预注册
+  if (attempt.created_at < reg.registered_at) {
+    throw new ApiError(400, 'TRIAL_OBSERVATION_PREDAATES_REGISTRATION: 该作答早于预注册，不能当试学观察（防事后补录）')
+  }
+  // F7：基线不可覆盖——同一 phase 已有记录时拒绝（纠错=新增带理由的更正记录）
+  const existing = conn.prepare('SELECT rowid FROM trial_observations WHERE account_id = ? AND trial_id = ? AND phase = ?')
+    .get(accountId, trialId, phase)
+  if (existing) throw new ApiError(409, 'TRIAL_PHASE_ALREADY_RECORDED: 该阶段已有观察（append-only；纠错请另立记录并说明理由）')
+  // 阶段顺序：post 需先有 baseline；delay 需先有 post
+  const needPrev = phase === 'post' ? 'baseline' : phase === 'delay' ? 'post' : null
+  if (needPrev && !conn.prepare('SELECT 1 FROM trial_observations WHERE account_id = ? AND trial_id = ? AND phase = ?')
+    .get(accountId, trialId, needPrev)) {
+    throw new ApiError(400, 'TRIAL_PHASE_ORDER: 先记录 ' + needPrev + ' 再记录 ' + phase)
+  }
   // 陌生性核对：attempt 的任务家族必须与该 phase 预注册任务一致
   const task = JSON.parse(reg[phase === 'baseline' ? 'baseline_task' : phase === 'post' ? 'post_task' : 'delay_task'] || '{}')
   if (task.taskFamilyId && attempt.task_family_id !== task.taskFamilyId) {
     throw new ApiError(400, 'TRIAL_TASK_FAMILY_MISMATCH: 该 attempt 不是预注册的任务家族')
   }
   conn.prepare(
-    `INSERT OR REPLACE INTO trial_observations (account_id, trial_id, phase, attempt_id, material_was_novel, support_snapshot, created_at)
+    `INSERT INTO trial_observations (account_id, trial_id, phase, attempt_id, material_was_novel, support_snapshot, created_at)
      VALUES (?,?,?,?,?,?,?)`,
   ).run(accountId, trialId, phase, attemptId, materialWasNovel ? 1 : 0, JSON.stringify(support), Date.now())
   return { ok: true, trialId, phase, counted: !!materialWasNovel }

@@ -174,26 +174,52 @@ export function revealHint(accountId, lessonId, activityId, level) {
 
 // ---------------------------------------------------------------- 完成 / 撤回 / 发布
 
-/** 课内活动全部有作答后调用：计划 served→completed，并触发重规划（§5 每节后即重算） */
+/**
+ * 课内活动全部有作答后调用：计划 served→completed，并**立即产生新的推荐决策**（F2：
+ * 完成事件→重算→合格候选；重复完成不重复更新）。完成只认本次会话：作答须发生在
+ * 取课（served）之后，且活动版本与课包一致。
+ */
 export function completeLesson(accountId, lessonId) {
   requireAccount(accountId)
   const conn = ensureV3Schema()
   const lesson = getLesson(lessonId)
   if (!lesson || lesson.contentStatus !== 'published') throw new ApiError(404, 'ACTIVITY_NOT_PUBLISHED: ' + lessonId)
-  const attempted = new Set(
-    conn.prepare('SELECT DISTINCT activity_id FROM learner_attempts_v3 WHERE account_id = ?').all(accountId).map((r) => r.activity_id))
-  const missing = lesson.activities.filter((ref) => !attempted.has(ref.activityId)).map((ref) => ref.activityId)
-  if (missing.length) throw new ApiError(400, 'LESSON_INCOMPLETE: ' + missing.join(','))
   const plan = conn.prepare(
     "SELECT * FROM plan_decisions WHERE account_id = ? AND status = 'served' AND served_lesson_id = ? ORDER BY created_at DESC LIMIT 1")
     .get(accountId, lessonId)
-  let planCompleted = false
-  if (plan) {
+  // F2：重复完成幂等——该课已有 completed 决策就直接返回，不报错不重复更新
+  const alreadyDone = conn.prepare(
+    'SELECT 1 FROM plan_decisions WHERE account_id = ? AND trigger_event = ? LIMIT 1')
+    .get(accountId, `lessonCompleted:${lessonId}`)
+  if (!plan && alreadyDone) {
+    return { ok: true, lessonId, planCompleted: true, replanNeeded: false, replanNote: '该课的完成重算已存在（不重复更新）' }
+  }
+  // F2：完成绑定本次课程会话——须有 served 记录，且作答晚于取课、版本一致
+  if (!plan) throw new ApiError(400, 'LESSON_NOT_SERVED: 先取课（GET lessons/:id）再完成')
+  const servedAt = plan.served_at ?? plan.created_at
+  const attempted = new Set(
+    conn.prepare('SELECT DISTINCT activity_id FROM learner_attempts_v3 WHERE account_id = ? AND created_at >= ?')
+      .all(accountId, servedAt).map((r) => r.activity_id))
+  const versionMismatch = lesson.activities
+    .filter((ref) => attempted.has(ref.activityId))
+    .filter((ref) => {
+      const act = activityById(ref.activityId)
+      return act && act.version !== ref.version
+    })
+    .map((ref) => ref.activityId)
+  const missing = lesson.activities.filter((ref) => !attempted.has(ref.activityId)).map((ref) => ref.activityId)
+  if (missing.length) throw new ApiError(400, 'LESSON_INCOMPLETE: 取课后未完成 ' + missing.join(','))
+  if (versionMismatch.length) throw new ApiError(400, 'LESSON_VERSION_MISMATCH: ' + versionMismatch.join(','))
+  // F2：重复完成不重复更新——同一 trigger 的决策已存在就直接返回
+  const trigger = `lessonCompleted:${lessonId}`
+  const dup = conn.prepare('SELECT decision_id FROM plan_decisions WHERE account_id = ? AND trigger_event = ? ORDER BY created_at DESC LIMIT 1')
+    .get(accountId, trigger)
+  const replanNeeded = !dup
+  if (replanNeeded) {
     conn.prepare("UPDATE plan_decisions SET status = 'completed' WHERE account_id = ? AND decision_id = ?")
       .run(accountId, plan.decision_id)
-    planCompleted = true
   }
-  return { ok: true, lessonId, planCompleted, replan: 'next plan request will recompute with fresh evidence' }
+  return { ok: true, lessonId, planCompleted: !!plan, replanNeeded, replanNote: replanNeeded ? undefined : '该课的完成重算已存在（不重复更新）' }
 }
 
 /** 撤回课程（15 §5）：停止新分发 + 受影响尝试的证据复核事件（不删历史）。需显式 confirm 防误触 */
@@ -225,6 +251,13 @@ export function withdrawLesson(lessonId, reason, confirm) {
   return { ok: true, lessonId, affectedRecheckEvents: n }
 }
 
+function completedLessonIds(conn, accountId) {
+  if (!accountId) return new Set()
+  return new Set(
+    conn.prepare("SELECT DISTINCT served_lesson_id FROM plan_decisions WHERE account_id = ? AND status = 'completed' AND served_lesson_id IS NOT NULL")
+      .all(accountId).map((r) => r.served_lesson_id))
+}
+
 /**
  * ready→published 的显式发布：人审签署过的走 mainline；无人审时必须 acknowledgeUnreviewed，
  * 记为 dev_only 通道（计划与前端都会带“开发样本”标记）。
@@ -242,6 +275,22 @@ export function publishLesson(lessonId, { acknowledgeUnreviewed = false, by = 'o
   return { ok: true, lessonId, releaseChannel: channel }
 }
 
+/** F3：按主目标找已发布课（排除本账户已完成；返回真实版本）。个人定制内容不跨账户复用 */
+export function lessonForObjective(objectiveId, { excludeCompletedFor = null } = {}) {
+  const conn = ensureV3Schema()
+  seedLessons()
+  const done = completedLessonIds(conn, excludeCompletedFor)
+  const rows = conn.prepare(
+    `SELECT lesson_id, version, release_channel, objective_ids FROM lesson_versions
+     WHERE content_status = 'published' ORDER BY (release_channel = 'mainline') DESC, version DESC`).all()
+  for (const r of rows) {
+    if (!JSON.parse(r.objective_ids || '[]').includes(objectiveId)) continue
+    if (done.has(r.lesson_id)) continue // F2：已完成课不再当新课推荐；只剩已完成课时诚实返回无内容
+    return { lessonId: r.lesson_id, version: r.version, devOnly: r.release_channel === 'dev_only' }
+  }
+  return null
+}
+
 /** 人审签署（只有一个方向：pending→signed）。签署是人对内容的结论，机器不得代签 */
 export function signLesson(lessonId, { reviewer, note } = {}) {
   if (!reviewer) throw new ApiError(400, 'SIGN_NEEDS_REVIEWER')
@@ -255,28 +304,18 @@ export function signLesson(lessonId, { reviewer, note } = {}) {
   return { ok: true, lessonId, humanReview: 'signed' }
 }
 
-/** 供计划层用：策略 → 课程包。优先人审签署的 mainline 课；dev_only 课作为开发样本兜底 */
-export function lessonForStrategy(strategyId) {
+/** 供计划层用：策略 → 课程包。优先人审签署的 mainline 课；dev_only 课作为开发样本兜底；排除已完成 */
+export function lessonForStrategy(strategyId, { excludeCompletedFor = null } = {}) {
   const conn = ensureV3Schema()
   seedLessons() // 幂等：课程包与账本一样随用随播种
-  const row = conn.prepare(
-    `SELECT lesson_id, release_channel FROM lesson_versions
-     WHERE content_status = 'published' AND strategy_id = ?
-     ORDER BY (release_channel = 'mainline') DESC, version DESC LIMIT 1`).get(strategyId)
-  return row ? { lessonId: row.lesson_id, devOnly: row.release_channel === 'dev_only' } : null
-}
-
-/** 按目标找已发布课（任意策略；窗口兜底用） */
-export function lessonForObjective(objectiveId) {
-  const conn = ensureV3Schema()
-  seedLessons()
+  const done = completedLessonIds(conn, excludeCompletedFor)
   const rows = conn.prepare(
-    `SELECT lesson_id, release_channel, objective_ids FROM lesson_versions
-     WHERE content_status = 'published' ORDER BY (release_channel = 'mainline') DESC, version DESC`).all()
+    `SELECT lesson_id, version, release_channel FROM lesson_versions
+     WHERE content_status = 'published' AND strategy_id = ?
+     ORDER BY (release_channel = 'mainline') DESC, version DESC`).all(strategyId)
   for (const r of rows) {
-    if (JSON.parse(r.objective_ids || '[]').includes(objectiveId)) {
-      return { lessonId: r.lesson_id, devOnly: r.release_channel === 'dev_only' }
-    }
+    if (done.has(r.lesson_id)) continue // F2：同上
+    return { lessonId: r.lesson_id, version: r.version, devOnly: r.release_channel === 'dev_only' }
   }
   return null
 }
