@@ -7,7 +7,7 @@
 import { ApiError } from './db.mjs'
 import { ensureV3Schema, getMeta, nextCounter } from './v3db.mjs'
 import { requireAccount } from './v3api.mjs'
-import { activityById } from './v3evidence.mjs'
+import { activityById, loadActivities } from './v3evidence.mjs'
 import { rowToObjective } from './v3map.mjs'
 import { lessonForStrategy, lessonForObjective } from './v3lessons.mjs'
 
@@ -146,16 +146,22 @@ export function decide(objectives, states, snapshot) {
     live.push(obj)
   }
 
-  // ③ 多假设 → 最短区分任务
+  // ③ 多假设 → 最短区分任务。F2：诊断假设可被后续证据修正——只在诊断仍新鲜且区分目标
+  // 还薄弱时生效；目标已 trained 说明假设已被学习消解，走正常排序（否则永久锁路线）
   const hypotheses = snapshot.diagnostic?.hypotheses ?? []
-  if (hypotheses.length >= 2) {
+  const lastAttemptAt0 = snapshot.recentAttempts[0]?.createdAt ?? 0
+  const diagFresh0 = !!snapshot.diagnosticCreatedAt && snapshot.diagnosticCreatedAt >= lastAttemptAt0
+  if (diagFresh0 && hypotheses.length >= 2) {
     const target = live.find((o) => o.objectiveId === 'O-K115-01') ?? live[0]
-    return finalize({
-      primaryGoal: target.objectiveId, strategyId: 'discriminate_cause',
-      reason: `同一失败有两种合理解释（${hypotheses.join('、')}），先给最短的区分任务再定路线`,
-      hypotheses, uncertainAreas: snapshot.diagnostic?.unmeasured ?? [], candidates,
-      lessonActivityId: STRATEGY_LESSONS.discriminate_cause, snapshot, live, stateOf,
-    })
+    if (STATE_RANK[stateOf(target.objectiveId).state] < 2) {
+      return finalize({
+        primaryGoal: target.objectiveId, strategyId: 'discriminate_cause',
+        reason: `同一失败有两种合理解释（${hypotheses.join('、')}），先给最短的区分任务再定路线`,
+        hypotheses, uncertainAreas: snapshot.diagnostic?.unmeasured ?? [], candidates,
+        lessonActivityId: STRATEGY_LESSONS.discriminate_cause, snapshot, live, stateOf,
+        accountId: snapshot.accountId, // F2：排除已完成课在这里同样生效（轨迹走查实测漏传导致已完成课被复推）
+      })
+    }
   }
 
 
@@ -209,10 +215,13 @@ export function decide(objectives, states, snapshot) {
 
   // ⑦ 策略：修复 > 诊断路线 > 默认挑战先行
   const repairTarget = findRepairTarget(snapshot, objectives)
+  const repairProbe = repairTarget ? repairProbeFor(repairTarget) : null
   let strategyId, lessonActivityId, reason
-  if (repairTarget) {
+  if (repairTarget && repairProbe) {
     strategyId = 'short_repair'
-    lessonActivityId = STRATEGY_LESSONS.short_repair
+    // 探针要对着修复目标本身：取含该目标的诊断活动（写死的通用探针会答了也没用——
+    // 轨迹走查实测：O-K190-01 的缺口被拿 O-K115-01 的对比探针"定位"，永远修不掉）
+    lessonActivityId = repairProbe
     reason = `复杂任务失败暴露 ${repairTarget} 的可靠缺口（该目标已被用户斩掉）：只开局部短修复定位，不批量重刷基础`
   } else if (diagRouteApplicable && diag?.route) {
     // F2：诊断路线只在其目标仍 eligible 且诊断足够新时生效；否则按最新证据选择
@@ -229,7 +238,10 @@ export function decide(objectives, states, snapshot) {
     reason = `${primary.objectiveId} 证据薄弱（${stateOf(primary.objectiveId).state}）且能打开 ${unlocks(primary.objectiveId)} 条后继：短讲后练`
   }
 
-  const finalGoal = repairTarget ?? (diagRouteApplicable ? diag.primaryGoal : null) ?? primary.objectiveId
+  // finalGoal 只在**真的走了修复/诊断路线**时被覆盖——修复分支因无可闭合探针让位时，
+  // 主目标也回到排序首（否则出现"主目标 A + 理由是 B"的错位展示）
+  const finalGoal = (repairTarget && repairProbe) ? repairTarget
+    : (diagRouteApplicable ? diag.primaryGoal : null) ?? primary.objectiveId
   return finalize({
     primaryGoal: finalGoal,
     strategyId, reason, hypotheses, candidates,
@@ -246,6 +258,18 @@ function findRepairTarget(snapshot, objectives) {
     if (s.flags.includes('needs_repair') && ids.includes(s.objectiveId)) return s.objectiveId
   }
   return null
+}
+
+/** 短修复探针 = 含修复目标的**可闭合**诊断活动里最短的那个（"短修复"就该用最短定位任务；
+ * 口语/无音频模拟的探针不算数——F5：文字作答关闭不了口语缺口），找不到返回 null——
+ * 修复分支让位给正常排序，缺口目标带着 needs_repair 在 notChosen 里如实显示 */
+function repairProbeFor(repairTarget) {
+  const relCount = (a) => (a.relations ?? a.evaluationContract?.relations ?? []).length
+  const hits = loadActivities().filter((a) => a.role === 'diagnostic' && !a.holdout
+    && !a.oralEvidenceDeferred && !(a.simulatesAudio && !a.audioRef)
+    && (a.objectiveIds ?? []).includes(repairTarget))
+    .sort((a, b) => relCount(a) - relCount(b) || (a.activityId < b.activityId ? -1 : 1))
+  return hits[0]?.activityId ?? null
 }
 
 function strategyReason(diag, stateOf) {

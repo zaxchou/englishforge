@@ -58,7 +58,7 @@ function norm(s) {
 
 // 否定判定（21§4）：多字否定词与英文否定在 14 字窗口内都算；中文单字否定词只认锚点前 3 字
 // 的紧邻——否则"表现不好 他们想再测试"里的"不"会把远处的"再测试"误标成否定（实测踩过）。
-const NEGATION_STRONG = ['并非', '并未', '没有', '不是', '不再', '不会', '没完全', '未完全', "n't", 'never', 'neither']
+const NEGATION_STRONG = ['并非', '并未', '没有', '不是', '不再', '不会', '不能', '并不是', '并没有', '并不会', '不等于', '不算', '没完全', '未完全', "n't", 'never', 'neither']
 const NEGATION_LIGHT = ['不', '没', '未', '无', '别']
 
 function negatedAt(text, at) {
@@ -347,7 +347,10 @@ export function recomputeStates(accountId) {
   const baseAcc = new Map() // key obj|skill → 跨带聚合槽（最弱状态 + 标志并集）
   const slot = (obj, skill, band) => {
     const k = obj + '|' + skill + '|' + (band || 'base')
-    if (!acc.has(k)) acc.set(k, { objectiveId: obj, skill, band: band || 'base', state: 'unmeasured', flags: new Set(), independentFamilies: new Set(), failStreak: 0, hasObserved: false })
+    if (!acc.has(k)) acc.set(k, {
+      objectiveId: obj, skill, band: band || 'base', state: 'unmeasured', flags: new Set(),
+      independentFamilies: new Set(), failStreak: 0, hasObserved: false, lastRepairAt: 0, lastPassAt: 0,
+    })
     return acc.get(k)
   }
   const baseOf = (obj, skill) => {
@@ -368,7 +371,7 @@ export function recomputeStates(accountId) {
     if (e.kind === 'waive') { addFlag(e.objective_id, e.skill, band, 'waived_by_user'); continue }
     if (e.kind === 'dispute') { addFlag(e.objective_id, e.skill, band, 'disputed'); if (!openDisputeAt.has(key)) openDisputeAt.set(key, e.created_at); continue }
     if (e.kind === 'dispute_cleared') { s.flags.delete('disputed'); baseOf(e.objective_id, e.skill).flags.delete('disputed'); openDisputeAt.delete(key); continue }
-    if (e.kind === 'repair') { addFlag(e.objective_id, e.skill, band, 'needs_repair'); continue }
+    if (e.kind === 'repair') { s.lastRepairAt = Math.max(s.lastRepairAt, e.created_at); continue } // 是否仍需修复在回放末尾判
     if (e.kind !== 'observed') continue
     const basis = JSON.parse(e.basis || '{}')
     // F1 重算：**无音频**的文字模拟历史 listening 事件 → reading 槽位；带 audioRef 的保持 listening
@@ -389,6 +392,7 @@ export function recomputeStates(accountId) {
 
     if (e.pass) {
       s2.failStreak = 0
+      s2.lastPassAt = Math.max(s2.lastPassAt, e.created_at)
       const rank = STATE_RANK[s2.state]
       if (basis.locating) { if (rank < 1) s2.state = 'tentative'; continue } // 定位题不算掌握证据
       if (e.condition === 'transcript_shown') { if (rank < 2) s2.state = 'trained'; continue } // 看稿成功≤trained，且已重定向到 reading
@@ -400,8 +404,14 @@ export function recomputeStates(accountId) {
       else if (rank < 2) s2.state = 'trained'
     } else {
       s2.failStreak += 1
-      if (s2.failStreak >= 2) addFlag(e.objective_id, skill, band, 'needs_repair') // 两次同类失败先换策略，不硬刷
+      // needs_repair 不在这里挂：标志在回放结束后按**最终**连败判定——再次成功会自然过期，
+      // 否则一次历史连败让 short_repair 永远锁住推荐（轨迹走查实测踩过）
     }
+  }
+  // 回放结束判定换策略建议：最终连败 ≥2，或 repair 事件之后（该槽）再无通过——
+  // 修复建议会过期，不永续锁推荐（轨迹走查实测：repair 标志永续导致 short_repair 死循环）
+  for (const s of acc.values()) {
+    if (s.failStreak >= 2 || (s.lastRepairAt && s.lastRepairAt > s.lastPassAt)) s.flags.add('needs_repair')
   }
 
   // base 聚合：状态只在**有作答证据**的带里取最弱（免修/争议这类纯标志槽不把状态拖回 unmeasured）；
