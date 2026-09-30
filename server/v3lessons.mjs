@@ -89,6 +89,7 @@ function rowToLesson(r) {
     nextCandidates: JSON.parse(r.next_candidates || '[]'), sourceRefs: JSON.parse(r.source_refs || '[]'),
     teachingNote: r.teaching_note, holdoutRef: r.holdout_ref, qualityGates: JSON.parse(r.quality_gates || '{}'),
     humanReview: r.human_review, releaseChannel: r.release_channel, contentStatus: r.content_status,
+    accountScope: r.account_scope ?? 'global',
     withdrawnReason: r.withdrawn_reason, createdAt: r.created_at,
   }
 }
@@ -111,6 +112,10 @@ export function serveLesson(accountId, lessonId) {
   requireAccount(accountId)
   const lesson = getLesson(lessonId)
   if (!lesson || lesson.contentStatus !== 'published') throw new ApiError(404, 'ACTIVITY_NOT_PUBLISHED: ' + lessonId)
+  // C4 纵深防御：计划层选课已按 scope 过滤，这里再拦一次直连 ID 取他人定制课
+  if (lesson.accountScope && lesson.accountScope !== 'global' && lesson.accountScope !== accountId) {
+    throw new ApiError(404, 'ACTIVITY_NOT_PUBLISHED: ' + lessonId)
+  }
   const conn = ensureV3Schema()
   const attempted = new Set(
     conn.prepare('SELECT DISTINCT activity_id FROM learner_attempts_v3 WHERE account_id = ?').all(accountId).map((r) => r.activity_id))
@@ -280,9 +285,12 @@ export function lessonForObjective(objectiveId, { excludeCompletedFor = null } =
   const conn = ensureV3Schema()
   seedLessons()
   const done = completedLessonIds(conn, excludeCompletedFor)
+  // C4：scope 过滤——公共课（global）+ 本账户的定制课；别人的定制课不可见
+  const scope = excludeCompletedFor ?? '__no_account__'
   const rows = conn.prepare(
     `SELECT lesson_id, version, release_channel, objective_ids FROM lesson_versions
-     WHERE content_status = 'published' ORDER BY (release_channel = 'mainline') DESC, version DESC`).all()
+     WHERE content_status = 'published' AND account_scope IN ('global', ?)
+     ORDER BY (release_channel = 'mainline') DESC, version DESC`).all(scope)
   for (const r of rows) {
     if (!JSON.parse(r.objective_ids || '[]').includes(objectiveId)) continue
     if (done.has(r.lesson_id)) continue // F2：已完成课不再当新课推荐；只剩已完成课时诚实返回无内容
@@ -309,10 +317,11 @@ export function lessonForStrategy(strategyId, { excludeCompletedFor = null } = {
   const conn = ensureV3Schema()
   seedLessons() // 幂等：课程包与账本一样随用随播种
   const done = completedLessonIds(conn, excludeCompletedFor)
+  const scope = excludeCompletedFor ?? '__no_account__' // C4：同 lessonForObjective 的范围过滤
   const rows = conn.prepare(
     `SELECT lesson_id, version, release_channel FROM lesson_versions
-     WHERE content_status = 'published' AND strategy_id = ?
-     ORDER BY (release_channel = 'mainline') DESC, version DESC`).all(strategyId)
+     WHERE content_status = 'published' AND strategy_id = ? AND account_scope IN ('global', ?)
+     ORDER BY (release_channel = 'mainline') DESC, version DESC`).all(strategyId, scope)
   for (const r of rows) {
     if (done.has(r.lesson_id)) continue // F2：同上
     return { lessonId: r.lesson_id, version: r.version, devOnly: r.release_channel === 'dev_only' }

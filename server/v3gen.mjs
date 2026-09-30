@@ -10,12 +10,42 @@
 // · 需要人审的生成（新语法解释/未核验目标）只到 ready，不自动 published（§5）；
 // · 课窗 = 接下来 2 节完整课 + ≤4 个候选位置，每课后重估；新证据可作废缓存课，
 //   作废留原因（T6）。
+import { createHash } from 'node:crypto'
+import { readFileSync } from 'node:fs'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { ensureV3Schema, getMeta, setMeta } from './v3db.mjs'
 import { ApiError } from './db.mjs'
 import { rowToObjective } from './v3map.mjs'
 import { runQualityGates, lessonForStrategy, lessonForObjective } from './v3lessons.mjs'
+import { activityById } from './v3evidence.mjs'
 import { decide } from './v3plan.mjs'
 import { chatWithMeta, LlmError } from './llm.mjs'
+
+const HERE = dirname(fileURLToPath(import.meta.url))
+let ledgerCache = null
+/** 来源账本（v3-objectives.json sources）：代号 → {claim, limit}。命题级核验的锚点在这里 */
+function sourceLedger() {
+  if (!ledgerCache) ledgerCache = JSON.parse(readFileSync(resolve(HERE, 'data', 'v3-objectives.json'), 'utf8')).sources ?? {}
+  return ledgerCache
+}
+
+/**
+ * C4：内容指纹 —— prompt+关系标签+候选句/禁例 归一化后哈希。
+ * 任务族标签是自由文本，改名即"新题"；指纹相同即重复投递（20 号 F3「重命名旧题不能伪装陌生迁移」）。
+ * 归一化刻意偏严（去空白/标点、小写）：把两道相近题误判为重复是安全侧错误。
+ */
+export function activityFingerprint(def) {
+  const norm = (s) => String(s ?? '').toLowerCase().replace(/\s+/g, ' ')
+    .replace(/[，。！？；：、,.!?;:"'"'()（）\-—…]/g, '').trim()
+  const relations = def?.relations ?? def?.evaluationContract?.relations ?? []
+  const parts = [
+    norm(def?.prompt),
+    ...relations.flatMap((r) => [norm(r?.label), ...(r?.anyOf ?? []).map(norm)]),
+    ...(def?.mustNot ?? def?.evaluationContract?.mustNot ?? []).map(norm),
+  ]
+  return createHash('sha256').update(parts.join('|')).digest('hex').slice(0, 24)
+}
 
 export const GEN_CONTRACT_V1 = {
   version: 'gen-contract-v1',
@@ -28,7 +58,7 @@ export const GEN_CONTRACT_V1 = {
     '   "sourceRefs":[{"ref","claim"}]}；不要 markdown 包装。',
     '2) 每个活动至少 2 个 required 关系，可接受答案用 anyOf 关键词表达（中英文都可）。',
     '3) teachingNote 用白话讲关系（像"做动作的/挨动作的"），**禁止**主格/宾格/物主代词/三单/谓语/从句这类术语。',
-    '4) sourceRefs 至少 1 条，指向该目标声明过的来源（G/C/T 代号）。',
+    '4) sourceRefs 至少 1 条，形如 {"ref":"代号","claim":"该材料实际依赖的具体语言命题"}；ref 必须是该目标声明过的来源代号，claim 必须写具体命题（≥6 字），不得只报代号。',
     '5) 素材是**虚构教学情境**，不得声称真实项目/讲座；不得与给定"最近用过的家族"重复。',
   ].join('\n'),
 }
@@ -78,15 +108,29 @@ export function validateGeneratedPackage(pkg, ctx) {
   gates.answersConsistent = gates.schemaComplete && pkg.activities.every((a) =>
     a.relations.filter((r) => r.required).length >= 1
     && a.relations.every((r) => r.id && r.label && Array.isArray(r.anyOf) && r.anyOf.length >= 2))
+  // C4（F8 残留）：命题级来源绑定 —— 只报代号不再算"有来源"。每个 ref 必须：
+  // ① 在该目标声明过的来源里（不越出已核范围）；② 账本里该代号本身带具体命题（claim_checked 锚点）；
+  // ③ 生成包自带它主张的具体命题（≥6 字符的实质命题，不能是代号复读）。
+  // 命题与账本主张的**语义**一致性机器判不了 → 这类课仍走人审签署（needsSign 不因此放宽）。
   gates.sourcesUsable = Array.isArray(pkg.sourceRefs) && pkg.sourceRefs.length >= 1
-    && pkg.sourceRefs.every((s) => s.ref && ctx.allowedSourceCodes.includes(String(s.ref).split(':')[0]))
+    && pkg.sourceRefs.every((s) => {
+      const ref = String(typeof s === 'string' ? s : s?.ref ?? '').split(':')[0]
+      const claim = typeof s === 'string' ? '' : String(s?.claim ?? '').trim()
+      return !!ref && ctx.objectiveDeclaredSources.includes(ref)
+        && typeof ctx.sourceLedger?.[ref]?.claim === 'string' && ctx.sourceLedger[ref].claim.trim().length > 0
+        && claim.length >= 6 && claim !== ref
+    })
+  // C4（F3 残留）：任务族去重 = 标签不重复 **且** 内容指纹不重复（防改名换皮）**且** 包内互不重复
+  const fingerprints = (pkg.activities ?? []).map((a) => activityFingerprint(a))
+  gates.familyFresh = Array.isArray(pkg.activities) && pkg.activities.every((a) =>
+    a.taskFamilyId && !ctx.recentFamilies.includes(a.taskFamilyId))
+    && fingerprints.every((f) => !ctx.recentFingerprints.includes(f))
+    && new Set(fingerprints).size === fingerprints.length
   // F8：术语门带感知——band≤3 基础组禁术语；band≥5 高级组允许精确术语（禁“从句”会妨碍高级解释）
   const termGate = (ctx.band ?? 1) >= 5 ? [] : TERM_BLACKLIST
   gates.explanationClean = typeof pkg.teachingNote === 'string'
     && !termGate.some((t) => pkg.teachingNote.includes(t))
     && pkg.activities.every((a) => !(a.explain && termGate.some((t) => a.explain.includes(t))))
-  gates.familyFresh = Array.isArray(pkg.activities) && pkg.activities.every((a) =>
-    a.taskFamilyId && !ctx.recentFamilies.includes(a.taskFamilyId))
   gates.holdoutIsolated = gates.schemaComplete && pkg.activities.every((a) => a.role !== 'holdout')
   gates.truncated = false // chatJson 解析失败根本到不了这里；截断=reject 上游
   gates.allPassed = ['schemaComplete', 'answersConsistent', 'sourcesUsable', 'explanationClean', 'familyFresh', 'holdoutIsolated']
@@ -158,16 +202,22 @@ async function runJob(jobId, { chat = chatWithMeta } = {}) {
   const spec = JSON.parse(job().input_spec)
   const objective = spec.objective
 
-  const recentRows = conn.prepare('SELECT task_family_id FROM learner_attempts_v3 WHERE account_id = ? ORDER BY created_at DESC LIMIT 5')
+  // C4：该账户最近 50 次作答的家族标签 + 内容指纹（改名换皮在这里现形）
+  const recentRows = conn.prepare('SELECT task_family_id, activity_id FROM learner_attempts_v3 WHERE account_id = ? ORDER BY created_at DESC LIMIT 50')
     .all(job().account_id)
   const groupRow = conn.prepare('SELECT g.complexity_band AS band FROM coverage_groups g WHERE g.group_id = ?')
     .get(objective.parentGroup)
   const learnerEvidence = spec.learnerEvidence ?? {}
   const ctx = {
     recentFamilies: [...new Set([...(learnerEvidence.recentFamilies ?? []), ...recentRows.map((r) => r.task_family_id).filter(Boolean)])],
+    recentFingerprints: [...new Set(recentRows.map((r) => {
+      const act = r.activity_id ? activityById(r.activity_id) : null
+      return act ? activityFingerprint(act) : null
+    }).filter(Boolean))],
     // F8：来源可用性按目标声明过的来源核验（标签≠事实核验，但不许越出已核范围）
     allowedSourceCodes: ['G1', 'G2', 'G3', 'G4', 'G5', 'C1', 'T'],
     objectiveDeclaredSources: [...new Set((objective.sourceRefs ?? []).map((r) => String(typeof r === 'string' ? r : (r.ref ?? '')).split(':')[0]).filter(Boolean))],
+    sourceLedger: sourceLedger(),
     // F8：术语门带感知——band≤3 基础组禁术语；band≥5 高级组允许精确术语
     band: Number(groupRow?.band ?? 1),
     learnerEvidence,
@@ -237,11 +287,15 @@ async function runJob(jobId, { chat = chatWithMeta } = {}) {
         objectiveIds: [objective.objectiveId],
         difficultyDims: objective.complexityDims ?? [],
         activities: activityIds.map((id, i) => ({ activityId: id, role: 'practice', hintStages: (pkg.activities[i]?.hints ?? []).slice(1) })),
-        nextCandidates: [], sourceRefs: pkg.sourceRefs.map((s) => s.ref), holdoutRef: null,
+        nextCandidates: [], sourceRefs: pkg.sourceRefs.map((s) => typeof s === 'string'
+          ? { ref: s, claim: null }
+          : { ref: s.ref, claim: s.claim ?? null }), holdoutRef: null,
       }
       const lg = runQualityGates(lessonSeed, conn)
       if (!lg.allPassed) { lastReasons = rejectReasons(lg); continue }
-      insertGeneratedLesson(conn, lessonSeed, { jobId, gates: lg })
+      // C4（F3 残留）：个体内容按账户落 scope，不进 global——别人的定制课不该被第二个账户收到；
+      // 公共化必须显式人审并另行提升通道，不走"生成即共享"
+      insertGeneratedLesson(conn, lessonSeed, { jobId, gates: lg, accountScope: job().account_id })
       // 发布边界（§5）：目标未核验、模型自报新解释、或声音/口述依赖目标 → 一律只到 ready 等人审。
       // 已知局限：explanationKind 是模型自报，机器无法验证"是否新解释"——所以生成的课永远带
       // human_review=pending + dev_only + 抽检标记，通过 sampling 队列待人工抽样（见 validation.samplingQueued）。
@@ -266,14 +320,14 @@ async function runJob(jobId, { chat = chatWithMeta } = {}) {
   return { jobId, status: 'rejected', reasons: lastReasons }
 }
 
-function insertGeneratedLesson(conn, seed, { jobId, gates }) { // 已由 runJob 校验并通过质量门
+function insertGeneratedLesson(conn, seed, { jobId, gates, accountScope }) { // 已由 runJob 校验并通过质量门
   conn.prepare(
     `INSERT INTO lesson_versions (account_scope, lesson_id, version, title, why_now, teaching_note, strategy_id,
        objective_ids, difficulty_dims, activity_refs, next_candidates, source_refs, holdout_ref, quality_gates,
        human_review, release_channel, content_status, created_at)
-     VALUES ('global',?,?,?,?,?,?,?,?,?,?,?,?,?,'pending','dev_only','ready',?)`,
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,'pending','dev_only','ready',?)`,
   ).run(
-    seed.lessonId, seed.version, seed.title, seed.whyNow, seed.teachingNote, seed.strategyId,
+    accountScope ?? 'global', seed.lessonId, seed.version, seed.title, seed.whyNow, seed.teachingNote, seed.strategyId,
     JSON.stringify(seed.objectiveIds), JSON.stringify(seed.difficultyDims), JSON.stringify(seed.activities),
     JSON.stringify(seed.nextCandidates), JSON.stringify(seed.sourceRefs), seed.holdoutRef,
     JSON.stringify({ ...gates, generated: { jobId, contract: GEN_CONTRACT_V1.version } }), Date.now(),

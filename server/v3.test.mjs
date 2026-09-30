@@ -655,6 +655,15 @@ describe('W4/T5+T6 按需生成供给', () => {
     ],
     sourceRefs: [{ ref: 'G3', claim: 'but 表示对照' }],
   }
+  // C4：来源命题按目标声明选——账本里每个代号都有已核命题；夹具照抄账本主张
+  const ledgerClaims = {
+    G1: '限定从句限定所指对象；非限定从句补充信息',
+    G3: 'but 表示对照；although/though 引导从属对照分句',
+    G4: '话语标记帮助组织、转换和管理所说内容',
+    C1: '互动、澄清、转述、音系维度可用于设计真实任务',
+    T: 'C15 提供“声音—结构—简化”的解释入口',
+  }
+  const pkgFor = (refs) => ({ ...goodPkg, sourceRefs: refs.map((ref) => ({ ref, claim: ledgerClaims[ref.split(':')[0]] })) })
   const fakeChat = (payload) => async () => JSON.stringify(typeof payload === 'function' ? payload() : payload)
 
   it('T5：空字段/无来源/术语解析/家族重复/截断 —— 全部拒收且留原因；好输出经全门发布（dev_only）', async () => {
@@ -664,8 +673,11 @@ describe('W4/T5+T6 按需生成供给', () => {
     const bad = [
       ['schema 缺字段', { title: '', whyNow: '', teachingNote: '', activities: [], sourceRefs: [] }],
       ['无来源', { ...goodPkg, sourceRefs: [] }],
+      ['来源只报代号无命题（C4）', { ...goodPkg, sourceRefs: [{ ref: 'G3' }] }],
+      ['来源代号目标未声明（C4）', { ...goodPkg, sourceRefs: [{ ref: 'G5', claim: '未重读的 can 常变为 /kən/' }] }],
       ['解析含术语', { ...goodPkg, teachingNote: 'but 引导的从句在句中作状语，主语是真主语。' }],
       ['家族与最近重复', { ...goodPkg, activities: goodPkg.activities.map((a) => ({ ...a, taskFamilyId: 'exhibit_decision_read_A' })) }],
+      ['包内同内容换标签（C4 指纹）', { ...goodPkg, activities: [goodPkg.activities[0], { ...goodPkg.activities[0], taskFamilyId: 'gen_contrast_c' }] }],
     ]
     for (const [label, payload] of bad) {
       const r = await gen.startGenerationJob(id, { objectiveId: 'O-K184-02', strategyId: 'sound_segmentation', chat: fakeChat(payload), await: true, force: true })
@@ -676,29 +688,81 @@ describe('W4/T5+T6 按需生成供给', () => {
     // 截断（非法 JSON）
     const trunc = await gen.startGenerationJob(id, { objectiveId: 'O-K184-02', chat: async () => '{"title":"半截', await: true, force: true })
     expect(trunc.status).toBe('rejected')
-    // 好输出：阅读目标（claim_checked）→ 自动发布（dev_only 通道）
-    const okJob = await gen.startGenerationJob(id, { objectiveId: 'O-K115-01', strategyId: 'short_explain', chat: fakeChat(goodPkg), await: true, force: true })
+    // 好输出：阅读目标（claim_checked）→ 自动发布（dev_only 通道）；来源按目标声明带命题（C4）
+    const okJob = await gen.startGenerationJob(id, { objectiveId: 'O-K115-01', strategyId: 'short_explain', chat: fakeChat(pkgFor(['G1'])), await: true, force: true })
     expect(okJob.status).toBe('succeeded')
     expect(okJob.published).toBe(true)
+    // C4：生成课落账户 scope——操作者列表可见 scope；他人直连取课被拒
+    const lessons = (await call('/api/v1/lessons')).json.lessons
+    const genLesson = lessons.find((l) => l.lessonId === okJob.lessonId)
+    expect(genLesson.contentStatus).toBe('published')
+    expect(genLesson.accountScope).toBe(id)
+    const other = await mkAccount('W4-T5-他人')
+    const v3lessons = await import('./v3lessons.mjs')
+    let leaked = ''
+    try { v3lessons.serveLesson(other, okJob.lessonId) } catch (e) { leaked = String(e?.message) }
+    expect(leaked).toContain('ACTIVITY_NOT_PUBLISHED')
+    expect(v3lessons.lessonForObjective('O-K115-01', { excludeCompletedFor: other })?.lessonId).not.toBe(okJob.lessonId)
     // 听力目标（O-K184-02）：文本课不能给听力证据（15 §5 技能不互升）→ 强制人审，不自动发布
-    const listenJob = await gen.startGenerationJob(id, { objectiveId: 'O-K184-02', strategyId: 'sound_segmentation', chat: fakeChat(goodPkg), await: true, force: true })
+    const listenJob = await gen.startGenerationJob(id, { objectiveId: 'O-K184-02', strategyId: 'sound_segmentation', chat: fakeChat(pkgFor(['G3'])), await: true, force: true })
     expect(listenJob.status).toBe('succeeded')
     expect(listenJob.published).toBe(false)
     const listenRow = (await call(`/api/v1/accounts/${id}/generation`)).json.jobs.find((j) => j.job_id === listenJob.jobId)
     expect(JSON.parse(listenRow.validation).pending).toBe('human_sign')
-    const lessons = (await call('/api/v1/lessons')).json.lessons
-    const genLesson = lessons.find((l) => l.lessonId === okJob.lessonId)
-    expect(genLesson.contentStatus).toBe('published')
     // 未核验目标（design_rationale）→ 只到 ready 等签署，不自动发布
-    const pend = await gen.startGenerationJob(id, { objectiveId: 'O-K190-01', chat: fakeChat(goodPkg), await: true, force: true })
+    const pend = await gen.startGenerationJob(id, { objectiveId: 'O-K190-01', chat: fakeChat(pkgFor(['T'])), await: true, force: true })
     expect(pend.status).toBe('succeeded')
     expect(pend.published).toBe(false)
     // 指标：拒收率/原因可查；旧 published 种子课没丢
     const m = (await call(`/api/v1/accounts/${id}/generation`)).json.metrics
-    expect(m.rejected).toBeGreaterThanOrEqual(5)
+    expect(m.rejected).toBeGreaterThanOrEqual(7)
     expect(m.succeeded).toBe(3)
     expect(m.rejectionRate).toBeGreaterThan(0)
     expect(lessons.filter((l) => l.lessonId.startsWith('les-')).length).toBeGreaterThanOrEqual(3)
+  }, 30000)
+
+  it('C4 回归：旧题改名换皮被内容指纹拦下；真新内容不受牵连', async () => {
+    const id = await mkAccount('W4-C4指纹')
+    await call('/api/v1/map')
+    const acts = (await import('./data/v3-activities.json')).default
+    const donor = acts.activities.find((a) => a.role === 'practice' && !a.holdout && a.prompt
+      && ((a.relations ?? a.evaluationContract?.relations) ?? []).length >= 1
+      && ((a.relations ?? a.evaluationContract?.relations) ?? []).every((r) => Array.isArray(r.anyOf) && r.anyOf.length >= 2))
+    // 该账户真实作答过 donor → 内容指纹进入账户历史
+    const att = await call(`/api/v1/accounts/${id}/attempts`, {
+      attemptId: 'c4fp-1', activityId: donor.activityId,
+      response: { kind: 'text', text: ((donor.relations ?? donor.evaluationContract?.relations) ?? []).map((r) => r.anyOf?.[0] ?? '').join('；') },
+      conditions: { firstExposure: true, transcriptShown: true, playCount: 1, hintLevel: 0, responseMode: 'typed_summary' },
+    }, 'POST')
+    expect(att.status).toBe(200)
+    const gen = await import('./v3gen.mjs')
+    const fakeChat = (payload) => async () => JSON.stringify(payload)
+    // 换皮包：家族标签全新，但 prompt+关系+候选句与作答过的旧题完全一致
+    // （静态活动的关系在 evaluationContract 里；生成包用顶层 relations，内容一致指纹才一致）
+    const reskin = {
+      title: '看起来全新的一课', whyNow: '旧题换了名字重新投递应该被识破。', teachingNote: '白话解释，不含术语词。',
+      explanationKind: 'established',
+      activities: [donor, { ...donor, prompt: donor.prompt + '（第二批）' }].map((a, i) => ({
+        ...a, taskFamilyId: `brand_new_family_${i}`,
+        relations: a.evaluationContract?.relations ?? a.relations,
+      })),
+      sourceRefs: [{ ref: 'G3', claim: 'but 表示对照；although/though 引导从属对照分句' }],
+    }
+    const r = await gen.startGenerationJob(id, { objectiveId: 'O-K184-02', strategyId: 'sound_segmentation', chat: fakeChat(reskin), await: true, force: true })
+    expect(r.status).toBe('rejected')
+    expect(r.reasons.join('')).toContain('familyFresh')
+    // 对照组：真新内容（不同 prompt/关系）同账户正常过门
+    const fresh = {
+      ...reskin,
+      title: '真正的新课', activities: [
+        { taskFamilyId: 'fresh_fam_a', prompt: 'New plan, new problems: the team changed the schedule twice this week. 问：改变了几次？', hints: [],
+          relations: [{ id: 'twice', label: '改了两次', anyOf: ['twice', '两次', 'two'], required: true }, { id: 'sched', label: '改的是日程', anyOf: ['schedule', '日程', '计划'], required: true }] },
+        { taskFamilyId: 'fresh_fam_b', prompt: 'The printer jammed again, so we switched rooms. 问：结果是什么？', hints: [],
+          relations: [{ id: 'switch', label: '换了房间', anyOf: ['switch', '换', 'room'], required: true }, { id: 'jam', label: '原因又是卡纸', anyOf: ['jam', '卡纸', 'printer'], required: true }] },
+      ],
+    }
+    const ok = await gen.startGenerationJob(id, { objectiveId: 'O-K184-02', strategyId: 'sound_segmentation', chat: fakeChat(fresh), await: true, force: true })
+    expect(ok.status).toBe('succeeded')
   }, 30000)
 
   it('T6：学第 1 课时证据前进 → 缓存课被作废留痕；模型失败 → job failed 且有适配后继或诚实不足', async () => {

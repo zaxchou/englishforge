@@ -98,12 +98,13 @@ export const V3_ROUTES = [
   // 内容争议：坏题/坏转写 → 争议+暂停，不降级用户（A6）
   ['POST', '/api/v1/accounts/:id/content-reports', (ctx) => reportContent(ctx.params.id, ctx.body ?? {})],
 
-  // W3：课程包 —— 学习者只拿 published 课包；无 holdout 答案；提示逐层揭晓
+  // W3：课程包 —— 学习者只拿 published 课包；无 holdout 答案；提示逐层揭晓。
+  // accountScope/releaseChannel 给审核视图：个人定制课 vs 公共课、mainline vs dev_only 一眼可辨（C4）
   ['GET', '/api/v1/lessons', () => {
     seedLessons()
     return { lessons: listLessons().map((l) => ({ lessonId: l.lessonId, version: l.version, title: l.title,
       strategyId: l.strategyId, objectiveIds: l.objectiveIds, contentStatus: l.contentStatus,
-      humanReview: l.humanReview })) }
+      humanReview: l.humanReview, accountScope: l.accountScope, releaseChannel: l.releaseChannel })) }
   }],
   ['GET', '/api/v1/accounts/:id/lessons/:lessonId', (ctx) => {
     const pkg = serveLesson(ctx.params.id, ctx.params.lessonId)
