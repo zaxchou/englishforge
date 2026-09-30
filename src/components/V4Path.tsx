@@ -417,7 +417,7 @@ function LessonRunner({ accountId, pkg, onDone }: {
       ? { kind: 'choice', text: answers[act.activityId] ?? '', answers: slotPicks[act.activityId] ?? {} }
       : { kind: 'text', text: answers[act.activityId] ?? '' }
     try {
-      const r = await api<{ pass: boolean | null; evaluationStatus: string; practiceOnly?: boolean; dimensions?: { relations?: { id: string; label: string; hit: boolean; required: boolean }[] }; slotResults?: { slotId: string; prompt: string; given: string | null; status: string }[] }>(`/accounts/${accountId}/attempts`, {
+      const r = await api<{ pass: boolean | null; evaluationStatus: string; practiceOnly?: boolean; attemptIdUsed?: string; dimensions?: { relations?: { id: string; label: string; hit: boolean; required: boolean }[] }; slotResults?: { slotId: string; prompt: string; given: string | null; status: string }[] }>(`/accounts/${accountId}/attempts`, {
         attemptId,
         activityId: act.activityId,
         response,
@@ -426,6 +426,10 @@ function LessonRunner({ accountId, pkg, onDone }: {
           transcriptShown: false, playCount: playsRef.current[act.activityId] ?? 0, lookupUsed: false, responseMode: 'typed_summary',
         },
       }, 'POST')
+      // 服务端在"同 ID 不同内容"时自动分配了下一轮 take（刷新后计数丢失的场景）：
+      // 把实际轮次记回来，下次「再试一次」从它继续，不再撞 ID
+      const usedTake = String(r.attemptIdUsed ?? '').match(/-t(\d+)$/)?.[1]
+      if (usedTake) setTakes((t) => ({ ...t, [act.activityId]: Math.max(t[act.activityId] ?? 1, Number(usedTake)) }))
       setFeedback((f) => ({ ...f, [act.activityId]: { pass: r.pass, status: r.evaluationStatus, practiceOnly: r.practiceOnly, relations: r.dimensions?.relations, slotResults: r.slotResults } }))
       // 门控活动（如未预告追问）在前提活动提交后才出现：重取课包
       const fresh = await api<LessonPkg>(`/accounts/${accountId}/lessons/${pkgLive.lessonId}`)

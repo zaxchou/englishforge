@@ -303,13 +303,22 @@ export function recordAttempt(accountId, payload = {}) {
     if (!job || job.account_id !== accountId) throw new ApiError(404, 'ACTIVITY_NOT_PUBLISHED: ' + payload.activityId)
   }
 
-  // 幂等：同 ID 同正文 → 原样返回首次结果；同 ID 异正文 → 冲突，绝不覆盖原始作答
+  // 幂等：同 ID 同正文 → 原样返回首次结果；同 ID 异正文 → **自动分配下一轮 take 落新行**
+  //（R5 补丁：学生在课程里答错后刷新页面，客户端 take 计数会归零，再次提交带着同一首轮 ID
+  // 但内容不同——老的 409 会把学生永久卡住。每次作答都落新行、历史不覆盖；响应带 attemptIdUsed）
   const hash = bodyHash(payload)
   const prev = conn.prepare('SELECT * FROM learner_attempts_v3 WHERE account_id = ? AND attempt_id = ?').get(accountId, attemptId)
+  let effectiveAttemptId = attemptId
   if (prev) {
-    if (prev.body_hash !== hash) throw new ApiError(409, 'REQUEST_ID_REUSED_WITH_DIFFERENT_BODY: ' + attemptId)
-    // F6：幂等重放返回首次结果且标记 replayed —— 调用方不得再次推进诊断/流程
-    return { ...attemptResult(conn, accountId, prev, activityById(prev.activity_id)), replayed: true }
+    if (prev.body_hash === hash) {
+      // F6：幂等重放返回首次结果且标记 replayed —— 调用方不得再次推进诊断/流程
+      return { attemptIdUsed: attemptId, ...attemptResult(conn, accountId, prev, activityById(prev.activity_id)), replayed: true }
+    }
+    const m = attemptId.match(/^(.*?)-t(\d+)$/)
+    const base = m ? m[1] : attemptId
+    let n = m ? Math.max(2, Number(m[2]) + 1) : 2
+    while (conn.prepare('SELECT 1 FROM learner_attempts_v3 WHERE account_id = ? AND attempt_id = ?').get(accountId, `${base}-t${n}`)) n++
+    effectiveAttemptId = `${base}-t${n}`
   }
 
   // F1：声明口语录音作答就必须真的带了录音引用（缺录音不得产生口语证据）
@@ -381,7 +390,7 @@ export function recordAttempt(accountId, payload = {}) {
        evaluation, disputed_reason, body_hash, created_at)
      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
   ).run(
-    accountId, attemptId, String(payload.sessionId || ''), activity.activityId, activity.version,
+    accountId, effectiveAttemptId, String(payload.sessionId || ''), activity.activityId, activity.version,
     JSON.stringify(activity.objectiveIds), activity.taskFamilyId, activity.role, activity.responseKind,
     JSON.stringify({
       kind: payload.response?.kind ?? 'text', text: responseText,
@@ -392,7 +401,7 @@ export function recordAttempt(accountId, payload = {}) {
     evalStatus === 'disputed' ? (evaluation?.reason ?? 'DISPUTED') : null, hash, ts,
   )
 
-  const attemptRow = conn.prepare('SELECT * FROM learner_attempts_v3 WHERE account_id = ? AND attempt_id = ?').get(accountId, attemptId)
+  const attemptRow = conn.prepare('SELECT * FROM learner_attempts_v3 WHERE account_id = ? AND attempt_id = ?').get(accountId, effectiveAttemptId)
 
   if (evalStatus === 'disputed' && evaluation?.reason === 'TRANSCRIPT_LOW_CONFIDENCE') {
     // 坏转写：追加争议事件（不降级、留待复核），机器不给结论
@@ -400,7 +409,7 @@ export function recordAttempt(accountId, payload = {}) {
       conn.prepare(
         `INSERT INTO evidence_events (account_id, evidence_id, attempt_id, objective_id, skill, complexity,
            kind, condition, pass, basis, created_at) VALUES (?,?,?,?,?,?,'dispute','transcript_low_confidence',NULL,?,?)`)
-        .run(accountId, `ev_dispute_tx_${attemptId}_${oid}`, attemptId, oid,
+        .run(accountId, `ev_dispute_tx_${effectiveAttemptId}_${oid}`, effectiveAttemptId, oid,
           activity.skillByObjective?.[oid] ?? 'reading', 'base',
           JSON.stringify({ reason: 'TRANSCRIPT_LOW_CONFIDENCE' }), ts)
     }
@@ -411,7 +420,7 @@ export function recordAttempt(accountId, payload = {}) {
     recomputeStates(accountId)
   }
 
-  return attemptResult(conn, accountId, attemptRow, activity)
+  return { attemptIdUsed: effectiveAttemptId, ...attemptResult(conn, accountId, attemptRow, activity) }
 }
 
 /** F6：幂等重放——attemptId 已存在时返回首次结果（不推进任何流程） */

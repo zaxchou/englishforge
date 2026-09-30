@@ -508,7 +508,7 @@ describe('W2/T4 斩掉与局部修复', () => {
 // W2 / 附加：幂等、条件校验、诚实未实现
 // ==================================================================
 describe('W2/附加 幂等与诚实状态', () => {
-  it('attemptId 幂等：同正文重放返回首次结果；异正文 409；缺条件 400', async () => {
+  it('attemptId 幂等：同正文重放返回首次结果；异正文自动 bump 下一轮 take（不再 409 卡人，2026-10-01 用户实测）；缺条件 400', async () => {
     const id = await mkAccount('W2-幂等')
     const body = {
       attemptId: 'idem-1', activityId: 'diag_d1_read',
@@ -520,9 +520,10 @@ describe('W2/附加 幂等与诚实状态', () => {
     const r2 = await call(`/api/v1/accounts/${id}/attempts`, body, 'POST')
     expect(r2.status).toBe(200)
     expect(r2.json.attemptId).toBe('idem-1')
+    // 异正文：新语义 = 服务端自动分配 -t2 落新行（历史不覆盖），响应带 attemptIdUsed
     const r3 = await call(`/api/v1/accounts/${id}/attempts`, { ...body, response: { kind: 'text', text: '别的回答' } }, 'POST')
-    expect(r3.status).toBe(409)
-    expect(r3.json.error).toContain('REQUEST_ID_REUSED_WITH_DIFFERENT_BODY')
+    expect(r3.status).toBe(200)
+    expect(r3.json.attemptIdUsed).toBe('idem-1-t2')
     const r4 = await call(`/api/v1/accounts/${id}/attempts`, {
       attemptId: 'idem-2', activityId: 'diag_d1_read', response: { kind: 'text', text: 'x' },
       conditions: { firstExposure: true },
@@ -1431,6 +1432,33 @@ describe('复审回归 F1–F8', () => {
     }
     expect(cur.status).toBe('completed')
     expect((await call(`/api/v1/accounts/${id}/diagnostics/latest`)).json.diagnostic).toBeNull()
+  })
+
+  it('R5 补丁：刷新后同 attemptId 不同内容 → 自动落下一轮 take 不 409；同内容幂等重放不重复入库', async () => {
+    const id = await mkAccount('R5-刷新')
+    // 用户实测场景：les-relations-v1 首活动，答错 → 刷新页面（take 计数丢失）→ 改答重提，同一首轮 attemptId
+    const post = (attemptId, text) => call(`/api/v1/accounts/${id}/attempts`, {
+      attemptId, activityId: 'les_l1_sensor_read',
+      response: { kind: 'text', text },
+      conditions: { firstExposure: true, hintLevel: 0, transcriptShown: false, playCount: 1, lookupUsed: false, responseMode: 'typed_summary' },
+    }, 'POST')
+    const baseId = 'les-les-relations-v1-les_l1_sensor_read'
+    const first = (await post(baseId, '他们做了一个展览。')).json
+    expect(first.pass).toBe(false)
+    expect(first.attemptIdUsed).toBe(baseId)
+    // 网络重试：同 ID 同内容 → 幂等重放，不落新行、不推进
+    const retrySame = (await post(baseId, '他们做了一个展览。')).json
+    expect(retrySame.replayed).toBe(true)
+    expect(retrySame.attemptIdUsed).toBe(baseId)
+    // 刷新后改答重提：同 ID 不同内容 → 服务端自动 bump 到 -t2，学生不被 409 卡住
+    const fixed = (await post(baseId, '出问题的是实验室里看起来准、在舞台灯下不稳的那颗传感器；先在室内继续测；灯光检查前不装到现场——这不是永久禁用。')).json
+    expect(fixed.replayed).toBeUndefined()
+    expect(fixed.attemptIdUsed).toBe(`${baseId}-t2`)
+    expect(fixed.pass).toBe(true)
+    // -t2 再网络重试 → 幂等；再改内容 → bump -t3（向上递增到空闲为止）
+    expect((await post(`${baseId}-t2`, '出问题的是实验室里看起来准、在舞台灯下不稳的那颗传感器；先在室内继续测；灯光检查前不装到现场——这不是永久禁用。')).json.replayed).toBe(true)
+    const third = (await post(baseId, '另一个新答案。')).json
+    expect(third.attemptIdUsed).toBe(`${baseId}-t3`)
   })
 
   it('F2：完成课程立即重算且不再推荐已完成课；重复完成不重复更新', async () => {
