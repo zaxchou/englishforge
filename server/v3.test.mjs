@@ -161,3 +161,86 @@ describe('W0/T8 旧数据保护与双轨隔离', () => {
     conn.prepare("DELETE FROM objective_versions WHERE objective_id = 'O-T8-01'").run()
   })
 })
+
+// ==================================================================
+// W1 / T1：目标覆盖账本
+// 合同：抽查单元的目标有原子行为、来源状态、前置、技能出口；未核验不显示“已覆盖”。
+// ==================================================================
+describe('W1/T1 目标覆盖账本', () => {
+  it('216 个 K 组全部入库，抽查单元在账且状态诚实', async () => {
+    const r = await call('/api/v1/map')
+    expect(r.status).toBe(200)
+    const map = r.json
+    expect(map.mapVersion).toBe('map-v1')
+    expect(map.summary.groups).toBe(216)
+    expect(map.summary.byAtomization.pending).toBe(211)
+    expect(map.summary.byAtomization.partial_draft).toBe(5)
+    // 抽查：U01/U03/U39/U62/U64/U68/U71 都在账（T1 指定单元 + 一个低频高级目标 K214/U72）
+    const unitIds = new Set(map.groups.map((g) => g.unitId))
+    for (const u of ['U01', 'U03', 'U39', 'U62', 'U64', 'U68', 'U71']) expect(unitIds.has(u), u).toBe(true)
+    const k214 = map.groups.find((g) => g.groupId === 'K214')
+    expect(k214.atomizationStatus).toBe('pending') // 低频高级目标：诚实待拆
+    // U72 不是遗漏收容箱：三个组各有具体名目
+    for (const g of map.groups.filter((x) => x.unitId === 'U72')) expect(g.title.length).toBeGreaterThan(3)
+    expect(map.summary.coveredClaims).toBe(0)
+    expect(map.legacyNotice).toContain('不换算')
+  })
+
+  it('首批 15 条目标齐备：行为/边界/前置/技能出口/来源，未核验不冒充已验证', async () => {
+    const map = (await call('/api/v1/map')).json
+    expect(map.objectives.length).toBe(15)
+    for (const o of map.objectives) {
+      expect(o.behavior.length, o.objectiveId).toBeGreaterThan(10)
+      expect(o.boundary.length, o.objectiveId).toBeGreaterThan(10)
+      expect(Object.keys(o.skills).length, o.objectiveId).toBeGreaterThan(0)
+      expect(o.sourceRefs.length, o.objectiveId).toBeGreaterThan(0)
+      for (const s of o.sourceRefs) {
+        expect(['external', 'teaching_heuristic'].includes(s.kind), s.ref).toBe(true)
+        expect(s.claim.length).toBeGreaterThan(5)
+        expect(s.limit.length, s.ref).toBeGreaterThan(5) // 来源必须带“不能推出”边界
+      }
+      expect(['claim_checked', 'design_rationale'].includes(o.verification), o.objectiveId).toBe(true)
+      expect(o.status).toBe('draft') // 人审/音频/试学未完成，不许 published
+      const g = map.groups.find((x) => x.groupId === o.parentGroup)
+      expect(g.atomizationStatus, o.objectiveId).toBe('partial_draft') // 父组未完成细则对账
+      expect(g.factReviewStatus).toBe('partial_claim_checked')
+    }
+    // 音频依赖的目标必须标 needs_audio（17：文本脚本不能用于听力认证）
+    for (const id of ['O-K007-01', 'O-K007-02', 'O-K184-01']) {
+      expect(map.objectives.find((o) => o.objectiveId === id).flags).toContain('needs_audio')
+    }
+  })
+
+  it('前置图有效：引用存在、无环、登记一致；校验失败会让种子落库失败', async () => {
+    const map = (await call('/api/v1/map')).json
+    expect(map.validation.ok).toBe(true)
+    const o115_03 = map.objectives.find((o) => o.objectiveId === 'O-K115-03')
+    expect(o115_03.prerequisites).toEqual(['O-K115-01', 'O-K115-02']) // 是目标 ID，不是单元号
+    // 环检测：A→B→A 必须被抓出来
+    const { getDb, closeDb } = await import('./db.mjs')
+    const { ensureV3Schema } = await import('./v3db.mjs')
+    const { validateMap } = await import('./v3map.mjs')
+    const conn = ensureV3Schema(getDb())
+    const ins = conn.prepare(
+      `INSERT INTO objective_versions (objective_id, version, parent_group, layer, name, behavior, boundary, prerequisites, status, created_at)
+       VALUES (?,1,'K999','structure','x','x','x',?,'draft',0)`)
+    try {
+      ins.run('O-CY-A', JSON.stringify(['O-CY-B']))
+      ins.run('O-CY-B', JSON.stringify(['O-CY-A']))
+      const v = validateMap(conn)
+      expect(v.ok).toBe(false)
+      expect(v.errors.join('')).toContain('前置环')
+    } finally {
+      conn.prepare("DELETE FROM objective_versions WHERE objective_id IN ('O-CY-A','O-CY-B')").run()
+    }
+    void closeDb
+  })
+
+  it('单条目标可查（含来源明细），查不到给 404', async () => {
+    const r = await call('/api/v1/map/objectives/O-K184-02')
+    expect(r.status).toBe(200)
+    expect(r.json.objective.name).toContain('转折')
+    expect(r.json.objective.sourceRefs.map((s) => s.ref)).toEqual(expect.arrayContaining(['G3', 'G4']))
+    expect((await call('/api/v1/map/objectives/O-NOPE')).status).toBe(404)
+  })
+})
