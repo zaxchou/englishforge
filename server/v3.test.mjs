@@ -821,3 +821,44 @@ describe('W5/T7 口语与真实材料', () => {
     expect(verdict.reason).toBe('LICENSE_UNCONFIRMED')
   })
 })
+
+// ==================================================================
+// W6 / T9 工具包：先预注册后施测；机制只并排原始作品，不做效果宣称
+// ==================================================================
+describe('W6/T9 试学工具包', () => {
+  it('预注册→观察→对比：陌生性计数、家族一致性、原始作品与条件保留', async () => {
+    const id = await mkAccount('W6-T9')
+    // 先做两个"作答"当基线/后测（复用 W3 课包活动，家族不同）
+    await call(`/api/v1/accounts/${id}/attempts`, {
+      attemptId: 't9-base', activityId: 'les_l1_sensor_read',
+      response: { kind: 'text', text: '出问题的是实验室里准的那颗传感器；现在可用于室内测试；安装被推迟到灯光检查。' },
+      conditions: { firstExposure: true, hintLevel: 0, lookupUsed: false, responseMode: 'typed_summary' },
+    }, 'POST')
+    await call(`/api/v1/accounts/${id}/attempts`, {
+      attemptId: 't9-post', activityId: 'rep_film_postpone_read',
+      response: { kind: 'text', text: '保留视觉序列，推迟配音测试；原因是环境吵，不能推出影片本身差。' },
+      conditions: { firstExposure: true, hintLevel: 0, lookupUsed: false, responseMode: 'typed_summary' },
+    }, 'POST')
+    // 预注册：缺维度 → 400；同家族 → 400
+    expect((await call(`/api/v1/accounts/${id}/trials`, { label: 'x', skill: 'reading', baselineTask: { taskFamilyId: 'a', materialRef: 'm1' }, postTask: { taskFamilyId: 'a', materialRef: 'm2', dimensions: ['主张与限制'] } }, 'POST')).status).toBe(400)
+    const reg = (await call(`/api/v1/accounts/${id}/trials`, {
+      label: '课堂主张抓取·首周', skill: 'reading',
+      baselineTask: { taskFamilyId: 'sensor_stage_lights_read_B', materialRef: 'baseline-m1', dimensions: ['对象归属', '限制保留'] },
+      postTask: { taskFamilyId: 'film_lobby_read_C', materialRef: 'post-n1', dimensions: ['对象归属', '限制保留'] },
+    }, 'POST')).json
+    expect(reg.trialId).toBeTruthy()
+    // 观察：家族不匹配 → 400；正确 → 计数
+    expect((await call(`/api/v1/accounts/${id}/trials/${reg.trialId}/observations`, { phase: 'baseline', attemptId: 't9-post' }, 'POST')).status).toBe(400)
+    expect((await call(`/api/v1/accounts/${id}/trials/${reg.trialId}/observations`, { phase: 'baseline', attemptId: 't9-base', support: { hintLevel: 0, transcriptShown: false } }, 'POST')).json.counted).toBe(true)
+    expect((await call(`/api/v1/accounts/${id}/trials/${reg.trialId}/observations`, { phase: 'post', attemptId: 't9-post', materialWasNovel: true }, 'POST')).json.counted).toBe(true)
+    // 对比：原始作品 + 支持条件 + 预注册量表，verdict 留白给人工
+    const cmp = (await call(`/api/v1/accounts/${id}/trials/${reg.trialId}/compare`)).json
+    expect(cmp.baseline.response.text).toContain('实验室')
+    expect(cmp.post.conditions.firstExposure).toBe(true)
+    expect(cmp.registration.post.dimensions).toEqual(['对象归属', '限制保留'])
+    expect(cmp.verdict).toBeNull()
+    expect(cmp.note).toContain('熟题提速不算达标')
+    // 未注册的观察 → 404
+    expect((await call(`/api/v1/accounts/${id}/trials/nope/observations`, { phase: 'baseline', attemptId: 't9-base' }, 'POST')).status).toBe(404)
+  })
+})
