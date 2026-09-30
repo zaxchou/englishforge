@@ -73,7 +73,8 @@ export function computePlan(accountId, { requestId, triggerEvent } = {}) {
 
 function readStates(conn, accountId) {
   const map = new Map()
-  for (const s of conn.prepare('SELECT * FROM learner_states WHERE account_id = ?').all(accountId)) {
+  // 只读 base 聚合行（跨带最弱合并）；band 行是展示/审计粒度，不直接进决策
+  for (const s of conn.prepare("SELECT * FROM learner_states WHERE account_id = ? AND complexity = 'base'").all(accountId)) {
     map.set(`${s.objective_id}|${s.skill}`, {
       objectiveId: s.objective_id, skill: s.skill, state: s.state, flags: JSON.parse(s.flags || '[]'),
     })

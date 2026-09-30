@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url'
 import { ApiError } from './db.mjs'
 import { ensureV3Schema } from './v3db.mjs'
 import { requireAccount } from './v3api.mjs'
-import { recordAttempt, recomputeStates, activityById } from './v3evidence.mjs'
+import { recordAttempt, recomputeStates, activityById, complexityBandFor } from './v3evidence.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const ORAL_ROOT = resolve(HERE, '..', 'data', 'oral') // 仓库外：data/ 被 gitignore
@@ -198,12 +198,12 @@ export function signOralReview(accountId, { attemptId, mediaId, dimensions, obje
         `INSERT INTO evidence_events (account_id, evidence_id, attempt_id, objective_id, skill, complexity,
            kind, condition, pass, basis, created_at) VALUES (?,?,?,?,?,?,'dispute_cleared','human_review',NULL,?,?)`)
         .run(accountId, `ev_clear_${reviewId}_${oid}`, attemptId, oid,
-          activitySkill(attempt.activity_id, oid), 'base', JSON.stringify({ humanReviewId: reviewId }), Date.now())
+          activitySkill(attempt.activity_id, oid), complexityBandFor(ensureV3Schema(), oid), JSON.stringify({ humanReviewId: reviewId }), Date.now())
       conn.prepare(
         `INSERT INTO evidence_events (account_id, evidence_id, attempt_id, objective_id, skill, complexity,
            kind, condition, pass, basis, created_at) VALUES (?,?,?,?,?,?,'observed',?,?,?,?)`)
         .run(accountId, `ev_human_${reviewId}_${oid}`, attemptId, oid,
-          activitySkill(attempt.activity_id, oid), 'base', condition, overall ? 1 : 0,
+          activitySkill(attempt.activity_id, oid), complexityBandFor(ensureV3Schema(), oid), condition, overall ? 1 : 0,
           JSON.stringify({ role: attempt.role, taskFamilyId: attempt.task_family_id, evaluator: 'human', humanReviewId: reviewId }), Date.now())
     }
     recomputeStates(accountId)

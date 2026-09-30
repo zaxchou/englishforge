@@ -317,8 +317,8 @@ function appendObservedEvents(conn, accountId, attemptRow, activity, conditions)
   }
 }
 
-/** 目标 → 复杂度带（父组定义；查不到回落 'base'） */
-function complexityBandFor(conn, objectiveId) {
+/** 目标 → 复杂度带（父组定义；查不到回落 'base'）。事件与人审都落真实带槽 */
+export function complexityBandFor(conn, objectiveId) {
   const row = conn.prepare('SELECT g.complexity_band AS band FROM objective_versions o JOIN coverage_groups g ON g.group_id = o.parent_group WHERE o.objective_id = ? ORDER BY o.version DESC LIMIT 1')
     .get(objectiveId)
   return row?.band ? `band${row.band}` : 'base'
@@ -341,43 +341,58 @@ export function recomputeStates(accountId) {
     return (attemptId) => (attemptId && m.get(attemptId) ? activityById(m.get(attemptId)) : null)
   })()
 
-  const acc = new Map() // key obj|skill → {state, flags:Set, independentFamilies:Set, failStreak}
-  const slot = (obj, skill) => {
-    const k = obj + '|' + skill
-    if (!acc.has(k)) acc.set(k, { objectiveId: obj, skill, state: 'unmeasured', flags: new Set(), independentFamilies: new Set(), failStreak: 0 })
+  // 分档槽位（21 §6.1/F1 验收）：每个 目标×技能×复杂度带 一个真实状态行——不同带的表现互不覆盖；
+  // base 聚合槽按"最弱带"保守合并（易档通过盖不住嵌套档失败），标志并集——决策层读 base 不回退
+  const acc = new Map() // key obj|skill|band → {state, flags:Set, independentFamilies:Set, failStreak}
+  const baseAcc = new Map() // key obj|skill → 跨带聚合槽（最弱状态 + 标志并集）
+  const slot = (obj, skill, band) => {
+    const k = obj + '|' + skill + '|' + (band || 'base')
+    if (!acc.has(k)) acc.set(k, { objectiveId: obj, skill, band: band || 'base', state: 'unmeasured', flags: new Set(), independentFamilies: new Set(), failStreak: 0, hasObserved: false })
     return acc.get(k)
+  }
+  const baseOf = (obj, skill) => {
+    const k = obj + '|' + skill
+    if (!baseAcc.has(k)) baseAcc.set(k, { objectiveId: obj, skill, state: 'unmeasured', observedRank: null, flags: new Set() })
+    return baseAcc.get(k)
+  }
+  const addFlag = (obj, skill, band, flag) => {
+    slot(obj, skill, band).flags.add(flag)
+    baseOf(obj, skill).flags.add(flag)
   }
   const openDisputeAt = new Map() // slot key → 争议提出时间（该时刻后的争议材料事件不再计入）
 
   for (const e of events) {
-    const s = slot(e.objective_id, e.skill) // 状态聚合槽：objective×skill（复杂度在事件里保留审计粒度）
+    const band = e.complexity || 'base'
+    const s = slot(e.objective_id, e.skill, band) // 真实槽位：事件发生在哪个带就记哪个带
     const key = e.objective_id + '|' + e.skill
-    if (e.kind === 'waive') { s.flags.add('waived_by_user'); continue }
-    if (e.kind === 'dispute') { s.flags.add('disputed'); if (!openDisputeAt.has(key)) openDisputeAt.set(key, e.created_at); continue }
-    if (e.kind === 'dispute_cleared') { s.flags.delete('disputed'); openDisputeAt.delete(key); continue }
-    if (e.kind === 'repair') { s.flags.add('needs_repair'); continue }
+    if (e.kind === 'waive') { addFlag(e.objective_id, e.skill, band, 'waived_by_user'); continue }
+    if (e.kind === 'dispute') { addFlag(e.objective_id, e.skill, band, 'disputed'); if (!openDisputeAt.has(key)) openDisputeAt.set(key, e.created_at); continue }
+    if (e.kind === 'dispute_cleared') { s.flags.delete('disputed'); baseOf(e.objective_id, e.skill).flags.delete('disputed'); openDisputeAt.delete(key); continue }
+    if (e.kind === 'repair') { addFlag(e.objective_id, e.skill, band, 'needs_repair'); continue }
     if (e.kind !== 'observed') continue
     const basis = JSON.parse(e.basis || '{}')
     // F1 重算：**无音频**的文字模拟历史 listening 事件 → reading 槽位；带 audioRef 的保持 listening
     let skill = e.skill
     const actDef = activityOf(e.attempt_id)
     if (actDef?.simulatesAudio && !actDef.audioRef && skill === 'listening') skill = 'reading'
-    const s2 = slot(e.objective_id, skill)
+    const s2 = slot(e.objective_id, skill, band)
     const frozen = openDisputeAt.has(e.objective_id + '|' + skill) && e.created_at >= (openDisputeAt.get(e.objective_id + '|' + skill) ?? 0)
     if (frozen && basis.evaluator !== 'human') continue // 争议后的事件暂停计入……
     if (frozen && basis.evaluator === 'human') {
       // ……除非这是复核结论（人审）：解除争议冻结并清除争议标志（15 §5 复核结束再更正）
       s2.flags.delete('disputed')
+      baseOf(e.objective_id, skill).flags.delete('disputed')
       openDisputeAt.delete(e.objective_id + '|' + skill)
     }
     if (basis.oralDeferred) continue // 口语证据在真录音（W5）前不升级状态
+    s2.hasObserved = true
 
     if (e.pass) {
       s2.failStreak = 0
       const rank = STATE_RANK[s2.state]
-      if (basis.locating) { if (rank < 1) s.state = 'tentative'; continue } // 定位题不算掌握证据
-      if (e.condition === 'transcript_shown') { if (rank < 2) s.state = 'trained'; continue } // 看稿成功≤trained，且已重定向到 reading
-      if (e.condition === 'hinted' || e.condition === 'supported') { if (rank < 2) s.state = 'trained'; continue }
+      if (basis.locating) { if (rank < 1) s2.state = 'tentative'; continue } // 定位题不算掌握证据
+      if (e.condition === 'transcript_shown') { if (rank < 2) s2.state = 'trained'; continue } // 看稿成功≤trained，且已重定向到 reading
+      if (e.condition === 'hinted' || e.condition === 'supported') { if (rank < 2) s2.state = 'trained'; continue }
       // first_independent
       s2.independentFamilies.add(basis.taskFamilyId ?? '?')
       if (basis.role === 'transfer' && s2.independentFamilies.size >= 2) s2.state = 'transferred'
@@ -385,8 +400,22 @@ export function recomputeStates(accountId) {
       else if (rank < 2) s2.state = 'trained'
     } else {
       s2.failStreak += 1
-      if (s2.failStreak >= 2) s2.flags.add('needs_repair') // 两次同类失败先换策略，不硬刷
+      if (s2.failStreak >= 2) addFlag(e.objective_id, skill, band, 'needs_repair') // 两次同类失败先换策略，不硬刷
     }
+  }
+
+  // base 聚合：状态只在**有作答证据**的带里取最弱（免修/争议这类纯标志槽不把状态拖回 unmeasured）；
+  // 标志并集（任何带的 waived/disputed/needs_repair 都要在综合行可见）
+  for (const s of acc.values()) {
+    const b = baseOf(s.objectiveId, s.skill)
+    if (s.hasObserved && (b.observedRank === null || STATE_RANK[s.state] < b.observedRank)) {
+      b.observedRank = STATE_RANK[s.state]
+      b.state = s.state
+    }
+    for (const f of s.flags) b.flags.add(f)
+  }
+  for (const [k, b] of baseAcc) {
+    if (b.observedRank === null && !b.flags.size) baseAcc.delete(k) // 无证据无标志不落行
   }
 
   const up = conn.prepare(
@@ -396,9 +425,13 @@ export function recomputeStates(accountId) {
        state=excluded.state, flags=excluded.flags, evidence_version=excluded.evidence_version, updated_at=excluded.updated_at`)
   const version = nextCounter(accountId, 'evidence')
   for (const s of acc.values()) {
-    up.run(accountId, s.objectiveId, s.skill, 'base', s.state, JSON.stringify([...s.flags]), version, Date.now())
+    up.run(accountId, s.objectiveId, s.skill, s.band, s.state, JSON.stringify([...s.flags]), version, Date.now())
   }
-  return { evidenceVersion: version, states: acc.size }
+  for (const b of baseAcc.values()) {
+    // base 行不再来自事件回放，而是跨带聚合——名称保留 'base' 供决策层稳定读取
+    up.run(accountId, b.objectiveId, b.skill, 'base', b.state, JSON.stringify([...b.flags]), version, Date.now())
+  }
+  return { evidenceVersion: version, states: acc.size + baseAcc.size }
 }
 
 // ---------------------------------------------------------------- 免修与争议
@@ -454,8 +487,9 @@ export function reportContent(accountId, { attemptId, activityId, location, desc
     }
     const act = activityById(t.activity_id)
     for (const oid of JSON.parse(t.objective_ids || '[]')) {
+      // 争议事件落在目标的真实复杂度带上（和作答事件同槽），不写 'base'——聚合槽只由回放生成
       insEvent.run(accountId, `ev_dispute_${t.attempt_id}_${oid}`, t.attempt_id, oid,
-        act?.skillByObjective?.[oid] ?? 'reading', 'base', note, Date.now())
+        act?.skillByObjective?.[oid] ?? 'reading', complexityBandFor(conn, oid), note, Date.now())
     }
   }
 
@@ -468,7 +502,7 @@ export function reportContent(accountId, { attemptId, activityId, location, desc
       const act = activityById(activityId)
       for (const oid of act?.objectiveIds ?? []) {
         insEvent.run(accountId, `ev_dispute_act_${reportId}_${oid}`, null, oid,
-          act?.skillByObjective?.[oid] ?? 'reading', 'base', note, Date.now())
+          act?.skillByObjective?.[oid] ?? 'reading', complexityBandFor(conn, oid), note, Date.now())
       }
     }
   }
@@ -480,7 +514,8 @@ export function reportContent(accountId, { attemptId, activityId, location, desc
 export function evidenceSummary(accountId, { objective, skill } = {}) {
   requireAccount(accountId)
   const conn = ensureV3Schema()
-  let states = conn.prepare('SELECT * FROM learner_states WHERE account_id = ? ORDER BY objective_id, skill').all(accountId)
+  // complexity 入排序：同目标同技能的带行/聚合行顺序确定（band1 < band2 < … < base）
+  let states = conn.prepare('SELECT * FROM learner_states WHERE account_id = ? ORDER BY objective_id, skill, complexity').all(accountId)
   if (objective) states = states.filter((s) => s.objective_id === objective)
   if (skill) states = states.filter((s) => s.skill === skill)
   const events = conn.prepare('SELECT evidence_id, attempt_id, objective_id, skill, kind, condition, pass, basis, created_at FROM evidence_events WHERE account_id = ? ORDER BY created_at').all(accountId)

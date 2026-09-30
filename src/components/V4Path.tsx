@@ -28,7 +28,7 @@ type LessonPkg = {
   holdout: { lessonId: string; answersIncluded: boolean } | null
 }
 type Evidence = {
-  states: { objectiveId: string; skill: string; state: string; flags: string[] }[]
+  states: { objectiveId: string; skill: string; complexity: string; state: string; flags: string[] }[]
   disputedAttempts: { attempt_id: string }[]
   note: string
 }
@@ -56,6 +56,10 @@ const STATE_LABEL: Record<string, string> = {
 }
 const SKILL_LABEL: Record<string, string> = {
   listening: '听', speaking: '说', reading: '读', writing: '写', interaction: '互动',
+}
+// 复杂度带（coverage_groups.complexity_band 1–6）：认→造→辨→说→迁→释 的档位粗名；'base'=跨带聚合
+const BAND_LABEL: Record<string, string> = {
+  base: '综合', band1: '带1·认识', band2: '带2·造句', band3: '带3·辨析', band4: '带4·口说', band5: '带5·迁移', band6: '带6·解释',
 }
 
 export function V4Path({ accountId }: { accountId: string | null }) {
@@ -118,13 +122,15 @@ export function V4Path({ accountId }: { accountId: string | null }) {
 
       {tab === 'evidence' && (
         <div className="v4-card">
-          <h3>四技能证据（按目标 × 技能）</h3>
+          <h3>四技能证据（按目标 × 技能 × 复杂度带）</h3>
+          <p className="v4-dim">带行是每个复杂度档的真实状态（不同档互不覆盖）；「综合」行是跨档保守合并——取最弱一档，易档通过不会替你掩盖嵌套档的不足。</p>
           {!evidence?.states.length && <p className="v4-dim">还没有证据——先做入口诊断，状态会随练习逐格点亮。</p>}
           <div className="v4-states">
             {evidence?.states.map((s) => (
-              <div key={s.objectiveId + s.skill} className="v4-state">
+              <div key={s.objectiveId + s.skill + s.complexity} className="v4-state">
                 <code>{s.objectiveId}</code>
                 <span className="v4-skill">{SKILL_LABEL[s.skill] ?? s.skill}</span>
+                <span className="v4-skill">{BAND_LABEL[s.complexity] ?? '综合'}</span>
                 <b>{STATE_LABEL[s.state] ?? s.state}</b>
                 {s.flags.map((f) => <em key={f}>{f === 'disputed' ? '争议复核' : f === 'waived_by_user' ? '已免修' : f === 'needs_repair' ? '待修复' : f}</em>)}
               </div>

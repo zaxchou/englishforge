@@ -1027,6 +1027,34 @@ describe('C2 课程音频（21 §6.1/§6.2）', () => {
   })
 })
 
+describe('分档状态（21 §6.1：复杂度不同的表现不能互相覆盖）', () => {
+  it('不同复杂度带各存一行；base 综合行按最弱档合并；易档通过盖不住嵌套档失败', async () => {
+    const id = await mkAccount('分档-1')
+    const { getDb } = await import('./db.mjs')
+    const conn = (await import('./v3db.mjs')).ensureV3Schema(getDb())
+    const { recomputeStates } = await import('./v3evidence.mjs')
+    // 两个带的真实事件：band1 独立通过、band3 失败一次（嵌套档不足）
+    const mk = (i, band, pass) => conn.prepare(
+      `INSERT INTO evidence_events (account_id, evidence_id, attempt_id, objective_id, skill, complexity,
+         kind, condition, pass, basis, created_at) VALUES (?,?,?,?,?,?, 'observed', 'first_independent', ?, ?, ?)`)
+      .run(id, `ev-bd-${i}`, `att-bd-${i}`, 'O-K115-01', 'reading', band, pass ? 1 : 0,
+        JSON.stringify({ taskFamilyId: `fam-${i}`, evaluator: 'deterministic-contract-v1' }), 1000 + i)
+    mk(1, 'band1', true)
+    mk(2, 'band1', true) // band1 两次独立 → 该带 independent
+    mk(3, 'band3', true)
+    mk(4, 'band3', false) // band3 一次失败 → 该带带失败痕迹
+    recomputeStates(id)
+    const rows = conn.prepare('SELECT * FROM learner_states WHERE account_id=? AND objective_id=? ORDER BY complexity').all(id, 'O-K115-01')
+    const b1 = rows.find((r) => r.complexity === 'band1')
+    const b3 = rows.find((r) => r.complexity === 'band3')
+    const base = rows.find((r) => r.complexity === 'base')
+    expect(b1.state).toBe('independent') // 易档：两次独立通过 → independent
+    expect(b3.state).toBe('trained') // 嵌套档：只有一次通过 → trained（两带互不覆盖）
+    expect(base.state).toBe('trained') // 综合=最弱档：band1 的 independent 不掩盖 band3 的 trained
+    expect(JSON.parse(b1.flags)).toEqual([]) // band3 的失败痕迹不串到 band1
+  })
+})
+
 describe('复审回归 F1–F8', () => {
   it('F1：无音频的文字模拟不改听力（证据归 reading）；合成音频的听力证据成立且标注 synthetic；无录音不产生口语证据', async () => {
     const id = await mkAccount('F1-模态')
