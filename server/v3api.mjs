@@ -114,10 +114,11 @@ export const V3_ROUTES = [
     ctx.params.lessonId, body_str(ctx, 'reason'), body_str(ctx, 'confirm'))],
 
   // W4：按需生成供给。生成默认关闭（防误调真实模型计费），ENGLISHFORGE_V4_GENERATION=1 显式开启
-  ['GET', '/api/v1/accounts/:id/window', (ctx) => ensureWindow(ctx.params.id)],
-  ['POST', '/api/v1/accounts/:id/window/reestimate', (ctx) => reestimateWindow(ctx.params.id, body_str(ctx, 'trigger') || 'manual')],
-  ['GET', '/api/v1/accounts/:id/generation', (ctx) => ({ metrics: generationMetrics(ctx.params.id), jobs: listJobs(ctx.params.id) })],
+  ['GET', '/api/v1/accounts/:id/window', (ctx) => { requireAccount(ctx.params.id); return ensureWindow(ctx.params.id) }],
+  ['POST', '/api/v1/accounts/:id/window/reestimate', (ctx) => { requireAccount(ctx.params.id); return reestimateWindow(ctx.params.id, body_str(ctx, 'trigger') || 'manual') }],
+  ['GET', '/api/v1/accounts/:id/generation', (ctx) => { requireAccount(ctx.params.id); return { metrics: generationMetrics(ctx.params.id), jobs: listJobs(ctx.params.id) } }],
   ['POST', '/api/v1/accounts/:id/generation/start', (ctx) => {
+    requireAccount(ctx.params.id)
     const r = startGenerationJob(ctx.params.id, {
       objectiveId: body_str(ctx, 'objectiveId'),
       strategyId: body_str(ctx, 'strategyId') || null,

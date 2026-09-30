@@ -15,7 +15,7 @@ import { ApiError } from './db.mjs'
 import { rowToObjective } from './v3map.mjs'
 import { runQualityGates, lessonForStrategy, lessonForObjective } from './v3lessons.mjs'
 import { decide } from './v3plan.mjs'
-import { chatJson } from './llm.mjs'
+import { chatWithMeta, LlmError } from './llm.mjs'
 
 export const GEN_CONTRACT_V1 = {
   version: 'gen-contract-v1',
@@ -51,7 +51,7 @@ export function registerGeneratedActivities(jobId, activities) {
   const ids = []
   for (let i = 0; i < activities.length; i++) {
     const a = activities[i]
-    const activityId = a.activityId || `gen_${jobId}_${i}`
+    const activityId = `gen_${jobId}_${i}` // 强制前缀：不接受模型自报 id，防跨 job 改写已发布课的评分合同
     const def = {
       activityId, version: 1, role: a.role || 'practice', taskFamilyId: a.taskFamilyId,
       objectiveIds: a.objectiveIds, skillByObjective: a.skillByObjective,
@@ -99,11 +99,22 @@ function rejectReasons(gates) {
 
 // ---------------------------------------------------------------- 任务
 
-export function startGenerationJob(accountId, { objectiveId, strategyId, chat = chatJson, await: awaitIt = false } = {}) {
+const COOLDOWN_MS = 10 * 60 * 1000 // 失败后 10 分钟内不为同目标重射任务（防 GET 反复烧钱；§7 撤出候选）
+
+export function startGenerationJob(accountId, { objectiveId, strategyId, chat = chatWithMeta, await: awaitIt = false, force = false } = {}) {
   const conn = ensureV3Schema()
   const dup = conn.prepare("SELECT job_id FROM generation_jobs WHERE account_id = ? AND objective_id = ? AND status IN ('queued','running')")
     .get(accountId, objectiveId)
   if (dup) return { jobId: dup.job_id, reused: true }
+  // 重试耗尽后的冷却：§7「仍失败则撤出候选」——冷却期内窗口槽位如实显示，不再自动起新 job；
+  // force=true 是操作者的显式重试，不受冷却限制
+  const recentFail = conn.prepare(
+    "SELECT job_id, status, finished_at FROM generation_jobs WHERE account_id = ? AND objective_id = ? AND status IN ('failed','rejected') ORDER BY finished_at DESC LIMIT 1")
+    .get(accountId, objectiveId)
+  if (!force && recentFail && Date.now() - (recentFail.finished_at ?? 0) < COOLDOWN_MS) {
+    return { jobId: recentFail.job_id, cooledDown: true, status: recentFail.status,
+      note: '同目标近期失败，自动冷却中（§7 撤出候选）；force=true 可显式重试' }
+  }
   const obj = conn.prepare('SELECT * FROM objective_versions WHERE objective_id = ? ORDER BY version DESC').get(objectiveId)
   if (!obj) throw new ApiError(404, 'OBJECTIVE_NOT_FOUND: ' + objectiveId)
   const jobId = `job_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`
@@ -113,11 +124,12 @@ export function startGenerationJob(accountId, { objectiveId, strategyId, chat = 
   ).run(accountId, jobId, objectiveId, strategyId ?? null,
     JSON.stringify({ objective: rowToObjective(obj), contract: GEN_CONTRACT_V1.version }),
     GEN_CONTRACT_V1.version, Date.now())
-  const p = runJob(jobId, { chat })
+  const p = Promise.resolve(runJob(jobId, { chat }))
+  if (!awaitIt) p.catch((e) => console.error('[v3gen] job', jobId, 'crashed:', e.message))
   return awaitIt ? p : { jobId }
 }
 
-async function runJob(jobId, { chat }) {
+async function runJob(jobId, { chat = chatWithMeta } = {}) {
   const conn = ensureV3Schema()
   const job = () => conn.prepare('SELECT * FROM generation_jobs WHERE job_id = ?').get(jobId)
   conn.prepare("UPDATE generation_jobs SET status = 'running', attempts = attempts + 1 WHERE job_id = ?").run(jobId)
@@ -130,43 +142,60 @@ async function runJob(jobId, { chat }) {
   const ctx = {
     recentFamilies: recentRows.map((r) => r.task_family_id).filter(Boolean),
     allowedSourceCodes: ['G1', 'G2', 'G3', 'G4', 'G5', 'C1', 'T'],
+    // 声音/口述目标的文本课不能记听力/口语证据（15 §5 技能不互升）——这类目标强制人审
+    audioOralDependent: primarySkill(objective) !== 'reading' && primarySkill(objective) !== 'writing'
+      || (Array.isArray(objective.flags) ? objective.flags : JSON.parse(objective.flags || '[]')).includes('needs_audio'),
   }
 
   let lastReasons = []
+  let totalTokens = 0
   for (let attempt = 1; attempt <= 1 + MAX_RETRIES; attempt++) {
     try {
       const prompt = [
         GEN_CONTRACT_V1.system,
-        `\n目标：${objective.objectiveId} ${objective.name}\n行为：${objective.behavior}\n边界：${objective.boundary}`,
+        `
+目标：${objective.objectiveId} ${objective.name}
+行为：${objective.behavior}
+边界：${objective.boundary}`,
         `可用来源代号：${ctx.allowedSourceCodes.join('、')}`,
         `最近用过的任务家族（不得重复）：${ctx.recentFamilies.join('、') || '（无）'}`,
       ].join('\n')
-      let raw
+      // chat 统一返回 {text, finishReason, usage}；测试注入的纯字符串在这里归一化
+      let raw, finishReason = 'stop'
       try {
-        raw = await chat([{ role: 'user', content: prompt }], { maxTokens: 2000 })
+        const out = await chat([{ role: 'user', content: prompt }], { maxTokens: 2000 })
+        raw = typeof out === 'string' ? out : out.text
+        finishReason = typeof out === 'string' ? (out.length >= 1950 ? 'length' : 'stop') : (out.finishReason ?? 'stop')
+        totalTokens += (typeof out === 'object' && out?.usage?.total_tokens) || 0
       } catch (e) {
-        // 模型服务失败：明确失败状态，不暗中循环旧题（§7）
-        conn.prepare("UPDATE generation_jobs SET status = 'failed', reject_reasons = ?, latency_ms = ?, finished_at = ? WHERE job_id = ?")
-          .run(JSON.stringify(['模型服务失败: ' + String(e.message).slice(0, 120)]), Date.now() - started, Date.now(), jobId)
+        // 传输/配置失败：明确 failed，不进重试循环（重试留给内容质量问题）
+        conn.prepare("UPDATE generation_jobs SET status = 'failed', cost_tokens = ?, reject_reasons = ?, latency_ms = ?, finished_at = ? WHERE job_id = ?")
+          .run(totalTokens, JSON.stringify(['模型服务失败: ' + String(e.message).slice(0, 120)]), Date.now() - started, Date.now(), jobId)
         return { jobId, status: 'failed' }
       }
       let pkg
       try {
         pkg = typeof raw === 'string' ? JSON.parse(raw) : raw
       } catch {
-        lastReasons = ['输出不是合法 JSON（疑似截断）']
+        // 截断/坏 JSON：内容质量问题，走重试（llm.mjs 的 chatJson 对生产路径抛 LlmError，也落到外层 catch → 这里对 finishReason=length 单独归类）
+        lastReasons = [`输出不是合法 JSON（疑似截断，finishReason=${finishReason}）`]
         continue
       }
       const gates = validateGeneratedPackage(pkg, ctx)
       if (!gates.allPassed) {
         lastReasons = rejectReasons(gates)
+        if (finishReason === 'length') lastReasons.push('输出被截断（finishReason=length）：预算不足')
         continue
       }
-      // 拒收通过 → 落活动 + 建课包
+      // 拒收通过 → 落活动 + 建课包。声音/口述目标的文本课：证据降级 + 强制人审
+      const audioOral = ctx.audioOralDependent
       const activityIds = registerGeneratedActivities(jobId, pkg.activities.map((a) => ({
         ...a, objectiveIds: [objective.objectiveId],
         skillByObjective: { [objective.objectiveId]: primarySkill(objective) },
         role: 'practice',
+        // 听力目标：默认视为已看稿 → 证据记 reading 不记 listening；口述目标：口语证据 W5 前不升
+        ...(primarySkill(objective) === 'listening' ? { transcriptShownByDefault: true } : {}),
+        ...(audioOral && primarySkill(objective) !== 'listening' ? { oralEvidenceDeferred: true } : {}),
       })))
       const lessonId = `gen-${objective.objectiveId.toLowerCase()}-v${Date.now().toString(36)}`
       const lessonSeed = {
@@ -174,35 +203,37 @@ async function runJob(jobId, { chat }) {
         strategyId: spec.strategyId ?? 'short_explain',
         objectiveIds: [objective.objectiveId],
         difficultyDims: objective.complexityDims ?? [],
-        activities: activityIds.map((id) => ({ activityId: id, role: 'practice', hintStages: (pkg.activities.find((x) => (x.activityId || `gen_${jobId}_${activityIds.indexOf(id)}`) === id)?.hints ?? []).slice(1) })),
+        activities: activityIds.map((id, i) => ({ activityId: id, role: 'practice', hintStages: (pkg.activities[i]?.hints ?? []).slice(1) })),
         nextCandidates: [], sourceRefs: pkg.sourceRefs.map((s) => s.ref), holdoutRef: null,
       }
       const lg = runQualityGates(lessonSeed, conn)
       if (!lg.allPassed) { lastReasons = rejectReasons(lg); continue }
-      insertGeneratedLesson(conn, lessonSeed, { jobId, model: job().model ?? 'llm', gates: lg })
-      const needsSign = objective.verification !== 'claim_checked' || pkg.explanationKind === 'new'
+      insertGeneratedLesson(conn, lessonSeed, { jobId, gates: lg })
+      // 发布边界（§5）：目标未核验、模型自报新解释、或声音/口述依赖目标 → 一律只到 ready 等人审。
+      // 已知局限：explanationKind 是模型自报，机器无法验证"是否新解释"——所以生成的课永远带
+      // human_review=pending + dev_only + 抽检标记，通过 sampling 队列待人工抽样（见 validation.samplingQueued）。
+      const needsSign = objective.verification !== 'claim_checked' || pkg.explanationKind === 'new' || audioOral
       if (needsSign) {
-        // 新解释/未核验目标：只到 ready，等签署（§5 更严格）；job 记 pending_review
-        conn.prepare("UPDATE generation_jobs SET status = 'succeeded', output_lesson_id = ?, output_version = 1, validation = ?, latency_ms = ?, finished_at = ? WHERE job_id = ?")
-          .run(lessonId, JSON.stringify({ gates: lg, published: false, pending: 'human_sign' }), Date.now() - started, Date.now(), jobId)
+        conn.prepare("UPDATE generation_jobs SET status = 'succeeded', cost_tokens = ?, output_lesson_id = ?, output_version = 1, validation = ?, latency_ms = ?, finished_at = ? WHERE job_id = ?")
+          .run(totalTokens, lessonId, JSON.stringify({ gates: lg, published: false, pending: 'human_sign', samplingQueued: true }), Date.now() - started, Date.now(), jobId)
         return { jobId, status: 'succeeded', lessonId, published: false }
       }
       const { publishLesson } = await import('./v3lessons.mjs')
       publishLesson(lessonId, { acknowledgeUnreviewed: true, by: 'generator:' + jobId })
-      conn.prepare("UPDATE generation_jobs SET status = 'succeeded', output_lesson_id = ?, output_version = 1, validation = ?, latency_ms = ?, finished_at = ? WHERE job_id = ?")
-        .run(lessonId, JSON.stringify({ gates: lg, published: true, channel: 'dev_only' }), Date.now() - started, Date.now(), jobId)
+      conn.prepare("UPDATE generation_jobs SET status = 'succeeded', cost_tokens = ?, output_lesson_id = ?, output_version = 1, validation = ?, latency_ms = ?, finished_at = ? WHERE job_id = ?")
+        .run(totalTokens, lessonId, JSON.stringify({ gates: lg, published: true, channel: 'dev_only', samplingQueued: true, explanationKindSelfReported: true }), Date.now() - started, Date.now(), jobId)
       return { jobId, status: 'succeeded', lessonId, published: true }
     } catch (e) {
-      lastReasons = ['管线异常: ' + String(e.message).slice(0, 160)]
+      // 解析类失败（生产 chatJson 式包装抛 LlmError）按内容质量问题重试；其余按管线异常也重试（有上限）
+      lastReasons = ['管线异常: ' + String(e?.message).slice(0, 160) + (e instanceof LlmError ? '（解析/接口类，计入重试）' : '')]
     }
   }
-  conn.prepare("UPDATE generation_jobs SET status = 'rejected', reject_reasons = ?, latency_ms = ?, finished_at = ? WHERE job_id = ?")
-    .run(JSON.stringify(lastReasons), Date.now() - started, Date.now(), jobId)
+  conn.prepare("UPDATE generation_jobs SET status = 'rejected', cost_tokens = ?, reject_reasons = ?, latency_ms = ?, finished_at = ? WHERE job_id = ?")
+    .run(totalTokens, JSON.stringify(lastReasons), Date.now() - started, Date.now(), jobId)
   return { jobId, status: 'rejected', reasons: lastReasons }
 }
 
 function insertGeneratedLesson(conn, seed, { jobId, gates }) { // 已由 runJob 校验并通过质量门
-  void jobId
   conn.prepare(
     `INSERT INTO lesson_versions (account_scope, lesson_id, version, title, why_now, teaching_note, strategy_id,
        objective_ids, difficulty_dims, activity_refs, next_candidates, source_refs, holdout_ref, quality_gates,
@@ -227,7 +258,7 @@ function primarySkill(objRow) {
  * 每课后重估：目标位有已发布课 → 缓存；没有 → 起生成任务（同目标不重复排队）。
  * 返回窗口摘要（给前端"后继已备/正在准备"的诚实状态）。
  */
-export function ensureWindow(accountId, { chat = chatJson } = {}) {
+export function ensureWindow(accountId, { chat = chatWithMeta } = {}) {
   const conn = ensureV3Schema()
   const objectives = conn.prepare("SELECT * FROM objective_versions WHERE status != 'retired' ORDER BY objective_id").all().map(rowToObjective)
   const snapshot = buildLiteSnapshot(conn, accountId)
@@ -341,7 +372,7 @@ export function generationMetrics(accountId) {
     totalCostTokens: lat.t ?? 0,
     invalidatedCache: inv,
     inFlight: running,
-    note: '费用按 token 记账（真实模型调用时写入）；开发 fixture 调用 token 记 0',
+    note: '时延/拒收率/弃用计数/在途已实现；费用=token 数（真实调用写入，fixture 为 0）。未实现：撤回率与生成课的关联、用户等待时间（§7 差距，如实标注）',
   }
 }
 

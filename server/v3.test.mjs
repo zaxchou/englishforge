@@ -654,29 +654,35 @@ describe('W4/T5+T6 按需生成供给', () => {
       ['家族与最近重复', { ...goodPkg, activities: goodPkg.activities.map((a) => ({ ...a, taskFamilyId: 'exhibit_decision_read_A' })) }],
     ]
     for (const [label, payload] of bad) {
-      const r = await gen.startGenerationJob(id, { objectiveId: 'O-K184-02', strategyId: 'sound_segmentation', chat: fakeChat(payload), await: true })
-      console.log('T5CASE', label, JSON.stringify(r).slice(0, 200))
+      const r = await gen.startGenerationJob(id, { objectiveId: 'O-K184-02', strategyId: 'sound_segmentation', chat: fakeChat(payload), await: true, force: true })
       expect(r.status, label).toBe('rejected')
-      expect(r.reasons.length, label).toBeGreaterThan(0)
+      // 连续失败会进入冷却（§7 撤出候选）：冷却复用上次结论，不带新 reasons
+      if (!r.cooledDown) expect(r.reasons.length, label).toBeGreaterThan(0)
     }
     // 截断（非法 JSON）
-    const trunc = await gen.startGenerationJob(id, { objectiveId: 'O-K184-02', chat: async () => '{"title":"半截', await: true })
+    const trunc = await gen.startGenerationJob(id, { objectiveId: 'O-K184-02', chat: async () => '{"title":"半截', await: true, force: true })
     expect(trunc.status).toBe('rejected')
-    // 好输出：发布（dev_only 通道），来源可溯到 job
-    const okJob = await gen.startGenerationJob(id, { objectiveId: 'O-K184-02', strategyId: 'sound_segmentation', chat: fakeChat(goodPkg), await: true })
+    // 好输出：阅读目标（claim_checked）→ 自动发布（dev_only 通道）
+    const okJob = await gen.startGenerationJob(id, { objectiveId: 'O-K115-01', strategyId: 'short_explain', chat: fakeChat(goodPkg), await: true, force: true })
     expect(okJob.status).toBe('succeeded')
     expect(okJob.published).toBe(true)
+    // 听力目标（O-K184-02）：文本课不能给听力证据（15 §5 技能不互升）→ 强制人审，不自动发布
+    const listenJob = await gen.startGenerationJob(id, { objectiveId: 'O-K184-02', strategyId: 'sound_segmentation', chat: fakeChat(goodPkg), await: true, force: true })
+    expect(listenJob.status).toBe('succeeded')
+    expect(listenJob.published).toBe(false)
+    const listenRow = (await call(`/api/v1/accounts/${id}/generation`)).json.jobs.find((j) => j.job_id === listenJob.jobId)
+    expect(JSON.parse(listenRow.validation).pending).toBe('human_sign')
     const lessons = (await call('/api/v1/lessons')).json.lessons
     const genLesson = lessons.find((l) => l.lessonId === okJob.lessonId)
     expect(genLesson.contentStatus).toBe('published')
     // 未核验目标（design_rationale）→ 只到 ready 等签署，不自动发布
-    const pend = await gen.startGenerationJob(id, { objectiveId: 'O-K190-01', chat: fakeChat(goodPkg), await: true })
+    const pend = await gen.startGenerationJob(id, { objectiveId: 'O-K190-01', chat: fakeChat(goodPkg), await: true, force: true })
     expect(pend.status).toBe('succeeded')
     expect(pend.published).toBe(false)
     // 指标：拒收率/原因可查；旧 published 种子课没丢
     const m = (await call(`/api/v1/accounts/${id}/generation`)).json.metrics
     expect(m.rejected).toBeGreaterThanOrEqual(5)
-    expect(m.succeeded).toBe(2)
+    expect(m.succeeded).toBe(3)
     expect(m.rejectionRate).toBeGreaterThan(0)
     expect(lessons.filter((l) => l.lessonId.startsWith('les-')).length).toBeGreaterThanOrEqual(3)
   }, 30000)
@@ -704,6 +710,9 @@ describe('W4/T5+T6 按需生成供给', () => {
     const gen = await import('./v3gen.mjs')
     const boom = await gen.startGenerationJob(id, { objectiveId: 'O-K115-03', chat: async () => { throw new Error('provider down') }, await: true })
     expect(boom.status).toBe('failed')
+    // 冷却：同目标自动重射被拦（§7 撤出候选）；force 可显式重试
+    const cooled = await gen.startGenerationJob(id, { objectiveId: 'O-K115-03', chat: async () => JSON.stringify(goodPkg), await: true })
+    expect(cooled.cooledDown).toBe(true)
     const jobs = (await call(`/api/v1/accounts/${id}/generation`)).json.jobs
     expect(jobs.find((j) => j.status === 'failed')).toBeTruthy()
     // 生成关闭时窗口诚实告知（默认防误计费）
