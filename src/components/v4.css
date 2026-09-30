@@ -1,11 +1,22 @@
-/* curriculum-v4 能力路径页：与外壳同一套 v7 近黑 + 柠檬绿变量，不引入新色彩体系 */
+/* curriculum-v4 能力路径页：与外壳同一套 v7 近黑 + 柠檬绿变量，不引入新色彩体系。
+   变量在 .v4 上本地定义——外壳主题变化（浅色/深色）都不影响本页对比度（24 号用户截图教训：
+   卡片近黑、文字却继承外壳深色 → 黑底黑字）。整页自带深色底，自成一体。 */
 .v4 {
+  --panel: #151519;
+  --panel-2: #1b1b21;
+  --line: #2a2a31;
+  --ink: #ececf1;
+  --ink-dim: #9a9aa2;
+  --accent: #cef34e;
   display: flex;
   flex-direction: column;
   gap: 14px;
   max-width: 860px;
   margin: 0 auto;
-  padding: 4px 4px 48px;
+  padding: 16px 4px 48px;
+  color: var(--ink);
+  background: #0b0b0e;
+  border-radius: 16px;
 }
 
 .v4-legacy {

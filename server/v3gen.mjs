@@ -239,6 +239,14 @@ async function runJob(jobId, { chat = chatWithMeta } = {}) {
         `可用来源代号：${ctx.allowedSourceCodes.join('、')}`,
         `最近用过的任务家族（不得重复）：${ctx.recentFamilies.join('、') || '（无）'}`,
         `该目标声明过的来源（生成的 sourceRefs 只能从中选）：${ctx.objectiveDeclaredSources.join('、') || '（无）'}`,
+        // 24 号补充：把账本里每个来源的**具体命题与边界**给模型——claim 要写账本里这条命题
+        // 在本材料中的实际体现，不得转述成别的命题挂同一个代号（人审抓的就是这个）
+        Object.entries(ctx.sourceLedger ?? {})
+          .filter(([code]) => ctx.objectiveDeclaredSources.includes(code))
+          .map(([code, s]) => `${code} 的命题：${s.claim}${s.limit ? `（边界：${s.limit}）` : ''}`)
+          .join('\n') || '',
+        // 术语规则与质量门一致：复杂度 <5 禁语法术语；≥5 允许精确术语（但"从句"仍要用白话解释到位）
+        ctx.band >= 5 ? '允许精确语法术语，但术语旁必须跟白话解释。' : '禁止任何语法术语，全部用白话描述。',
         ctx.learnerEvidence.states?.length ? `学习者当前状态：${JSON.stringify(ctx.learnerEvidence.states)}` : '',
         ctx.learnerEvidence.rootHypotheses?.length ? `根因假设：${ctx.learnerEvidence.rootHypotheses.join('、')}` : '',
         ctx.learnerEvidence.recentFailSamples?.length ? `最近错误样本（据此选难度与策略，不得复读原句）：${JSON.stringify(ctx.learnerEvidence.recentFailSamples).slice(0, 500)}` : '',
@@ -364,9 +372,10 @@ export function ensureWindow(accountId, { chat = chatWithMeta } = {}) {
       return
     }
     const obj = objectives.find((o) => o.objectiveId === oid)
-    // F3：课程按主目标匹配（真实版本），策略匹配只作兜底
+    // F3：课程按主目标匹配（真实版本）；R2：策略兜底必须含该目标——不借别的目标的课
     const existing = lessonForObjective(oid, { excludeCompletedFor: accountId })
-      ?? (slot === 0 && snapshot.diagnostic?.strategyId && lessonForStrategy(snapshot.diagnostic.strategyId, { excludeCompletedFor: accountId }) || null)
+      ?? (slot === 0 && snapshot.diagnostic?.strategyId
+        && lessonForStrategy(snapshot.diagnostic.strategyId, { excludeCompletedFor: accountId, mustIncludeObjective: oid }) || null)
     if (existing?.lessonId) {
       cacheLesson(accountId, oid, existing.lessonId, existing.version ?? 1, slot)
       slots.push({ slot, objectiveId: oid, lessonId: existing.lessonId, status: 'ready', kind: wantLesson ? 'lesson' : 'candidate' })

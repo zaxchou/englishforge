@@ -15,7 +15,7 @@ import { mkdirSync, writeFileSync, readFileSync, existsSync, statSync, unlinkSyn
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { ApiError } from './db.mjs'
-import { ensureV3Schema } from './v3db.mjs'
+import { ensureV3Schema, ensureV3Columns } from './v3db.mjs'
 import { requireAccount } from './v3api.mjs'
 import { recordAttempt, recomputeStates, activityById, complexityBandFor } from './v3evidence.mjs'
 
@@ -47,7 +47,66 @@ export function createOralIntent(accountId, { activityId, mime, bytes, durationM
   return { mediaId, uploadUrl: `/api/v1/accounts/${accountId}/oral/${mediaId}`, token, expiresInMs: 10 * 60 * 1000, limits: LIMITS }
 }
 
-/** PUT 录音字节：一次性票据（10 分钟过期）；落盘仓库外 + 校验和。开发初值：落盘即 playable=1（真实设备试产后加入最小字节校验与真实时长检测） */
+/** R8（24 号）：字节级格式探测与真实时长。
+ * WAV：解析 RIFF 头取真实时长；WebM：校验 magic + 尽力解析 EBML Duration；
+ * 解析不出真实时长的（Ogg/MP4/MP3/坏头）→ playable=0 存草稿待设备/人工确认——
+ * 不能拿一位 playable 标志冒充"已验证可播放"。 */
+export function inspectAudioBytes(buf) {
+  if (!buf?.length) return { playable: false, durationMs: null, formatNote: 'empty' }
+  const head = buf.subarray(0, 16)
+  const isWav = head.toString('ascii', 0, 4) === 'RIFF' && buf.toString('ascii', 8, 12) === 'WAVE'
+  const isWebm = head[0] === 0x1a && head[1] === 0x45 && head[2] === 0xdf && head[3] === 0xa3
+  const isOgg = head.toString('ascii', 0, 4) === 'OggS'
+  const isMp4 = head.toString('ascii', 4, 8) === 'ftyp'
+  const isMp3 = head.toString('ascii', 0, 3) === 'ID3' || (head[0] === 0xff && (head[1] & 0xe0) === 0xe0)
+  if (isWav) {
+    try {
+      let off = 12
+      let fmt = null
+      let dataBytes = 0
+      while (off + 8 <= buf.length) {
+        const id = buf.toString('ascii', off, off + 4)
+        const size = buf.readUInt32LE(off + 4)
+        if (id === 'fmt ') fmt = { ch: buf.readUInt16LE(off + 10), rate: buf.readUInt32LE(off + 12), bits: buf.readUInt16LE(off + 22) }
+        else if (id === 'data') { dataBytes = size; break }
+        off += 8 + size + (size % 2)
+      }
+      if (!fmt || !fmt.rate || !dataBytes) return { playable: false, durationMs: null, formatNote: 'wav_bad_header' }
+      return { playable: true, durationMs: Math.round(dataBytes / (fmt.rate * fmt.ch * fmt.bits / 8) * 1000), formatNote: 'wav' }
+    } catch { return { playable: false, durationMs: null, formatNote: 'wav_parse_error' } }
+  }
+  if (isWebm) {
+    const duration = parseWebmDuration(buf)
+    if (duration && Number.isFinite(duration) && duration > 300) {
+      return { playable: true, durationMs: Math.round(duration), formatNote: 'webm' }
+    }
+    return { playable: false, durationMs: null, formatNote: 'webm_duration_unreadable' }
+  }
+  if (isOgg) return { playable: false, durationMs: null, formatNote: 'ogg_duration_unreadable' }
+  if (isMp4) return { playable: false, durationMs: null, formatNote: 'mp4_duration_unreadable' }
+  if (isMp3) return { playable: false, durationMs: null, formatNote: 'mp3_duration_unreadable' }
+  return { playable: false, durationMs: null, formatNote: 'unknown_format' }
+}
+
+/** 最小 EBML Duration 解析：找 Duration 元素（0x4489），float32/64，单位 ns（TimecodeScale 默认 1e9） */
+function parseWebmDuration(buf) {
+  for (let i = 0; i < buf.length - 12; i++) {
+    if (buf[i] === 0x44 && buf[i + 1] === 0x89) {
+      const sizeByte = buf[i + 2]
+      const sizeLen = 8 - Math.clz32(sizeByte)
+      const size = sizeByte & (0xff >> sizeLen)
+      if ((size === 4 || size === 8) && i + 2 + sizeLen + size <= buf.length) {
+        const dv = new DataView(buf.buffer, buf.byteOffset + i + 2 + sizeLen, size)
+        const ns = size === 4 ? dv.getFloat32(0) : dv.getFloat64(0)
+        if (Number.isFinite(ns) && ns > 0) return ns / 1e6 // ns → ms
+      }
+    }
+  }
+  return null
+}
+
+/** PUT 录音字节：一次性票据（10 分钟过期）；落盘仓库外 + 校验和 + **格式/真实时长探测**（R8）。
+ * playable 只在探测通过时置 1；否则存为草稿（playable=0 + format_note），签署门会拦。 */
 export function storeOralAudio(accountId, mediaId, token, buf) {
   requireAccount(accountId)
   const conn = ensureV3Schema()
@@ -57,14 +116,23 @@ export function storeOralAudio(accountId, mediaId, token, buf) {
   if (Date.now() - row.created_at > 10 * 60 * 1000) throw new ApiError(403, 'UPLOAD_TOKEN_EXPIRED')
   if (!buf?.length) throw new ApiError(400, 'EMPTY_UPLOAD')
   if (buf.length > LIMITS.maxBytes) throw new ApiError(400, 'MEDIA_TOO_LARGE')
+  const inspect = inspectAudioBytes(buf)
   const dir = join(ORAL_ROOT, accountId)
   mkdirSync(dir, { recursive: true })
   const path = join(dir, mediaId + '.' + String(row.mime || 'audio/webm').split('/')[1].split(';')[0])
   writeFileSync(path, buf)
   conn.prepare(
-    `UPDATE media_assets SET upload_token = NULL, storage_path = ?, sha256 = ?, playable = 1 WHERE media_id = ?`,
-  ).run(path, createHash('sha256').update(buf).digest('hex'), mediaId)
-  return { mediaId, playable: true, bytes: buf.length, sha256: conn.prepare('SELECT sha256 FROM media_assets WHERE media_id = ?').get(mediaId).sha256 }
+    `UPDATE media_assets SET upload_token = NULL, storage_path = ?, sha256 = ?,
+       playable = ?, duration_ms = COALESCE(?, duration_ms) WHERE media_id = ?`,
+  ).run(path, createHash('sha256').update(buf).digest('hex'), inspect.playable ? 1 : 0, inspect.durationMs ?? null, mediaId)
+  ensureV3Columns(conn, 'media_assets', [['format_note', 'TEXT']])
+  conn.prepare('UPDATE media_assets SET format_note = ? WHERE media_id = ?').run(inspect.formatNote, mediaId)
+  return {
+    mediaId, playable: inspect.playable, bytes: buf.length,
+    durationMs: inspect.durationMs, formatNote: inspect.formatNote,
+    note: inspect.playable ? undefined : '音频格式或时长无法确认：已存为草稿，需设备重录或人工确认后才能进入签署',
+    sha256: conn.prepare('SELECT sha256 FROM media_assets WHERE media_id = ?').get(mediaId).sha256,
+  }
 }
 
 /**
@@ -164,6 +232,15 @@ export function signOralReview(accountId, { attemptId, mediaId, dimensions, obje
   const attempt = conn.prepare('SELECT * FROM learner_attempts_v3 WHERE account_id = ? AND attempt_id = ?').get(accountId, attemptId)
   if (!attempt) throw new ApiError(404, 'ATTEMPT_NOT_FOUND: ' + attemptId)
   if (media.attempt_id !== attemptId) throw new ApiError(400, 'MEDIA_ATTEMPT_MISMATCH: 录音与作答不绑定')
+  // R8（24 号）：签署时**再验一遍媒体**——playable 是一位标志，文件可能已被删/换；
+  // 同时校验探测格式可读。文件不在或探测不可读 → 拒签（不能凭数据库标志签"听过"）
+  if (!media.storage_path || !existsSync(media.storage_path)) {
+    throw new ApiError(409, 'MEDIA_FILE_MISSING: 录音文件已不存在，不能签署')
+  }
+  const reInspected = inspectAudioBytes(readFileSync(media.storage_path))
+  if (!reInspected.playable) {
+    throw new ApiError(409, `MEDIA_UNREADABLE: 文件再校验未通过（${reInspected.formatNote}），不能签署`)
+  }
   const resp = JSON.parse(attempt.response || '{}')
   if (resp.kind !== 'audio_ref' || resp.mediaId !== mediaId) throw new ApiError(400, 'ATTEMPT_NOT_ORAL: 该作答没有真实录音（文字练习不能被口语签署认证）')
   const act = activityById(attempt.activity_id)
@@ -174,8 +251,18 @@ export function signOralReview(accountId, { attemptId, mediaId, dimensions, obje
   if (contentScore === null || contentScore < 2) {
     return { signed: false, reason: 'CONTENT_GATE: 内容/任务完成维度未达 2，不产生能力证据（发音清晰不能覆盖内容错误）；可给练习性反馈后重录' }
   }
-  // 只为人审实际评定为 met 的目标写证据（21 §5：实际测到的项才可计）
-  const toCertify = Object.entries(objectiveResults).filter(([, v]) => v === 'met').map(([k]) => k)
+  // 只为人审实际评定为 met 的目标写证据（21 §5：实际测到的项才可计）。
+  // R8：先**全量预检**目标列表再落任何一行——前几个合法、后面一个非法时不能写一半
+  const toCertifyAll = Object.entries(objectiveResults).filter(([, v]) => v === 'met').map(([k]) => k)
+  for (const oid of toCertifyAll) {
+    if (!act.objectiveIds.includes(oid)) throw new ApiError(400, 'OBJECTIVE_NOT_IN_ACTIVITY: ' + oid)
+  }
+  // R8：独立性不只看 firstExposure/hintLevel 自报——已看稿（transcriptShown）或查词的口语
+  // 最多记 supported，不能归独立
+  const condPre = JSON.parse(attempt.conditions || '{}')
+  const condition = condPre.firstExposure && !(condPre.hintLevel > 0)
+    && !condPre.transcriptShown && !condPre.lookupUsed ? 'first_independent' : 'supported'
+  const toCertify = toCertifyAll
   const overall = dimVals.filter((v) => v >= 2).length >= 2
   const reviewId = `or_${Date.now().toString(36)}_${randomBytes(3).toString('hex')}`
   conn.prepare(
@@ -190,10 +277,7 @@ export function signOralReview(accountId, { attemptId, mediaId, dimensions, obje
     String(note || '').slice(0, 500), Date.now(),
   )
   if (toCertify.length) {
-    const cond = JSON.parse(attempt.conditions || '{}')
-    const condition = cond.firstExposure && !(cond.hintLevel > 0) ? 'first_independent' : 'supported'
     for (const oid of toCertify) {
-      if (!act.objectiveIds.includes(oid)) throw new ApiError(400, 'OBJECTIVE_NOT_IN_ACTIVITY: ' + oid)
       conn.prepare(
         `INSERT INTO evidence_events (account_id, evidence_id, attempt_id, objective_id, skill, complexity,
            kind, condition, pass, basis, created_at) VALUES (?,?,?,?,?,?,'dispute_cleared','human_review',NULL,?,?)`)

@@ -221,11 +221,13 @@ type AudioInfo = { mediaId: string; synthetic: boolean; speakerLabel: string; du
 
 type DiagState = { diagnosticId: string; status: string; step: string | null; activity: { activityId: string; prompt: string; hints: string[]; audio?: AudioInfo | null } | null; tentative: { strongPoints: string[]; hypotheses: string[]; unmeasured: string[]; route: string; stopReason: string } | null }
 
-/** 课程音频播放器（21 §6.1/6.2）：base64 → blob URL；synthetic 标注必须可见；
- * onPlay 每次播放上报，提交时计 playCount（首听条件真实化，不再写死 1）。 */
-function LessonAudio({ info, onPlay }: { info: AudioInfo; onPlay?: () => void }) {
+/** 课程音频播放器（21 §6.1/6.2 + 24 号 R4）：base64 → blob URL；synthetic 标注必须可见；
+ * 首次播放 POST /support/play 落**服务端**播放事件（听力证据的前提，客户端自报不算）；
+ * onPlay 每次播放上报，提交时计 playCount。 */
+function LessonAudio({ info, activityId, accountId, onPlay }: { info: AudioInfo; activityId?: string; accountId?: string; onPlay?: () => void }) {
   const [url, setUrl] = useState<string | null>(null)
   const [err, setErr] = useState('')
+  const playReported = useRef(false)
   useEffect(() => {
     let revoke: string | null = null
     let alive = true
@@ -240,13 +242,19 @@ function LessonAudio({ info, onPlay }: { info: AudioInfo; onPlay?: () => void })
     })()
     return () => { alive = false; if (revoke) URL.revokeObjectURL(revoke) }
   }, [info.mediaId])
+  async function onFirstPlay() {
+    onPlay?.()
+    if (playReported.current || !accountId || !activityId) return
+    playReported.current = true
+    try { await api(`/accounts/${accountId}/support/play`, { activityId, mediaId: info.mediaId }, 'POST') } catch { /* 播放事件失败在提交时会得到明确报错 */ }
+  }
   if (err) return <p className="v4-dev">音频加载失败：{err}</p>
   if (!url) return <p className="v4-dim">音频加载中…</p>
   return (
     <div className="v4-audio">
-      <audio controls src={url} onPlay={onPlay} />
+      <audio controls src={url} onPlay={onFirstPlay} />
       <span className="v4-dim">
-        合成音频（synthetic · 受控练习）· {info.speakerLabel} · 约 {Math.round(info.durationMs / 1000)} 秒。自然讲者原声制作中。
+        合成音频（synthetic · 受控练习）· {info.speakerLabel} · 约 {Math.round(info.durationMs / 1000)} 秒。自然讲者原声制作中。听力题需先播放再作答。
       </span>
     </div>
   )
@@ -319,7 +327,8 @@ function DiagPanel({ accountId, onDone }: { accountId: string; onDone: () => voi
       <h3>入口诊断 · {diag.step}</h3>
       <pre className="v4-prompt">{diag.activity?.prompt}</pre>
       {diag.activity?.audio && (
-        <LessonAudio info={diag.activity.audio} onPlay={() => { playsRef.current += 1 }} />
+        <LessonAudio info={diag.activity.audio} activityId={diag.activity.activityId} accountId={accountId}
+          onPlay={() => { playsRef.current += 1 }} />
       )}
       {hintShown && diag.activity?.hints?.[0] && <p className="v4-hint">提示：{diag.activity.hints[0]}</p>}
       {!hintShown && !!diag.activity?.hints?.length && (
@@ -340,14 +349,16 @@ function LessonRunner({ accountId, pkg, onDone }: {
 }) {
   const [answers, setAnswers] = useState<Record<string, string>>({})
   const [revealed, setRevealed] = useState<Record<string, string[]>>({})
-  const [feedback, setFeedback] = useState<Record<string, { pass: boolean | null; status: string; relations?: { id: string; label: string; hit: boolean; required: boolean }[] }>>({})
+  const [feedback, setFeedback] = useState<Record<string, { pass: boolean | null; status: string; practiceOnly?: boolean; relations?: { id: string; label: string; hit: boolean; required: boolean }[] }>>({})
   const [pkgLive, setPkgLive] = useState(pkg)
   const [err, setErr] = useState('')
   const [done, setDone] = useState(false)
   const playsRef = useRef<Record<string, number>>({}) // 音频播放次数：提交时计 playCount，不再写死 1
+  // R5（24 号）：每活动第几轮作答。首轮 attemptId 稳定（网络重试同 ID 不重复入库）；
+  // 看到反馈后点「再试一次」→ take+1 → 新 attemptId（学生再次作答=新 take，不撞 409）
+  const [takes, setTakes] = useState<Record<string, number>>({})
 
   const visibleActs = pkgLive.activities
-  const attemptedKey = 'v4-attempted-' + pkgLive.lessonId
   const allDone = visibleActs.every((a) => feedback[a.activityId])
 
   async function reveal(act: LessonPkg['activities'][number]) {
@@ -360,20 +371,27 @@ function LessonRunner({ accountId, pkg, onDone }: {
     } catch (e) { setErr(String(e)) } // 揭示失败不展示任何更深提示
   }
 
+  /** 再试一次：清反馈、take+1。旧答案与反馈保留在服务端历史里；提示条件不清零（ hinted 不变独立） */
+  function retry(act: LessonPkg['activities'][number]) {
+    setTakes((t) => ({ ...t, [act.activityId]: (t[act.activityId] ?? 1) + 1 }))
+    setFeedback((f) => { const n = { ...f }; delete n[act.activityId]; return n })
+  }
+
   async function submit(act: LessonPkg['activities'][number]) {
     setErr('')
+    const take = takes[act.activityId] ?? 1
+    const attemptId = take === 1 ? `les-${pkgLive.lessonId}-${act.activityId}` : `les-${pkgLive.lessonId}-${act.activityId}-t${take}`
     try {
-      // 稳定 attemptId（lesson+activity）：网络重试不会产生重复证据；服务端会覆盖自报条件
-      const r = await api<{ pass: boolean | null; evaluationStatus: string; dimensions?: { relations?: { id: string; label: string; hit: boolean; required: boolean }[] } }>(`/accounts/${accountId}/attempts`, {
-        attemptId: `les-${pkgLive.lessonId}-${act.activityId}`,
+      const r = await api<{ pass: boolean | null; evaluationStatus: string; practiceOnly?: boolean; dimensions?: { relations?: { id: string; label: string; hit: boolean; required: boolean }[] } }>(`/accounts/${accountId}/attempts`, {
+        attemptId,
         activityId: act.activityId,
         response: { kind: 'text', text: answers[act.activityId] ?? '' },
         conditions: {
-          firstExposure: true, hintLevel: revealed[act.activityId]?.length ?? 0,
-          transcriptShown: false, playCount: playsRef.current[act.activityId] ?? 1, lookupUsed: false, responseMode: 'typed_summary',
+          firstExposure: take === 1, hintLevel: revealed[act.activityId]?.length ?? 0,
+          transcriptShown: false, playCount: playsRef.current[act.activityId] ?? 0, lookupUsed: false, responseMode: 'typed_summary',
         },
       }, 'POST')
-      setFeedback((f) => ({ ...f, [act.activityId]: { pass: r.pass, status: r.evaluationStatus, relations: r.dimensions?.relations } }))
+      setFeedback((f) => ({ ...f, [act.activityId]: { pass: r.pass, status: r.evaluationStatus, practiceOnly: r.practiceOnly, relations: r.dimensions?.relations } }))
       // 门控活动（如未预告追问）在前提活动提交后才出现：重取课包
       const fresh = await api<LessonPkg>(`/accounts/${accountId}/lessons/${pkgLive.lessonId}`)
       if (fresh.activities.length > visibleActs.length) setPkgLive(fresh)
@@ -411,7 +429,8 @@ function LessonRunner({ accountId, pkg, onDone }: {
           </div>
           <pre className="v4-prompt">{act.prompt}</pre>
           {act.audio && (
-            <LessonAudio info={act.audio} onPlay={() => { playsRef.current[act.activityId] = (playsRef.current[act.activityId] ?? 0) + 1 }} />
+            <LessonAudio info={act.audio} activityId={act.activityId} accountId={accountId}
+              onPlay={() => { playsRef.current[act.activityId] = (playsRef.current[act.activityId] ?? 0) + 1 }} />
           )}
           {(revealed[act.activityId] ?? []).map((h, i) => (
             <p key={i} className="v4-hint">提示 {i + 1}：{h}</p>
@@ -428,8 +447,8 @@ function LessonRunner({ accountId, pkg, onDone }: {
                   placeholder="用自己的话回答" />
               )}
           <div className="v4-act-foot">
-            {!act.oralTask && (
-              <button className="v4-primary" disabled={!answers[act.activityId]?.trim() || !!feedback[act.activityId]}
+            {!act.oralTask && !feedback[act.activityId] && (
+              <button className="v4-primary" disabled={!answers[act.activityId]?.trim()}
                 onClick={() => submit(act)}>提交</button>
             )}
             {feedback[act.activityId] && !act.oralTask && (
@@ -438,10 +457,17 @@ function LessonRunner({ accountId, pkg, onDone }: {
                   : feedback[act.activityId].pass ? '关系抓到了' : '还有关系没抓到——按下方逐项看'}
               </span>
             )}
+            {/* R5（24 号）：错→（看提示）→改答→再试。新一轮=新 take ID，旧作答与反馈保留在服务端 */}
+            {feedback[act.activityId] && !act.oralTask && !feedback[act.activityId].pass && (
+              <button className="v4-ghost" onClick={() => retry(act)}>再试一次（新的一轮）</button>
+            )}
             {feedback[act.activityId]?.status === 'disputed' && act.oralTask && (
               <span className="v4-advise">转写置信度低：已标争议，不影响你的能力记录；可纠正转写后供复核。</span>
             )}
           </div>
+          {feedback[act.activityId]?.practiceOnly && (
+            <p className="v4-advise">这是机器词表检查的<b>练习反馈</b>——帮你对照关系，不计入能力记录；能力证据来自封闭题与真人复核。</p>
+          )}
           {feedback[act.activityId]?.relations && (
             act.oralTask ? (
               <div className="v4-advise">
@@ -466,7 +492,6 @@ function LessonRunner({ accountId, pkg, onDone }: {
       ))}
       <button className="v4-primary" disabled={!allDone} onClick={complete}>完成这一课（重算推荐）</button>
       {err && <div className="v4-err">{err}</div>}
-      <input type="hidden" value={attemptedKey} readOnly />
     </div>
   )
 }
@@ -490,6 +515,7 @@ function OralRecorder({ accountId, activityId, onSubmitted }: {
   const [busy, setBusy] = useState(false)
   const recRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
+  const recStartRef = useRef<number>(0) // R8：真实录音时长（上传时随 take 报告，不再传 0）
 
   async function start() {
     setErr('')
@@ -505,6 +531,7 @@ function OralRecorder({ accountId, activityId, onSubmitted }: {
         stream.getTracks().forEach((t) => t.stop())
       }
       recRef.current = rec
+      recStartRef.current = Date.now()
       rec.start()
       setRecording(true)
       try {
@@ -546,7 +573,7 @@ function OralRecorder({ accountId, activityId, onSubmitted }: {
     setErr('')
     try {
       const intent = await api<{ mediaId: string; uploadUrl: string; token: string }>('/accounts/' + accountId + '/oral/intent', {
-        activityId, mime: blob.type || 'audio/webm', bytes: blob.size, durationMs: 0,
+        activityId, mime: blob.type || 'audio/webm', bytes: blob.size, durationMs: recStartRef.current ? Date.now() - recStartRef.current : 0,
       }, 'POST')
       const put = await fetch(intent.uploadUrl + '?token=' + encodeURIComponent(intent.token), { method: 'PUT', body: blob })
       if (!put.ok) throw new Error('上传失败 ' + put.status)

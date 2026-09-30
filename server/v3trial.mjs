@@ -9,6 +9,7 @@ import { ApiError } from './db.mjs'
 import { ensureV3Schema } from './v3db.mjs'
 import { requireAccount } from './v3api.mjs'
 import { activityById } from './v3evidence.mjs'
+import { activityFingerprint } from './v3gen.mjs'
 
 // 试学注册表：trial_registrations（先于任何基线作答创建，注册后不可改任务定义）
 function ensureTrialSchema(conn) {
@@ -38,7 +39,9 @@ function ensureTrialSchema(conn) {
   return conn
 }
 
-/** 预注册：试学前冻结任务对（基线/后测/延迟）与评分维度 */
+/** 预注册：试学前冻结任务对（基线/后测/延迟）与评分维度。
+ * R7（24 号）：正式测量必须绑定到**版本化材料**（activityId+materialVersion+量表维度），
+ * 否则注册降级为 practice_only——观察仍记录，但 counted 恒 false，不进正式比较。 */
 export function registerTrial(accountId, { label, skill, baselineTask, postTask, delayTask } = {}) {
   requireAccount(accountId)
   for (const [name, t] of [['baselineTask', baselineTask], ['postTask', postTask]]) {
@@ -49,6 +52,13 @@ export function registerTrial(accountId, { label, skill, baselineTask, postTask,
   if (baselineTask.taskFamilyId === postTask.taskFamilyId) {
     throw new ApiError(400, 'TRIAL_TASKS_MUST_DIFFER: 前后测不得同任务家族（陌生性要求）')
   }
+  // R7：版本化绑定检查——activityId + materialVersion + 量表齐 → measurement；缺 → practice_only
+  const versioned = (t) => !!t.activityId && Number.isFinite(t.materialVersion) && t.materialVersion > 0
+  const mode = versioned(baselineTask) && versioned(postTask) ? 'measurement' : 'practice_only'
+  // R7：同条件比较的前提是两阶段**同技能**（技能都不同就无从比较）
+  if (skill && baselineTask.skill && postTask.skill && (baselineTask.skill !== postTask.skill || baselineTask.skill !== skill)) {
+    throw new ApiError(400, 'TRIAL_SKILL_MISMATCH: 预注册技能与阶段任务技能不一致（可比性要求）')
+  }
   const conn = ensureTrialSchema(ensureV3Schema())
   const trialId = `trial_${Date.now().toString(36)}_${randomBytes(3).toString('hex')}`
   conn.prepare(
@@ -56,7 +66,12 @@ export function registerTrial(accountId, { label, skill, baselineTask, postTask,
      VALUES (?,?,?,?,?,?,?,?)`,
   ).run(accountId, trialId, String(label || '未命名试学'), skill,
     JSON.stringify(baselineTask), JSON.stringify(postTask), delayTask ? JSON.stringify(delayTask) : null, Date.now())
-  return { trialId, label, skill, registeredAt: Date.now(), note: '任务与量表已冻结（13 §9：不能试完后才选指标）' }
+  return {
+    trialId, label, skill, mode, registeredAt: Date.now(),
+    note: mode === 'measurement'
+      ? '任务与量表已冻结且绑定版本化材料（13 §9：不能试完后才选指标）'
+      : '未绑定版本化材料：仅练习记录，观察恒不计入正式比较（R7）',
+  }
 }
 
 /** 记录观察：绑定 attempt（陌生材料才计入对比；support 快照用于同条件判定） */
@@ -104,21 +119,43 @@ export function recordObservation(accountId, { trialId, phase, attemptId, materi
   if (task.materialVersion && attemptVersion !== task.materialVersion) {
     throw new ApiError(400, `TRIAL_MATERIAL_VERSION_MISMATCH: 预注册版本 ${task.materialVersion}，实际 ${attemptVersion}`)
   }
-  // C3（F7 残留）：曝光核对由服务端判定，覆盖自报——同一材料在此观察前被该账户作答过
-  // 一次，材料就不再陌生（materialWasNovel 自报 true 也不计入正式比较）
-  const prior = conn.prepare(
-    'SELECT COUNT(*) AS n FROM learner_attempts_v3 WHERE account_id = ? AND activity_id = ? AND attempt_id <> ? AND created_at <= ?')
-    .get(accountId, attempt.activity_id, attemptId, attempt.created_at).n
+  // R7：注册档位——measurement（版本化绑定）才可能正式计入；practice_only 恒不计入
+  const versioned = (t) => !!t.activityId && Number.isFinite(t.materialVersion) && t.materialVersion > 0
+  const mode = versioned(JSON.parse(reg.baseline_task || '{}')) && versioned(JSON.parse(reg.post_task || '{}'))
+    ? 'measurement' : 'practice_only'
+  // R7：曝光核对=服务端全部记录的并集，覆盖自报——
+  // ① 同活动既往作答；② 取过题/播过/看过提示（support 事件，"看了没答"也算曝光）；
+  // ③ 内容指纹与既往作答材料相同（同稿改名现形）
+  const priorAttempts = conn.prepare(
+    'SELECT activity_id FROM learner_attempts_v3 WHERE account_id = ? AND attempt_id <> ? AND created_at <= ?')
+    .all(accountId, attemptId, attempt.created_at)
+  const priorSupport = conn.prepare(
+    "SELECT 1 AS x FROM activity_support_events WHERE account_id = ? AND activity_id = ? LIMIT 1")
+    .get(accountId, attempt.activity_id)
+  const thisFp = actDef ? activityFingerprint(actDef) : null
+  const fpClash = thisFp && priorAttempts.some((p) => {
+    const other = activityById(p.activity_id)
+    return other && activityFingerprint(other) === thisFp && p.activity_id !== attempt.activity_id
+  })
+  const exposed = priorAttempts.some((p) => p.activity_id === attempt.activity_id) || !!priorSupport || !!fpClash
+  let counted = !!materialWasNovel
   let exposureNote = null
-  if (prior > 0 && materialWasNovel) {
-    materialWasNovel = false
-    exposureNote = `该材料此前已被作答 ${prior} 次：服务端判定非陌生，不计入正式比较（覆盖自报）`
+  if (mode === 'practice_only') {
+    counted = false
+    exposureNote = '注册未绑定版本化材料（practice_only）：观察仅作练习记录，不计入正式比较（R7）'
+  } else if (exposed) {
+    counted = false
+    exposureNote = `服务端记录显示该材料已曝光（${priorAttempts.some((p) => p.activity_id === attempt.activity_id) ? '已作答过' : priorSupport ? '已取题/播放/看提示' : '与既往材料内容指纹相同'}）：不计入正式比较（覆盖自报）`
+  } else if (actDef && actDef.holdout !== true) {
+    // 已公开注册表材料不能当本人留出——正式留出必须从未公开的 holdout 池来（R7/21 §6.4）
+    counted = false
+    exposureNote = '该材料在公开注册表中（18/21 样例已对本人可见）：正式留出须用未公开 holdout 材料，不计入正式比较'
   }
   conn.prepare(
     `INSERT INTO trial_observations (account_id, trial_id, phase, attempt_id, material_was_novel, support_snapshot, created_at)
      VALUES (?,?,?,?,?,?,?)`,
-  ).run(accountId, trialId, phase, attemptId, materialWasNovel ? 1 : 0, JSON.stringify({ ...support, serverExposureNote: exposureNote }), Date.now())
-  return { ok: true, trialId, phase, counted: !!materialWasNovel, exposureNote }
+  ).run(accountId, trialId, phase, attemptId, counted ? 1 : 0, JSON.stringify({ ...support, serverExposureNote: exposureNote, mode }), Date.now())
+  return { ok: true, trialId, phase, counted, exposureNote }
 }
 
 /** 对比：同条件陌生材料前后测并排（原始作品 + 支持条件 + 分维度结论留白给人工）。

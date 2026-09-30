@@ -128,7 +128,7 @@ export function serveLesson(accountId, lessonId) {
     whyNow: lesson.whyNow,
     teachingNote: lesson.teachingNote,
     strategyId: lesson.strategyId,
-    objectiveIds: lesson.objectiveIds,
+    objectiveIds: lesson.objectiveIds, // R2 验收用：推荐目标必须 ∈ 这里的可测目标
     difficultyDims: lesson.difficultyDims,
     devSampleNotice: lesson.releaseChannel === 'dev_only'
       ? '开发样本：结构质量门已过、人审未签署；音频课在原声制作前如实显示待制作（18 §8）'
@@ -298,7 +298,9 @@ export function lessonForObjective(objectiveId, { excludeCompletedFor = null } =
   for (const r of rows) {
     if (!JSON.parse(r.objective_ids || '[]').includes(objectiveId)) continue
     if (done.has(r.lesson_id)) continue // F2：已完成课不再当新课推荐；只剩已完成课时诚实返回无内容
-    return { lessonId: r.lesson_id, version: r.version, devOnly: r.release_channel === 'dev_only' }
+    // R2（24 号）：带上课的实际可测目标，调用方校验"推荐目标 ∈ 课的目标"
+    return { lessonId: r.lesson_id, version: r.version, devOnly: r.release_channel === 'dev_only',
+      objectiveIds: JSON.parse(r.objective_ids || '[]') }
   }
   return null
 }
@@ -316,19 +318,23 @@ export function signLesson(lessonId, { reviewer, note } = {}) {
   return { ok: true, lessonId, humanReview: 'signed' }
 }
 
-/** 供计划层用：策略 → 课程包。优先人审签署的 mainline 课；dev_only 课作为开发样本兜底；排除已完成 */
-export function lessonForStrategy(strategyId, { excludeCompletedFor = null } = {}) {
+/** 供计划层用：策略 → 课程包。优先人审签署的 mainline 课；dev_only 课作为开发样本兜底；排除已完成。
+ * R2（24 号）：策略只是排序偏好——返回带 objectiveIds，**调用方必须校验主目标 ∈ 课的可测目标**，
+ * 不许借另一目标的课填空。 */
+export function lessonForStrategy(strategyId, { excludeCompletedFor = null, mustIncludeObjective = null } = {}) {
   const conn = ensureV3Schema()
   seedLessons() // 幂等：课程包与账本一样随用随播种
   const done = completedLessonIds(conn, excludeCompletedFor)
   const scope = excludeCompletedFor ?? '__no_account__' // C4：同 lessonForObjective 的范围过滤
   const rows = conn.prepare(
-    `SELECT lesson_id, version, release_channel FROM lesson_versions
+    `SELECT lesson_id, version, release_channel, objective_ids FROM lesson_versions
      WHERE content_status = 'published' AND strategy_id = ? AND account_scope IN ('global', ?)
      ORDER BY (release_channel = 'mainline') DESC, version DESC`).all(strategyId, scope)
   for (const r of rows) {
     if (done.has(r.lesson_id)) continue // F2：同上
-    return { lessonId: r.lesson_id, version: r.version, devOnly: r.release_channel === 'dev_only' }
+    const objectiveIds = JSON.parse(r.objective_ids || '[]')
+    if (mustIncludeObjective && !objectiveIds.includes(mustIncludeObjective)) continue // R2：目标不匹配的课不借
+    return { lessonId: r.lesson_id, version: r.version, devOnly: r.release_channel === 'dev_only', objectiveIds }
   }
   return null
 }

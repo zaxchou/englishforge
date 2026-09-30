@@ -52,19 +52,26 @@ await call('/api/v1/map')
 say(`# 匿名 5 课连续轨迹（账户 ${id.slice(0, 8)}…，临时库）\n`)
 
 // ---- 入口诊断：D1 关系误判（弱画像）→ 修复路线；D2 合成音频通过；D3 通过 ----
-let cur = (await call(`/api/v1/accounts/${id}/diagnostics`, { requestId: 'walk-diag' }, 'POST')).json
+const dres = await call(`/api/v1/accounts/${id}/diagnostics`, { requestId: 'walk-diag' }, 'POST')
+console.log('DIAG_DEBUG', dres.status, JSON.stringify(dres.json).slice(0, 200))
+let cur = dres.json
 const diagScript = {
   D1: '他们做了一个展览。', // 关系误判：抓不到保留/推迟两层 → fail
   D2: 'AI 助手很有用，能帮助设计项目找灵感。', // 首听漏限定 → fail（把听力支线带进轨迹）
   D2b: '最终评价：可以帮我们找论文，但必须自己读来源核查；摘要漏掉了原论文的重要限制。',
   D3: '我们从 AI 助手学到：它能帮我们找到值得读的论文，但摘要可能漏掉原文的重要限制，所以使用前必须自己读。我的项目里我会用它找材料，但会自己核查来源。',
 }
-while (cur.status === 'open' && cur.activity) {
+while (cur && cur.status === 'open' && cur.activity) {
+  // R4：听力活动必须先有服务端播放事件
+  if (cur.activity.audio) {
+    await call(`/api/v1/accounts/${id}/support/play`, { activityId: cur.activity.activityId, mediaId: cur.activity.audio.mediaId }, 'POST')
+  }
   const r = await call(`/api/v1/accounts/${id}/attempts`, {
     attemptId: `wd-${cur.step}`, sessionId: cur.diagnosticId, activityId: cur.activity.activityId,
     response: { kind: 'text', text: diagScript[cur.step] ?? '' },
     conditions: { firstExposure: true, hintLevel: 0, transcriptShown: cur.step === 'D2b', playCount: 2, lookupUsed: false, responseMode: 'typed_summary' },
   }, 'POST')
+  if (!r.json.diagnostic) { say(`! 作答失败：${JSON.stringify(r.json).slice(0, 160)}`); process.exit(1) }
   cur = r.json.diagnostic
 }
 say(`## 入口诊断 → 路线=${cur.tentative?.route}；强项=${(cur.tentative?.strongPoints ?? []).join('、') || '—'}；根因=${(cur.tentative?.hypotheses ?? []).join('、') || '—'}`)
@@ -89,6 +96,10 @@ for (let step = 1; step <= 9 && completed < 5; step++) {
     }
     say(`   课程：${plan.lesson.lessonId} v${plan.lesson.version}${plan.lesson.devSample ? '（dev 样本）' : ''}`)
     let pkg = (await call(`/api/v1/accounts/${id}/lessons/${plan.lesson.lessonId}`)).json
+    // R2 验收（24 号 §5）：推荐目标必须属于课的实际可测目标
+    if (!(pkg.objectiveIds ?? []).includes(plan.primaryGoal)) {
+      say(`! 推荐目标 ${plan.primaryGoal} 不在课的可测目标 ${JSON.stringify(pkg.objectiveIds)} 里（R2 残留）`); process.exit(1)
+    }
     // 门控活动（unlockAfter）在前提提交后才出现：取课-作答循环到不再出现新活动
     const seen = new Set()
     for (let round = 0; round < 6; round++) {
@@ -96,6 +107,11 @@ for (let step = 1; step <= 9 && completed < 5; step++) {
       if (!fresh.length) break
       for (const act of fresh) {
         seen.add(act.activityId)
+        // R4：听力活动先落服务端播放事件（作答门）
+        if (act.audio) {
+          const pl = await call(`/api/v1/accounts/${id}/support/play`, { activityId: act.activityId, mediaId: act.audio.mediaId }, 'POST')
+          if (pl.status !== 200) { say(`! 播放事件失败：${JSON.stringify(pl.json).slice(0, 120)}`); process.exit(1) }
+        }
         // 混合三类作答：第 1 课第 1 题先误判（失败→换答案重试=新 attemptId）；
         // 第 2 课第 1 题提示后成功；其余独立通过
         const isRetakeDemo = completed === 0 && act.activityId === pkg.activities[0].activityId
@@ -153,6 +169,29 @@ for (let step = 1; step <= 9 && completed < 5; step++) {
     const w = await call(`/api/v1/accounts/${id}/waivers`, { objectiveId: 'O-K190-01', skill: 'speaking', reason: '轨迹演示：暂不练口语' }, 'POST')
     say(`   [插入] 免修 O-K190-01（说） → flags=${JSON.stringify(w.json.flags)}`)
   }
+}
+
+// ---- 收尾：R6 端到端分槽验证（真实提交，不是手插事件行）——
+// ct01（band2 简单定位）与 ct02（band4 嵌套）同属 O-K115-02，必须落不同复杂度槽
+say(`\n## R6 端到端：同目标两档复杂度分槽`)
+const registry = JSON.parse(await (await import('node:fs/promises')).readFile(new URL('../server/data/v3-activities.json', import.meta.url), 'utf8'))
+for (const [aid, ans] of [
+  ['ct01_which_probe', 'DEVICE EVENT B'],
+  ['ct02_nested_which', 'LAB POWER ASSUMPTION'],
+]) {
+  const reg = registry.activities.find((x) => x.activityId === aid)
+  const r = await call(`/api/v1/accounts/${id}/attempts`, {
+    attemptId: `walk-r6-${aid}`, activityId: aid,
+    response: { kind: 'text', text: ans },
+    conditions: { firstExposure: true, hintLevel: 0, transcriptShown: false, playCount: 1, lookupUsed: false, responseMode: 'typed_summary' },
+  }, 'POST')
+  say(`   ${aid}（声明带 band${reg.complexityBand}）→ pass=${r.json.pass}`)
+}
+const evR6 = (await call(`/api/v1/accounts/${id}/evidence?objective=O-K115-02`)).json
+const bands = evR6.states.filter((s) => s.skill === 'reading').map((s) => s.complexity)
+say(`   O-K115-02 reading 槽位：${bands.join(', ')}`)
+if (!bands.includes('band2') || !bands.includes('band4')) {
+  say('! R6 残留：ct01/ct02 没有落到 band2/band4 两个槽（复杂度仍取父组固定带）'); process.exit(1)
 }
 
 // ---- 收尾证据概览 ----

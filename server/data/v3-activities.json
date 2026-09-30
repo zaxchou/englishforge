@@ -1110,7 +1110,7 @@
    },
    "responseKind": "text",
    "sourceDoc": "21 §2",
-   "prompt": "A. The projector, which we borrowed from the media lab, stopped working during the exhibition.\nB. The projector stopped working during the exhibition, which meant that we had to change the installation.\n\n问：A/B 的 which 各在指什么？哪一句的 which 部分在解释“发生这件事的后果”？",
+   "prompt": "读两句，按顺序写三个代号（空格分隔）。\n\nA. The projector, which we borrowed from the media lab, stopped working during the exhibition.\nB. The projector stopped working during the exhibition, which meant that we had to change the installation.\n\n第 1 问：A 的 which 指什么？ DEVICE（设备）/ EVENT（整件事）\n第 2 问：B 的 which 指什么？ DEVICE（设备）/ EVENT（整件事）\n第 3 问：哪一句的 which 部分在解释后果？ A / B\n\n例：DEVICE DEVICE B",
    "hints": [
     "被借来的是设备，还是整个事件？",
     "B 中 meant 在说明某件事产生的结果。"
@@ -1125,90 +1125,24 @@
    ],
    "evaluationContract": {
     "dimensions": [
-     "A 的所指",
-     "B 的所指",
-     "后果指向"
+     "所指单位",
+     "后果句"
     ],
-    "relations": [
-     {
-      "id": "a_device",
-      "label": "A 的 which 指投影仪/设备（借来的说明）",
-      "anyOf": [
-       "projector",
-       "投影仪",
-       "投影",
-       "设备",
-       "borrowed",
-       "借"
-      ],
-      "required": true,
-      "objectiveIds": [
-       "O-K115-02"
-      ]
-     },
-     {
-      "id": "b_event",
-      "label": "B 的 which 指投影仪坏这件事（事件）",
-      "anyOf": [
-       "坏",
-       "broke",
-       "stopped working",
-       "这件事",
-       "事件",
-       "情况"
-      ],
-      "required": true,
-      "objectiveIds": [
-       "O-K115-02"
-      ]
-     },
-     {
-      "id": "consequence",
-      "label": "指出 B 的 which 在解释后果（meant/不得不/结果）",
-      "anyOf": [
-       "meant",
-       "后果",
-       "结果",
-       "导致",
-       "不得不",
-       "change"
-      ],
-      "required": true,
-      "objectiveIds": [
-       "O-K115-02"
-      ]
-     },
-     {
-      "id": "which_rule_only",
-      "label": "只背'which 指前面'类口诀、未说明指代单位（21§2：记部分，不计达成）",
-      "anyOf": [
-       "指前面",
-       "指前一个",
-       "指前面的",
-       "指代词",
-       "指前面的名词"
-      ],
-      "required": false,
-      "objectiveIds": [
-       "O-K115-02"
-      ]
-     }
-    ],
-    "mustNot": [
-     {
-      "label": "只答“都指 projector”",
-      "anyOf": [
-       "都指 projector",
-       "都指投影仪",
-       "都一样"
-      ],
-      "objectiveIds": [
-       "O-K115-02"
-      ]
-     }
-    ],
-    "mustNotNegationGuard": true
-   }
+    "relations": [],
+    "mustNot": [],
+    "mustNotNegationGuard": true,
+    "choice": {
+     "accept": [
+      "device",
+      "event",
+      "b"
+     ],
+     "mode": "all"
+    },
+    "unmeasuredObjectives": []
+   },
+   "complexityBand": 2,
+   "certification": "closed"
   },
   {
    "activityId": "ct02_nested_which",
@@ -1223,7 +1157,7 @@
    },
    "responseKind": "text",
    "sourceDoc": "21 §3",
-   "prompt": "The projector that our team borrowed from the media lab, which had recently bought new equipment, stopped working during the exhibition. The technician who checked it said that the power supply was faulty. We replaced the supply and continued the show, which meant that visitors could still see the installation. We did not replace the software, because it was running normally. The team now plans to test the borrowed hardware before the next event.\n\n1. 第一处 which 说谁买了新设备？不要只答“前面的东西”。\n2. 第二处 which 说哪件事使访客仍能看到装置？\n3. 用一条短句说清首句主线；再列出附加说明。",
+   "prompt": "The projector that our team borrowed from the media lab, which had recently bought new equipment, stopped working during the exhibition. The technician who checked it said that the power supply was faulty. We replaced the supply and continued the show, which meant that visitors could still see the installation. We did not replace the software, because it was running normally. The team now plans to test the borrowed hardware before the next event.\n\n【作答方式】按顺序写三个代号（空格分隔）：\n第 1 问：第一处 which 说谁买了新设备？ LAB（媒体实验室）/ PROJECTOR（投影仪）\n第 2 问：第二处 which 说哪件事使访客仍能看到装置？ POWER（换电源继续展出）/ SOFTWARE（没换软件）\n第 3 问：but 对照的核心判定是？ ASSUMPTION（假设不完整）/ MAP（地图失灵）\n\n例：LAB POWER ASSUMPTION",
    "hints": [
     "第一处 which 前面是 the media lab。",
     "第二处 which 在“换了电源、继续展出”之后。"
@@ -1240,69 +1174,22 @@
     "dimensions": [
      "第一处所指",
      "第二处所指",
-     "主线分离"
+     "核心判定"
     ],
-    "relations": [
-     {
-      "id": "w1_lab",
-      "label": "第一处 which：媒体实验室最近买了设备",
-      "anyOf": [
-       "media lab",
-       "实验室",
-       "lab"
-      ],
-      "required": true,
-      "objectiveIds": [
-       "O-K115-02"
-      ]
-     },
-     {
-      "id": "w2_event",
-      "label": "第二处 which：更换电源并继续展出这件事",
-      "anyOf": [
-       "换",
-       "replace",
-       "更换",
-       "继续",
-       "continued",
-       "电源"
-      ],
-      "required": true,
-      "objectiveIds": [
-       "O-K115-02"
-      ]
-     },
-     {
-      "id": "mainline",
-      "label": "主线：投影仪在展览中坏了（嵌入信息分开说）",
-      "anyOf": [
-       "投影仪",
-       "projector",
-       "坏",
-       "stopped",
-       "出故障"
-      ],
-      "required": true,
-      "objectiveIds": [
-       "O-K115-02"
-      ]
-     }
-    ],
-    "mustNot": [
-     {
-      "label": "把第一处 which 指成投影仪买了设备",
-      "anyOf": [
-       "投影仪买",
-       "projector bought",
-       "投影仪最近买"
-      ],
-      "objectiveIds": [
-       "O-K115-02"
-      ]
-     }
-    ],
-    "mustNotNegationGuard": true
-   }
+    "relations": [],
+    "mustNot": [],
+    "mustNotNegationGuard": true,
+    "choice": {
+     "accept": [
+      "lab",
+      "power",
+      "assumption"
+     ],
+     "mode": "all"
+    }
+   },
+   "complexityBand": 4,
+   "certification": "closed"
   },
   {
    "activityId": "ct03_semantics_guard",
@@ -1317,7 +1204,7 @@
    },
    "responseKind": "text",
    "sourceDoc": "21 §4",
-   "prompt": "沿用展览控制方案的背景，回答：团队现在保留了什么？为什么暂缓另一种？他们对语音交互的计划是否等于永久放弃？（评分器验收用：正确改述、否定中的合法答案、角色反转、过度推广应得到不同结果）",
+   "prompt": "沿用展览控制方案的背景，回答：团队现在保留了什么？为什么暂缓另一种？他们对语音交互的计划是否等于永久放弃？\n\n【作答方式】先写选项字母，再用一句话说明原因。选项：\nA. 保留手势控制，暂缓语音控制\nB. 保留语音控制，暂缓手势控制\nC. 两种控制都永久放弃\nD. 两种控制都立刻全面铺开",
    "hints": [],
    "conditionsSpec": [
     "firstExposure",
@@ -1329,37 +1216,11 @@
    ],
    "evaluationContract": {
     "dimensions": [
-     "当前决定",
+     "当前决定（选择）",
      "原因",
      "保留计划"
     ],
     "relations": [
-     {
-      "id": "kept_gesture",
-      "label": "保留的是手势控制（否定语境不算：'没有保留手势'不得命中）",
-      "anyOf": [
-       "手势",
-       "gesture"
-      ],
-      "negationAware": true,
-      "required": true,
-      "objectiveIds": [
-       "O-K115-03"
-      ]
-     },
-     {
-      "id": "hold_voice",
-      "label": "暂缓/延后的是语音控制（角色不能反；否定语境不算）",
-      "anyOf": [
-       "语音",
-       "voice"
-      ],
-      "negationAware": true,
-      "required": true,
-      "objectiveIds": [
-       "O-K115-03"
-      ]
-     },
      {
       "id": "reason_crowd",
       "label": "原因：多人说话时该原型在展厅表现不好（否定语境不算）",
@@ -1373,7 +1234,7 @@
        "several groups"
       ],
       "negationAware": true,
-      "required": true,
+      "required": false,
       "objectiveIds": [
        "O-K115-03"
       ]
@@ -1410,25 +1271,13 @@
        "探索"
       ],
       "negationAware": true,
-      "required": true,
+      "required": false,
       "objectiveIds": [
        "O-K115-03"
       ]
      }
     ],
     "mustNot": [
-     {
-      "label": "角色反转：暂缓手势/保留语音",
-      "anyOf": [
-       "暂缓手势",
-       "保留语音",
-       "delayed gesture",
-       "kept voice"
-      ],
-      "objectiveIds": [
-       "O-K115-03"
-      ]
-     },
      {
       "label": "过度推广：所有语音系统在拥挤处都失败",
       "anyOf": [
@@ -1441,20 +1290,17 @@
       "objectiveIds": [
        "O-K115-03"
       ]
-     },
-     {
-      "label": "改成永久放弃",
-      "anyOf": [
-       "永久放弃",
-       "permanently abandoned"
-      ],
-      "objectiveIds": [
-       "O-K115-03"
-      ]
      }
     ],
-    "mustNotNegationGuard": true
-   }
+    "mustNotNegationGuard": true,
+    "choice": {
+     "accept": [
+      "a"
+     ],
+     "note": "封闭选择：决策对由选项锁定，角色反转/词袋在选项空间里无从成立"
+    }
+   },
+   "certification": "closed"
   },
   {
    "activityId": "ct04_oral_followup",
@@ -1613,6 +1459,179 @@
       "required": true,
       "objectiveIds": [
        "O-K184-02"
+      ]
+     }
+    ],
+    "mustNot": [],
+    "mustNotNegationGuard": true
+   }
+  },
+  {
+   "activityId": "neg_scan_fixture",
+   "version": 1,
+   "role": "practice",
+   "taskFamilyId": "neg_scan_fixture",
+   "objectiveIds": [
+    "O-K115-03"
+   ],
+   "skillByObjective": {
+    "O-K115-03": "reading"
+   },
+   "responseKind": "text",
+   "sourceDoc": "判题器回归夹具（24 号 R3）：否定扫描的分句截断/not only/双否定，全 negationAware",
+   "prompt": "（判题器回归夹具）用自己的话转述：谁被保留、谁被暂缓、原因、是否永久放弃。",
+   "hints": [],
+   "conditionsSpec": [
+    "firstExposure",
+    "hintLevel",
+    "transcriptShown",
+    "playCount",
+    "lookupUsed",
+    "responseMode"
+   ],
+   "evaluationContract": {
+    "dimensions": [
+     "决定与原因"
+    ],
+    "relations": [
+     {
+      "id": "kept",
+      "label": "保留的是手势",
+      "anyOf": [
+       "保留手势",
+       "kept gesture",
+       "手势"
+      ],
+      "negationAware": true,
+      "required": true,
+      "objectiveIds": [
+       "O-K115-03"
+      ]
+     },
+     {
+      "id": "hold",
+      "label": "暂缓的是语音",
+      "anyOf": [
+       "暂缓语音",
+       "hold voice",
+       "语音",
+       "postponed voice",
+       "voice control"
+      ],
+      "negationAware": true,
+      "required": true,
+      "objectiveIds": [
+       "O-K115-03"
+      ]
+     },
+     {
+      "id": "reason",
+      "label": "多人/展厅原因",
+      "anyOf": [
+       "多人",
+       "crowded",
+       "展厅",
+       "spoke at once",
+       "several groups"
+      ],
+      "negationAware": true,
+      "required": true,
+      "objectiveIds": [
+       "O-K115-03"
+      ]
+     },
+     {
+      "id": "keep_plan",
+      "label": "未永久放弃",
+      "anyOf": [
+       "未完全放弃",
+       "没完全放弃",
+       "并未放弃",
+       "没有放弃",
+       "仍想",
+       "still want",
+       "探索"
+      ],
+      "negationAware": true,
+      "required": true,
+      "objectiveIds": [
+       "O-K115-03"
+      ]
+     }
+    ],
+    "mustNot": [
+     {
+      "label": "角色反转",
+      "anyOf": [
+       "暂缓手势",
+       "保留语音",
+       "delayed gesture",
+       "kept voice"
+      ],
+      "objectiveIds": [
+       "O-K115-03"
+      ]
+     }
+    ],
+    "mustNotNegationGuard": true
+   }
+  },
+  {
+   "activityId": "ab_map_fixture",
+   "version": 1,
+   "role": "practice",
+   "taskFamilyId": "ab_map_fixture",
+   "objectiveIds": [
+    "O-K115-01",
+    "O-K115-03"
+   ],
+   "skillByObjective": {
+    "O-K115-01": "reading",
+    "O-K115-03": "reading"
+   },
+   "responseKind": "text",
+   "sourceDoc": "R1 回归夹具（24 号）：alpha 关系只归 O-K115-01、beta 只归 O-K115-03——逐目标映射不得混算",
+   "prompt": "（R1 回归夹具）阅读：The sensor that looked accurate in our lab gave unreliable readings near the stage lights. 回答：哪个传感器出了问题、团队决定怎么办。",
+   "hints": [],
+   "conditionsSpec": [
+    "firstExposure",
+    "hintLevel",
+    "transcriptShown",
+    "playCount",
+    "lookupUsed",
+    "responseMode"
+   ],
+   "evaluationContract": {
+    "dimensions": [
+     "对象归属",
+     "决定与原因"
+    ],
+    "relations": [
+     {
+      "id": "alpha_obj",
+      "label": "出问题的是实验室准、舞台灯下不准的传感器",
+      "anyOf": [
+       "传感器",
+       "sensor",
+       "舞台灯"
+      ],
+      "required": true,
+      "objectiveIds": [
+       "O-K115-01"
+      ]
+     },
+     {
+      "id": "beta_plan",
+      "label": "决定：先只做室内测试/推迟安装",
+      "anyOf": [
+       "室内测试",
+       "推迟",
+       "indoor",
+       "postpone"
+      ],
+      "required": true,
+      "objectiveIds": [
+       "O-K115-03"
       ]
      }
     ],

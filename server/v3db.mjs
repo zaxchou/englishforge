@@ -323,7 +323,7 @@ export function ensureV3Schema(conn = getDb()) {
   return conn
 }
 
-function ensureV3Columns(conn, table, spec) {
+export function ensureV3Columns(conn, table, spec) {
   const have = new Set(conn.prepare(`PRAGMA table_info(${table})`).all().map((r) => r.name))
   for (const [name, type] of spec) {
     if (!have.has(name)) conn.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${type}`)

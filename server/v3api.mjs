@@ -12,7 +12,7 @@ import { getPlan, recomputePlan } from './v3plan.mjs'
 import { serveLesson, revealHint, completeLesson, listLessons, seedLessons, withdrawLesson, publishLesson, signLesson } from './v3lessons.mjs'
 import { ensureWindow, reestimateWindow, generationMetrics, listJobs, startGenerationJob } from './v3gen.mjs'
 import { createOralIntent, storeOralAudio, readOralAudio, deleteOralAudio, submitOralAttempt, correctTranscript, signOralReview, mediaUsableForCertification } from './v3oral.mjs'
-import { readLessonAudio, loadAudioManifest } from './v3audio.mjs'
+import { readLessonAudio, loadAudioManifest, audioForActivity } from './v3audio.mjs'
 import { registerTrial, recordObservation, compareTrial, listTrials } from './v3trial.mjs'
 
 export const V3_ROUTES = [
@@ -117,6 +117,19 @@ export const V3_ROUTES = [
   }],
   ['POST', '/api/v1/accounts/:id/lessons/:lessonId/hints', (ctx) => revealHint(
     ctx.params.id, ctx.params.lessonId, body_str(ctx, 'activityId'), num(ctx.body?.level, 1))],
+  // R4（24 号）：播放支持事件——服务端记录"这个账户播放过这段音频"，听力作答的前提。
+  // 客户端自报 playCount 只能作参考，正分证据的门槛是这里的落库事件
+  ['POST', '/api/v1/accounts/:id/support/play', (ctx) => {
+    requireAccount(ctx.params.id)
+    const activityId = body_str(ctx, 'activityId')
+    const mediaId = body_str(ctx, 'mediaId')
+    const entry = audioForActivity(activityId)
+    if (!entry || entry.mediaId !== mediaId) throw new ApiError(400, 'MEDIA_ACTIVITY_MISMATCH: 该音频不属于这个活动')
+    ensureV3Schema().prepare(
+      'INSERT OR IGNORE INTO activity_support_events (account_id, activity_id, kind, level, created_at) VALUES (?,?,?,?,?)')
+      .run(ctx.params.id, activityId, 'play', 1, Date.now())
+    return { ok: true, activityId, mediaId }
+  }],
   ['POST', '/api/v1/accounts/:id/lessons/:lessonId/complete', (ctx) => {
     const done = completeLesson(ctx.params.id, ctx.params.lessonId)
     // F2：完成事件立即触发重算，返回可直接展示的新推荐（重复完成不重复更新）

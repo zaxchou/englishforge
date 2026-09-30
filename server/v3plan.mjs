@@ -294,21 +294,25 @@ function strategyReason(diag, stateOf) {
 function finalize({ primaryGoal, strategyId, reason, hypotheses, candidates, lessonActivityId, snapshot, uncertainAreas, accountId, eligibleRanked }) {
   const activity = lessonActivityId ? activityById(lessonActivityId) : null
   if (lessonActivityId && !activity) throw new ApiError(500, 'REGISTRY_INCONSISTENT: ' + lessonActivityId)
-  // F3：课程检索核对目标——先按主目标找课（排除本账户已完成），再按策略兜底；带真实版本
+  // R2（24 号）：**推荐目标必须属于课的实际可测目标**——lessonForObjective 天然匹配；
+  // 策略兜底带 mustIncludeObjective 校验，不匹配就不借课。
+  // fixture 探针同理：lessonActivityId 的活动必须真的测主目标，否则 content_pending，
+  // 不能拿无关活动顶"下一题"（轨迹曾拿 les_l1_sensor_read 顶 O-K007-01）。
   const pkg = lessonForObjective(primaryGoal, { excludeCompletedFor: accountId })
-    ?? lessonForStrategy(strategyId, { excludeCompletedFor: accountId })
-  // 诚实的状态三分：有课包→published（devSample 按 release channel）；只有 fixture 活动→fixture_dev_only；都没有→content_pending
+    ?? lessonForStrategy(strategyId, { excludeCompletedFor: accountId, mustIncludeObjective: primaryGoal })
+  const probeFits = activity && (activity.objectiveIds ?? []).includes(primaryGoal)
+  // 诚实的状态三分：有课包→published（devSample 按 release channel）；主目标匹配的 fixture 活动→fixture_dev_only；都没有→content_pending
   let lesson
   if (pkg) {
     lesson = {
       lessonId: pkg.lessonId,
-      activityId: activity?.activityId ?? null,
-      version: activity?.version ?? null,
-      role: activity?.role ?? null,
+      version: pkg.version, // R2 后仍要给前端真实版本（23 轨迹曾显示 vnull）
+      activityId: activity && probeFits ? activity.activityId : null,
+      role: activity && probeFits ? activity.role : null,
       status: 'published',
       devSample: !!pkg.devOnly, // dev_only 通道=开发样本；人审签署的 mainline 课不再标“未签署”
     }
-  } else if (activity) {
+  } else if (activity && probeFits) {
     lesson = { lessonId: null, activityId: activity.activityId, version: activity.version, role: activity.role, status: 'fixture_dev_only' }
   } else {
     lesson = { lessonId: null, activityId: null, status: 'content_pending', waitNotice: waitNotice(strategyId) }

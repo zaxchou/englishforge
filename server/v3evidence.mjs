@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url'
 import { ApiError, getDb } from './db.mjs'
 import { ensureV3Schema, getMeta, setMeta, nextCounter, getCounter } from './v3db.mjs'
 import { requireAccount } from './v3api.mjs'
-import { audioPublicInfo } from './v3audio.mjs'
+import { audioPublicInfo, audioByMediaId } from './v3audio.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const ACT_PATH = resolve(HERE, 'data', 'v3-activities.json')
@@ -101,6 +101,49 @@ export function evaluateAttempt(activity, response) {
   const c = activity.evaluationContract
   if (!c) return { status: 'pending', evaluation: null }
   const text = norm(typeof response === 'string' ? response : response?.text)
+  // R3（24 号）：认证级别。'closed'＝封闭选择/槽位题，答案空间受控，可以写掌握证据；
+  // 'keyword'＝开放文本词表匹配，**只能给练习反馈**——bag/同义反转词表判不了关系是否成立
+  // （"手势 语音 多人 仍想"、"搁置手势采用语音"都会骗过词表）。默认 keyword：不写掌握正分。
+  const certification = c.choice ? 'closed' : (activity.certification ?? 'keyword')
+
+  // 封闭选择题：c.choice = { accept: ['a', …], mode: 'any'|'all' }——只认独立代号（整词匹配），
+  // 措辞歧义在选项设计里消除，不靠词表猜语义。mode 'all'＝多空全对（如三问三个代号）。
+  // 理由栏的自由文本仍受 mustNot 约束
+  if (c.choice) {
+    const tokenPresent = (a) => {
+      const letter = norm(a).replace(/[^a-z0-9]/g, '')
+      return !!letter && new RegExp('(^|[^a-z0-9])' + letter + '($|[^a-z0-9])').test(text)
+    }
+    const pick = c.choice.mode === 'all' ? c.choice.accept.every(tokenPresent) : c.choice.accept.some(tokenPresent)
+    const relations = (c.relations ?? []).map((r) => ({ id: r.id, label: r.label, required: !!r.required, hit: pick, objectiveIds: Array.isArray(r.objectiveIds) ? r.objectiveIds : null }))
+    const mustNotMode = c.mustNotNegationGuard === false ? 'any' : 'nonNegated'
+    const violated = (c.mustNot ?? []).filter((m) => m.anyOf.some((k) => {
+      const needle = norm(k)
+      let from = 0
+      while (true) {
+        const at = text.indexOf(needle, from)
+        if (at < 0) return false
+        const scan = negationScan(text, at)
+        if (scan.ambiguous) { from = at + needle.length; continue }
+        if (!scan.negated) return true
+        from = at + needle.length
+      }
+    })).map((m) => m.label)
+    const objectiveResults = {}
+    for (const oid of activity.objectiveIds) {
+      const iViolated = (c.mustNot ?? []).some((m) => (m.objectiveIds ?? activity.objectiveIds).includes(oid) && violated.includes(m.label))
+      objectiveResults[oid] = pick && !iViolated ? 'met' : 'unmet'
+    }
+    return {
+      status: 'evaluated',
+      evaluation: {
+        pass: pick && violated.length === 0,
+        dimensions: c.dimensions, relations, mustNotViolations: violated,
+        objectiveResults, certification, choice: { accepted: pick, accept: c.choice.accept },
+        evaluator: 'deterministic-contract-v1', confidence: 'fixture',
+      },
+    }
+  }
   // 锚点命中扫描（21§4 收尾）：同一锚点可能出现多次，逐次看前置 14 字窗口里的否定词。
   // mode: 'any' 出现即命中 | 'nonNegated' 至少一次非否定出现（关系为真才会说的话）
   // | 'negated' 至少一次否定语境出现（关系本身是"否定了某主张"，如"并未放弃"）
@@ -136,9 +179,14 @@ export function evaluateAttempt(activity, response) {
       if (one.ambiguous) ambiguousCount++
       else break // 出现且极性明确但未命中 → 干净的未命中
     }
-    return { r, hit, allAmbiguous: present > 0 && ambiguousCount === present }
+    return { rel: r, hit, allAmbiguous: present > 0 && ambiguousCount === present }
   })
-  const relations = relScans.map(({ r, hit }) => ({ id: r.id, label: r.label, required: !!r.required, hit }))
+  // R1（24 号）：**保留原始关系的 objectiveIds 归属**——之前只留 id/label/required/hit，
+  // 逐目标结果读不到归属、全部回落到活动目标，A/B 两目标的 成绩互相混算
+  const relations = relScans.map(({ rel, hit }) => ({
+    id: rel.id, label: rel.label, required: !!rel.required, hit,
+    objectiveIds: Array.isArray(rel.objectiveIds) ? rel.objectiveIds : null,
+  }))
   // 双否定类歧义：某关系的全部锚点出现都定不了极性且未命中 → 整题转争议，不硬判
   const negationAmbiguous = relScans.some(({ hit, allAmbiguous }) => !hit && allAmbiguous)
   // mustNot 否定语境守卫（F4/21§4）：“并未完全放弃”不是“完全放弃”。至少一次非否定出现才算违规；
@@ -168,6 +216,8 @@ export function evaluateAttempt(activity, response) {
     relations,
     mustNotViolations: violated,
     objectiveResults,
+    certification, // 'keyword'：开放文本词表匹配——练习反馈可以，掌握证据不行（R3）
+    keywordOnly: certification === 'keyword',
     evaluator: 'deterministic-contract-v1',
     confidence: 'fixture', // 开发合同，不是校准过的评分器
   }
@@ -242,6 +292,18 @@ export function recordAttempt(accountId, payload = {}) {
   effectiveConditions.firstExposure = !!conditions.firstExposure && !seenBefore
   // 客户端自报不提升证据：角色/家族/目标/版本一律以服务端注册表为准
   const responseText = String(payload.response?.text ?? payload.response ?? '').slice(0, 4000)
+
+  // R4（24 号）：听力任务的作答必须先有**服务端记录的播放事件**——"活动带 audioRef"不等于
+  // 听过。UI 点播放会 POST /support/play 落事件；没有播放记录的提交直接拒绝（不给练习分）
+  const listensByEar = activity.audioRef
+    && Object.values(activity.skillByObjective ?? {}).some((s) => s === 'listening')
+  if (listensByEar) {
+    const played = conn.prepare("SELECT 1 FROM activity_support_events WHERE account_id = ? AND activity_id = ? AND kind = 'play' LIMIT 1")
+      .get(accountId, activity.activityId)
+    if (!played) {
+      throw new ApiError(400, 'LISTENING_PLAYBACK_REQUIRED: 先播放音频再作答（未播放不产生听力证据）')
+    }
+  }
   const disputedSet = disputedActivities(accountId)
 
   let evaluation, evalStatus
@@ -314,6 +376,8 @@ function attemptResult(conn, accountId, row, activity) {
     objectiveResults: isHoldout ? undefined : (evaluation?.objectiveResults ?? undefined),
     dimensions: isHoldout ? undefined : (evaluation?.relations ?? undefined),
     mustNotViolations: isHoldout ? undefined : evaluation?.mustNotViolations,
+    // R3：keyword-only（开放文本词表）——前端要明示"练习反馈，不计入能力记录"
+    practiceOnly: evaluation?.keywordOnly === true,
     evidenceEventIds: conn.prepare('SELECT evidence_id FROM evidence_events WHERE account_id = ? AND attempt_id = ?')
       .all(accountId, row.attempt_id).map((r) => r.evidence_id),
     nextAction: row.evaluation_status === 'disputed' ? 'review_transcript'
@@ -323,6 +387,21 @@ function attemptResult(conn, accountId, row, activity) {
 
 function appendObservedEvents(conn, accountId, attemptRow, activity, conditions) {
   const evaluation = JSON.parse(attemptRow.evaluation || '{}')
+  // R3/R4（24 号）的分工：
+  // · 读/写开放文本（keyword）→ 纯练习反馈，不写事件（bag/同义反转判不了关系）；
+  // · 听力 + audioRef + **服务端播放记录** → 写"受限定"证据（modality 已被播放事件验证），
+  //   事件带 keywordContentCheck 标记，回放时状态封顶 trained（词表内容检查升不了 independent）。
+  const audioSource = activity.audioRef
+    ? (audioByMediaId(activity.audioRef)?.sourceType ?? 'audio_ref')
+    : null
+  const playCount = Number(conditions.playCount ?? 0)
+  const listensByEar = Object.values(activity.skillByObjective ?? {}).some((s) => s === 'listening')
+  const listeningWithAudio = !!audioSource && listensByEar
+  const keywordPracticeOnly = evaluation.keywordOnly && !listeningWithAudio
+  if (keywordPracticeOnly) {
+    // R3：开放文本词表=练习反馈，不写 observed 事件。但**免修目标又失败**的 repair 信号
+    // 仍要写——那是策略信号（换路），不是掌握证据（24 号 T4 语义在这条路上必须存活）
+  }
   const firstIndependent = !!conditions.firstExposure && !(conditions.hintLevel > 0)
     && !conditions.transcriptShown && !conditions.lookupUsed
   const condition = firstIndependent ? 'first_independent'
@@ -335,29 +414,39 @@ function appendObservedEvents(conn, accountId, attemptRow, activity, conditions)
     let skill = activity.skillByObjective?.[oid] ?? 'reading'
     const basisExtra = {}
     // F1：**没有音频**的文字模拟只可测阅读——listening 证据重定向到 reading，原样可追溯。
-    // 有 audioRef（synthetic 合成音频，21 §6.2）就是真声音任务：listening 证据成立，
-    // 事件里记 audio:'synthetic' 可追溯（不得冒充自然讲者材料）。
+    // 有 audioRef 就是真声音任务：listening 证据成立，事件记实际音源类型 + 播放次数可追溯
     if (activity.simulatesAudio && !activity.audioRef && skill === 'listening') {
       skill = 'reading'
       basisExtra.textSimAudioRedirected = true
     }
-    if (activity.audioRef) basisExtra.audio = 'synthetic'
-    // F1：复杂度分档（目标父组的复杂度带），不同带的表现不互相覆盖
-    const complexity = complexityBandFor(conn, oid)
-    conn.prepare(
-      `INSERT INTO evidence_events (account_id, evidence_id, attempt_id, objective_id, skill, complexity,
-         kind, condition, pass, basis, created_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-    ).run(
-      accountId, `ev_${attemptRow.attempt_id}_${oid}`, attemptRow.attempt_id, oid, skill, complexity,
-      'observed', condition, (perObj === 'met') ? 1 : 0,
-      JSON.stringify({ role: activity.role, taskFamilyId: activity.taskFamilyId, evaluator: evaluation.evaluator ?? null,
-        confidence: evaluation.confidence ?? null, oralDeferred: !!activity.oralEvidenceDeferred,
-        locating: !!activity.locating, perObjective: perObj, ...basisExtra }),
-      Date.now(),
-    )
-    // 被斩掉的目标又失败 → repair 事件（决策层据此开局部短修复，不批量重刷）
+    if (!keywordPracticeOnly) {
+      if (audioSource) {
+        basisExtra.audio = audioSource
+        basisExtra.playCount = playCount
+        basisExtra.playbackVerified = playCount > 0 // 服务端播放事件在 recordAttempt 已强制
+      }
+      // R3：keyword 内容检查的听力证据 = 受限定——回放时封顶 trained（升不了 independent）
+      if (evaluation.keywordOnly && listeningWithAudio) basisExtra.keywordContentCheck = true
+      // R6（24 号）：复杂度取**本次活动声明的带**（任务真实负担），活动未声明才回落目标父组带——
+      // 同目标的简单题与嵌套题要落不同槽，不能永远挤在父组同一带里
+      const complexity = activity.complexityBand ? `band${activity.complexityBand}` : complexityBandFor(conn, oid)
+      conn.prepare(
+        `INSERT INTO evidence_events (account_id, evidence_id, attempt_id, objective_id, skill, complexity,
+           kind, condition, pass, basis, created_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+      ).run(
+        accountId, `ev_${attemptRow.attempt_id}_${oid}`, attemptRow.attempt_id, oid, skill, complexity,
+        'observed', condition, (perObj === 'met') ? 1 : 0,
+        JSON.stringify({ role: activity.role, taskFamilyId: activity.taskFamilyId, evaluator: evaluation.evaluator ?? null,
+          confidence: evaluation.confidence ?? null, oralDeferred: !!activity.oralEvidenceDeferred,
+          locating: !!activity.locating, perObjective: perObj, ...basisExtra }),
+        Date.now(),
+      )
+    }
+    // 被斩掉的目标又失败 → repair 事件（决策层据此开局部短修复，不批量重刷）。
+    // keyword 练习也产生这个信号：它是策略信号，不是掌握证据
     if (perObj === 'unmet' || perObj === 'partial' && evaluation.pass === false) {
+      const complexity = activity.complexityBand ? `band${activity.complexityBand}` : complexityBandFor(conn, oid)
       const st = conn.prepare('SELECT flags FROM learner_states WHERE account_id=? AND objective_id=? AND skill=? AND complexity=?')
         .get(accountId, oid, skill, 'base') // 状态聚合槽
       if (st && JSON.parse(st.flags || '[]').includes('waived_by_user')) {
@@ -452,6 +541,7 @@ export function recomputeStates(accountId) {
       if (e.condition === 'transcript_shown') { if (rank < 2) s2.state = 'trained'; continue } // 看稿成功≤trained，且已重定向到 reading
       if (e.condition === 'hinted' || e.condition === 'supported') { if (rank < 2) s2.state = 'trained'; continue }
       // first_independent
+      if (basis.keywordContentCheck) { if (rank < 2) s2.state = 'trained'; continue } // R3：词表内容检查封顶 trained
       s2.independentFamilies.add(basis.taskFamilyId ?? '?')
       if (basis.role === 'transfer' && s2.independentFamilies.size >= 2) s2.state = 'transferred'
       else if (s2.independentFamilies.size >= 2) s2.state = 'independent'
