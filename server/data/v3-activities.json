@@ -1,176 +1,950 @@
 {
-  "notice": "W2 开发 fixture 注册表：仅用于验收测试与决策回放（15 §2：未经核验的内容只能作 fixture）。题面转写 docs/curriculum-v4/18；holdout 为本项目新写的虚构案例（18 的 L4 样本已对用户公开，不陌生，不能当保留题）。answerKey 只存服务端，任何 GET 都不下发。",
-  "activities": [
-    {
-      "activityId": "diag_d1_read", "version": 1, "role": "diagnostic",
-      "taskFamilyId": "exhibit_decision_read_A",
-      "objectiveIds": ["O-K115-01", "O-K115-02", "O-K115-03", "O-K184-02"],
-      "skillByObjective": { "O-K115-01": "reading", "O-K115-02": "reading", "O-K115-03": "reading", "O-K184-02": "reading" },
-      "responseKind": "text",
-      "prompt": "阅读这段首次见的短文，然后回答：团队现在保留了哪种控制方式？为什么推迟另一种？「although the team still wants to explore voice interaction」对最后决定加了什么限制？\n\nOur team built two ways to control an interactive artwork. Visitors could move their hands, or they could give voice commands. The voice prototype that worked well in a quiet studio failed during a crowded exhibition, where several groups were speaking at once. We kept the gesture controls, but we delayed voice control until we could test it with visitors in the exhibition hall. That decision disappointed some visitors who had expected to speak to the artwork, although the team still wants to explore voice interaction.",
-      "hints": ["先抓“发生了什么/这话只适用于哪里”两层。", "注意 that worked well… 限定的是哪个原型；but 之后是决定；although 是让步限制。"],
-      "conditionsSpec": ["firstExposure", "hintLevel", "lookupUsed", "responseMode"],
-      "evaluationContract": {
-        "dimensions": ["对象归属", "决定与原因", "保留条件"],
-        "relations": [
-          { "id": "kept", "label": "保留手势控制", "anyOf": ["gesture", "手势"], "required": true },
-          { "id": "delayed", "label": "推迟语音控制", "anyOf": ["delay", "推迟", "暂缓", "延后"], "required": true },
-          { "id": "reason", "label": "原因＝展厅多人同时说话时失败", "anyOf": ["crowded", "多人", "同时说话", "exhibition", "展厅"], "required": true },
-          { "id": "limit", "label": "推迟≠永久否定，仍计划探索", "anyOf": ["still want", "仍想", "still plan", "仍计划", "不等于永久", "没有永久", "并未放弃", "不是放弃", "没有完全放弃", "并非永久"], "required": true }
-        ],
-        "mustNot": [
-          { "label": "把决定说成“完全放弃语音”（改变原意）", "anyOf": ["completely abandon", "完全放弃", "彻底放弃", "就此放弃", "永远放弃"] }
-        ]
-      }
-    },
-    {
-      "activityId": "diag_d1b_contrast", "version": 1, "role": "diagnostic",
-      "taskFamilyId": "small_big_room_contrast_read_B",
-      "objectiveIds": ["O-K115-01"],
-      "skillByObjective": { "O-K115-01": "reading" },
-      "responseKind": "text",
-      "locating": true,
-      "prompt": "The small room was quiet. The larger room was noisy. The tool worked in the small room, but it failed in the larger room.\n\n问：工具在哪个房间可用、在哪个房间失败？（定位题：太简单是刻意的，只用来分辨障碍，不算掌握证据）",
-      "hints": [],
-      "conditionsSpec": ["firstExposure", "hintLevel", "responseMode"],
-      "evaluationContract": {
-        "dimensions": ["对照关系"],
-        "relations": [
-          { "id": "works_small", "label": "小房间（安静）可用", "anyOf": ["small", "quiet", "小房间", "安静"], "required": true },
-          { "id": "fails_large", "label": "大房间（吵）失败", "anyOf": ["large", "noisy", "大房间", "吵"], "required": true }
-        ],
-        "mustNot": []
-      }
-    },
-    {
-      "activityId": "diag_d2_listen_sim", "version": 1, "role": "diagnostic",
-      "taskFamilyId": "library_ai_audio_A",
-      "objectiveIds": ["O-K007-02", "O-K007-03", "O-K184-01", "O-K184-02"],
-      "skillByObjective": { "O-K007-02": "listening", "O-K007-03": "listening", "O-K184-01": "listening", "O-K184-02": "listening" },
-      "responseKind": "text",
-      "simulatesAudio": true,
-      "prompt": "（开发 fixture：正式版须自然讲者录音+校对，见 18 §2；现在以文字模拟“首次听”，测试方不得向被试展示脚本。）\n\n任务：听一段校园图书馆 AI 工具的介绍（首听无字幕），然后回答：讲者最终的评价是什么？最初为何觉得有用？结论是“不能用 AI 找文章”吗？",
-      "hints": ["先抓主张，再找 but 之后保留了什么限制。"],
-      "conditionsSpec": ["firstExposure", "hintLevel", "transcriptShown", "playCount", "responseMode"],
-      "evaluationContract": {
-        "dimensions": ["最终评价", "最初印象", "限定保留"],
-        "relations": [
-          { "id": "use_case", "label": "可用来发现值得读的材料", "anyOf": ["help us find", "帮助找", "可以找", "能找", "发现材料", "find papers", "找文章", "找论文", "找到了论文", "找到值得"], "required": true },
-          { "id": "must_read", "label": "用之前必须自己读来源", "anyOf": ["read", "读", "核查", "check", "自己看"], "required": true },
-          { "id": "problem", "label": "问题＝摘要漏掉原论文的重要限制", "anyOf": ["missed", "漏掉", "遗漏", "limits", "限制", "summary", "摘要"], "required": true },
-          { "id": "initial", "label": "最初以为很有用（按话题找到了论文）", "anyOf": ["looked useful", "看起来有用", "很有用", "觉得有用", "found papers", "找到了"], "required": false }
-        ],
-        "mustNot": [
-          { "label": "把结论夸大为“不能用 AI 找文章”", "anyOf": ["cannot use", "不能用 ai", "不能用ai", "完全不可用"] }
-        ]
-      }
-    },
-    {
-      "activityId": "diag_d2b_transcript_recheck", "version": 1, "role": "diagnostic",
-      "taskFamilyId": "library_ai_audio_A",
-      "objectiveIds": ["O-K184-02", "O-K007-02"],
-      "skillByObjective": { "O-K184-02": "reading", "O-K007-02": "reading" },
-      "responseKind": "text",
-      "simulatesAudio": true,
-      "transcriptShownByDefault": true,
-      "prompt": "（开发 fixture：本轮已展示校对稿，表现记入“文字理解”，不升级听力。）\n\n校对稿：In a campus library, our class tested an AI assistant that suggests articles for design projects. At first, the suggestions looked useful because the assistant found papers on the topics we entered. But when we checked the sources, several summaries missed important limits in the original papers. So our conclusion was narrower than we expected: the tool can help us find papers worth reading, but we still need to read each source before using it to support a design decision.\n\n请再回答一次：最终评价是什么？保留了什么限制？",
-      "hints": [],
-      "conditionsSpec": ["firstExposure", "transcriptShown", "playCount", "responseMode"],
-      "evaluationContract": {
-        "dimensions": ["最终评价", "限定保留"],
-        "relations": [
-          { "id": "use_case", "label": "可用来发现值得读的材料", "anyOf": ["help us find", "帮助找", "可以找", "能找", "发现材料", "find papers", "找文章", "找论文", "找到了论文", "找到值得"], "required": true },
-          { "id": "must_read", "label": "用之前必须自己读来源", "anyOf": ["read", "读", "核查", "check", "自己看"], "required": true }
-        ],
-        "mustNot": []
-      }
-    },
-    {
-      "activityId": "diag_d3_oral_typed", "version": 1, "role": "diagnostic",
-      "taskFamilyId": "library_ai_oral_A",
-      "objectiveIds": ["O-K190-01", "O-K194-01"],
-      "skillByObjective": { "O-K190-01": "speaking", "O-K194-01": "interaction" },
-      "responseKind": "text",
-      "oralEvidenceDeferred": true,
-      "prompt": "（开发 fixture：正式版为 30–60 秒英文录音；本文字版不计口语证据，口语状态保持未测。）\n\n向同学说明：这个小组从 AI 助手学到了什么？你会不会在自己的项目里用它，为什么？（不读稿）",
-      "hints": ["可以说“主张—但—我怎么看”。"],
-      "conditionsSpec": ["firstExposure", "hintLevel", "responseMode"],
-      "evaluationContract": {
-        "dimensions": ["观点忠实", "个人立场"],
-        "relations": [
-          { "id": "learned_core", "label": "学到“能帮找材料”", "anyOf": ["发现", "find", "找"], "required": true },
-          { "id": "caveat", "label": "保留“必须自己读/核查”", "anyOf": ["read", "读", "核查", "check", "但"], "required": true },
-          { "id": "own_take", "label": "给出自己的使用立场", "anyOf": ["would", "会", "不会", "愿意", "用它", "use it", "我想"], "required": true }
-        ],
-        "mustNot": []
-      }
-    },
-    {
-      "activityId": "les_l1_sensor_read", "version": 1, "role": "practice",
-      "taskFamilyId": "sensor_stage_lights_read_B",
-      "objectiveIds": ["O-K115-01", "O-K115-03", "O-K184-02"],
-      "skillByObjective": { "O-K115-01": "reading", "O-K115-03": "reading", "O-K184-02": "reading" },
-      "responseKind": "text",
-      "servesStrategies": ["short_explain", "challenge_first"],
-      "prompt": "The sensor that looked accurate in our lab gave unreliable readings near the stage lights. We can still use the device for indoor tests, but we should not install it at the public event until we check it under those lights.\n\n回答：哪个传感器出了问题？现在可以在哪里用？哪个决定被推迟了？最后用一句英语向同学给出建议。",
-      "hints": ["that looked accurate… 限定哪颗传感器；but 前后是“能做什么/不能做什么”；until 不是永久禁止。"],
-      "conditionsSpec": ["firstExposure", "hintLevel", "responseMode"],
-      "evaluationContract": {
-        "dimensions": ["对象归属", "当前可用", "推迟的决定", "建议输出"],
-        "relations": [
-          { "id": "which_sensor", "label": "出问题的是“实验室里准”的那颗传感器", "anyOf": ["lab", "实验室", "looked accurate", "准"], "required": true },
-          { "id": "usable_now", "label": "现在可用于室内测试", "anyOf": ["indoor", "室内"], "required": true },
-          { "id": "postponed", "label": "公开活动的安装被推迟到灯光下检查", "anyOf": ["until", "推迟", "暂缓", "stage lights", "舞台灯", "灯光"], "required": true },
-          { "id": "advice", "label": "用英语给出建议句", "anyOf": ["we can", "we should", "check", "测试", "检查", "建议"], "required": false }
-        ],
-        "mustNot": [
-          { "label": "把 until 说成永久禁用", "anyOf": ["永远不能", "永久禁止", "never use"] }
-        ]
-      }
-    },
-    {
-      "activityId": "rep_film_postpone_read", "version": 1, "role": "practice",
-      "taskFamilyId": "film_lobby_read_C",
-      "objectiveIds": ["O-K115-01", "O-K115-03"],
-      "skillByObjective": { "O-K115-01": "reading", "O-K115-03": "reading" },
-      "responseKind": "text",
-      "servesStrategies": ["challenge_first", "short_repair"],
-      "prompt": "The film that impressed us in the small screening room was hard to follow in the noisy lobby. We kept the visual sequence but postponed the voice-over test.\n\n回答：保留了什么、推迟了什么？为什么不能由此推出“影片本身差”？",
-      "hints": [],
-      "conditionsSpec": ["firstExposure", "hintLevel", "responseMode"],
-      "evaluationContract": {
-        "dimensions": ["保留/推迟", "原因归位"],
-        "relations": [
-          { "id": "kept", "label": "保留视觉序列", "anyOf": ["visual", "视觉", "画面", "sequence"], "required": true },
-          { "id": "postponed", "label": "推迟配音测试", "anyOf": ["voice", "配音", "voice-over"], "required": true },
-          { "id": "environment", "label": "原因是环境（吵），不是影片差", "anyOf": ["noisy", "吵", "lobby", "大厅", "环境"], "required": true }
-        ],
-        "mustNot": [
-          { "label": "把结论说成“影片本身差”", "anyOf": ["film is bad", "影片本身差", "电影不好", "片子差"] }
-        ]
-      }
-    },
-    {
-      "activityId": "hold_maker_booking_audio", "version": 1, "role": "holdout",
-      "taskFamilyId": "maker_booking_audio_Z",
-      "objectiveIds": ["O-K184-01", "O-K184-02", "O-K184-03"],
-      "skillByObjective": { "O-K184-01": "listening", "O-K184-02": "listening", "O-K184-03": "listening" },
-      "responseKind": "text",
-      "simulatesAudio": true,
-      "holdout": true,
-      "prompt": "（独立保留任务 fixture：首听无字幕；本活动永不出现在推荐课里，答案永不下发。）\n\n听一段系里 3D 打印机预约试点的短讲，然后回答：讲者目前推荐什么？拒绝了哪个更强的结论？试点有什么限制？下一步计划做什么？",
-      "hints": [],
-      "conditionsSpec": ["firstExposure", "transcriptShown", "playCount", "responseMode"],
-      "evaluationContract": {
-        "dimensions": ["推荐", "拒绝的结论", "限制", "下一步"],
-        "relations": [
-          { "id": "recommend", "label": "推荐提前预约", "anyOf": ["book", "预约"], "required": true },
-          { "id": "rejected", "label": "拒绝“晚上打印更便宜/已成规律”的结论", "anyOf": ["cheaper", "便宜", "规律", "prove"], "required": true },
-          { "id": "limitation", "label": "试点只有三周", "anyOf": ["three weeks", "三周", "pilot", "试点", "短"], "required": true },
-          { "id": "next", "label": "两个完整学期再比较", "anyOf": ["semester", "学期", "compare", "比较"], "required": true }
-        ],
-        "mustNot": []
-      }
-    }
-  ]
+ "notice": "W2 开发 fixture 注册表：仅用于验收测试与决策回放（15 §2：未经核验的内容只能作 fixture）。题面转写 docs/curriculum-v4/18；holdout 为本项目新写的虚构案例（18 的 L4 样本已对用户公开，不陌生，不能当保留题）。answerKey 只存服务端，任何 GET 都不下发。",
+ "activities": [
+  {
+   "activityId": "diag_d1_read",
+   "version": 1,
+   "role": "diagnostic",
+   "taskFamilyId": "exhibit_decision_read_A",
+   "objectiveIds": [
+    "O-K115-01",
+    "O-K115-02",
+    "O-K115-03",
+    "O-K184-02"
+   ],
+   "skillByObjective": {
+    "O-K115-01": "reading",
+    "O-K115-02": "reading",
+    "O-K115-03": "reading",
+    "O-K184-02": "reading"
+   },
+   "responseKind": "text",
+   "prompt": "阅读这段首次见的短文，然后回答：团队现在保留了哪种控制方式？为什么推迟另一种？「although the team still wants to explore voice interaction」对最后决定加了什么限制？\n\nOur team built two ways to control an interactive artwork. Visitors could move their hands, or they could give voice commands. The voice prototype that worked well in a quiet studio failed during a crowded exhibition, where several groups were speaking at once. We kept the gesture controls, but we delayed voice control until we could test it with visitors in the exhibition hall. That decision disappointed some visitors who had expected to speak to the artwork, although the team still wants to explore voice interaction.",
+   "hints": [
+    "先抓“发生了什么/这话只适用于哪里”两层。",
+    "注意 that worked well… 限定的是哪个原型；but 之后是决定；although 是让步限制。"
+   ],
+   "conditionsSpec": [
+    "firstExposure",
+    "hintLevel",
+    "lookupUsed",
+    "responseMode"
+   ],
+   "evaluationContract": {
+    "dimensions": [
+     "对象归属",
+     "决定与原因",
+     "保留条件"
+    ],
+    "relations": [
+     {
+      "id": "kept",
+      "label": "保留手势控制",
+      "anyOf": [
+       "gesture",
+       "手势"
+      ],
+      "required": true
+     },
+     {
+      "id": "delayed",
+      "label": "推迟语音控制",
+      "anyOf": [
+       "delay",
+       "推迟",
+       "暂缓",
+       "延后"
+      ],
+      "required": true
+     },
+     {
+      "id": "reason",
+      "label": "原因＝展厅多人同时说话时失败",
+      "anyOf": [
+       "crowded",
+       "多人",
+       "同时说话",
+       "exhibition",
+       "展厅"
+      ],
+      "required": true
+     },
+     {
+      "id": "limit",
+      "label": "推迟≠永久否定，仍计划探索",
+      "anyOf": [
+       "still want",
+       "仍想",
+       "still plan",
+       "仍计划",
+       "不等于永久",
+       "没有永久",
+       "并未放弃",
+       "不是放弃",
+       "没有完全放弃",
+       "并非永久"
+      ],
+      "required": true
+     }
+    ],
+    "mustNot": [
+     {
+      "label": "把决定说成“完全放弃语音”（改变原意）",
+      "anyOf": [
+       "completely abandon",
+       "完全放弃",
+       "彻底放弃",
+       "就此放弃",
+       "永远放弃"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "activityId": "diag_d1b_contrast",
+   "version": 1,
+   "role": "diagnostic",
+   "taskFamilyId": "small_big_room_contrast_read_B",
+   "objectiveIds": [
+    "O-K115-01"
+   ],
+   "skillByObjective": {
+    "O-K115-01": "reading"
+   },
+   "responseKind": "text",
+   "locating": true,
+   "prompt": "The small room was quiet. The larger room was noisy. The tool worked in the small room, but it failed in the larger room.\n\n问：工具在哪个房间可用、在哪个房间失败？（定位题：太简单是刻意的，只用来分辨障碍，不算掌握证据）",
+   "hints": [],
+   "conditionsSpec": [
+    "firstExposure",
+    "hintLevel",
+    "responseMode"
+   ],
+   "evaluationContract": {
+    "dimensions": [
+     "对照关系"
+    ],
+    "relations": [
+     {
+      "id": "works_small",
+      "label": "小房间（安静）可用",
+      "anyOf": [
+       "small",
+       "quiet",
+       "小房间",
+       "安静"
+      ],
+      "required": true
+     },
+     {
+      "id": "fails_large",
+      "label": "大房间（吵）失败",
+      "anyOf": [
+       "large",
+       "noisy",
+       "大房间",
+       "吵"
+      ],
+      "required": true
+     }
+    ],
+    "mustNot": []
+   }
+  },
+  {
+   "activityId": "diag_d2_listen_sim",
+   "version": 1,
+   "role": "diagnostic",
+   "taskFamilyId": "library_ai_audio_A",
+   "objectiveIds": [
+    "O-K007-02",
+    "O-K007-03",
+    "O-K184-01",
+    "O-K184-02"
+   ],
+   "skillByObjective": {
+    "O-K007-02": "listening",
+    "O-K007-03": "listening",
+    "O-K184-01": "listening",
+    "O-K184-02": "listening"
+   },
+   "responseKind": "text",
+   "simulatesAudio": true,
+   "prompt": "（开发 fixture：正式版须自然讲者录音+校对，见 18 §2；现在以文字模拟“首次听”，测试方不得向被试展示脚本。）\n\n任务：听一段校园图书馆 AI 工具的介绍（首听无字幕），然后回答：讲者最终的评价是什么？最初为何觉得有用？结论是“不能用 AI 找文章”吗？",
+   "hints": [
+    "先抓主张，再找 but 之后保留了什么限制。"
+   ],
+   "conditionsSpec": [
+    "firstExposure",
+    "hintLevel",
+    "transcriptShown",
+    "playCount",
+    "responseMode"
+   ],
+   "evaluationContract": {
+    "dimensions": [
+     "最终评价",
+     "最初印象",
+     "限定保留"
+    ],
+    "relations": [
+     {
+      "id": "use_case",
+      "label": "可用来发现值得读的材料",
+      "anyOf": [
+       "help us find",
+       "帮助找",
+       "可以找",
+       "能找",
+       "发现材料",
+       "find papers",
+       "找文章",
+       "找论文",
+       "找到了论文",
+       "找到值得"
+      ],
+      "required": true
+     },
+     {
+      "id": "must_read",
+      "label": "用之前必须自己读来源",
+      "anyOf": [
+       "read",
+       "读",
+       "核查",
+       "check",
+       "自己看"
+      ],
+      "required": true
+     },
+     {
+      "id": "problem",
+      "label": "问题＝摘要漏掉原论文的重要限制",
+      "anyOf": [
+       "missed",
+       "漏掉",
+       "遗漏",
+       "limits",
+       "限制",
+       "summary",
+       "摘要"
+      ],
+      "required": true
+     },
+     {
+      "id": "initial",
+      "label": "最初以为很有用（按话题找到了论文）",
+      "anyOf": [
+       "looked useful",
+       "看起来有用",
+       "很有用",
+       "觉得有用",
+       "found papers",
+       "找到了"
+      ],
+      "required": false
+     }
+    ],
+    "mustNot": [
+     {
+      "label": "把结论夸大为“不能用 AI 找文章”",
+      "anyOf": [
+       "cannot use",
+       "不能用 ai",
+       "不能用ai",
+       "完全不可用"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "activityId": "diag_d2b_transcript_recheck",
+   "version": 1,
+   "role": "diagnostic",
+   "taskFamilyId": "library_ai_audio_A",
+   "objectiveIds": [
+    "O-K184-02",
+    "O-K007-02"
+   ],
+   "skillByObjective": {
+    "O-K184-02": "reading",
+    "O-K007-02": "reading"
+   },
+   "responseKind": "text",
+   "simulatesAudio": true,
+   "transcriptShownByDefault": true,
+   "prompt": "（开发 fixture：本轮已展示校对稿，表现记入“文字理解”，不升级听力。）\n\n校对稿：In a campus library, our class tested an AI assistant that suggests articles for design projects. At first, the suggestions looked useful because the assistant found papers on the topics we entered. But when we checked the sources, several summaries missed important limits in the original papers. So our conclusion was narrower than we expected: the tool can help us find papers worth reading, but we still need to read each source before using it to support a design decision.\n\n请再回答一次：最终评价是什么？保留了什么限制？",
+   "hints": [],
+   "conditionsSpec": [
+    "firstExposure",
+    "transcriptShown",
+    "playCount",
+    "responseMode"
+   ],
+   "evaluationContract": {
+    "dimensions": [
+     "最终评价",
+     "限定保留"
+    ],
+    "relations": [
+     {
+      "id": "use_case",
+      "label": "可用来发现值得读的材料",
+      "anyOf": [
+       "help us find",
+       "帮助找",
+       "可以找",
+       "能找",
+       "发现材料",
+       "find papers",
+       "找文章",
+       "找论文",
+       "找到了论文",
+       "找到值得"
+      ],
+      "required": true
+     },
+     {
+      "id": "must_read",
+      "label": "用之前必须自己读来源",
+      "anyOf": [
+       "read",
+       "读",
+       "核查",
+       "check",
+       "自己看"
+      ],
+      "required": true
+     }
+    ],
+    "mustNot": []
+   }
+  },
+  {
+   "activityId": "diag_d3_oral_typed",
+   "version": 1,
+   "role": "diagnostic",
+   "taskFamilyId": "library_ai_oral_A",
+   "objectiveIds": [
+    "O-K190-01",
+    "O-K194-01"
+   ],
+   "skillByObjective": {
+    "O-K190-01": "speaking",
+    "O-K194-01": "interaction"
+   },
+   "responseKind": "text",
+   "oralEvidenceDeferred": true,
+   "prompt": "（开发 fixture：正式版为 30–60 秒英文录音；本文字版不计口语证据，口语状态保持未测。）\n\n向同学说明：这个小组从 AI 助手学到了什么？你会不会在自己的项目里用它，为什么？（不读稿）",
+   "hints": [
+    "可以说“主张—但—我怎么看”。"
+   ],
+   "conditionsSpec": [
+    "firstExposure",
+    "hintLevel",
+    "responseMode"
+   ],
+   "evaluationContract": {
+    "dimensions": [
+     "观点忠实",
+     "个人立场"
+    ],
+    "relations": [
+     {
+      "id": "learned_core",
+      "label": "学到“能帮找材料”",
+      "anyOf": [
+       "发现",
+       "find",
+       "找"
+      ],
+      "required": true
+     },
+     {
+      "id": "caveat",
+      "label": "保留“必须自己读/核查”",
+      "anyOf": [
+       "read",
+       "读",
+       "核查",
+       "check",
+       "但"
+      ],
+      "required": true
+     },
+     {
+      "id": "own_take",
+      "label": "给出自己的使用立场",
+      "anyOf": [
+       "would",
+       "会",
+       "不会",
+       "愿意",
+       "用它",
+       "use it",
+       "我想"
+      ],
+      "required": true
+     }
+    ],
+    "mustNot": []
+   }
+  },
+  {
+   "activityId": "les_l1_sensor_read",
+   "version": 1,
+   "role": "practice",
+   "taskFamilyId": "sensor_stage_lights_read_B",
+   "objectiveIds": [
+    "O-K115-01",
+    "O-K115-03",
+    "O-K184-02"
+   ],
+   "skillByObjective": {
+    "O-K115-01": "reading",
+    "O-K115-03": "reading",
+    "O-K184-02": "reading"
+   },
+   "responseKind": "text",
+   "servesStrategies": [
+    "short_explain",
+    "challenge_first"
+   ],
+   "prompt": "The sensor that looked accurate in our lab gave unreliable readings near the stage lights. We can still use the device for indoor tests, but we should not install it at the public event until we check it under those lights.\n\n回答：哪个传感器出了问题？现在可以在哪里用？哪个决定被推迟了？最后用一句英语向同学给出建议。",
+   "hints": [
+    "that looked accurate… 限定哪颗传感器；but 前后是“能做什么/不能做什么”；until 不是永久禁止。"
+   ],
+   "conditionsSpec": [
+    "firstExposure",
+    "hintLevel",
+    "responseMode"
+   ],
+   "evaluationContract": {
+    "dimensions": [
+     "对象归属",
+     "当前可用",
+     "推迟的决定",
+     "建议输出"
+    ],
+    "relations": [
+     {
+      "id": "which_sensor",
+      "label": "出问题的是“实验室里准”的那颗传感器",
+      "anyOf": [
+       "lab",
+       "实验室",
+       "looked accurate",
+       "准"
+      ],
+      "required": true
+     },
+     {
+      "id": "usable_now",
+      "label": "现在可用于室内测试",
+      "anyOf": [
+       "indoor",
+       "室内"
+      ],
+      "required": true
+     },
+     {
+      "id": "postponed",
+      "label": "公开活动的安装被推迟到灯光下检查",
+      "anyOf": [
+       "until",
+       "推迟",
+       "暂缓",
+       "stage lights",
+       "舞台灯",
+       "灯光"
+      ],
+      "required": true
+     },
+     {
+      "id": "advice",
+      "label": "用英语给出建议句",
+      "anyOf": [
+       "we can",
+       "we should",
+       "check",
+       "测试",
+       "检查",
+       "建议"
+      ],
+      "required": false
+     }
+    ],
+    "mustNot": [
+     {
+      "label": "把 until 说成永久禁用",
+      "anyOf": [
+       "永远不能",
+       "永久禁止",
+       "never use"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "activityId": "rep_film_postpone_read",
+   "version": 1,
+   "role": "transfer",
+   "taskFamilyId": "film_lobby_read_C",
+   "objectiveIds": [
+    "O-K115-01",
+    "O-K115-03"
+   ],
+   "skillByObjective": {
+    "O-K115-01": "reading",
+    "O-K115-03": "reading"
+   },
+   "responseKind": "text",
+   "servesStrategies": [
+    "challenge_first",
+    "short_repair"
+   ],
+   "prompt": "The film that impressed us in the small screening room was hard to follow in the noisy lobby. We kept the visual sequence but postponed the voice-over test.\n\n回答：保留了什么、推迟了什么？为什么不能由此推出“影片本身差”？",
+   "hints": [],
+   "conditionsSpec": [
+    "firstExposure",
+    "hintLevel",
+    "responseMode"
+   ],
+   "evaluationContract": {
+    "dimensions": [
+     "保留/推迟",
+     "原因归位"
+    ],
+    "relations": [
+     {
+      "id": "kept",
+      "label": "保留视觉序列",
+      "anyOf": [
+       "visual",
+       "视觉",
+       "画面",
+       "sequence"
+      ],
+      "required": true
+     },
+     {
+      "id": "postponed",
+      "label": "推迟配音测试",
+      "anyOf": [
+       "voice",
+       "配音",
+       "voice-over"
+      ],
+      "required": true
+     },
+     {
+      "id": "environment",
+      "label": "原因是环境（吵），不是影片差",
+      "anyOf": [
+       "noisy",
+       "吵",
+       "lobby",
+       "大厅",
+       "环境"
+      ],
+      "required": true
+     }
+    ],
+    "mustNot": [
+     {
+      "label": "把结论说成“影片本身差”",
+      "anyOf": [
+       "film is bad",
+       "影片本身差",
+       "电影不好",
+       "片子差"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "activityId": "hold_maker_booking_audio",
+   "version": 1,
+   "role": "holdout",
+   "taskFamilyId": "maker_booking_audio_Z",
+   "objectiveIds": [
+    "O-K184-01",
+    "O-K184-02",
+    "O-K184-03"
+   ],
+   "skillByObjective": {
+    "O-K184-01": "listening",
+    "O-K184-02": "listening",
+    "O-K184-03": "listening"
+   },
+   "responseKind": "text",
+   "simulatesAudio": true,
+   "holdout": true,
+   "prompt": "（独立保留任务 fixture：首听无字幕；本活动永不出现在推荐课里，答案永不下发。）\n\n听一段系里 3D 打印机预约试点的短讲，然后回答：讲者目前推荐什么？拒绝了哪个更强的结论？试点有什么限制？下一步计划做什么？",
+   "hints": [],
+   "conditionsSpec": [
+    "firstExposure",
+    "transcriptShown",
+    "playCount",
+    "responseMode"
+   ],
+   "evaluationContract": {
+    "dimensions": [
+     "推荐",
+     "拒绝的结论",
+     "限制",
+     "下一步"
+    ],
+    "relations": [
+     {
+      "id": "recommend",
+      "label": "推荐提前预约",
+      "anyOf": [
+       "book",
+       "预约"
+      ],
+      "required": true
+     },
+     {
+      "id": "rejected",
+      "label": "拒绝“晚上打印更便宜/已成规律”的结论",
+      "anyOf": [
+       "cheaper",
+       "便宜",
+       "规律",
+       "prove"
+      ],
+      "required": true
+     },
+     {
+      "id": "limitation",
+      "label": "试点只有三周",
+      "anyOf": [
+       "three weeks",
+       "三周",
+       "pilot",
+       "试点",
+       "短"
+      ],
+      "required": true
+     },
+     {
+      "id": "next",
+      "label": "两个完整学期再比较",
+      "anyOf": [
+       "semester",
+       "学期",
+       "compare",
+       "比较"
+      ],
+      "required": true
+     }
+    ],
+    "mustNot": []
+   }
+  },
+  {
+   "activityId": "les_l2_museum_map_audio",
+   "version": 1,
+   "role": "practice",
+   "taskFamilyId": "museum_map_audio_D",
+   "objectiveIds": [
+    "O-K184-01",
+    "O-K184-02"
+   ],
+   "skillByObjective": {
+    "O-K184-01": "listening",
+    "O-K184-02": "listening"
+   },
+   "responseKind": "text",
+   "simulatesAudio": true,
+   "servesStrategies": [
+    "sound_segmentation"
+   ],
+   "prompt": "（开发 fixture：正式版须自然讲者录音+校对，见 18 §5；现在以文字模拟“首次听”。）\n\n第一次听，只回答一个问题：地图失灵了吗，还是团队对人们需求的假设不完整？\n\nWe made a map that tells visitors which rooms in the museum are busy. We expected people to choose a quieter route. In fact, some visitors walked toward the crowded rooms because they thought something interesting was happening there. The map was working as designed, but our assumption about what visitors wanted was incomplete.",
+   "hints": [
+    "先抓主张：地图有没有坏？",
+    "in fact 前后是“预期/实际”两半。"
+   ],
+   "conditionsSpec": [
+    "firstExposure",
+    "hintLevel",
+    "transcriptShown",
+    "playCount",
+    "responseMode"
+   ],
+   "evaluationContract": {
+    "dimensions": [
+     "主张",
+     "预期与实际"
+    ],
+    "relations": [
+     {
+      "id": "map_worked",
+      "label": "地图按设计正常工作",
+      "anyOf": [
+       "working as designed",
+       "正常",
+       "没坏",
+       "按设计"
+      ],
+      "required": true
+     },
+     {
+      "id": "assumption_incomplete",
+      "label": "不完整的是对访客需求的假设",
+      "anyOf": [
+       "assumption",
+       "假设",
+       "incomplete",
+       "不完整"
+      ],
+      "required": true
+     },
+     {
+      "id": "visitor_motive",
+      "label": "访客以为有意思才走向拥挤房间",
+      "anyOf": [
+       "interesting",
+       "有趣",
+       "以为",
+       "thought"
+      ],
+      "required": false
+     }
+    ],
+    "mustNot": [
+     {
+      "label": "把结论说成“访客都爱拥挤/地图没用了”",
+      "anyOf": [
+       "都爱",
+       "地图没用",
+       "failed",
+       "失灵了"
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "activityId": "les_l2b_museum_transcript",
+   "version": 1,
+   "role": "practice",
+   "taskFamilyId": "museum_map_audio_D",
+   "objectiveIds": [
+    "O-K184-01",
+    "O-K184-02"
+   ],
+   "skillByObjective": {
+    "O-K184-01": "reading",
+    "O-K184-02": "reading"
+   },
+   "responseKind": "text",
+   "simulatesAudio": true,
+   "transcriptShownByDefault": true,
+   "prompt": "（开发 fixture：本轮已展示校对稿，表现记入“文字理解”，不升级听力。）\n\n校对稿：We made a map that tells visitors which rooms in the museum are busy. We expected people to choose a quieter route. In fact, some visitors walked toward the crowded rooms because they thought something interesting was happening there. The map was working as designed, but our assumption about what visitors wanted was incomplete. Next month, we will ask visitors why they chose a route before we change the design.\n\n请定位：that tells visitors… 修饰什么？because… 解释谁的动机？but 对照哪两件事？然后用英文向项目成员提出一个下一步问题。",
+   "hints": [],
+   "conditionsSpec": [
+    "firstExposure",
+    "transcriptShown",
+    "playCount",
+    "responseMode"
+   ],
+   "evaluationContract": {
+    "dimensions": [
+     "修饰归属",
+     "动机解释",
+     "对照",
+     "下一步问题"
+    ],
+    "relations": [
+     {
+      "id": "modifier",
+      "label": "that 从句修饰 map",
+      "anyOf": [
+       "map",
+       "地图"
+      ],
+      "required": true
+     },
+     {
+      "id": "motive",
+      "label": "because 解释部分访客的动机",
+      "anyOf": [
+       "visitor",
+       "访客",
+       "游客",
+       "people"
+      ],
+      "required": true
+     },
+     {
+      "id": "question",
+      "label": "用英文提出一个下一步问题",
+      "anyOf": [
+       "could we",
+       "why",
+       "how",
+       "？",
+       "?",
+       "为什么",
+       "能不能"
+      ],
+      "required": true
+     }
+    ],
+    "mustNot": []
+   }
+  },
+  {
+   "activityId": "les_l3_oral_recap",
+   "version": 1,
+   "role": "practice",
+   "taskFamilyId": "museum_oral_B",
+   "objectiveIds": [
+    "O-K190-01",
+    "O-K190-02"
+   ],
+   "skillByObjective": {
+    "O-K190-01": "speaking",
+    "O-K190-02": "speaking"
+   },
+   "responseKind": "text",
+   "oralEvidenceDeferred": true,
+   "servesStrategies": [
+    "oral_retrieval"
+   ],
+   "prompt": "（开发 fixture：正式版为 45–90 秒英文录音；文字版不计口语证据。屏幕只留三个空框：讲者主张／证据或原因／你的回应，不显示原文。）\n\n不看原文，说清地图项目的：预期、实际、团队结论、你的下一步建议。",
+   "hints": [
+    "The team expected …, but …",
+    "可用语块：working as designed ／ our assumption was incomplete ／ ask visitors why"
+   ],
+   "conditionsSpec": [
+    "firstExposure",
+    "hintLevel",
+    "responseMode"
+   ],
+   "evaluationContract": {
+    "dimensions": [
+     "观点忠实",
+     "组织",
+     "下一步"
+    ],
+    "relations": [
+     {
+      "id": "expected",
+      "label": "预期：人们选更安静的路线",
+      "anyOf": [
+       "expect",
+       "预期",
+       "安静",
+       "quieter"
+      ],
+      "required": true
+     },
+     {
+      "id": "actually",
+      "label": "实际：有人走向拥挤房间",
+      "anyOf": [
+       "in fact",
+       "实际",
+       "其实",
+       "拥挤",
+       "crowded"
+      ],
+      "required": true
+     },
+     {
+      "id": "conclusion",
+      "label": "结论：地图正常，假设不完整",
+      "anyOf": [
+       "assumption",
+       "假设",
+       "incomplete",
+       "不完整",
+       "designed"
+      ],
+      "required": true
+     },
+     {
+      "id": "advice",
+      "label": "给出下一步建议/问题",
+      "anyOf": [
+       "ask",
+       "问",
+       "why",
+       "为什么",
+       "next"
+      ],
+      "required": false
+     }
+    ],
+    "mustNot": []
+   }
+  },
+  {
+   "activityId": "les_l3_followup",
+   "version": 1,
+   "role": "transfer",
+   "taskFamilyId": "unannounced_followup_B",
+   "objectiveIds": [
+    "O-K194-02"
+   ],
+   "skillByObjective": {
+    "O-K194-02": "interaction"
+   },
+   "responseKind": "text",
+   "oralEvidenceDeferred": true,
+   "prompt": "（开发 fixture：正式版为录音后随机抽一个未预告追问；文字版不计口语证据。）\n\n追问：If the map worked, why change the design?（直接回答问题并给至少一个理由；不知道就说明你知道的边界。）",
+   "hints": [
+    "答所问；谨慎表达 We don't know yet 也可以。"
+   ],
+   "conditionsSpec": [
+    "firstExposure",
+    "hintLevel",
+    "responseMode"
+   ],
+   "evaluationContract": {
+    "dimensions": [
+     "答所问",
+     "理由",
+     "范围诚实"
+    ],
+    "relations": [
+     {
+      "id": "answers_question",
+      "label": "直接回答“为什么改设计”",
+      "anyOf": [
+       "because",
+       "so",
+       "因为",
+       "所以",
+       "to learn",
+       "为了"
+      ],
+      "required": true
+     },
+     {
+      "id": "scope_honesty",
+      "label": "不装作原片事实/承认未知部分",
+      "anyOf": [
+       "don't know",
+       "不知道",
+       "not sure",
+       "不确定",
+       "may",
+       "可能",
+       "we will"
+      ],
+      "required": false
+     }
+    ],
+    "mustNot": []
+   }
+  }
+ ]
 }

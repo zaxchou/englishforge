@@ -60,6 +60,10 @@ export function PathHome({
   return (
     <div className="path-home">
       <main className="path-main">
+        <p style={{ fontSize: 12, color: '#9a9aa2', margin: '0 0 10px', lineHeight: 1.6 }}>
+          本页是旧版练习系统（XP／箱数／掌握步数只反映这套题里的熟悉度）。
+          新版能力路径（目标 × 四技能证据）在侧栏「能力路径 · 新版」，两边分开计量、互不换算。
+        </p>
         <section className="next-card">
           <div className="next-eyebrow">
             {lesson ? `第 ${lesson.no} 课 · ${lesson.title}` : '当前知识点'}

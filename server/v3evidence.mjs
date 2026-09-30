@@ -106,6 +106,17 @@ export function recordAttempt(accountId, payload = {}) {
   for (const k of activity.conditionsSpec ?? []) {
     if (!(k in conditions)) throw new ApiError(400, 'CONDITIONS_INCOMPLETE: missing ' + k)
   }
+  // 服务端覆盖客户端自报（15 §12）：首见看库里有没有作答过；提示层数看揭示记录；
+  // 默认给稿的活动 transcriptShown 强制为 true。客户端谎报"无提示首见"换不来独立证据。
+  const hintRevealed = conn.prepare(
+    'SELECT COALESCE(MAX(level), 0) AS m FROM activity_support_events WHERE account_id = ? AND activity_id = ? AND kind = ?')
+    .get(accountId, activity.activityId, 'hint')?.m ?? 0
+  const seenBefore = !!conn.prepare('SELECT 1 FROM learner_attempts_v3 WHERE account_id = ? AND activity_id = ?')
+    .get(accountId, activity.activityId)
+  const effectiveConditions = { ...conditions }
+  effectiveConditions.hintLevel = Math.max(Number(conditions.hintLevel ?? 0) || 0, hintRevealed)
+  effectiveConditions.transcriptShown = !!conditions.transcriptShown || !!activity.transcriptShownByDefault
+  effectiveConditions.firstExposure = !!conditions.firstExposure && !seenBefore
   // 客户端自报不提升证据：角色/家族/目标/版本一律以服务端注册表为准
   const responseText = String(payload.response?.text ?? payload.response ?? '').slice(0, 4000)
   const disputedSet = disputedActivities(accountId)
@@ -134,13 +145,13 @@ export function recordAttempt(accountId, payload = {}) {
     accountId, attemptId, String(payload.sessionId || ''), activity.activityId, activity.version,
     JSON.stringify(activity.objectiveIds), activity.taskFamilyId, activity.role, activity.responseKind,
     JSON.stringify({ kind: payload.response?.kind ?? 'text', text: responseText }),
-    JSON.stringify(conditions), evalStatus, JSON.stringify(evaluation), null, hash, ts,
+    JSON.stringify(effectiveConditions), evalStatus, JSON.stringify(evaluation), null, hash, ts,
   )
 
   const attemptRow = conn.prepare('SELECT * FROM learner_attempts_v3 WHERE account_id = ? AND attempt_id = ?').get(accountId, attemptId)
 
   if (evalStatus === 'evaluated') {
-    appendObservedEvents(conn, accountId, attemptRow, activity, conditions)
+    appendObservedEvents(conn, accountId, attemptRow, activity, effectiveConditions)
     recomputeStates(accountId)
   }
 

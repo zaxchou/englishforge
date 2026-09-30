@@ -1,0 +1,146 @@
+/* curriculum-v4 能力路径页：与外壳同一套 v7 近黑 + 柠檬绿变量，不引入新色彩体系 */
+.v4 {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 4px 4px 48px;
+}
+
+.v4-legacy {
+  font-size: 13px;
+  color: var(--ink-dim, #9a9aa2);
+  background: rgba(207, 243, 78, 0.06);
+  border: 1px solid rgba(207, 243, 78, 0.18);
+  border-radius: 10px;
+  padding: 8px 12px;
+}
+
+.v4-tabs { display: flex; gap: 8px; flex-wrap: wrap; }
+.v4-tabs button {
+  border: 1px solid var(--line, #2a2a31);
+  background: var(--panel, #151519);
+  color: var(--ink, #ececf1);
+  border-radius: 999px;
+  padding: 7px 16px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.v4-tabs button.on {
+  border-color: var(--accent, #cef34e);
+  color: var(--accent, #cef34e);
+  font-weight: 600;
+}
+
+.v4-card {
+  background: var(--panel, #151519);
+  border: 1px solid var(--line, #2a2a31);
+  border-radius: 14px;
+  padding: 18px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.v4-card h3 { margin: 0; font-size: 17px; }
+.v4-card p { margin: 0; line-height: 1.65; font-size: 14px; }
+
+.v4-why {
+  border-left: 3px solid var(--accent, #cef34e);
+  padding-left: 10px;
+  color: var(--ink, #ececf1);
+}
+.v4-dim { color: var(--ink-dim, #9a9aa2); font-size: 13px !important; }
+.v4-meta { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 13px; color: var(--ink-dim, #9a9aa2); }
+.v4-dev {
+  font-size: 12px;
+  color: #e8c268;
+  border: 1px solid rgba(232, 194, 104, 0.4);
+  border-radius: 6px;
+  padding: 2px 8px;
+}
+.v4-wait { color: var(--ink-dim, #9a9aa2); }
+.v4-ok { color: var(--accent, #cef34e); font-size: 13px; }
+.v4-no { color: #e88a68; font-size: 13px; }
+.v4-err {
+  color: #e88a68;
+  font-size: 13px;
+  background: rgba(232, 138, 104, 0.08);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.v4-primary {
+  align-self: flex-start;
+  background: var(--accent, #cef34e);
+  color: #101013;
+  font-weight: 700;
+  border: none;
+  border-radius: 10px;
+  padding: 9px 18px;
+  font-size: 14px;
+  cursor: pointer;
+}
+.v4-primary:disabled { opacity: 0.4; cursor: default; }
+.v4-ghost {
+  align-self: flex-start;
+  background: transparent;
+  color: var(--ink-dim, #9a9aa2);
+  border: 1px dashed var(--line, #2a2a31);
+  border-radius: 8px;
+  padding: 5px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.v4-prompt {
+  white-space: pre-wrap;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--line, #2a2a31);
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 14px;
+  line-height: 1.7;
+  font-family: inherit;
+  margin: 0;
+}
+.v4 textarea {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--line, #2a2a31);
+  border-radius: 10px;
+  color: var(--ink, #ececf1);
+  padding: 10px 12px;
+  font-size: 14px;
+  resize: vertical;
+}
+.v4-hint { color: #c9d96a; font-size: 13px !important; }
+
+.v4-act { border-top: 1px dashed var(--line, #2a2a31); padding-top: 12px; display: flex; flex-direction: column; gap: 8px; }
+.v4-act-head { display: flex; gap: 10px; align-items: center; }
+.v4-act-foot { display: flex; gap: 12px; align-items: center; }
+
+.v4-states { display: flex; flex-direction: column; gap: 6px; }
+.v4-state {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-size: 13px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 8px;
+  padding: 6px 10px;
+  flex-wrap: wrap;
+}
+.v4-state code { color: var(--ink-dim, #9a9aa2); }
+.v4-skill { color: var(--accent, #cef34e); min-width: 34px; }
+.v4-state em { font-style: normal; font-size: 11px; border: 1px solid var(--line, #2a2a31); border-radius: 5px; padding: 1px 6px; color: var(--ink-dim, #9a9aa2); }
+
+.v4-objlist { display: flex; flex-direction: column; gap: 8px; }
+.v4-obj { border: 1px solid var(--line, #2a2a31); border-radius: 10px; padding: 10px 12px; font-size: 13px; }
+.v4-obj code { color: var(--ink-dim, #9a9aa2); margin-right: 6px; }
+.v4-obj p { margin: 4px 0 0; color: var(--ink-dim, #9a9aa2); }
+.v4-ver { font-size: 11px; border: 1px solid var(--line, #2a2a31); border-radius: 5px; padding: 1px 6px; margin-left: 6px; color: var(--ink-dim, #9a9aa2); }
+
+.v4 details { font-size: 13px; }
+.v4 details ul { margin: 6px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+.v4 details li { color: var(--ink-dim, #9a9aa2); }

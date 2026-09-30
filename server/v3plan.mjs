@@ -9,6 +9,7 @@ import { ensureV3Schema, getMeta, nextCounter } from './v3db.mjs'
 import { requireAccount } from './v3api.mjs'
 import { activityById } from './v3evidence.mjs'
 import { rowToObjective } from './v3map.mjs'
+import { lessonForStrategy } from './v3lessons.mjs'
 
 const STATE_RANK = { unmeasured: 0, tentative: 1, trained: 2, independent: 3, transferred: 4, retained: 5 }
 const STRATEGY_LESSONS = {
@@ -55,13 +56,14 @@ export function computePlan(accountId, { requestId, triggerEvent } = {}) {
   const decisionId = `pd_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`
   conn.prepare(
     `INSERT INTO plan_decisions (account_id, decision_id, request_id, trigger_event, map_version, evidence_version,
-       snapshot, candidates, primary_goal, strategy_id, reason, hypotheses, uncertain_areas, lesson_ref, status, created_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+       snapshot, candidates, primary_goal, strategy_id, reason, hypotheses, uncertain_areas, lesson_ref,
+       served_lesson_id, status, created_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
   ).run(
     accountId, decisionId, requestId ?? null, triggerEvent ?? null, snapshot.mapVersion, snapshot.evidenceVersion,
     JSON.stringify(snapshot), JSON.stringify(decision.candidates), decision.primaryGoal, decision.strategyId,
     decision.reason, JSON.stringify(decision.hypotheses), JSON.stringify(decision.uncertainAreas),
-    JSON.stringify(decision.lesson), decision.status, Date.now(),
+    JSON.stringify(decision.lesson), decision.lesson?.lessonId ?? null, decision.status, Date.now(),
   )
   const row = conn.prepare('SELECT * FROM plan_decisions WHERE account_id = ? AND decision_id = ?').get(accountId, decisionId)
   return decisionView(row)
@@ -246,14 +248,29 @@ function strategyReason(diag, stateOf) {
 function finalize({ primaryGoal, strategyId, reason, hypotheses, candidates, lessonActivityId, snapshot, uncertainAreas }) {
   const activity = lessonActivityId ? activityById(lessonActivityId) : null
   if (lessonActivityId && !activity) throw new ApiError(500, 'REGISTRY_INCONSISTENT: ' + lessonActivityId)
+  const pkg = lessonForStrategy(strategyId) // W3：{lessonId, devOnly} 或 null
+  // 诚实的状态三分：有课包→published（devSample 按 release channel）；只有 fixture 活动→fixture_dev_only；都没有→content_pending
+  let lesson
+  if (pkg) {
+    lesson = {
+      lessonId: pkg.lessonId,
+      activityId: activity?.activityId ?? null,
+      version: activity?.version ?? null,
+      role: activity?.role ?? null,
+      status: 'published',
+      devSample: !!pkg.devOnly, // dev_only 通道=开发样本；人审签署的 mainline 课不再标“未签署”
+    }
+  } else if (activity) {
+    lesson = { lessonId: null, activityId: activity.activityId, version: activity.version, role: activity.role, status: 'fixture_dev_only' }
+  } else {
+    lesson = { lessonId: null, activityId: null, status: 'content_pending', waitNotice: waitNotice(strategyId) }
+  }
   return {
     primaryGoal, strategyId, reason,
     hypotheses,
     uncertainAreas,
     candidates,
-    lesson: activity
-      ? { activityId: activity.activityId, version: activity.version, role: activity.role, status: 'fixture_dev_only' }
-      : { activityId: null, status: 'content_pending', waitNotice: waitNotice(strategyId) },
+    lesson,
     fallback: null,
     status: 'ready',
     snapshotVersion: snapshot.evidenceVersion,

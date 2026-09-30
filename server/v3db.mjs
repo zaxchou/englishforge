@@ -130,12 +130,69 @@ CREATE TABLE IF NOT EXISTS plan_decisions (
   hypotheses       TEXT NOT NULL DEFAULT '[]', -- JSON
   uncertain_areas  TEXT NOT NULL DEFAULT '[]', -- JSON
   lesson_ref       TEXT,                       -- JSON：{activityId,version,role,status}；holdout 永不出现在这
+  served_lesson_id TEXT,                       -- 结构化课号（避免在 JSON 上 LIKE 匹配）
   status           TEXT NOT NULL DEFAULT 'ready', -- candidate|ready|served|completed|skipped|invalidated
   invalidated_reason TEXT,
   created_at       INTEGER NOT NULL,
   PRIMARY KEY (account_id, decision_id)
 );
 CREATE INDEX IF NOT EXISTS ix_pd_req ON plan_decisions(account_id, request_id);
+
+-- W3：课程包版本（15 §4/§5）。修订从新版本 draft 开始；published 版本与作答保留可回看
+CREATE TABLE IF NOT EXISTS lesson_versions (
+  account_scope  TEXT NOT NULL DEFAULT 'global', -- 课程是全局内容，不挂账户；保留列以备未来定制课
+  lesson_id      TEXT NOT NULL,
+  version        INTEGER NOT NULL,
+  title          TEXT NOT NULL,
+  why_now        TEXT NOT NULL,                -- 为什么现在学这个
+  teaching_note  TEXT,                         -- 精华讲解/教学要点（15 §7 课包必含）
+  strategy_id    TEXT,
+  objective_ids  TEXT NOT NULL DEFAULT '[]',   -- JSON：版本化目标引用
+  difficulty_dims TEXT NOT NULL DEFAULT '[]',  -- JSON
+  activity_refs  TEXT NOT NULL DEFAULT '[]',   -- JSON：[{activityId, version, role, hintStages, unlockAfter}]
+  next_candidates TEXT NOT NULL DEFAULT '[]',  -- JSON：下一课候选（纯 ID）
+  source_refs    TEXT NOT NULL DEFAULT '[]',   -- JSON
+  holdout_ref    TEXT,                         -- 独立保留任务引用（答案永不下发）
+  quality_gates  TEXT NOT NULL DEFAULT '{}',   -- JSON：各质量门结果
+  human_review   TEXT NOT NULL DEFAULT 'pending', -- pending | signed（人审签署；签署只此一个方向）
+  release_channel TEXT NOT NULL DEFAULT 'dev_only', -- dev_only（开发样本）| mainline（人审签署后）
+  content_status TEXT NOT NULL DEFAULT 'draft',
+                 -- draft→checking→review_needed/ready→published→withdrawn（15 §5）
+  withdrawn_reason TEXT,
+  created_at     INTEGER NOT NULL,
+  PRIMARY KEY (lesson_id, version)
+);
+
+-- published 课程包的内容字段是作答历史的锚：任何内容改动一律 ABORT（合法撤回只动状态两列）
+CREATE TRIGGER IF NOT EXISTS trg_lesson_versions_published_immutable
+BEFORE UPDATE ON lesson_versions
+WHEN OLD.content_status = 'published'
+  AND (NEW.title != OLD.title OR NEW.why_now != OLD.why_now OR NEW.teaching_note != OLD.teaching_note
+       OR NEW.activity_refs != OLD.activity_refs OR NEW.objective_ids != OLD.objective_ids
+       OR NEW.next_candidates != OLD.next_candidates OR NEW.source_refs != OLD.source_refs
+       OR NEW.holdout_ref != OLD.holdout_ref OR NEW.strategy_id != OLD.strategy_id
+       OR NEW.difficulty_dims != OLD.difficulty_dims)
+BEGIN
+  SELECT RAISE(ABORT, 'LESSON_VERSION_PUBLISHED_IMMUTABLE: 发布过的课程包内容不可改写，请新增版本');
+END;
+
+-- withdrawn 不可复活成 published：修订从新版本 draft 开始（15 §5）
+CREATE TRIGGER IF NOT EXISTS trg_lesson_versions_withdrawn_terminal
+BEFORE UPDATE ON lesson_versions
+WHEN OLD.content_status = 'withdrawn' AND NEW.content_status IN ('published', 'ready', 'checking', 'draft')
+BEGIN
+  SELECT RAISE(ABORT, 'LESSON_WITHDRAWN_TERMINAL: 已撤回版本不可重新发布，请新增版本');
+END;
+
+-- 提示/字幕揭示记录：服务端据此覆盖客户端自报的支持条件（15 §12 不信任自报）
+CREATE TABLE IF NOT EXISTS activity_support_events (
+  account_id  TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  activity_id TEXT NOT NULL,
+  kind        TEXT NOT NULL,                   -- hint | transcript
+  level       INTEGER NOT NULL DEFAULT 1,
+  created_at  INTEGER NOT NULL,
+  PRIMARY KEY (account_id, activity_id, kind, level)
+);
 
 CREATE TABLE IF NOT EXISTS diagnostic_sessions (
   account_id    TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
@@ -172,8 +229,21 @@ let ensured = false
 export function ensureV3Schema(conn = getDb()) {
   if (ensured) return conn
   conn.exec(V3_SCHEMA)
+  // v3 表自己的补列迁移：CREATE TABLE IF NOT EXISTS 不会给**已存在**的表加列
+  ensureV3Columns(conn, 'lesson_versions', [
+    ['teaching_note', 'TEXT'],
+    ['release_channel', "TEXT NOT NULL DEFAULT 'dev_only'"],
+  ])
+  ensureV3Columns(conn, 'plan_decisions', [['served_lesson_id', 'TEXT']])
   ensured = true
   return conn
+}
+
+function ensureV3Columns(conn, table, spec) {
+  const have = new Set(conn.prepare(`PRAGMA table_info(${table})`).all().map((r) => r.name))
+  for (const [name, type] of spec) {
+    if (!have.has(name)) conn.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${type}`)
+  }
 }
 
 export function nextCounter(accountId, name) {

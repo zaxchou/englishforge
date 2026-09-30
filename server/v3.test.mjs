@@ -308,7 +308,10 @@ describe('W2/T2 三种画像 → 三种后继', () => {
     const plan = (await call(`/api/v1/accounts/${id}/plan`)).json.decision
     expect(plan.primaryGoal).toBe('O-K007-02')
     expect(plan.strategyId).toBe('sound_segmentation')
-    expect(plan.lesson.status).toBe('content_pending') // 原声未制作：等待，不回退旧题伪装课程
+    // W3 起策略能指到已发布的静态课包（开发样本）；听力证据在真音频前仍诚实未测
+    expect(plan.lesson.lessonId).toBe('les-listening-v1')
+    expect(plan.lesson.status).toBe('published')
+    expect(plan.lesson.devSample).toBe(true)
     const dropped = plan.notChosen.find((n) => n.objectiveId === 'O-K115-01')
     expect(dropped.reason).toContain('不整条回退')
     // 文字层证据保留
@@ -323,7 +326,8 @@ describe('W2/T2 三种画像 → 三种后继', () => {
     const plan = (await call(`/api/v1/accounts/${id}/plan`)).json.decision
     expect(plan.primaryGoal).toBe('O-K190-01')
     expect(plan.strategyId).toBe('oral_retrieval')
-    expect(plan.lesson.status).toBe('content_pending')
+    expect(plan.lesson.lessonId).toBe('les-oral-v1')
+    expect(plan.lesson.devSample).toBe(true)
     expect(plan.reason).toContain('堆选择题')
     // 口述 fixture 不产生口语状态
     const ev = (await call(`/api/v1/accounts/${id}/evidence?objective=O-K190-01`)).json
@@ -495,12 +499,126 @@ describe('W2/附加 幂等与诚实状态', () => {
     expect(r4.status).toBe(400)
   })
 
-  it('课程包与录音接口诚实未实现（W3/W5），不伪造', async () => {
-    const id = await mkAccount('W2-未实现')
-    expect((await call(`/api/v1/accounts/${id}/lessons/any`, {}, 'GET')).status).toBe(501)
+  it('课程包服务、提示逐层揭晓、完成/撤回；录音接口诚实未实现（W5）', async () => {
+    const id = await mkAccount('W3-课程包')
+    // 录音接口仍然诚实 501
     expect((await call(`/api/v1/accounts/${id}/oral`, {}, 'POST')).status).toBe(501)
+    // 无诊断时不给推荐（不用旧题凑数）
     const empty = (await call(`/api/v1/accounts/${id}/plan`)).json
     expect(empty.decision).toBeNull()
     expect(empty.note).toContain('入口诊断')
+
+    // 课程包：published 才可见，无 holdout 答案，带开发样本标记
+    const list = (await call('/api/v1/lessons')).json.lessons
+    expect(list.map((l) => l.lessonId)).toEqual(expect.arrayContaining(['les-relations-v1', 'les-listening-v1', 'les-oral-v1']))
+    expect(list.every((l) => l.humanReview === 'pending')).toBe(true) // 无人审签署：全带标记
+
+    const pkg = (await call(`/api/v1/accounts/${id}/lessons/les-relations-v1`)).json
+    expect(pkg.whyNow).toContain('D1')
+    expect(pkg.teachingNote).toContain('连接词') // 精华讲解在课包里（15 §7）
+    expect(pkg.devSampleNotice).toContain('人审未签署')
+    expect(pkg.activities.length).toBe(2)
+    expect(JSON.stringify(pkg)).not.toContain('anyOf') // 评分要点不下发
+    // 深层提示只在逐层揭示接口出现，不随课包首屏下发（15 §9）
+    expect(JSON.stringify(pkg)).not.toContain('空框填空')
+    expect(pkg.activities[0].hintStageCount).toBeGreaterThan(0)
+    // holdout 不可作为课包被取到
+    expect((await call(`/api/v1/accounts/${id}/lessons/hold_maker_booking_audio`)).status).toBe(404)
+
+    // 提示逐层：第 1 层可取；跳层拒绝；越界拒绝
+    const h1 = await call(`/api/v1/accounts/${id}/lessons/les-relations-v1/hints`, { activityId: 'les_l1_sensor_read', level: 1 }, 'POST')
+    expect(h1.json.hint).toContain('that') // 第 1 层 = 课包 hintStages 第 1 层（线索词）
+    // 跳层：没揭示过第 1 层的账户直接取第 2 层 → HINT_LEVEL_SKIPPED
+    const id2 = await mkAccount('W3-提示跳层')
+    const skip = await call(`/api/v1/accounts/${id2}/lessons/les-relations-v1/hints`, { activityId: 'les_l1_sensor_read', level: 2 }, 'POST')
+    expect(skip.status).toBe(400)
+    const h2 = await call(`/api/v1/accounts/${id}/lessons/les-relations-v1/hints`, { activityId: 'les_l1_sensor_read', level: 2 }, 'POST')
+    expect(h2.status).toBe(200) // 已揭示 1 层后可取第 2 层
+    expect(h2.json.hint).toContain('空框填空') // 第 2 层 = 空框提示
+    expect((await call(`/api/v1/accounts/${id}/lessons/les-relations-v1/hints`, { activityId: 'les_l1_sensor_read', level: 3 }, 'POST')).status).toBe(400)
+
+    // 服务端覆盖自报：谎称"无提示首见"也换不来独立证据（提示揭示记录覆盖 hintLevel）
+    await call(`/api/v1/accounts/${id}/attempts`, {
+      attemptId: 'les-l1-a1', activityId: 'les_l1_sensor_read',
+      response: { kind: 'text', text: '出问题的是实验室里准的那颗传感器；现在可用于室内测试；公开活动的安装被推迟到灯光下检查。' },
+      conditions: { firstExposure: true, hintLevel: 0, lookupUsed: false, responseMode: 'typed_summary' },
+    }, 'POST')
+    const { getDb } = await import('./db.mjs')
+    const conn = (await import('./v3db.mjs')).ensureV3Schema(getDb())
+    const cond = JSON.parse(conn.prepare("SELECT conditions FROM learner_attempts_v3 WHERE attempt_id = 'les-l1-a1'").get().conditions)
+    expect(cond.hintLevel).toBe(2) // 被服务端揭示记录覆盖为 2 → 记 hinted，封顶 trained
+
+    // 计划 → 取课（served）→ 做课内活动 → 完成（completed）
+    await runDiagnostic(id, { D1: ANSWERS.rich_d1, D2: ANSWERS.fail_d2, D2b: ANSWERS.pass_d2, D3: ANSWERS.pass_d3 }, 'rq-l1')
+    await call(`/api/v1/accounts/${id}/lessons/les-listening-v1`)
+    let plan = (await call(`/api/v1/accounts/${id}/plan`)).json.decision
+    expect(plan.status).toBe('served')
+    await call(`/api/v1/accounts/${id}/attempts`, {
+      attemptId: 'l2-1', activityId: 'les_l2_museum_map_audio',
+      response: { kind: 'text', text: '地图按设计正常工作，不完整的是对访客需求的假设；有访客以为里面有意思才走向拥挤的房间。' },
+      conditions: { firstExposure: true, hintLevel: 0, transcriptShown: false, playCount: 1, responseMode: 'typed_summary' },
+    }, 'POST')
+    // 课内活动没做完 → 拒绝完成（服务端设防，不只靠 UI）
+    expect((await call(`/api/v1/accounts/${id}/lessons/les-listening-v1/complete`, {}, 'POST')).status).toBe(400)
+    await call(`/api/v1/accounts/${id}/attempts`, {
+      attemptId: 'l2-2', activityId: 'les_l2b_museum_transcript',
+      response: { kind: 'text', text: 'that 从句修饰地图；because 解释部分访客的动机；Could we ask visitors why they chose that route?' },
+      conditions: { firstExposure: true, transcriptShown: true, playCount: 1, responseMode: 'typed_summary' },
+    }, 'POST')
+    const done = await call(`/api/v1/accounts/${id}/lessons/les-listening-v1/complete`, {}, 'POST')
+    expect(done.json.planCompleted).toBe(true)
+
+    // 门控：L3 的未预告追问在复述提交前不可见（18 §6）
+    const l3a = (await call(`/api/v1/accounts/${id}/lessons/les-oral-v1`)).json
+    expect(JSON.stringify(l3a)).not.toContain('If the map worked')
+    expect(l3a.activities.length).toBe(1)
+    await call(`/api/v1/accounts/${id}/attempts`, {
+      attemptId: 'l3-1', activityId: 'les_l3_oral_recap',
+      response: { kind: 'text', text: '团队预期人们选更安静的路线，实际有人走向拥挤的房间；地图正常，假设不完整；下一步问访客为什么。' },
+      conditions: { firstExposure: true, hintLevel: 0, responseMode: 'typed_summary' },
+    }, 'POST')
+    const l3b = (await call(`/api/v1/accounts/${id}/lessons/les-oral-v1`)).json
+    expect(l3b.activities.length).toBe(2) // 追问现在才解锁
+
+    // 撤回：停止分发 + 受影响证据复核事件，历史保留；需 confirm；withdrawn 不可复活
+    expect((await call('/api/v1/lessons/les-listening-v1/withdraw', { reason: 'x' }, 'POST')).status).toBe(400) // 无 confirm
+    const wd = await call('/api/v1/lessons/les-listening-v1/withdraw', { reason: '测试撤回：字幕与音频不一致', confirm: 'les-listening-v1' }, 'POST')
+    expect(wd.json.ok).toBe(true)
+    expect(wd.json.affectedRecheckEvents).toBeGreaterThan(0)
+    expect((await call(`/api/v1/accounts/${id}/lessons/les-listening-v1`)).status).toBe(404) // 停止新分发
+    const again = await call('/api/v1/lessons')
+    expect(again.json.lessons.find((l) => l.lessonId === 'les-listening-v1').contentStatus).toBe('withdrawn')
+    const { getDb: gd } = await import('./db.mjs')
+    const c2 = (await import('./v3db.mjs')).ensureV3Schema(gd())
+    let resurrect = ''
+    try {
+      c2.prepare("UPDATE lesson_versions SET content_status = 'published' WHERE lesson_id = 'les-listening-v1'").run()
+    } catch (e) { resurrect = String(e?.message) }
+    expect(resurrect).toContain('LESSON_WITHDRAWN_TERMINAL')
+  })
+
+  it('challenge_first / short_repair 只有验收活动时如实标 fixture_dev_only；人审签署走 mainline', async () => {
+    const id = await mkAccount('W3-fixture')
+    await runDiagnostic(id, { D1: ANSWERS.rich_d1, D2: ANSWERS.pass_d2, D3: ANSWERS.pass_d3 }, 'rq-fx')
+    const plan = (await call(`/api/v1/accounts/${id}/plan`)).json.decision
+    expect(plan.strategyId).toBe('challenge_first')
+    expect(plan.lesson.status).toBe('fixture_dev_only') // 该策略无课包：不冒充 published
+    expect(plan.lesson.devSample).toBeUndefined()
+    // 签署路径：pending → signed（mainline）；机器不能代签
+    expect((await call('/api/v1/lessons/les-oral-v1/sign', { note: 'x' }, 'POST')).status).toBe(400) // 无 reviewer
+    const sg = await call('/api/v1/lessons/les-oral-v1/sign', { reviewer: '张俊杰教学思路复核（placeholder）', note: '待真人签署' }, 'POST')
+    expect(sg.json.humanReview).toBe('signed')
+    const l = (await call('/api/v1/lessons')).json.lessons.find((x) => x.lessonId === 'les-oral-v1')
+    expect(l.humanReview).toBe('signed')
+  })
+
+  it('发布过的课程包不可改写内容（撤回除外），修订必须开新版本', async () => {
+    const { getDb } = await import('./db.mjs')
+    const conn = (await import('./v3db.mjs')).ensureV3Schema(getDb())
+    let msg = ''
+    try {
+      conn.prepare("UPDATE lesson_versions SET why_now = '被篡改' WHERE lesson_id = 'les-relations-v1' AND version = 1").run()
+    } catch (e) { msg = String(e?.message) }
+    expect(msg).toContain('LESSON_VERSION_PUBLISHED_IMMUTABLE')
   })
 })

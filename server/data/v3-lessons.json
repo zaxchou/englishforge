@@ -1,0 +1,137 @@
+{
+ "notice": "W3 首批课程包：文字路径按 docs/curriculum-v4/18 落成可走通的静态课（18 §8：无合格音频时先走文字路径，听力如实显示未测）。human_review 全部 pending —— 这些是经结构质量门的开发样本，不是人审签署的正式课。L4 独立保留题只在 holdoutNote 里登记设计要求，不发布（18 的 L4 样本已对用户公开，不具陌生性）。",
+ "lessons": [
+  {
+   "lessonId": "les-relations-v1",
+   "version": 2,
+   "title": "关系和限定的原理课",
+   "whyNow": "D1 显示对象归属或“推迟 ≠ 永久否定”不稳：一段话同时包含“发生了什么”和“这话只适用于哪里”，先抓外层决定，再把 that/which 的限定接到具体对象。",
+   "strategyId": "short_explain",
+   "objectiveIds": [
+    "O-K115-01",
+    "O-K115-03",
+    "O-K184-02"
+   ],
+   "difficultyDims": [
+    "dependency_distance",
+    "claim_limit_separation"
+   ],
+   "teachingNote": "连接词是线索，不代替上下文判断；不是“后出现的一定最重要”，也不是“长句越长越高级”。已会者先做平行挑战，正确即跳过基础讲解。",
+   "activities": [
+    {
+     "activityId": "les_l1_sensor_read",
+     "version": 1,
+     "role": "practice",
+     "hintStages": [
+      "只突出 that、but、until 三个线索词：它们各把句子分成哪两半？",
+      "给空框填空：实验室表现／舞台灯下表现／当前用途／暂缓事项 —— 每一栏对应原文哪一句？"
+     ]
+    },
+    {
+     "activityId": "rep_film_postpone_read",
+     "version": 1,
+     "role": "transfer",
+     "hintStages": []
+    }
+   ],
+   "nextCandidates": [
+    "les-listening-v1",
+    "les-oral-v1"
+   ],
+   "sourceRefs": [
+    "G1",
+    "G3",
+    "T:C15",
+    "T:C18"
+   ],
+   "holdoutRef": null
+  },
+  {
+   "lessonId": "les-listening-v1",
+   "version": 2,
+   "title": "声音到讲授逻辑",
+   "whyNow": "D1 文字可懂、D2 首听漏关系，或 L1 后仍听不出主张：先抓主张，再辨转折和指代，最后才看校对稿。",
+   "strategyId": "sound_segmentation",
+   "objectiveIds": [
+    "O-K184-01",
+    "O-K184-02",
+    "O-K007-02"
+   ],
+   "difficultyDims": [
+    "segmentation",
+    "contrast_relations"
+   ],
+   "teachingNote": "音频待制作：当前用文字模拟“首听”，听力证据保持未测（18 §8）。正式版须自然讲者录音、逐字校对、两名讲者平行版本。",
+   "activities": [
+    {
+     "activityId": "les_l2_museum_map_audio",
+     "version": 1,
+     "role": "practice",
+     "hintStages": [
+      "第一次听只回答：地图失灵了吗，还是假设不完整？",
+      "第二次听定位 in fact 前后的“预期／实际”两半。",
+      "第三次才允许显示校对稿：标 that 从句修饰什么、because 解释谁的动机。"
+     ]
+    },
+    {
+     "activityId": "les_l2b_museum_transcript",
+     "version": 1,
+     "role": "practice",
+     "hintStages": []
+    }
+   ],
+   "nextCandidates": [
+    "les-oral-v1"
+   ],
+   "sourceRefs": [
+    "G4",
+    "C1:音系设计",
+    "T:C02"
+   ],
+   "holdoutRef": null
+  },
+  {
+   "lessonId": "les-oral-v1",
+   "version": 2,
+   "title": "脱稿复述和未知追问",
+   "whyNow": "L2 内容能理解，但口述只有关键词或改了逻辑：先给“主张／证据／回应”三框支架，再逐步撤除；提示后的复述不记独立掌握。",
+   "strategyId": "oral_retrieval",
+   "objectiveIds": [
+    "O-K190-01",
+    "O-K190-02",
+    "O-K194-02"
+   ],
+   "difficultyDims": [
+    "retrieval_load",
+    "organization"
+   ],
+   "teachingNote": "站内录音在 W5 接入：当前以文字版走通组织与追问流程，口语状态保持未测。追问必须未预告；提示后的复述不得记为独立掌握。",
+   "activities": [
+    {
+     "activityId": "les_l3_oral_recap",
+     "version": 1,
+     "role": "practice",
+     "hintStages": [
+      "提示 1：The team expected …, but …（先说预期，再说实际）。",
+      "提示 2：可用语块 working as designed ／ our assumption was incomplete ／ ask visitors why。"
+     ]
+    },
+    {
+     "activityId": "les_l3_followup",
+     "version": 1,
+     "role": "transfer",
+     "hintStages": [],
+     "unlockAfter": "les_l3_oral_recap"
+    }
+   ],
+   "nextCandidates": [],
+   "sourceRefs": [
+    "C1:转述",
+    "C1:口语质量",
+    "T:C18"
+   ],
+   "holdoutRef": null,
+   "holdoutNote": "L4 独立保留题：须另制同规格、未曝光的新版本（换讲者、换情节、原声），脚本/答案/追问只在审核端与服务端保存；18 的公开样本不得当正式保留题。"
+  }
+ ]
+}

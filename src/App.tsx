@@ -17,6 +17,7 @@ import type { ActiveSession, AdaptedQuestion, Attempt, ProgressV2, QuizRuntime, 
 import { Quiz, type SessionResult, type QuizAttempt, type QuizEntry } from './components/Quiz'
 import { Confetti } from './components/fx'
 import { Dashboard, Sidebar, type NavTarget } from './components/Dashboard'
+import { V4Path } from './components/V4Path'
 import { ContentReview } from './components/ContentReview'
 import { AccountSwitcher } from './components/AccountSwitcher'
 import { PathHome } from './components/PathHome'
@@ -38,6 +39,7 @@ const LOCATION: Record<View['name'], string> = {
   result: '本轮学习记录',
   review: '内容审核 · 逐题核对',
   records: '回顾 · 课程与记录',
+  v4: '能力路径 · 诊断 / 推荐 / 证据',
 }
 
 type View =
@@ -47,6 +49,7 @@ type View =
   | { name: 'result'; results: SessionResult[]; comboBest: number; xpGain: number; kind: SessionKind; dueTomorrow: number }
   | { name: 'review' }   // 内容审核（R1-03）：逐题核对语料派生题
   | { name: 'records' }  // 回顾：章节列表、学习记录、设置（旧首页）
+  | { name: 'v4' }      // curriculum-v4 能力路径（诊断/推荐/证据/地图）
 
 export default function App() {
   const [loaded] = useState(() => loadProgress())
@@ -57,12 +60,17 @@ export default function App() {
   const [view, setView] = useState<View>({ name: 'home' })
   /** 侧栏里被选中的那一项（首页与内页共用同一条侧栏） */
   const [nav, setNav] = useState<NavTarget>('today')
-  const navActive: NavTarget = view.name === 'lesson' ? 'courses' : view.name === 'records' ? nav : 'today'
+  const navActive: NavTarget = view.name === 'lesson' ? 'courses' : view.name === 'v4' ? 'v4path' : view.name === 'records' ? nav : 'today'
 
   function handleNav(target: NavTarget) {
     setNav(target)
     if (target === 'today') {
       setView({ name: 'home' })
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+      return
+    }
+    if (target === 'v4path') {
+      setView({ name: 'v4' })
       window.scrollTo({ top: 0, behavior: 'smooth' })
       return
     }
@@ -527,6 +535,9 @@ export default function App() {
             onResume={() => { if (!resumeSession()) setStartError('没有找到未完成的会话。') }}
             onStartSkill={(skillId) => { setStartError(null); if (!startSession('skill', skillId)) setStartError('这个思维点还没有题目——题库正在建设中。') }}
           />
+        )}
+        {view.name === 'v4' && (
+          <V4Path accountId={db.account?.id ?? null} />
         )}
         {view.name === 'records' && (
           <Dashboard
