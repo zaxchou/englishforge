@@ -617,7 +617,9 @@ describe('W2/附加 幂等与诚实状态', () => {
     const conn = (await import('./v3db.mjs')).ensureV3Schema(getDb())
     let msg = ''
     try {
-      conn.prepare("UPDATE lesson_versions SET why_now = '被篡改' WHERE lesson_id = 'les-relations-v1' AND version = 1").run()
+      conn.prepare(
+        `UPDATE lesson_versions SET why_now = '被篡改' WHERE rowid =
+           (SELECT rowid FROM lesson_versions WHERE lesson_id = 'les-relations-v1' ORDER BY version DESC LIMIT 1)`).run()
     } catch (e) { msg = String(e?.message) }
     expect(msg).toContain('LESSON_VERSION_PUBLISHED_IMMUTABLE')
   })
