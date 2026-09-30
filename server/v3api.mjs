@@ -7,7 +7,7 @@ import { ApiError, getAccount } from './db.mjs'
 import { ensureV3Schema, oldRecordMap } from './v3db.mjs'
 import { mapIndex, rowToObjective } from './v3map.mjs'
 import { recordAttempt, evidenceSummary, waive, reportContent, getStoredAttempt } from './v3evidence.mjs'
-import { startDiagnostic, getDiagnostic, advanceDiagnostic, expectedActivityFor } from './v3diag.mjs'
+import { startDiagnostic, getDiagnostic, advanceDiagnostic, expectedActivityFor, latestOpenDiagnostic } from './v3diag.mjs'
 import { getPlan, recomputePlan } from './v3plan.mjs'
 import { serveLesson, revealHint, completeLesson, listLessons, seedLessons, withdrawLesson, publishLesson, signLesson } from './v3lessons.mjs'
 import { ensureWindow, reestimateWindow, generationMetrics, listJobs, startGenerationJob } from './v3gen.mjs'
@@ -52,6 +52,8 @@ export const V3_ROUTES = [
       note: ctx.body?.note,
     })
   }],
+  // 会话恢复：最近一场未完成的诊断（必须注册在 :diagnosticId 之前，否则被参数路由吞掉）
+  ['GET', '/api/v1/accounts/:id/diagnostics/latest', (ctx) => ({ diagnostic: latestOpenDiagnostic(ctx.params.id) })],
   ['GET', '/api/v1/accounts/:id/diagnostics/:diagnosticId', (ctx) => getDiagnostic(ctx.params.id, ctx.params.diagnosticId)],
 
   // 新尝试：服务端持有答案与角色；重复 attemptId 幂等，同 ID 异正文 409
@@ -74,6 +76,7 @@ export const V3_ROUTES = [
         activityId: ctx.body?.activityId,
         pass: result.pass === true,
         evaluationStatus: result.evaluationStatus,
+        disputeReason: result.disputedReason ?? result.evaluation?.reason ?? null,
       })
       : null
     return { ...result, diagnostic: diag }

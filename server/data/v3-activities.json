@@ -181,7 +181,7 @@
   },
   {
    "activityId": "diag_d2_listen_sim",
-   "version": 1,
+   "version": 2,
    "role": "diagnostic",
    "taskFamilyId": "library_ai_audio_A",
    "objectiveIds": [
@@ -231,7 +231,13 @@
        "找文章",
        "找论文",
        "找到了论文",
-       "找到值得"
+       "找到值得",
+       "多的内容",
+       "很多资料",
+       "搜出来",
+       "搜到",
+       "帮我找",
+       "帮我搜"
       ],
       "required": true,
       "objectiveIds": [
@@ -306,7 +312,7 @@
   },
   {
    "activityId": "diag_d2b_transcript_recheck",
-   "version": 1,
+   "version": 2,
    "role": "diagnostic",
    "taskFamilyId": "library_ai_audio_A",
    "objectiveIds": [
@@ -349,7 +355,13 @@
        "找文章",
        "找论文",
        "找到了论文",
-       "找到值得"
+       "找到值得",
+       "多的内容",
+       "很多资料",
+       "搜出来",
+       "搜到",
+       "帮我找",
+       "帮我搜"
       ],
       "required": true,
       "objectiveIds": [

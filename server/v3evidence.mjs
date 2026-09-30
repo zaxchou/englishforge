@@ -330,7 +330,8 @@ export function recordAttempt(accountId, payload = {}) {
     accountId, attemptId, String(payload.sessionId || ''), activity.activityId, activity.version,
     JSON.stringify(activity.objectiveIds), activity.taskFamilyId, activity.role, activity.responseKind,
     JSON.stringify({ kind: payload.response?.kind ?? 'text', text: responseText, mediaId: payload.response?.mediaId ?? null }),
-    JSON.stringify(effectiveConditions), evalStatus, JSON.stringify(evaluation), null, hash, ts,
+    JSON.stringify(effectiveConditions), evalStatus, JSON.stringify(evaluation),
+    evalStatus === 'disputed' ? (evaluation?.reason ?? 'DISPUTED') : null, hash, ts,
   )
 
   const attemptRow = conn.prepare('SELECT * FROM learner_attempts_v3 WHERE account_id = ? AND attempt_id = ?').get(accountId, attemptId)
@@ -370,6 +371,8 @@ function attemptResult(conn, accountId, row, activity) {
     attemptId: row.attempt_id,
     saved: true,
     evaluationStatus: row.evaluation_status,
+    // 争议原因（NEGATION_AMBIGUOUS 等）：诊断页要拿它给学习者可执行的指引
+    disputedReason: row.disputed_reason ?? null,
     // holdout 只给结论：维度命中会泄露保留题的评分要点
     pass: evaluation ? evaluation.pass : null,
     // F4/21§1：逐目标结果 met/partial/unmet/unmeasured/disputed —— 未问的目标就是 unmeasured

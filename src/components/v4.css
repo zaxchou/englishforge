@@ -82,6 +82,15 @@
   border-radius: 8px;
   padding: 8px 10px;
 }
+/* 服务端带回的流程指引（如诊断 disputed 后的"换种说法重交"）：中性色，不是报错 */
+.v4-note {
+  color: #e8c268;
+  font-size: 13px;
+  background: rgba(232, 194, 104, 0.08);
+  border: 1px solid rgba(232, 194, 104, 0.35);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
 
 .v4-primary {
   align-self: flex-start;

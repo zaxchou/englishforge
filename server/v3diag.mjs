@@ -23,8 +23,12 @@ export function startDiagnostic(accountId, { requestId, note } = {}) {
   const conn = ensureV3Schema()
   if (requestId) {
     const prev = conn.prepare('SELECT * FROM diagnostic_sessions WHERE account_id = ? AND request_id = ?').get(accountId, requestId)
-    if (prev) return sessionView(prev)
+    if (prev) return sessionView(prev, { note })
   }
+  // 一人同时只留一场进行中的诊断：重开 = 服务端自动废弃旧场（实测事故：前端丢会话后
+  // 用户反复重开，库里积了 4 场 open 会话；恢复逻辑取"最近未完成"必须语义唯一）
+  conn.prepare("UPDATE diagnostic_sessions SET status = 'abandoned', updated_at = ? WHERE account_id = ? AND status = 'open'")
+    .run(Date.now(), accountId)
   const diagnosticId = `diag_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`
   const now = Date.now()
   conn.prepare(
@@ -54,18 +58,36 @@ export function getDiagnostic(accountId, diagnosticId) {
   return sessionView(row)
 }
 
+/** 最近一场未完成的诊断（刷新/换浏览器后恢复用）：服务端是事实源，客户端不存会话指针。
+ * 没有进行中的会话返回 null。 */
+export function latestOpenDiagnostic(accountId) {
+  requireAccount(accountId)
+  const row = ensureV3Schema().prepare(
+    "SELECT * FROM diagnostic_sessions WHERE account_id = ? AND status = 'open' ORDER BY created_at DESC, rowid DESC LIMIT 1",
+  ).get(accountId)
+  return row ? sessionView(row) : null
+}
+
 /**
  * 尝试落到诊断会话后推进：按 14 号文档的分流表决定下一步；
  * 结束时给 D4 说明（暂定强项/根因假设/未测区域/下一课方向），并触发一次重规划。
+ * disputed/pending 时**不推进**（不硬判、不降级），note 带上原因——诊断页要把它显式
+ * 展示给学习者并保留原答案（实测事故：前端曾丢弃 note 并清空输入框，用户重交同样
+ * 文字再次 disputed，看起来就是"卡死 + 窗口被清空"）。
  */
-export function advanceDiagnostic(accountId, sessionId, { activityId, pass, evaluationStatus }) {
+export function advanceDiagnostic(accountId, sessionId, { activityId, pass, evaluationStatus, disputeReason } = {}) {
   const conn = ensureV3Schema()
   const row = conn.prepare('SELECT * FROM diagnostic_sessions WHERE account_id = ? AND diagnostic_id = ?').get(accountId, sessionId)
   if (!row || row.status !== 'open') return null
   // F6：只有已判定（evaluated）的结论才推进流程；disputed/pending 保留待处理
   if (evaluationStatus !== 'evaluated') {
     const fresh0 = conn.prepare('SELECT * FROM diagnostic_sessions WHERE account_id = ? AND diagnostic_id = ?').get(accountId, sessionId)
-    return sessionView(fresh0, { note: '该次作答有争议/未判定：保留待处理，诊断流程不推进、不降级' })
+    const why = disputeReason === 'NEGATION_AMBIGUOUS'
+      ? '这条作答机器判不了（出现双重否定类的说法，肯定/否定定不了）。答案不会被打分也不算错——请换一种更直接的说法重新提交本步骤；原作答已进入人工复核队列。'
+      : disputeReason
+        ? `该次作答未判定（${disputeReason}）：本步骤不推进、不降级，可重新提交或稍后人工复核。`
+        : '该次作答有争议/未判定：保留待处理，诊断流程不推进、不降级。可换一种说法重新提交本步骤。'
+    return sessionView(fresh0, { note: why })
   }
   const session = { steps: JSON.parse(row.steps || '[]') }
   const stepName = Object.entries(STEP_FLOW).find(([, v]) => v.activityId === activityId)?.[0]

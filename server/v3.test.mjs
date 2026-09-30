@@ -1324,6 +1324,62 @@ describe('复审回归 F1–F8', () => {
     expect(replay.json.diagnostic.step).toBe('D2') // 没有第二次推进
   })
 
+  it('诊断 disputed 不静默卡死：note 带可执行指引、disputedReason 暴露；换自然说法后可判定（2026-09-30 实测事故）', async () => {
+    const id = await mkAccount('诊断-争议')
+    const diag = (await call(`/api/v1/accounts/${id}/diagnostics`, { requestId: 'rq-disp' }, 'POST')).json
+    const cond = { firstExposure: true, hintLevel: 0, transcriptShown: false, playCount: 1, lookupUsed: false, responseMode: 'typed_summary' }
+    // D1 fail → D1b pass → D2
+    await call(`/api/v1/accounts/${id}/attempts`, { attemptId: 'disp-d1', sessionId: diag.diagnosticId, activityId: 'diag_d1_read', response: { kind: 'text', text: ANSWERS.fail_d1 }, conditions: cond }, 'POST')
+    const d1b = (await call(`/api/v1/accounts/${id}/attempts`, { attemptId: 'disp-d1b', sessionId: diag.diagnosticId, activityId: 'diag_d1b_contrast', response: { kind: 'text', text: ANSWERS.pass_d1b }, conditions: cond }, 'POST')).json
+    expect(d1b.diagnostic.step).toBe('D2')
+    // R4：听力作答前先落服务端播放事件
+    await call(`/api/v1/accounts/${id}/support/play`, { activityId: 'diag_d2_listen_sim', mediaId: 'aud_d2_library_v1' }, 'POST')
+    // 学习者原话（当天实测卡死）："并不是说不能用 AI 找文章"——双重否定让 use_case 的唯一锚点极性定不了
+    const stuck = (await call(`/api/v1/accounts/${id}/attempts`, {
+      attemptId: 'disp-d2a', sessionId: diag.diagnosticId, activityId: 'diag_d2_listen_sim',
+      response: { kind: 'text', text: '最终的评价是：使用 AI 做搜索时，最后还是需要自己人工去 check source。并不是说不能用 AI 找文章，而是需要做很强的人工检测和审核。' },
+      conditions: cond,
+    }, 'POST')).json
+    expect(stuck.evaluationStatus).toBe('disputed')
+    expect(stuck.disputedReason).toBe('NEGATION_AMBIGUOUS')
+    expect(stuck.diagnostic.step).toBe('D2') // 不推进、不降级
+    expect(stuck.diagnostic.note).toContain('重新提交') // 指引必须到达前端（之前被丢弃）
+    // 同义改写（"出来非常多的内容"）→ 干净判定，流程正常走到 D2b 对照复核
+    const redo = (await call(`/api/v1/accounts/${id}/attempts`, {
+      attemptId: 'disp-d2b', sessionId: diag.diagnosticId, activityId: 'diag_d2_listen_sim',
+      response: { kind: 'text', text: '一开始输入 topic 会出来非常多的内容，但后来发现里面的 source 很多是不正确的，或者是编造的；所以最后还是要自己人工去 check source。' },
+      conditions: cond,
+    }, 'POST')).json
+    expect(redo.evaluationStatus).toBe('evaluated')
+    expect(redo.diagnostic.step).toBe('D2b')
+  })
+
+  it('诊断会话恢复：latest 取最近未完成场；重开废弃旧场；完成后 latest 为空', async () => {
+    const id = await mkAccount('诊断-恢复')
+    expect((await call(`/api/v1/accounts/${id}/diagnostics/latest`)).json.diagnostic).toBeNull()
+    const s1 = (await call(`/api/v1/accounts/${id}/diagnostics`, { requestId: 'rq-res1' }, 'POST')).json
+    expect((await call(`/api/v1/accounts/${id}/diagnostics/latest`)).json.diagnostic.diagnosticId).toBe(s1.diagnosticId)
+    // 重开：旧场服务端废弃，latest 唯一指向新场
+    const s2 = (await call(`/api/v1/accounts/${id}/diagnostics`, { requestId: 'rq-res2' }, 'POST')).json
+    expect((await call(`/api/v1/accounts/${id}/diagnostics/latest`)).json.diagnostic.diagnosticId).toBe(s2.diagnosticId)
+    expect((await call(`/api/v1/accounts/${id}/diagnostics/${s1.diagnosticId}`)).json.status).toBe('abandoned')
+    // requestId 幂等重放：同 requestId 再开返回原会话，不新开一场
+    expect((await call(`/api/v1/accounts/${id}/diagnostics`, { requestId: 'rq-res2' }, 'POST')).json.diagnosticId).toBe(s2.diagnosticId)
+    // 做完一场：latest 回空，下次进页面回到开始态
+    const cond = { firstExposure: true, hintLevel: 0, transcriptShown: false, playCount: 1, lookupUsed: false, responseMode: 'typed_summary' }
+    let cur = s2
+    const script = { D1: ANSWERS.rich_d1, D2: ANSWERS.pass_d2, D2b: ANSWERS.pass_d2, D3: ANSWERS.pass_d3 }
+    for (let i = 0; cur.status === 'open' && cur.activity && i < 6; i++) {
+      if (cur.activity.audio) await call(`/api/v1/accounts/${id}/support/play`, { activityId: cur.activity.activityId, mediaId: 'aud_d2_library_v1' }, 'POST')
+      cur = (await call(`/api/v1/accounts/${id}/attempts`, {
+        attemptId: `res-${cur.step}`, sessionId: cur.diagnosticId, activityId: cur.activity.activityId,
+        response: { kind: 'text', text: script[cur.step] }, conditions: cond,
+      }, 'POST')).json.diagnostic
+    }
+    expect(cur.status).toBe('completed')
+    expect((await call(`/api/v1/accounts/${id}/diagnostics/latest`)).json.diagnostic).toBeNull()
+  })
+
   it('F2：完成课程立即重算且不再推荐已完成课；重复完成不重复更新', async () => {
     const id = await mkAccount('F2-推进')
     await runDiagnostic(id, { D1: ANSWERS.rich_d1, D2: ANSWERS.fail_d2, D2b: ANSWERS.pass_d2, D3: ANSWERS.pass_d3 }, 'rq-f2')

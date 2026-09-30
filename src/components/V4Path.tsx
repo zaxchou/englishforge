@@ -119,7 +119,7 @@ export function V4Path({ accountId }: { accountId: string | null }) {
           }} />
       )}
 
-      {tab === 'diag' && <DiagPanel accountId={accountId} onDone={async () => { await loadPlan(); setTab('plan') }} />}
+      {tab === 'diag' && <DiagPanel key={accountId} accountId={accountId} onDone={async () => { await loadPlan(); setTab('plan') }} />}
 
       {tab === 'evidence' && (
         <div className="v4-card">
@@ -219,7 +219,7 @@ function PlanPanel({ plan, noPlan, onDiagnostic, onOpenLesson }: {
 
 type AudioInfo = { mediaId: string; synthetic: boolean; speakerLabel: string; durationMs: number; licenseNote: string }
 
-type DiagState = { diagnosticId: string; status: string; step: string | null; activity: { activityId: string; prompt: string; hints: string[]; audio?: AudioInfo | null } | null; tentative: { strongPoints: string[]; hypotheses: string[]; unmeasured: string[]; route: string; stopReason: string } | null }
+type DiagState = { diagnosticId: string; status: string; step: string | null; note?: string | null; activity: { activityId: string; prompt: string; hints: string[]; audio?: AudioInfo | null } | null; tentative: { strongPoints: string[]; hypotheses: string[]; unmeasured: string[]; route: string; stopReason: string } | null }
 
 /** 课程音频播放器（21 §6.1/6.2 + 24 号 R4）：base64 → blob URL；synthetic 标注必须可见；
  * 首次播放 POST /support/play 落**服务端**播放事件（听力证据的前提，客户端自报不算）；
@@ -266,17 +266,33 @@ function DiagPanel({ accountId, onDone }: { accountId: string; onDone: () => voi
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
   const [hintShown, setHintShown] = useState(false)
+  const [note, setNote] = useState<string | null>(null)
   const playsRef = useRef(1)
+  const startRef = useRef(false) // 本地已开过新场：晚到的恢复结果不许覆盖它
 
   useEffect(() => {
     if (diag?.status === 'completed') onDone()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [diag?.status])
 
+  // 刷新/换浏览器后恢复最近一场未完成的诊断——服务端是事实源，客户端不存会话指针
+  //（实测事故：会话只活在组件 state 里，D2 卡住 → 刷新 → 回到开始页 → 重开又卡同一步，
+  // 库里积了一堆 open 会话，用户之前的作答也接不上）
+  useEffect(() => {
+    let alive = true
+    api<{ diagnostic: DiagState | null }>(`/accounts/${accountId}/diagnostics/latest`)
+      .then((r) => {
+        if (alive && !startRef.current && r.diagnostic?.status === 'open') setDiag(r.diagnostic)
+      })
+      .catch(() => { /* 没有进行中的会话或接口异常：停在开始页 */ })
+    return () => { alive = false }
+  }, [accountId])
+
   async function submit() {
     if (!diag?.activity) return
     setBusy(true)
     setErr('')
+    const prevStep = diag.step
     try {
       const r = await api<{ diagnostic: DiagState }>(`/accounts/${accountId}/attempts`, {
         attemptId: `diag-${diag.diagnosticId}-${diag.step}-${Date.now()}`,
@@ -288,16 +304,26 @@ function DiagPanel({ accountId, onDone }: { accountId: string; onDone: () => voi
           playCount: playsRef.current, lookupUsed: false, responseMode: 'typed_summary',
         },
       }, 'POST')
-      setDiag(r.diagnostic)
-      setText('')
-      playsRef.current = 1
+      const d = r.diagnostic
+      setDiag(d)
+      setNote(d.note ?? null)
+      if (d.step && d.step !== prevStep) {
+        // 只有真推进才清空作答区。disputed/未判定时原地不动：答案保留，用户照 note 改说法重交
+        // （之前无条件清空 + 丢弃 note，重交同样文字再次卡住，看起来就是"窗口清空了"）
+        setText('')
+        playsRef.current = 1
+        setHintShown(false)
+      }
     } catch (e) { setErr(String(e)) } finally { setBusy(false) }
   }
 
   const start = useCallback(async () => {
     setErr('')
     try {
-      setDiag(await api<DiagState>('/accounts/' + accountId + '/diagnostics', { requestId: 'diag-' + Date.now() }, 'POST'))
+      const d = await api<DiagState>('/accounts/' + accountId + '/diagnostics', { requestId: 'diag-' + Date.now() }, 'POST')
+      startRef.current = true
+      setDiag(d)
+      setNote(null)
     } catch (e) { setErr(String(e)) }
   }, [accountId])
 
@@ -325,6 +351,7 @@ function DiagPanel({ accountId, onDone }: { accountId: string; onDone: () => voi
   return (
     <div className="v4-card">
       <h3>入口诊断 · {diag.step}</h3>
+      {note && <div className="v4-note">{note}</div>}
       <pre className="v4-prompt">{diag.activity?.prompt}</pre>
       {diag.activity?.audio && (
         <LessonAudio info={diag.activity.audio} activityId={diag.activity.activityId} accountId={accountId}
@@ -336,7 +363,8 @@ function DiagPanel({ accountId, onDone }: { accountId: string; onDone: () => voi
       )}
       <textarea value={text} onChange={(e) => setText(e.target.value)} rows={4}
         placeholder="用自己的话回答（中英文都可以）" />
-      <button className="v4-primary" disabled={busy || !text.trim()} onClick={submit}>提交这一步</button>
+      <button className="v4-primary" disabled={busy || !text.trim()} onClick={submit}>{note ? '重新提交这一步' : '提交这一步'}</button>
+      <button className="v4-ghost" disabled={busy} onClick={start}>放弃本次，重新开始</button>
       {err && <div className="v4-err">{err}</div>}
     </div>
   )
