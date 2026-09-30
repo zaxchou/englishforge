@@ -12,7 +12,7 @@ import { getPlan, recomputePlan } from './v3plan.mjs'
 import { serveLesson, revealHint, completeLesson, listLessons, seedLessons, withdrawLesson, publishLesson, signLesson } from './v3lessons.mjs'
 import { ensureWindow, reestimateWindow, generationMetrics, listJobs, startGenerationJob } from './v3gen.mjs'
 import { createOralIntent, storeOralAudio, readOralAudio, deleteOralAudio, submitOralAttempt, correctTranscript, signOralReview, mediaUsableForCertification } from './v3oral.mjs'
-import { readLessonAudio } from './v3audio.mjs'
+import { readLessonAudio, loadAudioManifest } from './v3audio.mjs'
 import { registerTrial, recordObservation, compareTrial, listTrials } from './v3trial.mjs'
 
 export const V3_ROUTES = [
@@ -183,6 +183,17 @@ export const V3_ROUTES = [
       license: entry.license ?? null, segmentWindow: entry.segmentWindow ?? null,
     }
   }],
+  // 审核与试听面板用：清单元数据（无字节、无转写正文——试听走上面的分发接口）
+  ['GET', '/api/v1/audio-assets', () => ({
+    assets: loadAudioManifest().assets.map((a) => ({
+      mediaId: a.mediaId, kind: a.kind, sourceType: a.sourceType,
+      title: a.title ?? a.scriptId, speakerLabel: a.speakerLabel ?? null,
+      durationMs: a.durationMs, license: a.license ?? a.licenseNote,
+      licenseStatus: a.licenseStatus, sourceUrl: a.sourceUrl ?? null, author: a.author ?? null,
+      candidateStatus: a.candidateStatus ?? null, activityIds: a.activityIds ?? [],
+      segments: (a.segments ?? []).map((s) => ({ label: s.label, meaningBasis: s.meaningBasis })),
+    })),
+  })],
 
   // W6：本人试学工具包（先预注册后施测；机制不做效果宣称）
   ['GET', '/api/v1/accounts/:id/trials', (ctx) => { requireAccount(ctx.params.id); return { trials: listTrials(ctx.params.id) } }],

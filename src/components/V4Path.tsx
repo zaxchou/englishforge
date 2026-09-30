@@ -63,7 +63,7 @@ const BAND_LABEL: Record<string, string> = {
 }
 
 export function V4Path({ accountId }: { accountId: string | null }) {
-  const [tab, setTab] = useState<'plan' | 'diag' | 'evidence' | 'map'>('plan')
+  const [tab, setTab] = useState<'plan' | 'diag' | 'evidence' | 'map' | 'review'>('plan')
   const [err, setErr] = useState('')
   const [plan, setPlan] = useState<Plan | null>(null)
   const [noPlan, setNoPlan] = useState(false)
@@ -106,6 +106,7 @@ export function V4Path({ accountId }: { accountId: string | null }) {
         <button className={tab === 'diag' ? 'on' : ''} onClick={() => setTab('diag')}>入口诊断</button>
         <button className={tab === 'evidence' ? 'on' : ''} onClick={() => setTab('evidence')}>我的证据</button>
         <button className={tab === 'map' ? 'on' : ''} onClick={() => setTab('map')}>能力地图</button>
+        <button className={tab === 'review' ? 'on' : ''} onClick={() => setTab('review')}>审核与试听</button>
       </div>
       {err && <div className="v4-err">{err}</div>}
 
@@ -139,6 +140,8 @@ export function V4Path({ accountId }: { accountId: string | null }) {
           {evidence && <p className="v4-dim">{evidence.note}</p>}
         </div>
       )}
+
+      {tab === 'review' && <ReviewPanel />}
 
       {tab === 'map' && mapIdx && (
         <div className="v4-card">
@@ -604,6 +607,133 @@ function OralRecorder({ accountId, activityId, onSubmitted }: {
       {mediaId && !deleted && <button className="v4-ghost" onClick={remove}>删除这段录音</button>}
       {deleted && <span className="v4-dim">录音已删除（数据库与文件一并移除）</span>}
       {err && <div className="v4-err">{err}</div>}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------- 审核与试听（真人审签入口）
+
+type AudioAsset = {
+  mediaId: string; kind: string; sourceType: string; title: string; speakerLabel: string | null
+  durationMs: number; license: string; licenseStatus: string; sourceUrl: string | null
+  author: string | null; candidateStatus: string | null; activityIds: string[]
+  segments: { label: string; meaningBasis: string }[]
+}
+type LessonRow = {
+  lessonId: string; version: number; title: string; strategyId: string
+  objectiveIds: string[]; contentStatus: string; humanReview: string
+  accountScope?: string; releaseChannel?: string
+}
+
+/** 试听播放器（审核版：带转写逐段意义依据，与学习页的首听隐藏不同——审的是内容本身） */
+function AuditAudio({ asset }: { asset: AudioAsset }) {
+  const [url, setUrl] = useState<string | null>(null)
+  const [err, setErr] = useState('')
+  useEffect(() => {
+    let revoke: string | null = null
+    let alive = true
+    ;(async () => {
+      try {
+        const r = await api<{ audioBase64: string; mime: string }>(`/media/${asset.mediaId}`)
+        const bytes = Uint8Array.from(atob(r.audioBase64), (c) => c.charCodeAt(0))
+        revoke = URL.createObjectURL(new Blob([bytes], { type: r.mime }))
+        if (alive) setUrl(revoke)
+        else URL.revokeObjectURL(revoke)
+      } catch (e) { if (alive) setErr(String(e)) }
+    })()
+    return () => { alive = false; if (revoke) URL.revokeObjectURL(revoke) }
+  }, [asset.mediaId])
+  return (
+    <div className="v4-card" style={{ marginBottom: 12 }}>
+      <h3 style={{ margin: '4px 0' }}>{asset.title} <span className="v4-dim">· {Math.round(asset.durationMs / 1000)} 秒</span></h3>
+      <p className="v4-dim">
+        {asset.sourceType === 'synthetic' ? `合成音频（synthetic）· ${asset.speakerLabel ?? ''}` : `真实外部素材 · ${asset.author ?? ''}`}
+        {' · '}{asset.license}
+      </p>
+      {err && <p className="v4-err">加载失败：{err}</p>}
+      {url && <audio controls src={url} style={{ width: '100%', maxWidth: 560 }} />}
+      {asset.candidateStatus && <p className="v4-dev">{asset.candidateStatus}</p>}
+      {asset.sourceUrl && <p className="v4-dim">来源：<a href={asset.sourceUrl} target="_blank" rel="noreferrer">{asset.sourceUrl}</a></p>}
+      {!!asset.segments.length && (
+        <details>
+          <summary className="v4-dim">逐段意义依据（{asset.segments.length} 段）</summary>
+          <ul>{asset.segments.map((s, i) => <li key={i}><b>{s.label}</b>：{s.meaningBasis}</li>)}</ul>
+        </details>
+      )}
+    </div>
+  )
+}
+
+/** 审核与试听：真人试听音频、审签课程。签署是人对内容的结论，签了名字就落进记录。 */
+function ReviewPanel() {
+  const [assets, setAssets] = useState<AudioAsset[] | null>(null)
+  const [lessons, setLessons] = useState<LessonRow[] | null>(null)
+  const [reviewer, setReviewer] = useState(localStorage.getItem('v4-reviewer') ?? '')
+  const [note, setNote] = useState('')
+  const [busy, setBusy] = useState('')
+  const [err, setErr] = useState('')
+
+  const load = useCallback(async () => {
+    try {
+      const [a, l] = await Promise.all([
+        api<{ assets: AudioAsset[] }>('/audio-assets'),
+        api<{ lessons: LessonRow[] }>('/lessons'),
+      ])
+      setAssets(a.assets)
+      setLessons(l.lessons)
+    } catch (e) { setErr(String(e)) }
+  }, [])
+  useEffect(() => { void load() }, [load])
+
+  async function sign(lessonId: string) {
+    if (!reviewer.trim()) { setErr('先在上方填写审阅人姓名——签署会记录是谁审的'); return }
+    setBusy(lessonId)
+    setErr('')
+    try {
+      localStorage.setItem('v4-reviewer', reviewer.trim())
+      await api(`/lessons/${lessonId}/sign`, { reviewer: reviewer.trim(), note }, 'POST')
+      setNote('')
+      await load()
+    } catch (e) { setErr(String(e)) } finally { setBusy('') }
+  }
+
+  const pending = (lessons ?? []).filter((l) => l.humanReview !== 'signed')
+  return (
+    <div>
+      <div className="v4-card">
+        <h3>这一页是给「真人审核」用的</h3>
+        <p>① <b>试听</b>：下面每段音频直接点播放——合成的标注了 synthetic，真实的给了来源和许可。听完不自然/听不清，直接说，我重做。</p>
+        <p>② <b>审签</b>：课程区列出待审课程，先在下面填你的名字，点「签署」即记录为该课程的人审结论（dev_only → mainline）。没有真人签署的课永远是开发样本。</p>
+        <label style={{ display: 'block', margin: '8px 0 4px' }}>审阅人（你的名字，签署时记入）</label>
+        <input value={reviewer} onChange={(e) => setReviewer(e.target.value)} placeholder="例：张俊杰"
+          style={{ width: 240, padding: '6px 8px', background: '#15151a', color: 'inherit', border: '1px solid #333', borderRadius: 6 }} />
+        <label style={{ display: 'block', margin: '8px 0 4px' }}>审签备注（可选：哪里改过、为什么放行）</label>
+        <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="例：L2 第 3 句语速偏快，但可接受"
+          style={{ width: '100%', maxWidth: 560, padding: '6px 8px', background: '#15151a', color: 'inherit', border: '1px solid #333', borderRadius: 6 }} />
+        {err && <div className="v4-err">{err}</div>}
+      </div>
+
+      <h3 style={{ margin: '14px 0 8px' }}>① 试听（{assets?.length ?? 0} 段）</h3>
+      {(assets ?? []).map((a) => <AuditAudio key={a.mediaId} asset={a} />)}
+
+      <h3 style={{ margin: '14px 0 8px' }}>② 课程审签（待审 {pending.length}）</h3>
+      {(lessons ?? []).map((l) => (
+        <div key={l.lessonId} className="v4-card" style={{ marginBottom: 10 }}>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <b>{l.title}</b>
+            <code className="v4-dim">{l.lessonId} v{l.version}</code>
+            <span className="v4-skill">{l.releaseChannel === 'mainline' ? 'mainline' : 'dev_only'}</span>
+            {l.accountScope && l.accountScope !== 'global' && <span className="v4-skill">个人定制</span>}
+            <b>{l.humanReview === 'signed' ? '✅ 已签署' : '待签署'}</b>
+          </div>
+          <p className="v4-dim">目标：{l.objectiveIds.join('、')} · 策略：{l.strategyId}</p>
+          {l.humanReview !== 'signed' && l.contentStatus !== 'withdrawn' && (
+            <button className="v4-primary" disabled={busy === l.lessonId} onClick={() => sign(l.lessonId)}>
+              {busy === l.lessonId ? '签署中…' : '签署（我审过，内容合格）'}
+            </button>
+          )}
+        </div>
+      ))}
     </div>
   )
 }
