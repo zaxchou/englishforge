@@ -42,3 +42,6 @@ deploy/production/
 
 # 版本化发布包（scripts/release.mjs 生成；每版一个 git 短哈希目录）
 releases/
+
+# TTS 管线的临时 PowerShell 脚本
+scripts/.tmp-tts.ps1

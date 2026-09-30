@@ -51,6 +51,8 @@
   color: var(--ink, #ececf1);
 }
 .v4-dim { color: var(--ink-dim, #9a9aa2); font-size: 13px !important; }
+.v4-audio { display: flex; flex-direction: column; gap: 4px; margin: 6px 0; }
+.v4-audio audio { width: 100%; max-width: 480px; height: 36px; }
 .v4-meta { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 13px; color: var(--ink-dim, #9a9aa2); }
 .v4-dev {
   font-size: 12px;

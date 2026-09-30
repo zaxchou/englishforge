@@ -1,0 +1,74 @@
+{
+  "notice": "受控原创听力脚本（18 §2/§5 为权威稿）。合成管线：Windows SAPI（Microsoft Zira en-US），纯文本 + Rate 属性（SSML <prosody> 实测致语速减半，禁用）。本机只有一个英文声源——18 §2 的『两名讲者平行版本』与 21 §6 的跨讲者检查无法做到，也不以变速冒充（18 §2 制作注），缺口如实保持开放，待真人录音补足。产物全部标注 synthetic（受控练习音频，不得冒充真实 podcast，21 §6.2）；设备播放与自然度试听由人完成（23 号报告记录）。",
+  "scripts": [
+    {
+      "scriptId": "d2_library_v1",
+      "mediaId": "aud_d2_library_v1",
+      "activityIds": ["diag_d2_listen_sim"],
+      "version": 1,
+      "voice": "Microsoft Zira Desktop",
+      "voiceParams": { "rate": 0 },
+      "speakerLabel": "synthetic-A（Zira，非真人；单一英文声源）",
+      "family": "library_ai_audio_A",
+      "segments": [
+        {
+          "label": "背景",
+          "text": "In a campus library, our class tested an AI assistant that suggests articles for design projects.",
+          "meaningBasis": "场景与主题：校园图书馆里全班测试一个为设计项目推荐文章的 AI 助手。"
+        },
+        {
+          "label": "最初有用",
+          "text": "At first, the suggestions looked useful because the assistant found papers on the topics we entered.",
+          "meaningBasis": "最初印象的依据：按输入话题找到了论文，所以『看起来』有用。"
+        },
+        {
+          "label": "发现问题",
+          "text": "But when we checked the sources, several summaries missed important limits in the original papers.",
+          "meaningBasis": "but 转折的对象：核查来源后发现，若干摘要漏掉了原论文的重要限制。"
+        },
+        {
+          "label": "最终结论",
+          "text": "So our conclusion was narrower than we expected: the tool can help us find papers worth reading, but we still need to read each source before using it to support a design decision.",
+          "meaningBasis": "最终评价（带限定）：能帮助找到值得读的论文；但支撑设计决策前必须自己读每篇来源——不是『不能用』也不是『随便用』。"
+        }
+      ]
+    },
+    {
+      "scriptId": "l2_museum_v1",
+      "mediaId": "aud_l2_museum_v1",
+      "activityIds": ["les_l2_museum_map_audio", "les_l2b_museum_transcript"],
+      "version": 1,
+      "voice": "Microsoft Zira Desktop",
+      "voiceParams": { "rate": 0 },
+      "speakerLabel": "synthetic-A（Zira，与 D2 同声源不同稿——18 §5 要求 L2 与 D2 不同情境）",
+      "family": "museum_map_audio_D",
+      "segments": [
+        {
+          "label": "做了什么",
+          "text": "We made a map that tells visitors which rooms in the museum are busy.",
+          "meaningBasis": "项目内容：一张告诉游客哪些展厅拥挤的地图。"
+        },
+        {
+          "label": "预期",
+          "text": "We expected people to choose a quieter route.",
+          "meaningBasis": "团队预期：人们会因此选更安静的路线。"
+        },
+        {
+          "label": "实际观察",
+          "text": "In fact, some visitors walked toward the crowded rooms because they thought something interesting was happening there.",
+          "meaningBasis": "实际行为与机制：有人反而走向拥挤展厅——因为他们以为那里有有意思的事。because 解释的是游客的动机。"
+        },
+        {
+          "label": "判定",
+          "text": "The map was working as designed, but our assumption about what visitors wanted was incomplete.",
+          "meaningBasis": "but 对照的两件事：地图按设计正常工作 ↔ 团队对游客需求的假设不完整。失灵的是假设，不是地图。"
+        },
+        {
+          "label": "下一步",
+          "text": "Next month, we will ask visitors why they chose a route before we change the design.",
+          "meaningBasis": "后续计划：先问游客选路线的原因，再决定改不改设计。"
+        }
+      ]
+    }
+  ]
+}

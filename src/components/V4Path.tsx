@@ -23,7 +23,7 @@ type LessonPkg = {
   whyNow: string
   teachingNote: string | null
   devSampleNotice: string | null
-  activities: { activityId: string; role: string; prompt: string; hintStageCount: number; firstHint: string | null; simulatesAudio: boolean; fixtureNotice: string | null; oralTask?: boolean }[]
+  activities: { activityId: string; role: string; prompt: string; hintStageCount: number; firstHint: string | null; simulatesAudio: boolean; fixtureNotice: string | null; oralTask?: boolean; audio?: AudioInfo | null }[]
   nextCandidates: string[]
   holdout: { lessonId: string; answersIncluded: boolean } | null
 }
@@ -208,7 +208,40 @@ function PlanPanel({ plan, noPlan, onDiagnostic, onOpenLesson }: {
   )
 }
 
-type DiagState = { diagnosticId: string; status: string; step: string | null; activity: { activityId: string; prompt: string; hints: string[] } | null; tentative: { strongPoints: string[]; hypotheses: string[]; unmeasured: string[]; route: string; stopReason: string } | null }
+type AudioInfo = { mediaId: string; synthetic: boolean; speakerLabel: string; durationMs: number; licenseNote: string }
+
+type DiagState = { diagnosticId: string; status: string; step: string | null; activity: { activityId: string; prompt: string; hints: string[]; audio?: AudioInfo | null } | null; tentative: { strongPoints: string[]; hypotheses: string[]; unmeasured: string[]; route: string; stopReason: string } | null }
+
+/** 课程音频播放器（21 §6.1/6.2）：base64 → blob URL；synthetic 标注必须可见；
+ * onPlay 每次播放上报，提交时计 playCount（首听条件真实化，不再写死 1）。 */
+function LessonAudio({ info, onPlay }: { info: AudioInfo; onPlay?: () => void }) {
+  const [url, setUrl] = useState<string | null>(null)
+  const [err, setErr] = useState('')
+  useEffect(() => {
+    let revoke: string | null = null
+    let alive = true
+    ;(async () => {
+      try {
+        const r = await api<{ audioBase64: string; mime: string }>(`/media/${info.mediaId}`)
+        const bytes = Uint8Array.from(atob(r.audioBase64), (c) => c.charCodeAt(0))
+        revoke = URL.createObjectURL(new Blob([bytes], { type: r.mime }))
+        if (alive) setUrl(revoke)
+        else URL.revokeObjectURL(revoke)
+      } catch (e) { if (alive) setErr(String(e)) }
+    })()
+    return () => { alive = false; if (revoke) URL.revokeObjectURL(revoke) }
+  }, [info.mediaId])
+  if (err) return <p className="v4-dev">音频加载失败：{err}</p>
+  if (!url) return <p className="v4-dim">音频加载中…</p>
+  return (
+    <div className="v4-audio">
+      <audio controls src={url} onPlay={onPlay} />
+      <span className="v4-dim">
+        合成音频（synthetic · 受控练习）· {info.speakerLabel} · 约 {Math.round(info.durationMs / 1000)} 秒。自然讲者原声制作中。
+      </span>
+    </div>
+  )
+}
 
 function DiagPanel({ accountId, onDone }: { accountId: string; onDone: () => void }) {
   const [diag, setDiag] = useState<DiagState | null>(null)
@@ -216,6 +249,7 @@ function DiagPanel({ accountId, onDone }: { accountId: string; onDone: () => voi
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
   const [hintShown, setHintShown] = useState(false)
+  const playsRef = useRef(1)
 
   useEffect(() => {
     if (diag?.status === 'completed') onDone()
@@ -234,11 +268,12 @@ function DiagPanel({ accountId, onDone }: { accountId: string; onDone: () => voi
         response: { kind: 'text', text },
         conditions: {
           firstExposure: true, hintLevel: hintShown ? 1 : 0, transcriptShown: diag.step === 'D2b',
-          playCount: 1, lookupUsed: false, responseMode: 'typed_summary',
+          playCount: playsRef.current, lookupUsed: false, responseMode: 'typed_summary',
         },
       }, 'POST')
       setDiag(r.diagnostic)
       setText('')
+      playsRef.current = 1
     } catch (e) { setErr(String(e)) } finally { setBusy(false) }
   }
 
@@ -253,7 +288,7 @@ function DiagPanel({ accountId, onDone }: { accountId: string; onDone: () => voi
     return (
       <div className="v4-card">
         <h3>入口诊断</h3>
-        <p>约 5–10 分钟：文字关系 →（按需）对照定位 → 声音理解 → 口述。D2 声音步骤当前是文字模拟（原声制作中，听力证据会如实标"未测"）；口述步骤为文字版（录音在 W5 接入）。</p>
+        <p>约 5–10 分钟：文字关系 →（按需）对照定位 → 声音理解 → 口述。D2 声音步骤是合成语音（synthetic，受控练习音频），听力证据按真实播放计并标注 synthetic；自然讲者原声制作中。口述步骤为文字版（录音在 W5 接入）。</p>
         <button className="v4-primary" onClick={start}>开始诊断</button>
         {err && <div className="v4-err">{err}</div>}
       </div>
@@ -274,6 +309,9 @@ function DiagPanel({ accountId, onDone }: { accountId: string; onDone: () => voi
     <div className="v4-card">
       <h3>入口诊断 · {diag.step}</h3>
       <pre className="v4-prompt">{diag.activity?.prompt}</pre>
+      {diag.activity?.audio && (
+        <LessonAudio info={diag.activity.audio} onPlay={() => { playsRef.current += 1 }} />
+      )}
       {hintShown && diag.activity?.hints?.[0] && <p className="v4-hint">提示：{diag.activity.hints[0]}</p>}
       {!hintShown && !!diag.activity?.hints?.length && (
         <button className="v4-ghost" onClick={() => setHintShown(true)}>看提示（将记为支持）</button>
@@ -297,6 +335,7 @@ function LessonRunner({ accountId, pkg, onDone }: {
   const [pkgLive, setPkgLive] = useState(pkg)
   const [err, setErr] = useState('')
   const [done, setDone] = useState(false)
+  const playsRef = useRef<Record<string, number>>({}) // 音频播放次数：提交时计 playCount，不再写死 1
 
   const visibleActs = pkgLive.activities
   const attemptedKey = 'v4-attempted-' + pkgLive.lessonId
@@ -322,7 +361,7 @@ function LessonRunner({ accountId, pkg, onDone }: {
         response: { kind: 'text', text: answers[act.activityId] ?? '' },
         conditions: {
           firstExposure: true, hintLevel: revealed[act.activityId]?.length ?? 0,
-          transcriptShown: false, playCount: 1, lookupUsed: false, responseMode: 'typed_summary',
+          transcriptShown: false, playCount: playsRef.current[act.activityId] ?? 1, lookupUsed: false, responseMode: 'typed_summary',
         },
       }, 'POST')
       setFeedback((f) => ({ ...f, [act.activityId]: { pass: r.pass, status: r.evaluationStatus, relations: r.dimensions?.relations } }))
@@ -359,9 +398,12 @@ function LessonRunner({ accountId, pkg, onDone }: {
         <div key={act.activityId} className="v4-act">
           <div className="v4-act-head">
             <b>{act.role === 'transfer' ? '陌生迁移' : act.role === 'practice' ? '练习' : act.role}</b>
-            {act.simulatesAudio && <span className="v4-dev">文字模拟音频 · 听力证据未测</span>}
+            {act.simulatesAudio && !act.audio && <span className="v4-dev">文字模拟音频 · 听力证据未测</span>}
           </div>
           <pre className="v4-prompt">{act.prompt}</pre>
+          {act.audio && (
+            <LessonAudio info={act.audio} onPlay={() => { playsRef.current[act.activityId] = (playsRef.current[act.activityId] ?? 0) + 1 }} />
+          )}
           {(revealed[act.activityId] ?? []).map((h, i) => (
             <p key={i} className="v4-hint">提示 {i + 1}：{h}</p>
           ))}

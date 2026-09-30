@@ -14,6 +14,7 @@ import { ApiError } from './db.mjs'
 import { ensureV3Schema } from './v3db.mjs'
 import { requireAccount } from './v3api.mjs'
 import { activityById, publicActivity } from './v3evidence.mjs'
+import { audioPublicInfo } from './v3audio.mjs'
 import { seedMap } from './v3map.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -142,8 +143,9 @@ export function serveLesson(accountId, lessonId) {
         prompt: act.prompt,
         simulatesAudio: !!act.simulatesAudio,
         oralTask: !!act.oralEvidenceDeferred,
+        audio: audioPublicInfo(act), // synthetic 合成音频；转写不在这（首听隐藏），l2b 的校对稿在题面里
         conditionsSpec: act.conditionsSpec,
-        fixtureNotice: act.simulatesAudio || act.oralEvidenceDeferred
+        fixtureNotice: (act.simulatesAudio || act.oralEvidenceDeferred) && !act.audioRef
           ? '开发 fixture：仅用于验收，正式材料见 18 号文档的发布检查表' : null,
         hintStageCount: stages.length,
         firstHint: stages[0] ?? null,

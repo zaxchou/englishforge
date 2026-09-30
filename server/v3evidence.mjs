@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url'
 import { ApiError, getDb } from './db.mjs'
 import { ensureV3Schema, getMeta, setMeta, nextCounter, getCounter } from './v3db.mjs'
 import { requireAccount } from './v3api.mjs'
+import { audioPublicInfo } from './v3audio.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const ACT_PATH = resolve(HERE, 'data', 'v3-activities.json')
@@ -36,13 +37,16 @@ export function activityById(id) {
 /** 学习者可见的活动视图：没有评估合同、没有答案、没有关系清单 */
 export function publicActivity(a) {
   if (!a) return null
+  const audio = audioPublicInfo(a)
   return {
     activityId: a.activityId, version: a.version, role: a.role, taskFamilyId: a.taskFamilyId,
     objectiveIds: a.objectiveIds, responseKind: a.responseKind, prompt: a.prompt, hints: a.hints,
     simulatesAudio: !!a.simulatesAudio, conditionsSpec: a.conditionsSpec,
     oralTask: !!a.oralEvidenceDeferred,
-    fixtureNotice: a.simulatesAudio || a.oralEvidenceDeferred || a.locating || a.holdout
-      ? '开发 fixture：仅用于验收，正式材料见 18 号文档的发布检查表' : null,
+    audio, // synthetic 合成音频（21 §6.2）：mediaId/声源标注/时长；无音频时为 null
+    fixtureNotice: audio ? null
+      : (a.simulatesAudio || a.oralEvidenceDeferred || a.locating || a.holdout)
+        ? '开发 fixture：仅用于验收，正式材料见 18 号文档的发布检查表' : null,
   }
 }
 
@@ -276,11 +280,14 @@ function appendObservedEvents(conn, accountId, attemptRow, activity, conditions)
     if (perObj === 'unmeasured') continue
     let skill = activity.skillByObjective?.[oid] ?? 'reading'
     const basisExtra = {}
-    // F1：文字模拟的“音频”只可测阅读——listening 证据重定向到 reading，原样可追溯
-    if (activity.simulatesAudio && skill === 'listening') {
+    // F1：**没有音频**的文字模拟只可测阅读——listening 证据重定向到 reading，原样可追溯。
+    // 有 audioRef（synthetic 合成音频，21 §6.2）就是真声音任务：listening 证据成立，
+    // 事件里记 audio:'synthetic' 可追溯（不得冒充自然讲者材料）。
+    if (activity.simulatesAudio && !activity.audioRef && skill === 'listening') {
       skill = 'reading'
       basisExtra.textSimAudioRedirected = true
     }
+    if (activity.audioRef) basisExtra.audio = 'synthetic'
     // F1：复杂度分档（目标父组的复杂度带），不同带的表现不互相覆盖
     const complexity = complexityBandFor(conn, oid)
     conn.prepare(
@@ -351,10 +358,10 @@ export function recomputeStates(accountId) {
     if (e.kind === 'repair') { s.flags.add('needs_repair'); continue }
     if (e.kind !== 'observed') continue
     const basis = JSON.parse(e.basis || '{}')
-    // F1 重算：文字模拟音频的历史 listening 事件 → reading 槽位
+    // F1 重算：**无音频**的文字模拟历史 listening 事件 → reading 槽位；带 audioRef 的保持 listening
     let skill = e.skill
     const actDef = activityOf(e.attempt_id)
-    if (actDef?.simulatesAudio && skill === 'listening') skill = 'reading'
+    if (actDef?.simulatesAudio && !actDef.audioRef && skill === 'listening') skill = 'reading'
     const s2 = slot(e.objective_id, skill)
     const frozen = openDisputeAt.has(e.objective_id + '|' + skill) && e.created_at >= (openDisputeAt.get(e.objective_id + '|' + skill) ?? 0)
     if (frozen && basis.evaluator !== 'human') continue // 争议后的事件暂停计入……

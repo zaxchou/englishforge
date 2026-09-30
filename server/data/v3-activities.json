@@ -198,7 +198,9 @@
    },
    "responseKind": "text",
    "simulatesAudio": true,
-   "prompt": "（开发 fixture：正式版须自然讲者录音+校对，见 18 §2；现在以文字模拟“首次听”，测试方不得向被试展示脚本。）\n\n任务：听一段校园图书馆 AI 工具的介绍（首听无字幕），然后回答：讲者最终的评价是什么？最初为何觉得有用？结论是“不能用 AI 找文章”吗？",
+   "audioRef": "aud_d2_library_v1",
+   "sourceDoc": "18 §2",
+   "prompt": "（合成音频 synthetic：Windows SAPI 合成语音的受控练习音频；正式自然讲者录音仍待制作，见 18 §2 制作注。首听不显示脚本。）\n\n任务：点播放听一段校园图书馆 AI 工具的介绍（首听无字幕），然后回答：讲者最终的评价是什么？最初为何觉得有用？结论是“不能用 AI 找文章”吗？",
    "hints": [
     "先抓主张，再找 but 之后保留了什么限制。"
    ],
@@ -317,8 +319,10 @@
    },
    "responseKind": "text",
    "simulatesAudio": true,
+   "audioRef": "aud_d2_library_v1",
    "transcriptShownByDefault": true,
-   "prompt": "（开发 fixture：本轮已展示校对稿，表现记入“文字理解”，不升级听力。）\n\n校对稿：In a campus library, our class tested an AI assistant that suggests articles for design projects. At first, the suggestions looked useful because the assistant found papers on the topics we entered. But when we checked the sources, several summaries missed important limits in the original papers. So our conclusion was narrower than we expected: the tool can help us find papers worth reading, but we still need to read each source before using it to support a design decision.\n\n请再回答一次：最终评价是什么？保留了什么限制？",
+   "sourceDoc": "18 §2",
+   "prompt": "（合成音频 + 校对稿：本轮已展示校对稿，表现记入“文字理解”，不升级听力。音频为 synthetic 受控练习音频。）\n\n校对稿：In a campus library, our class tested an AI assistant that suggests articles for design projects. At first, the suggestions looked useful because the assistant found papers on the topics we entered. But when we checked the sources, several summaries missed important limits in the original papers. So our conclusion was narrower than we expected: the tool can help us find papers worth reading, but we still need to read each source before using it to support a design decision.\n\n请再回答一次：最终评价是什么？保留了什么限制？",
    "hints": [],
    "conditionsSpec": [
     "firstExposure",
@@ -763,10 +767,12 @@
    },
    "responseKind": "text",
    "simulatesAudio": true,
+   "audioRef": "aud_l2_museum_v1",
+   "sourceDoc": "18 §5",
    "servesStrategies": [
     "sound_segmentation"
    ],
-   "prompt": "（开发 fixture：正式版须自然讲者录音+校对，见 18 §5；现在以文字模拟“首次听”。）\n\n第一次听，只回答一个问题：地图失灵了吗，还是团队对人们需求的假设不完整？\n\nWe made a map that tells visitors which rooms in the museum are busy. We expected people to choose a quieter route. In fact, some visitors walked toward the crowded rooms because they thought something interesting was happening there. The map was working as designed, but our assumption about what visitors wanted was incomplete.",
+   "prompt": "（合成音频 synthetic：Windows SAPI 合成语音的受控练习音频；正式自然讲者录音仍待制作，见 18 §5。首听不显示脚本。）\n\n点播放听一遍（脚本不出现在页面上），只回答一个问题：地图失灵了吗，还是团队对人们需求的假设不完整？",
    "hints": [
     "先抓主张：地图有没有坏？",
     "in fact 前后是“预期/实际”两半。"
@@ -858,8 +864,10 @@
    },
    "responseKind": "text",
    "simulatesAudio": true,
+   "audioRef": "aud_l2_museum_v1",
    "transcriptShownByDefault": true,
-   "prompt": "（开发 fixture：本轮已展示校对稿，表现记入“文字理解”，不升级听力。）\n\n校对稿：We made a map that tells visitors which rooms in the museum are busy. We expected people to choose a quieter route. In fact, some visitors walked toward the crowded rooms because they thought something interesting was happening there. The map was working as designed, but our assumption about what visitors wanted was incomplete. Next month, we will ask visitors why they chose a route before we change the design.\n\n请定位：that tells visitors… 修饰什么？because… 解释谁的动机？but 对照哪两件事？然后用英文向项目成员提出一个下一步问题。",
+   "sourceDoc": "18 §5",
+   "prompt": "（合成音频 + 校对稿：本轮已展示校对稿，表现记入“文字理解”，不升级听力。音频为 synthetic 受控练习音频。）\n\n校对稿：We made a map that tells visitors which rooms in the museum are busy. We expected people to choose a quieter route. In fact, some visitors walked toward the crowded rooms because they thought something interesting was happening there. The map was working as designed, but our assumption about what visitors wanted was incomplete. Next month, we will ask visitors why they chose a route before we change the design.\n\n请定位：that tells visitors… 修饰什么？because… 解释谁的动机？but 对照哪两件事？然后用英文向项目成员提出一个下一步问题。",
    "hints": [],
    "conditionsSpec": [
     "firstExposure",
@@ -1563,6 +1571,52 @@
       ]
      }
     ],
+    "mustNotNegationGuard": true
+   }
+  },
+  {
+   "activityId": "sim_audio_noaudio_fixture",
+   "version": 1,
+   "role": "practice",
+   "taskFamilyId": "text_sim_audio_fixture",
+   "objectiveIds": [
+    "O-K184-02"
+   ],
+   "skillByObjective": {
+    "O-K184-02": "listening"
+   },
+   "responseKind": "text",
+   "simulatesAudio": true,
+   "sourceDoc": "F1 回归夹具：有 simulatesAudio 但无 audioRef——证明无音频文字模拟不产生听力证据",
+   "prompt": "（开发 fixture：文字模拟音频且无音频资产。听力证据必须被重定向为 reading——这是 F1 的回归锚点。）\n\nThe demo looked perfect, but the app crashed at school. 问：but 之后说了什么？",
+   "hints": [],
+   "conditionsSpec": [
+    "firstExposure",
+    "transcriptShown",
+    "playCount",
+    "responseMode"
+   ],
+   "evaluationContract": {
+    "dimensions": [
+     "转折后半"
+    ],
+    "relations": [
+     {
+      "id": "crash",
+      "label": "学校环境会崩",
+      "anyOf": [
+       "crash",
+       "崩",
+       "school",
+       "学校"
+      ],
+      "required": true,
+      "objectiveIds": [
+       "O-K184-02"
+      ]
+     }
+    ],
+    "mustNot": [],
     "mustNotNegationGuard": true
    }
   }

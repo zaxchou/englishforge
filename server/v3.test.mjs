@@ -292,12 +292,13 @@ describe('W2/T2 三种画像 → 三种后继', () => {
     const { session } = await runDiagnostic(id, { D1: ANSWERS.rich_d1, D2: ANSWERS.pass_d2, D3: ANSWERS.pass_d3 }, 'rq-p1')
     expect(session.tentative.route).toBe('challenge_first')
     const plan = (await call(`/api/v1/accounts/${id}/plan`)).json.decision
-    // F1/21§1 新语义：D1 不含对象定位题 → O-K115-01 unmeasured → 诚实的下一步是 L1 关系课
-    expect(plan.primaryGoal).toBe('O-K115-01')
-    expect(plan.strategyId).toBe('short_explain')
-    expect(plan.lesson.lessonId).toBe('les-relations-v1')
-    expect(plan.reason).toBeTruthy()
-    // 逐目标结果：D1 不再给 O-K115-01/02 搭车认证（unmeasured）
+    // 21 §6.1 新语义：D2 带合成音频 → O-K184-02 听力证据真实成立 → O-K184-03 前置满足 → 挑战先行。
+    // O-K115-01/02 仍是 unmeasured（D1 没问 which），留在候选里不丢（F4：未问的目标没有成绩）
+    expect(plan.primaryGoal).toBe('O-K184-03')
+    expect(plan.strategyId).toBe('challenge_first')
+    expect(plan.reason).toContain('挑战先行')
+    expect(plan.lesson.lessonId).toBeNull() // O-K184-03 暂无已发布课：无内容时诚实说明，不默默推原课
+    // 逐目标结果：D1 不给 O-K115-01/02 搭车认证（unmeasured）
     const d1 = (await call(`/api/v1/accounts/${id}/evidence?objective=O-K115-02`)).json
     expect(d1.states.length).toBe(0) // 未问的目标没有成绩
     const dropped = plan.notChosen.find((n) => n.objectiveId === 'O-K190-01')
@@ -607,14 +608,14 @@ describe('W2/附加 幂等与诚实状态', () => {
     expect(resurrect).toContain('LESSON_WITHDRAWN_TERMINAL')
   })
 
-  it('challenge_first / short_repair 只有验收活动时如实标 fixture_dev_only；人审签署走 mainline', async () => {
+  it('挑战被前置挡住 → 回落到证据候选的课并如实标 devSample；人审签署走 mainline', async () => {
     const id = await mkAccount('W3-fixture')
-    await runDiagnostic(id, { D1: ANSWERS.rich_d1, D2: ANSWERS.pass_d2, D3: ANSWERS.pass_d3 }, 'rq-fx')
+    // D2 失败：O-K184-02 听力证据未就绪 → O-K184-03 前置被挡 → 回落到听力修复支线（21 §6.1 后的真实回落画像）
+    await runDiagnostic(id, { D1: ANSWERS.rich_d1, D2: ANSWERS.fail_d2, D3: ANSWERS.pass_d3 }, 'rq-fx')
     const plan = (await call(`/api/v1/accounts/${id}/plan`)).json.decision
-    // F1 新语义：诊断路线目标 O-K184-03 不再 eligible → 回落到最新证据的候选
-    expect(plan.primaryGoal).toBe('O-K115-01')
-    expect(plan.strategyId).toBe('short_explain')
-    expect(plan.lesson.lessonId).toBe('les-relations-v1')
+    expect(plan.primaryGoal).toBe('O-K007-02')
+    expect(plan.strategyId).toBe('sound_segmentation')
+    expect(plan.lesson.lessonId).toBe('les-listening-v1')
     expect(plan.lesson.devSample).toBe(true)
     // 签署路径：pending → signed（mainline）；机器不能代签
     expect((await call('/api/v1/lessons/les-oral-v1/sign', { note: 'x' }, 'POST')).status).toBe(400) // 无 reviewer
@@ -957,16 +958,78 @@ describe('W6/T9 试学工具包', () => {
 // ==================================================================
 // 复审 20 号报告 F1–F8 失败路径回归（每条对应报告 §3 的复现）
 // ==================================================================
+describe('C2 课程音频（21 §6.1/§6.2）', () => {
+  it('清单与 WAV 一致且可分发：sha256 四关、synthetic 标注全程、逐段意义依据齐、转写不随音频下发', async () => {
+    await call('/api/v1/map')
+    const { readFileSync } = await import('node:fs')
+    const { dirname, join } = await import('node:path')
+    const { fileURLToPath } = await import('node:url')
+    const audio = await import('./v3audio.mjs')
+    const mf = audio.loadAudioManifest()
+    expect(mf.assets.length).toBeGreaterThanOrEqual(2)
+    const assetDir = join(dirname(fileURLToPath(import.meta.url)), 'assets', 'audio')
+    for (const entry of mf.assets) {
+      expect(entry.kind).toBe('lesson_audio')
+      expect(entry.sourceType).toBe('synthetic')
+      expect(entry.licenseStatus).toBe('confirmed')
+      expect(entry.durationMs).toBeGreaterThan(10_000) // 真实时长（WAV 头解析），不是 HTTP 200
+      expect(entry.segments.length).toBeGreaterThanOrEqual(4)
+      for (const seg of entry.segments) expect(seg.meaningBasis.length).toBeGreaterThan(5) // 21 §6.1 逐段意义依据
+      // 完整性四关：真文件过；坏哈希/坏许可/空字节各归各的失败
+      const buf = readFileSync(join(assetDir, entry.mediaId + '.wav'))
+      expect(audio.verifyAudioEntry(entry, buf)).toBe('ok')
+      expect(audio.verifyAudioEntry({ ...entry, sha256: 'deadbeef' }, buf)).toBe('hash_mismatch')
+      expect(audio.verifyAudioEntry({ ...entry, licenseStatus: 'unverified' }, buf)).toBe('unlicensed')
+      expect(audio.verifyAudioEntry(entry, Buffer.alloc(0))).toBe('empty')
+    }
+    // 清单绑定的每个活动都真实存在且声明了对应 audioRef
+    const acts = (await import('./data/v3-activities.json')).default.activities
+    const byId = new Map(acts.map((a) => [a.activityId, a]))
+    for (const entry of mf.assets) {
+      for (const aid of entry.activityIds) expect(byId.get(aid)?.audioRef).toBe(entry.mediaId)
+    }
+    expect(byId.get('diag_d2_listen_sim').audioRef).toBeTruthy()
+    expect(byId.get('sim_audio_noaudio_fixture').audioRef).toBeUndefined() // F1 夹具：无音频文字模拟仍在
+    // 分发路由：synthetic 标注到响应；转写不随音频下发（首听隐藏）；未知 id 404
+    const r = await call('/api/v1/media/aud_d2_library_v1')
+    expect(r.status).toBe(200)
+    expect(r.json.synthetic).toBe(true)
+    expect(r.json.speakerLabel).toContain('synthetic')
+    expect(r.json.transcript).toBeUndefined()
+    expect(Buffer.from(r.json.audioBase64, 'base64').length).toBeGreaterThan(100_000)
+    expect((await call('/api/v1/media/aud_nope')).status).toBe(404)
+    // 真实账户取 L2 课包：活动带 audio 描述（synthetic 声源标注透传到前端）
+    const acc = await mkAccount('C2-音频')
+    const pkg = (await call(`/api/v1/accounts/${acc}/lessons/les-listening-v1`)).json
+    const l2 = pkg.activities.find((a) => a.activityId === 'les_l2_museum_map_audio')
+    expect(l2.audio.synthetic).toBe(true)
+    expect(l2.audio.mediaId).toBe('aud_l2_museum_v1')
+    expect(l2.fixtureNotice).toBeNull() // 有音频的活动不再是"文字模拟"fixture
+  })
+})
+
 describe('复审回归 F1–F8', () => {
-  it('F1：文字模拟音频不改听力（证据归 reading）；无录音不产生口语证据', async () => {
+  it('F1：无音频的文字模拟不改听力（证据归 reading）；合成音频的听力证据成立且标注 synthetic；无录音不产生口语证据', async () => {
     const id = await mkAccount('F1-模态')
-    await runDiagnostic(id, { D1: ANSWERS.rich_d1, D2: ANSWERS.pass_d2, D3: ANSWERS.pass_d3 }, 'rq-f1')
-    // D2 是 simulatesAudio 的文字活动：O-K184-01 只有 reading 证据，listening 保持无状态
-    const ev = (await call(`/api/v1/accounts/${id}/evidence?objective=O-K184-01`)).json
+    // 夹具：simulatesAudio 但**无 audioRef**——听力证据必须重定向 reading（F1 锚点）
+    const noaudio = await call(`/api/v1/accounts/${id}/attempts`, {
+      attemptId: 'f1-noaudio', activityId: 'sim_audio_noaudio_fixture',
+      response: { kind: 'text', text: 'it crashed at school，学校里直接崩了' },
+      conditions: { firstExposure: true, hintLevel: 0, transcriptShown: true, playCount: 1, lookupUsed: false, responseMode: 'typed_summary' },
+    }, 'POST')
+    expect(noaudio.status).toBe(200)
+    expect(noaudio.json.pass).toBe(true)
+    let ev = (await call(`/api/v1/accounts/${id}/evidence?objective=O-K184-02`)).json
     expect(ev.states.some((st) => st.skill === 'listening')).toBe(false)
     expect(ev.states.some((st) => st.skill === 'reading' && ['trained', 'tentative'].includes(st.state))).toBe(true)
-    const ev7 = (await call(`/api/v1/accounts/${id}/evidence?objective=O-K007-02`)).json
-    expect(ev7.states.some((st) => st.skill === 'listening')).toBe(false)
+    const redirected = ev.recentEvents.find((e) => e.basis?.textSimAudioRedirected)
+    expect(redirected).toBeTruthy()
+    // 诊断 D2 现在**带合成音频**（21 §6.2）：听力证据成立，事件标注 audio:'synthetic' 可追溯
+    await runDiagnostic(id, { D1: ANSWERS.rich_d1, D2: ANSWERS.pass_d2, D3: ANSWERS.pass_d3 }, 'rq-f1')
+    ev = (await call(`/api/v1/accounts/${id}/evidence?objective=O-K184-01`)).json
+    expect(ev.states.some((st) => st.skill === 'listening' && ['trained', 'tentative'].includes(st.state))).toBe(true)
+    const syntheticEv = ev.recentEvents.find((e) => e.basis?.audio === 'synthetic')
+    expect(syntheticEv).toBeTruthy()
     // F5 交叉：文字作答声明 oral_recording 但没带录音 → 拒绝
     expect((await call(`/api/v1/accounts/${id}/attempts`, {
       attemptId: 'f1-oral-nomedia', activityId: 'les_l3_oral_recap',
