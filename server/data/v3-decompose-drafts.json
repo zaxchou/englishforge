@@ -1777,51 +1777,6 @@
     }
    ]
   },
-  "U16": {
-   "model": "deepseek",
-   "generatedAt": "2026-09-30T14:47:21.925Z",
-   "groups": [
-    {
-     "groupId": "K048",
-     "drafts": [
-      {
-       "name": "完成时与过去时对比选择",
-       "behavior": "学习者在 6 组句子中，能根据是否含已结束过去时间（如 yesterday、last year、in 2019），选择现在完成时或一般过去时填空，并说明选择依据。",
-       "boundary": "只判时态选择与已结束过去时间标记的对应关系；若句子无时间状语且两种时态均可接受，不纳入本目标；不判说明的语言质量。",
-       "prerequisiteHints": [
-        "一般过去时形式",
-        "现在完成时与已结束过去时间不兼容"
-       ],
-       "taskFamily": "选择/改错",
-       "skill": "writing"
-      },
-      {
-       "name": "经历叙述中的时态切换",
-       "behavior": "学习者在口头或书面叙述一次已结束的过去经历时，能先用现在完成时引出话题（如“I have been to...”），再用一般过去时补充具体已结束细节（如“I went there in 2022.”）。",
-       "boundary": "只判完成时引出与过去时细节的切换是否恰当；若全篇只用一种时态且无已结束时间，不判为达标；不判叙事内容长度。",
-       "prerequisiteHints": [
-        "现在完成时表经历",
-        "一般过去时表已结束动作",
-        "时间状语位置"
-       ],
-       "taskFamily": "叙述/短文",
-       "skill": "speaking"
-      },
-      {
-       "name": "已结束时间标记识别",
-       "behavior": "学习者在 8 个句子中，能标出含有已结束过去时间标记的句子，并判断该句不能用现在完成时，如“I have seen him yesterday.”为错误。",
-       "boundary": "只判对已结束过去时间与现在完成时冲突的识别；若时间标记为模糊时间（如 recently、lately），不纳入；不要求改正所有错误。",
-       "prerequisiteHints": [
-        "yesterday/last/in 2019 等标记",
-        "现在完成时使用限制"
-       ],
-       "taskFamily": "识别/判断",
-       "skill": "reading"
-      }
-     ]
-    }
-   ]
-  },
   "U17": {
    "model": "deepseek",
    "generatedAt": "2026-09-30T14:47:28.916Z",
@@ -2067,41 +2022,6 @@
        ],
        "taskFamily": "听读功能标注",
        "skill": "reading"
-      }
-     ]
-    }
-   ]
-  },
-  "U19": {
-   "model": "deepseek",
-   "generatedAt": "2026-09-30T14:47:42.562Z",
-   "groups": [
-    {
-     "groupId": "K055-K057综合出口",
-     "drafts": [
-      {
-       "name": "在义务/建议/能力混合情境中选择恰当情态表达",
-       "behavior": "学习者能在给定含能力、义务、建议、禁止、无需等混合情境的短文中，从can/be able to、must/have to/need、should/ought to/had better中选择正确形式填空，正确率不低于80%。",
-       "boundary": "只判三组情态表达在能力、义务、建议、禁止、无需五类功能上的选择；不判推测用法；不判完成体；不判语篇衔接与修辞。",
-       "prerequisiteHints": [
-        "K055 can与be able to",
-        "K056 must/have to/need及否定",
-        "K057 should/ought to/had better"
-       ],
-       "taskFamily": "综合选词填空/功能判断",
-       "skill": "reading"
-      },
-      {
-       "name": "用情态表达完成单元出口任务：分清不能、无需、必须和最好",
-       "behavior": "学习者能在模拟职场或生活场景中，针对给定任务清单，口头或书面产出至少5句话，分别表达不能、无需、必须和最好，且情态动词选择正确、功能标签清晰，错误不超过2处。",
-       "boundary": "只判不能/无需/必须/最好四类功能的表达与情态选择；不判推测、许可、请求等语用功能；不判发音与流利度（口头任务中）；不判篇章组织。",
-       "prerequisiteHints": [
-        "K055 can与be able to",
-        "K056 must/have to/need及否定",
-        "K057 should/ought to/had better"
-       ],
-       "taskFamily": "情境任务清单/功能表达",
-       "skill": "interaction"
       }
      ]
     }
@@ -3066,49 +2986,6 @@
        ],
        "taskFamily": "受控填空",
        "skill": "writing"
-      }
-     ]
-    }
-   ]
-  },
-  "U28": {
-   "model": "deepseek",
-   "generatedAt": "2026-09-30T14:48:58.508Z",
-   "groups": [
-    {
-     "groupId": "K084",
-     "drafts": [
-      {
-       "name": "识别感官使役裸不定式结构",
-       "behavior": "学习者能在听力材料中听辨出 see/hear/make/let 后接裸不定式的句子，并写出其中动词原形，正确率不低于 80%。",
-       "boundary": "仅限主动语态下的感官与使役动词；不适用于被动语态或带 to 不定式的结构。",
-       "prerequisiteHints": [
-        "K081 不定式带 to 与不带 to 的形式"
-       ],
-       "taskFamily": "听辨与记录",
-       "skill": "listening"
-      },
-      {
-       "name": "将感官使役主动句转换为被动句",
-       "behavior": "学习者能在书面练习中，将含 see/hear/make 的主动句转换为被动句，并正确保留裸不定式或补 to，10 题中至少答对 8 题。",
-       "boundary": "仅限 see/hear/make 三个动词；不适用于 let 的被动转换，也不评判时态一致性。",
-       "prerequisiteHints": [
-        "K084 感官使役裸不定式识别",
-        "K078 被动语态基础"
-       ],
-       "taskFamily": "句型转换",
-       "skill": "writing"
-      },
-      {
-       "name": "用感官使役结构描述事件",
-       "behavior": "学习者能在口语中，用 see/hear/make/let + 宾语 + 裸不定式描述至少三个目击或使役事件，且动词形式正确。",
-       "boundary": "仅限主动语态和简单宾语；不要求使用完成时或进行时，也不评判叙述连贯性。",
-       "prerequisiteHints": [
-        "K084 感官使役裸不定式识别",
-        "K075 简单句口语表达"
-       ],
-       "taskFamily": "情境描述",
-       "skill": "speaking"
       }
      ]
     }
@@ -4726,6 +4603,3910 @@
        ],
        "taskFamily": "书面表达",
        "skill": "writing"
+      }
+     ]
+    }
+   ]
+  },
+  "U45": {
+   "model": "deepseek",
+   "generatedAt": "2026-09-30T14:50:46.025Z",
+   "groups": [
+    {
+     "groupId": "K133",
+     "drafts": [
+      {
+       "name": "用although/though承认对立事实并保留主句结论",
+       "behavior": "学习者在口头或书面回应质疑时，能使用although/though引导的让步从句承认一个与主句结论对立的已知事实，并保持主句结论不变，如'Although the data is limited, we still recommend the plan.'",
+       "boundary": "判分仅看让步关系是否成立、主句结论是否保留；不适用于表达假设性让步（该用even if）或名词短语让步（该用despite）；though置于句末作副词不在此目标内。",
+       "prerequisiteHints": [
+        "能识别主句与从句的对比关系",
+        "能使用一般现在时/一般过去时陈述事实"
+       ],
+       "taskFamily": "回应质疑并保留适用条件",
+       "skill": "speaking"
+      },
+      {
+       "name": "用though在非正式回应中软化反驳",
+       "behavior": "学习者在即时对话中回应他人质疑时，能使用though引导的让步从句（含置于句末的though）先承认对方部分合理性，再给出自己的保留意见，如'It's expensive. It's worth it, though.'",
+       "boundary": "判分仅看though是否承担让步/软化功能且语义可理解；不要求区分although与though的正式度差异；不适用于书面学术语域中必须用although的严格场景。",
+       "prerequisiteHints": [
+        "能进行简单观点表达",
+        "能理解对话中的转折信号"
+       ],
+       "taskFamily": "回应质疑并保留适用条件",
+       "skill": "interaction"
+      },
+      {
+       "name": "区分although与though在句首的语域选择",
+       "behavior": "学习者在书面回应质疑时，能根据语域要求选择although或though置于句首，并写出语法完整的让步从句，如'Although/Though the sample is small, the trend is clear.'",
+       "boundary": "判分仅看句首位置的选择是否与给定语域匹配、从句结构是否完整；不涉及even though的强调用法；不要求解释语法规则。",
+       "prerequisiteHints": [
+        "能写出包含主从复合句的简单段落",
+        "能识别正式与非正式语域的基本差异"
+       ],
+       "taskFamily": "回应质疑并保留适用条件",
+       "skill": "writing"
+      }
+     ]
+    },
+    {
+     "groupId": "K134",
+     "drafts": [
+      {
+       "name": "用even if提出假设性让步并保留主句结论",
+       "behavior": "学习者在回应质疑时，能使用even if引导一个假设性或极端条件的让步从句，表明即使该条件成立，主句结论仍然不变，如'Even if we double the budget, the deadline won't change.'",
+       "boundary": "判分仅看even if是否表达假设/极端条件且主句结论保留；不适用于陈述已知事实的让步（该用although/though）；不要求区分even if与even though的细微语义差异。",
+       "prerequisiteHints": [
+        "能使用if引导条件句",
+        "能区分事实与假设的基本语义"
+       ],
+       "taskFamily": "回应质疑并保留适用条件",
+       "skill": "speaking"
+      },
+      {
+       "name": "在书面论证中用even if预设反驳并守住结论",
+       "behavior": "学习者在书面回应质疑时，能写出包含even if让步从句的复合句，先预设一个可能削弱结论的条件，再明确主句结论不受该条件影响，如'Even if the survey has bias, the core finding remains valid.'",
+       "boundary": "判分仅看even if从句是否表达假设性让步、主句是否保留结论；不适用于事实性让步；不要求使用虚拟语气。",
+       "prerequisiteHints": [
+        "能写出因果或条件关系的复合句",
+        "能识别论证中的反驳点"
+       ],
+       "taskFamily": "回应质疑并保留适用条件",
+       "skill": "writing"
+      },
+      {
+       "name": "听辨even if与even though的让步类型",
+       "behavior": "学习者在听一段包含让步表达的短对话时，能判断说话人使用的是even if（假设）还是even though（事实），并指出判断依据，如'Even if it rains...' vs 'Even though it rained...'",
+       "boundary": "判分仅看能否正确区分假设与事实两类让步并给出时态/语境依据；不要求复述整段对话；不涉及其他让步形式。",
+       "prerequisiteHints": [
+        "能听懂一般现在时与一般过去时的基本区别",
+        "能识别条件与事实的语义差异"
+       ],
+       "taskFamily": "回应质疑并保留适用条件",
+       "skill": "listening"
+      }
+     ]
+    },
+    {
+     "groupId": "K135",
+     "drafts": [
+      {
+       "name": "用despite加名词短语前置让步并保留主句结论",
+       "behavior": "学习者在回应质疑时，能在句首使用despite加名词短语或动名词短语作让步状语，承认不利因素后仍保留主句结论，如'Despite the limited sample, the pattern is consistent.'",
+       "boundary": "判分仅看despite后是否接名词/动名词短语、让步关系是否成立、主句结论是否保留；不适用于despite后接完整从句（该用although/though）；不涉及in spite of的替换。",
+       "prerequisiteHints": [
+        "能识别名词短语与从句的结构差异",
+        "能使用介词短语作状语"
+       ],
+       "taskFamily": "回应质疑并保留适用条件",
+       "skill": "writing"
+      },
+      {
+       "name": "在口语回应中用despite前置让步争取说服力",
+       "behavior": "学习者在口头回应质疑时，能使用despite加名词短语的让步前置结构，先承认对方指出的困难，再重申自己的立场，如'Despite the cost, we should proceed.'",
+       "boundary": "判分仅看despite结构是否语法正确、让步与主句结论是否清晰；不要求使用复杂名词短语；不适用于后置让步或从句让步。",
+       "prerequisiteHints": [
+        "能进行简单立场表达",
+        "能使用介词短语描述条件或困难"
+       ],
+       "taskFamily": "回应质疑并保留适用条件",
+       "skill": "speaking"
+      },
+      {
+       "name": "识别despite前置让步中的主句结论",
+       "behavior": "学习者在阅读一段包含despite前置让步的短论证时，能准确找出主句结论并判断让步成分所承认的不利条件，如区分'Despite the criticism, the policy works.'中的让步与结论。",
+       "boundary": "判分仅看能否正确标注让步成分与主句结论；不要求分析其他让步形式；不涉及despite与although的转换。",
+       "prerequisiteHints": [
+        "能识别句子主干与修饰成分",
+        "能理解让步与转折的基本语义"
+       ],
+       "taskFamily": "回应质疑并保留适用条件",
+       "skill": "reading"
+      }
+     ]
+    }
+   ]
+  },
+  "U46": {
+   "model": "deepseek",
+   "generatedAt": "2026-09-30T14:50:52.088Z",
+   "groups": [
+    {
+     "groupId": "K136",
+     "drafts": [
+      {
+       "name": "识别as/like/as if的类比与方式用法",
+       "behavior": "学习者能在听或读一段关于交互方式的短文时，圈出as、like、as if出现的句子，并标注该处表达的是类比、方式还是虚拟比较。",
+       "boundary": "仅判定as/like/as if在给定句中的功能类别，不要求解释其他连词；若句子含省略或倒装导致歧义，不计入判分。",
+       "prerequisiteHints": [
+        "能识别基本从句结构",
+        "能区分名词短语与从句"
+       ],
+       "taskFamily": "识别与标注",
+       "skill": "reading"
+      },
+      {
+       "name": "用as/like/as if限制类比并对比交互方式",
+       "behavior": "学习者能在口头对比两种交互方式时，使用as/like/as if各至少一次来限制类比范围，并说明该类比在哪些方面不成立。",
+       "boundary": "只评估目标结构使用是否恰当及类比限制是否明确，不评估发音或流利度；若类比未加限制或结构误用，该条不计分。",
+       "prerequisiteHints": [
+        "能使用简单比较结构",
+        "能表达相似与差异"
+       ],
+       "taskFamily": "口头对比与限制",
+       "skill": "speaking"
+      },
+      {
+       "name": "在写作中用as if表达非真实交互场景",
+       "behavior": "学习者能在写一段假设性交互场景时，用as if引导从句描述与事实相反或不确定的交互方式，并保持主句与从句时态一致。",
+       "boundary": "只判as if从句的时态与语义是否匹配非真实或不确定场景，不判其他语法错误；若as if被用作事实性方式状语，不计入该目标。",
+       "prerequisiteHints": [
+        "能使用虚拟语气基本形式",
+        "能区分事实与非事实"
+       ],
+       "taskFamily": "限定写作",
+       "skill": "writing"
+      }
+     ]
+    },
+    {
+     "groupId": "K137",
+     "drafts": [
+      {
+       "name": "识别whereas/while的对照功能",
+       "behavior": "学习者能在阅读交互方式对比文本时，标出whereas或while连接的对照分句，并指出两个分句之间的对比维度。",
+       "boundary": "只判定whereas/while是否表达对照而非时间同时，不要求区分二者语体差异；若while表时间同时，不计入对照判分。",
+       "prerequisiteHints": [
+        "能识别并列与从属结构",
+        "能提取对比维度"
+       ],
+       "taskFamily": "识别与标注",
+       "skill": "reading"
+      },
+      {
+       "name": "用whereas/while口头对比交互方式",
+       "behavior": "学习者能在小组讨论中，用whereas或while说出至少两个交互方式的对照句，并确保对照双方在语义上形成有效对比。",
+       "boundary": "只评估对照结构与对比有效性，不评估互动中的回应策略；若对照双方不构成可比维度，该句不计分。",
+       "prerequisiteHints": [
+        "能使用简单对比连接词",
+        "能保持句间逻辑一致"
+       ],
+       "taskFamily": "口头对照",
+       "skill": "interaction"
+      },
+      {
+       "name": "在写作中用whereas/while组织对照段落",
+       "behavior": "学习者能在写一段交互方式对比时，用whereas或while连接至少两组对照句，并保持标点与分句边界正确。",
+       "boundary": "只判对照连接与分句边界，不判段落整体连贯性；若whereas/while被误用为因果或递进，不计入该目标。",
+       "prerequisiteHints": [
+        "能写复合句",
+        "能使用逗号分隔分句"
+       ],
+       "taskFamily": "限定写作",
+       "skill": "writing"
+      }
+     ]
+    },
+    {
+     "groupId": "K138",
+     "drafts": [
+      {
+       "name": "识别the more…the more的比例结构",
+       "behavior": "学习者能在听或读关于交互方式变化的材料时，识别the more…the more结构，并写出两个变量之间的比例关系。",
+       "boundary": "只判定比例关系是否被正确提取，不要求解释其他比较结构；若结构不完整或变量缺失，不计入判分。",
+       "prerequisiteHints": [
+        "能识别比较级",
+        "能提取变量关系"
+       ],
+       "taskFamily": "识别与提取",
+       "skill": "listening"
+      },
+      {
+       "name": "用the more…the more口头描述交互变化",
+       "behavior": "学习者能在描述两种交互方式随条件变化时，用the more…the more说出至少一个完整比例句，并说明两个变量如何同步变化。",
+       "boundary": "只评估比例结构与变量对应，不评估语音语调；若两个比较级未形成比例对应，该句不计分。",
+       "prerequisiteHints": [
+        "能使用比较级",
+        "能表达同步变化"
+       ],
+       "taskFamily": "口头描述",
+       "skill": "speaking"
+      },
+      {
+       "name": "在写作中用the more…the more限制类比范围",
+       "behavior": "学习者能在写交互方式对比时，用the more…the more结构表达一个条件性比例，并说明该比例在什么范围内成立。",
+       "boundary": "只判比例结构及范围限制是否明确，不判其他句式多样性；若比例被表述为绝对因果，不计入该目标。",
+       "prerequisiteHints": [
+        "能写条件句",
+        "能使用比较级"
+       ],
+       "taskFamily": "限定写作",
+       "skill": "writing"
+      }
+     ]
+    }
+   ]
+  },
+  "U47": {
+   "model": "deepseek",
+   "generatedAt": "2026-09-30T14:50:58.342Z",
+   "groups": [
+    {
+     "groupId": "K139",
+     "drafts": [
+      {
+       "name": "用比较级和最高级陈述方案差异",
+       "behavior": "学习者能在给定2-4个方案及统一比较标准的条件下，口头或书面产出至少3句含比较级或最高级的陈述，正确标示各方案在标准上的相对位置。",
+       "boundary": "只判比较级/最高级形式是否正确及是否对应给定标准；不判论证是否充分、不判是否说服听者、不涉及省略结构。",
+       "prerequisiteHints": [
+        "形容词副词比较级最高级形式",
+        "比较对象同类性"
+       ],
+       "taskFamily": "按标准比较方案",
+       "skill": "speaking"
+      },
+      {
+       "name": "用程度修饰语限定比较结论",
+       "behavior": "学习者能在给定比较标准与方案数据的条件下，写出含much/far/slightly等程度修饰语的比较句，使结论强度与数据差距一致。",
+       "boundary": "只判修饰语与差距是否匹配、比较结构是否完整；不判数据解释是否唯一、不判最高级与比较级混用之外的句法错误。",
+       "prerequisiteHints": [
+        "比较级形式",
+        "程度副词与比较级搭配"
+       ],
+       "taskFamily": "按标准比较方案",
+       "skill": "writing"
+      },
+      {
+       "name": "识别最高级断言的范围限制",
+       "behavior": "学习者能在阅读含最高级断言的方案说明时，标出该断言适用的范围限定语（如in this group/among the three），并判断无范围限定时是否可判为过度概括。",
+       "boundary": "只判能否定位范围限定与识别过度概括；不判是否同意该断言、不判比较级与最高级之间的改写。",
+       "prerequisiteHints": [
+        "最高级语义",
+        "限定范围表达"
+       ],
+       "taskFamily": "按标准比较方案",
+       "skill": "reading"
+      }
+     ]
+    },
+    {
+     "groupId": "K140",
+     "drafts": [
+      {
+       "name": "用as...as和than表达等量与差量比较",
+       "behavior": "学习者能在给定两组方案数据的条件下，产出含as...as、not as...as、more/less...than的句子，正确表达等量、不等量与差量关系。",
+       "boundary": "只判比较结构选择与数量关系是否一致；不判数据是否真实、不判省略与平行结构、不判比较级程度修饰。",
+       "prerequisiteHints": [
+        "比较级形式",
+        "as...as结构",
+        "than从句基本结构"
+       ],
+       "taskFamily": "按标准比较方案",
+       "skill": "writing"
+      },
+      {
+       "name": "用数量表达比较差距",
+       "behavior": "学习者能在给定可数/不可数数量数据的条件下，口头产出含twice as many/much as、three times more than、fewer/less than等数量比较的句子，正确匹配可数性。",
+       "boundary": "只判数量比较结构与可数性搭配是否正确；不判数值计算是否精确、不判省略平行、不判比较级程度修饰。",
+       "prerequisiteHints": [
+        "可数不可数名词",
+        "倍数表达",
+        "fewer/less区别"
+       ],
+       "taskFamily": "按标准比较方案",
+       "skill": "speaking"
+      },
+      {
+       "name": "听辨than比较中的关键数量信息",
+       "behavior": "学习者能在听一段含as...as与than数量比较的方案讨论时，记录被比较对象、比较维度与数量差距，并回答针对差距的提问。",
+       "boundary": "只判能否提取比较对象、维度与差距；不判是否复述全部细节、不判语法纠错、不判省略歧义消解。",
+       "prerequisiteHints": [
+        "数量比较表达",
+        "比较维度词汇"
+       ],
+       "taskFamily": "按标准比较方案",
+       "skill": "listening"
+      }
+     ]
+    },
+    {
+     "groupId": "K141",
+     "drafts": [
+      {
+       "name": "补全省略比较句的平行成分",
+       "behavior": "学习者能在给定含比较省略的句子时，写出补全后的完整比较结构，使被比较成分在语法与语义上平行。",
+       "boundary": "只判补全后平行性是否正确；不判原句是否自然、不判歧义是否唯一、不判比较级程度修饰。",
+       "prerequisiteHints": [
+        "比较结构",
+        "平行结构",
+        "省略现象"
+       ],
+       "taskFamily": "按标准比较方案",
+       "skill": "writing"
+      },
+      {
+       "name": "识别并消解比较歧义",
+       "behavior": "学习者能在阅读含歧义比较句的方案文本时，指出至少两种可能解读，并依据上下文选择最合理的一种且说明依据。",
+       "boundary": "只判能否列出歧义解读并给出上下文依据；不判所选解读是否与作者意图完全一致、不判语法术语使用。",
+       "prerequisiteHints": [
+        "比较省略",
+        "指代与上下文",
+        "平行结构"
+       ],
+       "taskFamily": "按标准比较方案",
+       "skill": "reading"
+      },
+      {
+       "name": "在互动中澄清比较所指",
+       "behavior": "学习者能在与同伴比较方案的口头互动中，针对对方含省略或歧义的比较表达提出澄清问题，并确认被比较对象与维度。",
+       "boundary": "只判能否提出有效澄清问题并确认比较对象与维度；不判语音语调、不判是否达成最终方案选择。",
+       "prerequisiteHints": [
+        "澄清问句",
+        "比较结构",
+        "省略现象"
+       ],
+       "taskFamily": "按标准比较方案",
+       "skill": "interaction"
+      }
+     ]
+    }
+   ]
+  },
+  "U48": {
+   "model": "deepseek",
+   "generatedAt": "2026-09-30T14:51:04.624Z",
+   "groups": [
+    {
+     "groupId": "K142",
+     "drafts": [
+      {
+       "name": "识别not all与all…not的命题差异",
+       "behavior": "学习者能在听或读一段含not all或all…not的陈述后，用中文或英文写出该句所表达的逻辑命题（部分否定/全部否定），并标出被否定的范围。",
+       "boundary": "仅判定命题范围是否写对；不要求解释语法术语，不适用于含多重否定或嵌套从句的复杂句。",
+       "prerequisiteHints": [
+        "all与not的基本词义",
+        "部分否定与全部否定的概念区分"
+       ],
+       "taskFamily": "comprehension-check",
+       "skill": "reading"
+      },
+      {
+       "name": "复述时保持否定范围不反转",
+       "behavior": "学习者能在听完一段含not all或all…not的短陈述后，用目标语口头复述，且复述中否定范围与原句一致，不把‘并非所有’说成‘所有都不’。",
+       "boundary": "以否定范围是否反转为判分点；允许词汇和句式简化，不适用于原句含歧义且说话人未澄清的情况。",
+       "prerequisiteHints": [
+        "not all与all…not的命题差异",
+        "基本复述策略"
+       ],
+       "taskFamily": "oral-retell",
+       "skill": "speaking"
+      },
+      {
+       "name": "书面改写保持逻辑等价",
+       "behavior": "学习者能将给定的not all句改写为all…not句（或反向），在改写后保持原命题真值条件不变，并说明改写后句子的否定范围。",
+       "boundary": "判分看真值条件是否等价；不要求风格优化，不适用于原句本身有歧义且无法确定唯一解读的情况。",
+       "prerequisiteHints": [
+        "not all与all…not的命题差异",
+        "否定范围标注"
+       ],
+       "taskFamily": "transformation",
+       "skill": "writing"
+      }
+     ]
+    },
+    {
+     "groupId": "K143",
+     "drafts": [
+      {
+       "name": "识别never/hardly的极性敏感语境",
+       "behavior": "学习者能在听或读含never或hardly的句子时，判断该句是否与后续的极性项（如any、ever、at all）搭配得当，并标出不当搭配。",
+       "boundary": "仅判定极性项搭配是否可接受；不要求解释极性理论，不适用于含隐喻或反讽的语境。",
+       "prerequisiteHints": [
+        "never与hardly的基本词义",
+        "极性项any/ever的基本用法"
+       ],
+       "taskFamily": "error-identification",
+       "skill": "reading"
+      },
+      {
+       "name": "复述中保持never/hardly的否定强度",
+       "behavior": "学习者能在听完一段含never或hardly的陈述后口头复述，且复述中不把never弱化为sometimes或把hardly强化为never。",
+       "boundary": "以否定强度是否偏移为判分点；允许同义替换，不适用于原句含模糊限制语且说话人意图不明的情况。",
+       "prerequisiteHints": [
+        "never与hardly的强度差异",
+        "否定强度保持策略"
+       ],
+       "taskFamily": "oral-retell",
+       "skill": "speaking"
+      },
+      {
+       "name": "书面回答中正确使用极性项",
+       "behavior": "学习者能在书面回答含never或hardly的问题时，使用恰当的极性项（如any、ever、at all）完成答句，且不出现极性项误用。",
+       "boundary": "判分看极性项是否与否定语境匹配；不要求句式复杂，不适用于需要多重否定或倒装结构的答句。",
+       "prerequisiteHints": [
+        "never/hardly的极性敏感语境",
+        "极性项any/ever的用法"
+       ],
+       "taskFamily": "short-answer",
+       "skill": "writing"
+      }
+     ]
+    },
+    {
+     "groupId": "K144",
+     "drafts": [
+      {
+       "name": "区分否定提升的两种解读",
+       "behavior": "学习者能在听或读含否定提升结构（如I don't think…）的句子后，写出该句的两种可能解读（否定提升解读与字面解读），并指出哪种更自然。",
+       "boundary": "仅判定两种解读是否写出且自然度判断合理；不要求理论解释，不适用于无歧义或语境已强制单一解读的句子。",
+       "prerequisiteHints": [
+        "否定提升的基本概念",
+        "think/believe等动词的否定提升用法"
+       ],
+       "taskFamily": "interpretation-check",
+       "skill": "reading"
+      },
+      {
+       "name": "复述时避免否定提升歧义反转",
+       "behavior": "学习者能在听完一段含否定提升的陈述后口头复述，且复述中保留原句的否定提升解读，不把‘我认为不’说成‘我不认为’。",
+       "boundary": "以否定提升解读是否保留为判分点；允许句式调整，不适用于原句本身有歧义且说话人未澄清的情况。",
+       "prerequisiteHints": [
+        "否定提升的两种解读",
+        "复述中保持解读的策略"
+       ],
+       "taskFamily": "oral-retell",
+       "skill": "speaking"
+      },
+      {
+       "name": "书面澄清否定提升歧义",
+       "behavior": "学习者能在书面任务中，针对含否定提升的歧义句写出两句澄清句，分别表达否定提升解读和字面解读，且两句逻辑清晰不混淆。",
+       "boundary": "判分看两句是否分别对应两种解读且不混淆；不要求语法术语，不适用于原句无歧义的情况。",
+       "prerequisiteHints": [
+        "否定提升的两种解读",
+        "澄清句的写作策略"
+       ],
+       "taskFamily": "clarification-writing",
+       "skill": "writing"
+      }
+     ]
+    }
+   ]
+  },
+  "U49": {
+   "model": "deepseek",
+   "generatedAt": "2026-09-30T14:51:11.429Z",
+   "groups": [
+    {
+     "groupId": "K145",
+     "drafts": [
+      {
+       "name": "识别问答背景中的新旧信息",
+       "behavior": "学习者能在听或读一段含问答背景的短对话后，指出哪些成分是已知旧信息、哪些是引入的新信息，并说明判断依据。",
+       "boundary": "仅评判对给定材料中信息状态的识别与标注；不要求学习者自行生成新句，也不评判其语法术语使用是否规范。",
+       "prerequisiteHints": [
+        "能理解基本主谓宾结构",
+        "能识别常见指代与定冠词用法"
+       ],
+       "taskFamily": "信息状态识别",
+       "skill": "reading"
+      },
+      {
+       "name": "按新旧信息调整同一事实的表述",
+       "behavior": "学习者能在给定同一事实和问答背景的条件下，口头或书面产出两个版本，使旧信息位于话题起点、新信息位于焦点位置，且两版事实内容一致。",
+       "boundary": "只评判信息新旧与句法位置的对应关系是否合理；不评判语音语调、不要求使用特定句式，也不适用于无问答背景的孤立句子改写。",
+       "prerequisiteHints": [
+        "能区分已知与未知信息",
+        "能使用基本从句或短语移位手段"
+       ],
+       "taskFamily": "信息重组表达",
+       "skill": "writing"
+      },
+      {
+       "name": "在互动中回应并突出新信息",
+       "behavior": "学习者能在两人问答互动中，针对对方问题用完整句回应，使答句的新信息落在句末或重读位置，并保持与问句背景衔接。",
+       "boundary": "仅评判答句中新信息的组织是否与问句背景匹配；不评判流利度、口音或话题延展能力，不适用于独白式长段落。",
+       "prerequisiteHints": [
+        "能听懂特殊疑问句",
+        "能产出基本完整句"
+       ],
+       "taskFamily": "问答互动",
+       "skill": "interaction"
+      }
+     ]
+    },
+    {
+     "groupId": "K146",
+     "drafts": [
+      {
+       "name": "识别句末重心与长成分位置",
+       "behavior": "学习者能在给定书面句子中，标出句末重心所在成分，并判断长而复杂的成分是否被置于句末位置。",
+       "boundary": "仅评判对句末重心和长成分位置的识别；不要求解释生成语法规则，也不适用于口语即时产出中的重音判断。",
+       "prerequisiteHints": [
+        "能识别句子主要成分",
+        "能区分短语与从句的边界"
+       ],
+       "taskFamily": "句法位置识别",
+       "skill": "reading"
+      },
+      {
+       "name": "按句末重心原则重写同一事实",
+       "behavior": "学习者能在给定问答背景和同一事实的条件下，书面产出两个版本，使较长或较复杂的成分位于句末，且不改变原事实内容。",
+       "boundary": "只评判长成分是否后置及事实是否保持一致；不评判修辞效果、不要求特定句型，也不适用于需要省略或合并多个事实的改写。",
+       "prerequisiteHints": [
+        "能识别长成分",
+        "能使用被动句或外置结构等基本手段"
+       ],
+       "taskFamily": "句末重心重组",
+       "skill": "writing"
+      },
+      {
+       "name": "听辨句末重心的口语实现",
+       "behavior": "学习者能在听一段含同一事实不同语序版本的录音后，指出哪一版本将长成分置于句末，并说明其听感依据。",
+       "boundary": "仅评判对句末位置与长成分的听辨判断；不评判语音模仿或重音发音准确性，不适用于无对比材料的单句听写。",
+       "prerequisiteHints": [
+        "能听懂基本句子结构",
+        "能感知句末停顿与重读"
+       ],
+       "taskFamily": "听辨对比",
+       "skill": "listening"
+      }
+     ]
+    },
+    {
+     "groupId": "K147",
+     "drafts": [
+      {
+       "name": "识别语序变化对应的重音变化",
+       "behavior": "学习者能在给定同一事实的两种语序版本中，指出语序变化后重音位置如何随之改变，并标出重读词。",
+       "boundary": "仅评判语序与重音位置的对应识别；不评判实际发音的音高曲线，也不适用于无书面或音频对照的纯理论判断。",
+       "prerequisiteHints": [
+        "能识别基本语序",
+        "能感知单词重音与句重音"
+       ],
+       "taskFamily": "语序重音对应识别",
+       "skill": "listening"
+      },
+      {
+       "name": "按问答背景调整语序与重音",
+       "behavior": "学习者能在给定问答背景的条件下，口头产出同一事实的句子，使语序和句重音共同突出新信息，并保持可理解。",
+       "boundary": "只评判语序与重音是否协同指向新信息；不评判口音、流利度或语法多样性，不适用于书面改写任务。",
+       "prerequisiteHints": [
+        "能区分新旧信息",
+        "能使用基本语序调整手段",
+        "能控制句重音位置"
+       ],
+       "taskFamily": "口语信息焦点表达",
+       "skill": "speaking"
+      },
+      {
+       "name": "在互动中用语序和重音修正信息焦点",
+       "behavior": "学习者能在对话中根据对方追问，调整同一事实的语序和重音位置，以修正或突出被追问的信息点。",
+       "boundary": "仅评判调整后语序与重音是否回应追问焦点；不评判话题管理或礼貌策略，不适用于无追问背景的独立陈述。",
+       "prerequisiteHints": [
+        "能听懂追问焦点",
+        "能即时调整句重音",
+        "能使用基本移位或分裂结构"
+       ],
+       "taskFamily": "互动焦点修正",
+       "skill": "interaction"
+      }
+     ]
+    }
+   ]
+  },
+  "U50": {
+   "model": "deepseek",
+   "generatedAt": "2026-09-30T14:51:19.474Z",
+   "groups": [
+    {
+     "groupId": "K148",
+     "drafts": [
+      {
+       "name": "用there句型介绍问题存在",
+       "behavior": "学习者能在给出一个具体场景（如办公室、社区、旅行目的地）并收到3条提示词的条件下，口头说出至少3个there is/are句型，说明该场景中存在的问题或可用资源，且主谓一致正确。",
+       "boundary": "只判there be句型的存在表达与主谓一致；不判时态多样性、不判词汇丰富度、不判发音。若学习者用have或exist替代there be，不计入达标。",
+       "prerequisiteHints": [
+        "名词单复数",
+        "there is/are基本结构"
+       ],
+       "taskFamily": "介绍问题",
+       "skill": "speaking"
+      },
+      {
+       "name": "评估困难时区分there指代与具体地点指代",
+       "behavior": "学习者能在阅读一段含there回指前文地点/情况的短文后，完成4道指代判断题（每题选择there指代的是前文哪个名词短语或命题），正确率至少3/4。",
+       "boundary": "只判对there作为回指代词的识别；不判对it/this/that等其他代词的辨析，不判产出。若文本中there为存在句引导词而非回指代词，该题不计入。",
+       "prerequisiteHints": [
+        "代词回指概念",
+        "存在句there与地点副词there的区别"
+       ],
+       "taskFamily": "评估困难",
+       "skill": "reading"
+      },
+      {
+       "name": "在对话中回应地点存在性问题",
+       "behavior": "学习者能在两人对话中，听到对方用there is/are描述某地存在某物后，用there is/are或there isn't/aren't做出至少2轮相关回应，且回应与对方描述的地点一致。",
+       "boundary": "只判回应中there be句型的正确使用与地点一致性；不判回应内容的创意性、不判语调。若学习者仅用yes/no回答而无there结构，不计入达标。",
+       "prerequisiteHints": [
+        "there is/are否定形式",
+        "地点介词短语"
+       ],
+       "taskFamily": "介绍问题",
+       "skill": "interaction"
+      }
+     ]
+    },
+    {
+     "groupId": "K149",
+     "drafts": [
+      {
+       "name": "用it句型描述天气与时间",
+       "behavior": "学习者能在看图或听提示音后，口头说出至少4个以it为主语的天气/时间句（如It's raining. It's 3 o'clock.），且it指代天气或时间，动词形式正确。",
+       "boundary": "只判it作天气/时间形式主语的句子；不判it作外置主语或指代具体事物的用法，不判时态多样性。若学习者用The weather is...或Today is...替代，不计入达标。",
+       "prerequisiteHints": [
+        "be动词现在时",
+        "天气词汇",
+        "时间表达"
+       ],
+       "taskFamily": "介绍问题",
+       "skill": "speaking"
+      },
+      {
+       "name": "评估含it的天气时间句的指代困难",
+       "behavior": "学习者能在阅读一段含多个it的短文后，完成5道指代归类题（将每个it归为天气、时间、前文事物或外置主语），正确率至少4/5。",
+       "boundary": "只判对it在天气/时间语境中作形式主语的识别；不判对外置it或强调it的深入分析。若短文中it为指代具体名词，该题不计入天气/时间类。",
+       "prerequisiteHints": [
+        "it作形式主语的基本概念",
+        "天气与时间表达"
+       ],
+       "taskFamily": "评估困难",
+       "skill": "reading"
+      },
+      {
+       "name": "在对话中询问与回应天气时间",
+       "behavior": "学习者能在角色扮演（如打电话约见面）中，用it句型至少2次询问或回应天气/时间信息，且对话逻辑连贯。",
+       "boundary": "只判it在天气/时间问答中的使用；不判语法完全正确性（如时态错误可容忍），不判流利度。若学习者用其他结构完成问答，不计入达标。",
+       "prerequisiteHints": [
+        "疑问句语序",
+        "天气时间词汇"
+       ],
+       "taskFamily": "介绍问题",
+       "skill": "interaction"
+      }
+     ]
+    },
+    {
+     "groupId": "K150",
+     "drafts": [
+      {
+       "name": "用外置it介绍问题并评估困难",
+       "behavior": "学习者能在准备1分钟后，口头用至少2个外置it句型（如It is difficult to... / It is important that...）介绍一个学习或工作中的问题，并说明困难所在。",
+       "boundary": "只判外置it句型（it + be + adj + to do/that从句）的使用；不判从句内部语法完全正确性，不判词汇难度。若学习者用To do... is difficult.等非外置结构，不计入达标。",
+       "prerequisiteHints": [
+        "形容词+to do结构",
+        "that从句作主语"
+       ],
+       "taskFamily": "介绍问题",
+       "skill": "speaking"
+      },
+      {
+       "name": "识别预备宾语it的指代",
+       "behavior": "学习者能在阅读含预备宾语it的句子（如I find it hard to...）后，完成4道指代判断题（指出it指代哪个不定式或从句），正确率至少3/4。",
+       "boundary": "只判对预备宾语it的识别；不判对形式宾语与形式主语的区别，不判产出。若句子中it为普通代词，该题不计入。",
+       "prerequisiteHints": [
+        "find/think/make + it + adj + to do结构",
+        "宾语从句概念"
+       ],
+       "taskFamily": "评估困难",
+       "skill": "reading"
+      },
+      {
+       "name": "在写作中用外置it和预备宾语it描述困难",
+       "behavior": "学习者能在30分钟内写一段80词左右的短文，描述一个学习困难，其中至少使用1个外置it句型和1个预备宾语it句型，且句子可理解。",
+       "boundary": "只判两种it结构的使用与基本可理解性；不判拼写、标点、词汇丰富度。若结构使用错误导致歧义，该句不计入。",
+       "prerequisiteHints": [
+        "外置it句型",
+        "预备宾语it句型",
+        "基本段落写作"
+       ],
+       "taskFamily": "介绍问题",
+       "skill": "writing"
+      }
+     ]
+    }
+   ]
+  },
+  "U51": {
+   "model": "deepseek",
+   "generatedAt": "2026-09-30T14:51:26.018Z",
+   "groups": [
+    {
+     "groupId": "K151",
+     "drafts": [
+      {
+       "name": "识别否定与only状语的倒装触发条件",
+       "behavior": "学习者在阅读含否定词或only状语的书面句子时，能圈出触发倒装的成分并判断该句是否使用了倒装结构，正确率不低于80%。",
+       "boundary": "仅限书面识别与判断，不要求口头产出；不适用于无否定词或only状语的普通陈述句；不涉及虚拟条件句中的倒装。",
+       "prerequisiteHints": [
+        "基本语序SVO",
+        "否定词never/hardly/rarely/little等",
+        "only+状语置于句首"
+       ],
+       "taskFamily": "识别与判断",
+       "skill": "reading"
+      },
+      {
+       "name": "在受控改写中正确使用否定与only倒装",
+       "behavior": "学习者在给定普通语序句子的条件下，能将其改写为含否定词或only状语的倒装句，语法正确且语义不变，10题中至少对8题。",
+       "boundary": "仅限单句改写，不要求语篇连贯；不适用于否定词不在句首的情况；不涉及多重倒装嵌套。",
+       "prerequisiteHints": [
+        "助动词do/does/did的插入",
+        "完成体与情态动词的倒装形式"
+       ],
+       "taskFamily": "受控改写",
+       "skill": "writing"
+      },
+      {
+       "name": "判断否定与only倒装的使用得体性",
+       "behavior": "学习者在阅读或听力材料中遇到否定与only倒装句时，能指出该倒装是否属于过度使用或文体不当，并给出简短理由，至少2条理由合理。",
+       "boundary": "仅限得体性判断与理由陈述，不要求全面文体分析；不适用于诗歌或高度文学化文本；不涉及历史用法演变。",
+       "prerequisiteHints": [
+        "正式书面语与口语的语体差异",
+        "倒装的强调功能"
+       ],
+       "taskFamily": "评价与判断",
+       "skill": "reading"
+      }
+     ]
+    },
+    {
+     "groupId": "K152",
+     "drafts": [
+      {
+       "name": "识别地点方向引语倒装的结构",
+       "behavior": "学习者在阅读含地点或方向状语前置的句子时，能标出倒装部分并说明主语与谓语的位置关系，正确率不低于80%。",
+       "boundary": "仅限地点/方向状语前置的倒装，不适用于否定词前置倒装；不涉及here/there固定搭配以外的习语。",
+       "prerequisiteHints": [
+        "地点状语与方向状语的区别",
+        "完全倒装与部分倒装的区别"
+       ],
+       "taskFamily": "识别与标注",
+       "skill": "reading"
+      },
+      {
+       "name": "在描述场景时产出地点方向倒装句",
+       "behavior": "学习者在看图或听场景描述后，能用地点或方向倒装句口头描述画面中的位置关系，至少产出3句语法正确的倒装句。",
+       "boundary": "仅限口语单句或短描述，不要求长篇叙述；不适用于抽象地点或隐喻方向；不涉及否定倒装。",
+       "prerequisiteHints": [
+        "there be句型",
+        "方位介词短语"
+       ],
+       "taskFamily": "口头描述",
+       "skill": "speaking"
+      },
+      {
+       "name": "区分地点方向倒装的必要与可选使用",
+       "behavior": "学习者在给定一组含地点方向倒装与普通语序的句子时，能判断哪些倒装是必要的、哪些是可选的，并说明选择依据，正确率不低于75%。",
+       "boundary": "仅限必要性与可选性判断，不要求改写全部句子；不适用于文学修辞分析；不涉及方言变体。",
+       "prerequisiteHints": [
+        "信息结构中的已知与新知",
+        "主语为代词时不倒装的规则"
+       ],
+       "taskFamily": "对比与判断",
+       "skill": "reading"
+      }
+     ]
+    },
+    {
+     "groupId": "K153",
+     "drafts": [
+      {
+       "name": "识别条件倒装与so/neither结构",
+       "behavior": "学习者在阅读含条件倒装或so/neither开头的句子时，能识别其结构类型并还原为普通语序，正确率不低于80%。",
+       "boundary": "仅限识别与还原，不要求产出；不适用于真实条件句以外的虚拟条件倒装；不涉及so/neither作为副词的其他用法。",
+       "prerequisiteHints": [
+        "if条件句",
+        "so/neither表示同样情况的用法"
+       ],
+       "taskFamily": "识别与转换",
+       "skill": "reading"
+      },
+      {
+       "name": "在对话中正确回应so/neither倒装",
+       "behavior": "学习者在两人对话中听到对方陈述后，能用so/neither倒装结构做出简短回应，语法正确且语义匹配，10轮中至少对8轮。",
+       "boundary": "仅限口语即时回应，不要求扩展论述；不适用于时态不一致的复杂回应；不涉及条件倒装。",
+       "prerequisiteHints": [
+        "助动词与主语的一致",
+        "肯定与否定回应匹配"
+       ],
+       "taskFamily": "互动回应",
+       "skill": "interaction"
+      },
+      {
+       "name": "改写条件句为倒装形式",
+       "behavior": "学习者在给定含if的虚拟条件句时，能将其改写为条件倒装句，语法正确且语义不变，10题中至少对8题。",
+       "boundary": "仅限虚拟条件句的倒装改写，不适用于真实条件句；不涉及混合虚拟条件；不要求语篇整合。",
+       "prerequisiteHints": [
+        "虚拟条件句的时态搭配",
+        "had/were/should的倒装规则"
+       ],
+       "taskFamily": "受控改写",
+       "skill": "writing"
+      }
+     ]
+    }
+   ]
+  },
+  "U52": {
+   "model": "deepseek",
+   "generatedAt": "2026-09-30T14:51:32.673Z",
+   "groups": [
+    {
+     "groupId": "K154",
+     "drafts": [
+      {
+       "name": "识别并复述it分裂句中的焦点信息",
+       "behavior": "学习者在听完一段含it分裂句的短对话后，能口头复述被强调的成分，并指出该句所纠正的误解内容",
+       "boundary": "仅评对焦点成分的识别与复述是否正确；不要求解释语法结构，不评语音语调；若句子不含it分裂结构则不计分",
+       "prerequisiteHints": [
+        "能理解基本主谓宾陈述句",
+        "能识别对比重音"
+       ],
+       "taskFamily": "听力理解与口头复述",
+       "skill": "listening"
+      },
+      {
+       "name": "用it分裂句口头纠正误解",
+       "behavior": "学习者在角色扮演中面对对方给出的错误前提时，能在30秒内用it分裂句（如It was X that...）口头指出真正的人/事/时间，并说明分歧所在",
+       "boundary": "只评是否使用it分裂结构并准确指向真正分歧；不要求使用其他强调手段；若仅重复对方原句或答非所问则不计分",
+       "prerequisiteHints": [
+        "能构造基本it分裂句",
+        "能识别对话中的误解点"
+       ],
+       "taskFamily": "互动口语纠错",
+       "skill": "speaking"
+      },
+      {
+       "name": "在书面回应中改写为it分裂句以突出分歧",
+       "behavior": "学习者在阅读一段含误解的书面评论后，能将其中一句普通陈述改写为it分裂句，使真正分歧点得到强调，并保持原意不变",
+       "boundary": "只评改写后句子是否语法正确且焦点明确；不评篇章连贯性；若改写后改变原意或仍为普通语序则不计分",
+       "prerequisiteHints": [
+        "能识别句子主干与附加成分",
+        "能区分焦点与预设"
+       ],
+       "taskFamily": "书面改写与焦点突出",
+       "skill": "writing"
+      }
+     ]
+    },
+    {
+     "groupId": "K155",
+     "drafts": [
+      {
+       "name": "识别wh伪分裂句所强调的已知信息",
+       "behavior": "学习者在阅读含wh伪分裂句的短文后，能口头指出该句所强调的已知信息（如What I need is...中的I need），并说明它与前文误解的关系",
+       "boundary": "仅评对wh伪分裂焦点结构的识别；不要求区分wh伪分裂与it分裂；若句子为普通wh疑问句则不计分",
+       "prerequisiteHints": [
+        "能理解wh从句作主语的基本结构",
+        "能识别已知信息与新信息的区别"
+       ],
+       "taskFamily": "阅读理解与口头说明",
+       "skill": "reading"
+      },
+      {
+       "name": "用wh伪分裂句口头澄清真正分歧",
+       "behavior": "学习者在小组讨论中听到对方误解自己的立场时，能在45秒内用wh伪分裂句（如What I actually mean is...）口头澄清真正分歧，并保持互动礼貌",
+       "boundary": "只评是否使用wh伪分裂结构并准确澄清分歧；不评流利度或语法细节；若仅用普通陈述句澄清则不计分",
+       "prerequisiteHints": [
+        "能构造基本wh伪分裂句",
+        "能在讨论中识别误解信号"
+       ],
+       "taskFamily": "互动口语澄清",
+       "skill": "interaction"
+      },
+      {
+       "name": "在书面纠错中选用wh伪分裂句",
+       "behavior": "学习者在修改一封含误解的邮件草稿时，能将其中一句改为wh伪分裂句，以突出真正需要对方关注的信息，并保持正式语气",
+       "boundary": "只评改写后句子是否语法正确且焦点明确；不评邮件整体格式；若改写后语气不当或焦点模糊则不计分",
+       "prerequisiteHints": [
+        "能识别邮件中的误解点",
+        "能区分正式与非正式表达"
+       ],
+       "taskFamily": "书面修改与焦点突出",
+       "skill": "writing"
+      }
+     ]
+    },
+    {
+     "groupId": "K156",
+     "drafts": [
+      {
+       "name": "识别前后话题与强调do的焦点转移",
+       "behavior": "学习者在听完一段含前后话题对比和强调do的对话后，能口头指出话题从前到后的转移方向，并说明强调do所突出的动作或态度",
+       "boundary": "仅评对话题转移和强调do功能的识别；不要求分析所有语法细节；若对话不含话题转移或强调do则不计分",
+       "prerequisiteHints": [
+        "能识别语篇中的话题标记",
+        "能听辨强调do的重音"
+       ],
+       "taskFamily": "听力理解与口头分析",
+       "skill": "listening"
+      },
+      {
+       "name": "用强调do口头反驳并指出真正分歧",
+       "behavior": "学习者在辩论中面对对方否定自己观点时，能在30秒内用强调do（如I do think...）口头反驳，并明确指出真正分歧所在，保持互动连贯",
+       "boundary": "只评是否使用强调do并准确指出分歧；不评论证深度；若仅用普通肯定句或答非所问则不计分",
+       "prerequisiteHints": [
+        "能构造强调do结构",
+        "能在辩论中识别对方否定点"
+       ],
+       "taskFamily": "互动口语反驳",
+       "skill": "interaction"
+      },
+      {
+       "name": "在书面回应中用强调do突出真正立场",
+       "behavior": "学习者在阅读一段含误解的评论后，能在书面回应中用强调do写出一句突出自己真正立场的句子，并与前后话题形成对比",
+       "boundary": "只评该句是否使用强调do且立场明确；不评整段连贯性；若未使用强调do或立场模糊则不计分",
+       "prerequisiteHints": [
+        "能识别评论中的误解点",
+        "能区分强调do与普通助动词do"
+       ],
+       "taskFamily": "书面回应与立场突出",
+       "skill": "writing"
+      }
+     ]
+    }
+   ]
+  },
+  "U53": {
+   "model": "deepseek",
+   "generatedAt": "2026-09-30T14:51:39.048Z",
+   "groups": [
+    {
+     "groupId": "K157",
+     "drafts": [
+      {
+       "name": "识别助动词后省略的动词短语",
+       "behavior": "学习者在阅读含助动词（如 can、will、have、do）后接省略动词短语的书面句子时，能指出被省略的动词短语位置，并从紧邻前文找到对应的完整动词短语。",
+       "boundary": "仅限前文明确出现可还原的动词短语；不适用于需要跨段推理或依赖世界知识补全的情况。",
+       "prerequisiteHints": [
+        "能识别英语基本助动词形式",
+        "能识别动词短语的时态与语态"
+       ],
+       "taskFamily": "识别与还原",
+       "skill": "reading"
+      },
+      {
+       "name": "识别to后省略的动词短语",
+       "behavior": "学习者在阅读含不定式标记 to 后省略动词的句子时，能标出省略位置，并从上下文还原被省略的不定式动词短语。",
+       "boundary": "仅限 to 后省略的动词短语在上下文中以相同或可推导形式出现；不适用于 to 为介词或省略内容需臆造的情况。",
+       "prerequisiteHints": [
+        "能区分不定式 to 与介词 to",
+        "能识别不定式短语结构"
+       ],
+       "taskFamily": "识别与还原",
+       "skill": "reading"
+      },
+      {
+       "name": "在口语回应中还原省略内容",
+       "behavior": "学习者在听一段含助动词或 to 后省略的对话后，能用完整句口头复述被省略的动词短语，且不添加原文未出现的信息。",
+       "boundary": "仅限对话中省略内容有明确语言线索；不适用于说话者故意模糊或省略内容依赖外部语境的情况。",
+       "prerequisiteHints": [
+        "能听懂常见助动词的弱读形式",
+        "能保持原句时态与语态"
+       ],
+       "taskFamily": "听辨与复述",
+       "skill": "listening"
+      }
+     ]
+    },
+    {
+     "groupId": "K158",
+     "drafts": [
+      {
+       "name": "还原协调结构中的缺省成分",
+       "behavior": "学习者在阅读含 and、or、but 等协调连接词的句子时，能指出后一并列项中省略的成分，并从前面并列项还原该成分。",
+       "boundary": "仅限省略成分在并列结构中位置对应且形式一致；不适用于省略成分需要改变形式或跨句推理的情况。",
+       "prerequisiteHints": [
+        "能识别并列结构中的平行成分",
+        "能判断省略成分的语法功能"
+       ],
+       "taskFamily": "识别与还原",
+       "skill": "reading"
+      },
+      {
+       "name": "还原比较结构中的缺省成分",
+       "behavior": "学习者在阅读含 than、as 等比较结构的句子时，能指出比较从句中省略的成分，并从主句还原该成分。",
+       "boundary": "仅限比较结构省略成分可由主句直接对应；不适用于比较结构本身有歧义或需依赖语用推理的情况。",
+       "prerequisiteHints": [
+        "能识别比较结构 than/as 的句法功能",
+        "能判断主句与从句的对应成分"
+       ],
+       "taskFamily": "识别与还原",
+       "skill": "reading"
+      },
+      {
+       "name": "在写作中补全协调及比较缺省",
+       "behavior": "学习者在完成句子合并或改写练习时，能在协调或比较结构中正确补全省略成分，使句子语法完整且不添加新信息。",
+       "boundary": "仅限练习中提供明确的前文可供还原；不适用于需要自由创作且无参照前文的情况。",
+       "prerequisiteHints": [
+        "能识别并列与比较结构的平行关系",
+        "能保持补全后句子的时态与数一致"
+       ],
+       "taskFamily": "补全与改写",
+       "skill": "writing"
+      }
+     ]
+    },
+    {
+     "groupId": "K159",
+     "drafts": [
+      {
+       "name": "识别片段回答的恢复条件",
+       "behavior": "学习者在阅读含片段回答（如 Yes, I can. / Not yet.）的对话时，能指出该片段回答所依赖的前文问题或陈述，并说明恢复完整句所需的条件。",
+       "boundary": "仅限片段回答与前文问题或陈述直接相邻或同一话轮内；不适用于片段回答依赖多个话轮或外部语境的情况。",
+       "prerequisiteHints": [
+        "能识别疑问句与陈述句的句法特征",
+        "能判断片段回答的语法类别"
+       ],
+       "taskFamily": "识别与说明",
+       "skill": "reading"
+      },
+      {
+       "name": "在口语互动中恢复片段回答",
+       "behavior": "学习者在参与口语对话时，能针对对方的片段回答，用完整句口头恢复其完整含义，且不改变原回答的极性或情态。",
+       "boundary": "仅限片段回答有明确的前文问题或陈述可依据；不适用于对方故意省略且拒绝澄清的情况。",
+       "prerequisiteHints": [
+        "能听懂常见片段回答的语调与重音",
+        "能保持原回答的时态、情态与极性"
+       ],
+       "taskFamily": "互动与恢复",
+       "skill": "interaction"
+      },
+      {
+       "name": "判断片段回答的可恢复性",
+       "behavior": "学习者在阅读或听力材料中遇到片段回答时，能判断该片段回答是否具备足够的语言线索恢复完整句，并标出可恢复或不可恢复。",
+       "boundary": "仅限判断依据为语言线索；不适用于依赖文化背景或说话者意图等非语言因素的情况。",
+       "prerequisiteHints": [
+        "能识别片段回答的句法类型",
+        "能区分语言线索与非语言线索"
+       ],
+       "taskFamily": "判断与分类",
+       "skill": "reading"
+      }
+     ]
+    }
+   ]
+  },
+  "U54": {
+   "model": "deepseek",
+   "generatedAt": "2026-09-30T14:51:47.437Z",
+   "groups": [
+    {
+     "groupId": "K160",
+     "drafts": [
+      {
+       "name": "识别并还原 one/do so/so/not 的替代对象",
+       "behavior": "学习者在听完一段 3~5 轮的多方对话后，能指出句中 one/do so/so/not 各自替代的前文成分，并用一句话写出还原后的完整表达。",
+       "boundary": "仅评替代词与先行语/先行小句的对应是否正确；不评发音、语法术语使用或对整段对话主旨的概括。若替代对象本身存在两种以上合理读法，只要学习者给出其中一种并说明依据即算正确。",
+       "prerequisiteHints": [
+        "能识别名词短语与小句的基本边界",
+        "能理解对话中相邻话轮的指代关系"
+       ],
+       "taskFamily": "指代还原",
+       "skill": "listening"
+      },
+      {
+       "name": "用 do so/so/not 做简短回应",
+       "behavior": "学习者在两人或多人对话中，听到对方陈述后，能在 3 秒内用 do so、so 或 not 的适当形式给出符合语境的简短回应，且回应在语法上可被同组学习者理解。",
+       "boundary": "只评替代形式是否使用正确、是否与对方话语的极性一致；不评回应是否礼貌、是否推进话题或是否使用完整句。不适用于需要引入新信息的回答。",
+       "prerequisiteHints": [
+        "能区分肯定与否定极性",
+        "能使用助动词 do 的基本形式"
+       ],
+       "taskFamily": "对话回应",
+       "skill": "speaking"
+      },
+      {
+       "name": "在模糊指代处请求澄清",
+       "behavior": "学习者在多方对话中遇到 one/do so/so/not 指代不明时，能用英语提出澄清请求（如“Which one do you mean?”），并在对方解释后复述自己理解到的替代内容。",
+       "boundary": "只评澄清请求是否指向模糊的替代词、复述是否与对方解释一致；不评请求的礼貌程度或是否使用特定句式。若学习者未识别出模糊点而直接跳过，则不计分。",
+       "prerequisiteHints": [
+        "能识别替代词所在的小句",
+        "能使用 wh- 疑问句请求信息"
+       ],
+       "taskFamily": "澄清与确认",
+       "skill": "interaction"
+      }
+     ]
+    },
+    {
+     "groupId": "K161",
+     "drafts": [
+      {
+       "name": "标注跨句前指的先行语",
+       "behavior": "学习者在阅读一段 4~6 句的书面或转写对话后，能用箭头或编号标出每个跨句代词/指示词（如 it、this、that、they）的先行语，并标出存在歧义的项。",
+       "boundary": "只评先行语定位与歧义标记是否正确；不评对整段话的翻译或语法分类。若先行语位于对话中另一说话人的话轮内，也算正确。",
+       "prerequisiteHints": [
+        "能识别代词与指示词的基本形式",
+        "能追踪相邻句之间的话题延续"
+       ],
+       "taskFamily": "指代标注",
+       "skill": "reading"
+      },
+      {
+       "name": "改写歧义前指句以消除歧义",
+       "behavior": "学习者在读到含有跨句歧义前指的句子时，能写出至少一个改写版本，使该前指只指向一个明确的先行语，并说明改写后消除了哪种歧义。",
+       "boundary": "只评改写是否真正消除歧义、说明是否与改写一致；不评改写是否优雅或是否保留原句所有修辞效果。不适用于歧义来自词汇多义而非指代的情况。",
+       "prerequisiteHints": [
+        "能识别同一代词可能指向多个先行语",
+        "能使用名词短语重复或重组句子结构"
+       ],
+       "taskFamily": "歧义消解",
+       "skill": "writing"
+      },
+      {
+       "name": "在多方对话中追问跨句指代",
+       "behavior": "学习者在听一段多人交替发言的对话时，若某人的跨句指代可能指向两个不同先行语，能在该话轮结束后用英语追问以确认所指对象。",
+       "boundary": "只评追问是否针对歧义指代、是否在合理时间内提出；不评追问是否改变对话走向或是否使用高级句式。若歧义在后续话轮中已被说话人自行澄清，则不计分。",
+       "prerequisiteHints": [
+        "能跟踪多个说话人的话轮",
+        "能使用确认性疑问句"
+       ],
+       "taskFamily": "澄清与确认",
+       "skill": "interaction"
+      }
+     ]
+    },
+    {
+     "groupId": "K162",
+     "drafts": [
+      {
+       "name": "识别时间/地点/人称视角标记",
+       "behavior": "学习者在阅读或收听一段叙述后，能圈出或说出其中表示时间、地点和人称视角的语言标记（如时态、时间状语、空间指示词、人称代词），并指出视角是否发生转换。",
+       "boundary": "只评标记识别与视角转换判断是否正确；不评对叙述内容的记忆或对文学效果的分析。若同一句中有多个标记，全部标出才算完整。",
+       "prerequisiteHints": [
+        "能识别基本时态形式",
+        "能识别第一/第二/第三人称代词"
+       ],
+       "taskFamily": "视角标记识别",
+       "skill": "reading"
+      },
+      {
+       "name": "根据视角标记判断说话人位置",
+       "behavior": "学习者在听完一段包含时间、地点、人称视角转换的对话后，能回答“谁在什么时间、从哪里说话”这类问题，并引用至少一个语言标记作为依据。",
+       "boundary": "只评判断是否与标记一致、依据是否来自文本/音频；不评回答是否使用完整句或是否包含额外推断。若文本未提供足够信息，允许回答“无法确定”并说明缺失的标记。",
+       "prerequisiteHints": [
+        "能区分 here/there、now/then 等指示词",
+        "能跟踪对话中说话人的切换"
+       ],
+       "taskFamily": "视角推断",
+       "skill": "listening"
+      },
+      {
+       "name": "用一致视角复述事件",
+       "behavior": "学习者在口头复述一段多人对话中的事件时，能保持时间、地点和人称视角的一致，不出现无标记的视角跳转，并在需要转换视角时使用明确的标记词。",
+       "boundary": "只评复述中视角是否一致、转换是否有标记；不评复述的流利度、词汇丰富度或是否遗漏次要细节。不适用于要求自由创作而非复述的任务。",
+       "prerequisiteHints": [
+        "能使用基本时态叙述过去事件",
+        "能使用人称代词指代对话参与者"
+       ],
+       "taskFamily": "视角一致复述",
+       "skill": "speaking"
+      }
+     ]
+    }
+   ]
+  },
+  "U55": {
+   "model": "deepseek",
+   "generatedAt": "2026-09-30T14:51:53.466Z",
+   "groups": [
+    {
+     "groupId": "K163",
+     "drafts": [
+      {
+       "name": "识别动作名词化中的施受隐藏",
+       "behavior": "学习者能在阅读一篇含密集名词化表达的成人英语文本时，标出至少3处动作名词化结构，并指出每处结构中施事或受事是否被隐藏、被隐藏的是哪一方。",
+       "boundary": "仅评判对名词化结构中施受关系的识别与标注，不要求改写或评价文本质量；不适用于无名词化结构的普通叙述句。",
+       "prerequisiteHints": [
+        "基本句子成分识别",
+        "动词与名词的区分"
+       ],
+       "taskFamily": "reading_analysis",
+       "skill": "reading"
+      },
+      {
+       "name": "将隐藏施受的名词化表达展开为小句",
+       "behavior": "学习者能在给定5个含动作名词化的短语或句子条件下，将其展开为至少一个显性主语和谓语的完整小句，并保持原意基本不变。",
+       "boundary": "仅评判展开后小句是否补出合理施受关系且语义一致，不要求唯一标准答案；不适用于无法从上下文推断施受的歧义结构。",
+       "prerequisiteHints": [
+        "小句结构知识",
+        "动词时态基础"
+       ],
+       "taskFamily": "sentence_transformation",
+       "skill": "writing"
+      },
+      {
+       "name": "在摘要写作中控制施受隐藏",
+       "behavior": "学习者能在写一段80—120词的文本摘要时，使用至少2处动作名词化表达，并确保读者能根据上下文推断出关键施事或受事。",
+       "boundary": "仅评判摘要中名词化表达的施受可推断性与摘要信息完整性，不评判语法细节或词汇丰富度；不适用于文学性创作或口语即兴表达。",
+       "prerequisiteHints": [
+        "摘要写作基本规范",
+        "名词化结构识别"
+       ],
+       "taskFamily": "summary_writing",
+       "skill": "writing"
+      }
+     ]
+    },
+    {
+     "groupId": "K164",
+     "drafts": [
+      {
+       "name": "识别补足结构与名词串的边界",
+       "behavior": "学习者能在阅读一段含补足语和名词串的密集表达时，用下划线标出至少3个名词串，并圈出其中充当补足成分的部分。",
+       "boundary": "仅评判对名词串范围及补足成分的识别，不要求解释语法术语；不适用于简单名词短语或单一形容词修饰结构。",
+       "prerequisiteHints": [
+        "名词短语基本结构",
+        "介词短语作后置修饰"
+       ],
+       "taskFamily": "reading_analysis",
+       "skill": "reading"
+      },
+      {
+       "name": "拆解复杂名词串为可读表达",
+       "behavior": "学习者能在给定3个含多重修饰和补足成分的长名词串条件下，将其拆解为两个或以上较短的、语义等价的表达。",
+       "boundary": "仅评判拆解后表达是否保留原名词串核心语义且更易读，不要求唯一拆解方式；不适用于本身已简短的名词短语。",
+       "prerequisiteHints": [
+        "名词修饰关系",
+        "从句简化基础"
+       ],
+       "taskFamily": "sentence_paraphrase",
+       "skill": "writing"
+      },
+      {
+       "name": "在摘要中运用补足与名词串压缩信息",
+       "behavior": "学习者能在写一段100词左右的摘要时，使用至少2个含补足成分的名词串来压缩信息，并保证句子可读。",
+       "boundary": "仅评判名词串使用是否有效压缩信息且不造成严重歧义，不评判修辞效果；不适用于需要高度口语化的场景。",
+       "prerequisiteHints": [
+        "名词串识别",
+        "摘要写作基本规范"
+       ],
+       "taskFamily": "summary_writing",
+       "skill": "writing"
+      }
+     ]
+    },
+    {
+     "groupId": "K165",
+     "drafts": [
+      {
+       "name": "判断压缩表达的可读性",
+       "behavior": "学习者能在阅读一组含高度压缩表达的句子时，指出哪些句子因压缩过度而影响理解，并给出至少一条理由。",
+       "boundary": "仅评判对可读性问题的判断与理由是否合理，不要求改写；不适用于本身已清晰简短的句子。",
+       "prerequisiteHints": [
+        "句子理解基本能力",
+        "名词化与名词串基础"
+       ],
+       "taskFamily": "reading_evaluation",
+       "skill": "reading"
+      },
+      {
+       "name": "将压缩表达展开为可读版本",
+       "behavior": "学习者能在给定3个高度压缩的句子条件下，将其展开为更易读的版本，同时保留核心信息。",
+       "boundary": "仅评判展开后句子是否更易读且核心信息未丢失，不要求唯一改写；不适用于无需展开的简单句。",
+       "prerequisiteHints": [
+        "小句展开能力",
+        "名词化识别"
+       ],
+       "taskFamily": "sentence_transformation",
+       "skill": "writing"
+      },
+      {
+       "name": "在摘要中平衡压缩与可读性",
+       "behavior": "学习者能在写一段80—120词的摘要时，对原文的压缩表达进行适度展开，使摘要既简洁又易于理解。",
+       "boundary": "仅评判摘要是否在压缩信息与保持可读性之间取得平衡，不评判词汇难度或语法复杂度；不适用于口语即时摘要。",
+       "prerequisiteHints": [
+        "摘要写作基本规范",
+        "压缩表达展开能力"
+       ],
+       "taskFamily": "summary_writing",
+       "skill": "writing"
+      }
+     ]
+    }
+   ]
+  },
+  "U56": {
+   "model": "deepseek",
+   "generatedAt": "2026-09-30T14:52:00.586Z",
+   "groups": [
+    {
+     "groupId": "K166",
+     "drafts": [
+      {
+       "name": "识别多层前置修饰中的主语中心",
+       "behavior": "学习者能在给定含有两个及以上前置修饰语（如限定词、形容词、名词修饰语）的书面英语句子中，标出复杂主语的中心名词，并说明各修饰语的层级关系。",
+       "boundary": "仅限前置修饰语（限定词+形容词+名词修饰语）的层级判断；不涉及后置修饰（介词短语、关系从句）的切分，也不要求解释修饰语之间的语义关系。",
+       "prerequisiteHints": [
+        "能识别名词短语的基本结构（限定词+名词）",
+        "能区分形容词与名词作修饰语"
+       ],
+       "taskFamily": "识别与标注",
+       "skill": "reading"
+      },
+      {
+       "name": "切分后置修饰语的附着层级",
+       "behavior": "学习者能在给定含后置修饰语（介词短语或关系从句）的句子中，用括号或树形图切分出主语中心名词及其各层后置修饰语，并指出每个修饰语附着于哪一层中心语。",
+       "boundary": "仅限后置修饰语附着层级的切分；不要求判断歧义句的多种附着可能，也不涉及修饰语内部成分的进一步分析。",
+       "prerequisiteHints": [
+        "能识别介词短语和关系从句的边界",
+        "能区分中心名词与修饰语"
+       ],
+       "taskFamily": "切分与标注",
+       "skill": "reading"
+      },
+      {
+       "name": "综合判断复杂主语的修饰层级",
+       "behavior": "学习者能在给定同时含前置和后置修饰语的复杂主语中，先找出中心名词，再逐层标出所有修饰语及其附着关系，并口头或书面说明判断依据。",
+       "boundary": "仅限单元出口任务所要求的‘找到复杂主语中心与各层修饰’；不要求分析谓语部分或从句内部结构，也不涉及省略与名词化形容词（由K168覆盖）。",
+       "prerequisiteHints": [
+        "能独立完成前置修饰层级识别",
+        "能独立完成后置修饰附着切分"
+       ],
+       "taskFamily": "综合分析与说明",
+       "skill": "reading"
+      }
+     ]
+    },
+    {
+     "groupId": "K167",
+     "drafts": [
+      {
+       "name": "识别of属格与双重属格的结构",
+       "behavior": "学习者能在给定含有of属格（如the cover of the book）或双重属格（如a friend of mine）的句子中，标出属格结构并指出其中心名词与限定词。",
+       "boundary": "仅限识别of属格和双重属格的形式结构；不要求区分of属格与s属格的语义差异，也不涉及属格在复杂主语中的层级切分（由K166/K168覆盖）。",
+       "prerequisiteHints": [
+        "能识别名词短语中的限定词和中心名词",
+        "能区分介词of与其他介词"
+       ],
+       "taskFamily": "识别与标注",
+       "skill": "reading"
+      },
+      {
+       "name": "在复杂主语中定位属格修饰的附着层级",
+       "behavior": "学习者能在含of属格或双重属格的复杂主语中，找出主语中心名词，并判断属格结构是直接修饰中心名词还是嵌套在更外层修饰语中。",
+       "boundary": "仅限属格结构在复杂主语中的附着层级判断；不要求分析属格内部名词的修饰语，也不涉及省略结构。",
+       "prerequisiteHints": [
+        "能识别of属格和双重属格的基本形式",
+        "能切分名词短语的修饰层级"
+       ],
+       "taskFamily": "切分与标注",
+       "skill": "reading"
+      },
+      {
+       "name": "区分双重属格与普通of属格的限定关系",
+       "behavior": "学习者能在给定成对句子中，判断双重属格（如a friend of mine）与普通of属格（如the friend of mine）在限定性上的差异，并指出双重属格中隐含的限定词。",
+       "boundary": "仅限双重属格与普通of属格在限定关系上的形式差异；不要求解释语义预设或语用效果，也不涉及s属格对比。",
+       "prerequisiteHints": [
+        "能识别双重属格的形式（of+名词性物主代词/名词所有格）",
+        "能识别限定词在名词短语中的作用"
+       ],
+       "taskFamily": "对比与判断",
+       "skill": "reading"
+      }
+     ]
+    },
+    {
+     "groupId": "K168",
+     "drafts": [
+      {
+       "name": "识别限定组合中的中心省略",
+       "behavior": "学习者能在给定含有中心省略的限定组合（如the rich, the best）中，指出省略的中心名词，并说明该结构在句中的主语功能。",
+       "boundary": "仅限限定组合中中心名词省略的识别；不要求还原所有可能的省略名词，也不涉及名词化形容词的语义分类。",
+       "prerequisiteHints": [
+        "能识别限定词+形容词的结构",
+        "能判断名词短语在句中的主语功能"
+       ],
+       "taskFamily": "识别与标注",
+       "skill": "reading"
+      },
+      {
+       "name": "识别名词化形容词作主语中心",
+       "behavior": "学习者能在给定含有名词化形容词（如the young, the unemployed）的句子中，标出该结构并判断其是否充当主语中心，说明其指代类别。",
+       "boundary": "仅限名词化形容词在主语位置上的识别与功能判断；不要求区分其指代个体还是群体，也不涉及其他句法位置的名词化形容词。",
+       "prerequisiteHints": [
+        "能识别形容词的名词化用法",
+        "能判断主语中心的位置"
+       ],
+       "taskFamily": "识别与判断",
+       "skill": "reading"
+      },
+      {
+       "name": "在复杂主语中切分省略与名词化结构",
+       "behavior": "学习者能在同时含中心省略和名词化形容词的复杂主语中，找出主语中心（显性或隐性），并逐层标出修饰语与省略/名词化结构的关系。",
+       "boundary": "仅限单元出口任务所要求的‘找到复杂主语中心与各层修饰’；不要求分析谓语或从句内部，也不涉及K166/K167的修饰层级（可综合但以K168结构为主）。",
+       "prerequisiteHints": [
+        "能识别中心省略",
+        "能识别名词化形容词作主语中心"
+       ],
+       "taskFamily": "综合分析与标注",
+       "skill": "reading"
+      }
+     ]
+    }
+   ]
+  },
+  "U57": {
+   "model": "deepseek",
+   "generatedAt": "2026-09-30T14:52:05.973Z",
+   "groups": [
+    {
+     "groupId": "K169",
+     "drafts": [
+      {
+       "name": "识别长距离主谓一致中的干扰项",
+       "behavior": "学习者能在阅读含插入语、介词短语或关系从句的复合句时，标出主语中心词与谓语动词，并判断二者在数上是否一致。",
+       "boundary": "仅限书面句子层面的主谓一致判断；不涉及口语实时产出中的自我修正，也不涉及时态或语态错误。",
+       "prerequisiteHints": [
+        "能识别句子主语中心词",
+        "能区分谓语动词与助动词"
+       ],
+       "taskFamily": "识别与标注",
+       "skill": "reading"
+      },
+      {
+       "name": "区分长距离一致的自然变体与错误",
+       "behavior": "学习者能在给定的一组含长距离主谓结构的句子中，将可接受的变体用法与违反一致规则的错误用法分类，并简要说明分类依据。",
+       "boundary": "仅限本单元列出的自然变体类型；不扩展到方言或非标准变体的社会语言学评价。",
+       "prerequisiteHints": [
+        "了解主谓一致的基本规则",
+        "能识别插入语和修饰成分"
+       ],
+       "taskFamily": "分类与判断",
+       "skill": "reading"
+      },
+      {
+       "name": "在受控写作中修正长距离一致错误",
+       "behavior": "学习者能在修改一段含长距离主谓一致错误的短文时，定位错误并写出修正后的谓语形式，使主语与谓语在数上一致。",
+       "boundary": "仅限句子层面的修正；不评估段落连贯性或修辞效果。",
+       "prerequisiteHints": [
+        "能识别主语中心词",
+        "能根据主语数选择谓语形式"
+       ],
+       "taskFamily": "纠错与改写",
+       "skill": "writing"
+      }
+     ]
+    },
+    {
+     "groupId": "K170",
+     "drafts": [
+      {
+       "name": "判断集合名词主谓一致的变体可接受度",
+       "behavior": "学习者能在阅读含集合名词作主语的句子时，根据上下文判断谓语用单数还是复数是否可接受，并标出可接受的选项。",
+       "boundary": "仅限常见集合名词（如 team、family、government）在英式与美式英语中的常见用法；不涉及罕见集合名词或专业术语。",
+       "prerequisiteHints": [
+        "了解集合名词的概念",
+        "能识别主语与谓语"
+       ],
+       "taskFamily": "判断与选择",
+       "skill": "reading"
+      },
+      {
+       "name": "区分集合名词一致的自然变体与错误",
+       "behavior": "学习者能在给定句子中，将集合名词主谓一致的可接受变体与违反一致规则的错误用法分开，并指出判断依据。",
+       "boundary": "仅限本单元涉及的集合名词一致规则；不涉及意义一致与语法一致冲突时的语用评价。",
+       "prerequisiteHints": [
+        "了解主谓一致的基本规则",
+        "能识别集合名词"
+       ],
+       "taskFamily": "分类与判断",
+       "skill": "reading"
+      },
+      {
+       "name": "在写作中选用合适的集合名词谓语形式",
+       "behavior": "学习者能在写句子描述团队、组织等集合实体时，根据想要表达的单数整体意义或复数成员意义，选择并写出相应的谓语形式。",
+       "boundary": "仅限单句写作；不评估篇章层面的连贯性或文体一致性。",
+       "prerequisiteHints": [
+        "能区分集合名词的单数整体意义与复数成员意义",
+        "能根据意义选择谓语数"
+       ],
+       "taskFamily": "受控产出",
+       "skill": "writing"
+      }
+     ]
+    },
+    {
+     "groupId": "K171",
+     "drafts": [
+      {
+       "name": "识别并列存现句中的比例一致变体",
+       "behavior": "学习者能在阅读含 there 存现句且并列主语由 and 或 or 连接时，标出谓语动词形式，并判断其与最近主语或整体并列结构的一致关系。",
+       "boundary": "仅限 there 存现句中的并列主语一致；不涉及其他倒装结构或非存现句的并列一致。",
+       "prerequisiteHints": [
+        "能识别 there 存现句",
+        "能识别并列结构中的连接词"
+       ],
+       "taskFamily": "识别与标注",
+       "skill": "reading"
+      },
+      {
+       "name": "区分并列存现比例一致的自然变体与错误",
+       "behavior": "学习者能在给定的一组 there 存现句中，将可接受的比例一致变体与违反一致规则的错误用法分类，并说明分类理由。",
+       "boundary": "仅限本单元列出的并列存现比例一致规则；不涉及口语中非正式省略或方言变体。",
+       "prerequisiteHints": [
+        "了解主谓一致的基本规则",
+        "能识别并列主语"
+       ],
+       "taskFamily": "分类与判断",
+       "skill": "reading"
+      },
+      {
+       "name": "在受控写作中修正并列存现一致错误",
+       "behavior": "学习者能在修改含并列主语的 there 存现句时，定位一致错误并写出修正后的谓语形式，使其符合比例一致或整体一致的可接受用法。",
+       "boundary": "仅限单句修正；不评估句子在段落中的衔接或修辞效果。",
+       "prerequisiteHints": [
+        "能识别 there 存现句的主语",
+        "能根据并列结构选择谓语数"
+       ],
+       "taskFamily": "纠错与改写",
+       "skill": "writing"
+      }
+     ]
+    }
+   ]
+  },
+  "U58": {
+   "model": "deepseek",
+   "generatedAt": "2026-09-30T14:52:11.992Z",
+   "groups": [
+    {
+     "groupId": "K172",
+     "drafts": [
+      {
+       "name": "识别并标注四类构词方式",
+       "behavior": "学习者能在给定20个英语单词的书面列表中，为每个词标注其构词方式（屈折、派生、转换、复合），标注正确率不低于80%。",
+       "boundary": "仅限已学过的常见词例；不适用于需要词源知识才能判断的模糊案例；不考查对构词过程的完整解释。",
+       "prerequisiteHints": [
+        "词素基本概念",
+        "屈折与派生的区别"
+       ],
+       "taskFamily": "分类标注",
+       "skill": "reading"
+      },
+      {
+       "name": "根据构词线索推测生词词性与核心义",
+       "behavior": "学习者在阅读含一个未学过的派生词或复合词的句子时，能写出该词的词性及基于词素的核心义推测，并在词典核对后标注推测是否正确。",
+       "boundary": "仅限词素边界清晰、词缀意义明确的词；不适用于词义已完全漂移或词素不可分析的词；不考查精确释义。",
+       "prerequisiteHints": [
+        "常见前缀和后缀的意义",
+        "词根的基本含义"
+       ],
+       "taskFamily": "推测后核对",
+       "skill": "reading"
+      },
+      {
+       "name": "在句子中正确使用转换词",
+       "behavior": "学习者在完成句子填空任务时，能根据句法位置将给定词转换为正确的词性形式填入空格，10题中至少答对7题。",
+       "boundary": "仅限名词-动词、形容词-动词等常见转换类型；不适用于需要语境才能确定的多重转换；不考查拼写变体。",
+       "prerequisiteHints": [
+        "句子成分基本知识",
+        "词性识别"
+       ],
+       "taskFamily": "填空",
+       "skill": "writing"
+      }
+     ]
+    },
+    {
+     "groupId": "K173",
+     "drafts": [
+      {
+       "name": "根据重音规则朗读派生词",
+       "behavior": "学习者在朗读含常见派生后缀（如 -tion, -ity, -ic）的单词时，能将重音放在正确音节上，10个词中至少读对7个。",
+       "boundary": "仅限规则性较强的后缀；不适用于重音受词源影响的例外词；不考查连读或语调。",
+       "prerequisiteHints": [
+        "音节划分",
+        "基本重音概念"
+       ],
+       "taskFamily": "朗读",
+       "skill": "speaking"
+      },
+      {
+       "name": "推测派生词重音位置并核对",
+       "behavior": "学习者在听到一个含派生后缀的生词后，能先写出推测的重音位置，再听标准发音核对并标注是否正确。",
+       "boundary": "仅限后缀重音规则适用的词；不适用于重音移动不规则的词；不考查对重音规则的完整表述。",
+       "prerequisiteHints": [
+        "常见后缀的重音模式",
+        "重音符号标注"
+       ],
+       "taskFamily": "推测后核对",
+       "skill": "listening"
+      },
+      {
+       "name": "识别重音差异导致的词性变化",
+       "behavior": "学习者在听到成对的重音位置不同、词性不同的词（如 record 名词/动词）时，能判断所听单词的词性，8题中至少答对6题。",
+       "boundary": "仅限重音区分词性的常见双音节词；不适用于方言差异或重音不固定的词；不考查词义解释。",
+       "prerequisiteHints": [
+        "重音与词性的关系",
+        "双音节词重音模式"
+       ],
+       "taskFamily": "听辨判断",
+       "skill": "listening"
+      }
+     ]
+    },
+    {
+     "groupId": "K174",
+     "drafts": [
+      {
+       "name": "根据语境判断多义词的具体义项",
+       "behavior": "学习者在阅读含多义词的句子时，能从给出的三个义项选项中选出符合语境的一项，10题中至少答对8题。",
+       "boundary": "仅限常见多义词；不适用于需要专业领域知识才能判断的义项；不考查义项之间的历史演变关系。",
+       "prerequisiteHints": [
+        "多义词概念",
+        "语境线索"
+       ],
+       "taskFamily": "选择判断",
+       "skill": "reading"
+      },
+      {
+       "name": "区分同形异义词并说明依据",
+       "behavior": "学习者在给定含同形异义词的句子对中，能指出两个词是否同源，并写出至少一条判断依据（如词义无关、词性不同、词源不同）。",
+       "boundary": "仅限已提供词源信息的词对；不适用于词源存在学术争议的词；不考查对词源演变的详细描述。",
+       "prerequisiteHints": [
+        "同形异义词概念",
+        "词源基本信息"
+       ],
+       "taskFamily": "推测后核对",
+       "skill": "reading"
+      },
+      {
+       "name": "利用词源证据推测生词含义",
+       "behavior": "学习者在阅读含一个生词的句子时，能根据提供的词源信息（如拉丁词根）写出该词的可能含义，并与词典释义核对。",
+       "boundary": "仅限词源信息清晰且与现代义关联直接的词；不适用于词义发生较大漂移的词；不考查对词源语言的拼读。",
+       "prerequisiteHints": [
+        "常见拉丁/希腊词根",
+        "词义演变基本概念"
+       ],
+       "taskFamily": "推测后核对",
+       "skill": "reading"
+      }
+     ]
+    }
+   ]
+  },
+  "U59": {
+   "model": "deepseek",
+   "generatedAt": "2026-09-30T14:52:18.970Z",
+   "groups": [
+    {
+     "groupId": "K175",
+     "drafts": [
+      {
+       "name": "识别并修正逗号拼接句",
+       "behavior": "学习者能在给定的商务邮件或项目文本中，识别出由逗号连接两个独立分句造成的逗号拼接错误，并将其改写为两个独立句子、使用分号连接或添加合适的连词，使句界清晰。",
+       "boundary": "仅判定逗号拼接与句界划分；不评估修辞效果、不要求改写为特定句式；若原句本身为可接受的并列结构（如含并列连词）则不判为错误。",
+       "prerequisiteHints": [
+        "能识别独立分句（主语+谓语完整结构）",
+        "了解并列连词的基本用法"
+       ],
+       "taskFamily": "编辑校对",
+       "skill": "writing"
+      },
+      {
+       "name": "判断句界并拆分长句",
+       "behavior": "学习者能在无标点或标点混乱的段落中，根据语义和语法结构判断句界位置，将连续流水句拆分为语法完整的独立句子，并确保每句有明确主语和谓语。",
+       "boundary": "仅评估句界划分与句子完整性；不评估内容逻辑或段落组织；不适用于诗歌、标题、列表等非完整句语境。",
+       "prerequisiteHints": [
+        "掌握简单句与复合句的基本结构",
+        "能区分短语与分句"
+       ],
+       "taskFamily": "编辑校对",
+       "skill": "writing"
+      },
+      {
+       "name": "在写作中避免逗号拼接",
+       "behavior": "学习者在撰写邮件或项目更新时，能在连续使用两个独立分句的情况下，主动选择分号、句号或并列连词来连接，产出无逗号拼接错误的文本。",
+       "boundary": "仅检查逗号拼接现象；不评估其他语法错误、用词或格式；不适用于刻意使用的修辞性逗号拼接（如文学风格）。",
+       "prerequisiteHints": [
+        "了解独立分句的判定标准",
+        "熟悉分号与并列连词的基本用法"
+       ],
+       "taskFamily": "写作产出",
+       "skill": "writing"
+      }
+     ]
+    },
+    {
+     "groupId": "K176",
+     "drafts": [
+      {
+       "name": "正确使用分号与冒号",
+       "behavior": "学习者能在编辑邮件或项目文本时，在需要连接两个关系紧密的独立分句处使用分号，在引出解释、列表或例证处使用冒号，并确保冒号前为完整分句。",
+       "boundary": "仅判定分号与冒号的使用是否合乎常规书面语规范；不评估破折号或引语的替代用法；不适用于非正式聊天或文学对话中的省略用法。",
+       "prerequisiteHints": [
+        "能识别独立分句",
+        "了解列表与解释性内容的常见引出方式"
+       ],
+       "taskFamily": "编辑校对",
+       "skill": "writing"
+      },
+      {
+       "name": "使用破折号与引语标点",
+       "behavior": "学习者能在给定文本中，正确使用破折号表示插入、转折或强调，并使用引号标记直接引语，确保引语内外的标点位置符合常规书面语规范。",
+       "boundary": "仅评估破折号与引号的基本功能及标点位置；不评估引语内容准确性或引用格式（如APA）；不适用于嵌套引语或特殊排版场景。",
+       "prerequisiteHints": [
+        "了解直接引语与间接引语的区别",
+        "熟悉句末标点与引号的位置关系"
+       ],
+       "taskFamily": "编辑校对",
+       "skill": "writing"
+      },
+      {
+       "name": "综合标点编辑",
+       "behavior": "学习者能在一段包含分号、冒号、破折号和引语的邮件或项目文本中，识别并修正标点误用，使各类标点各司其职，文本句界与层次清晰。",
+       "boundary": "仅评估分号、冒号、破折号、引语标点的使用；不评估逗号、句号等其他标点；不适用于需要保留作者风格的创意写作。",
+       "prerequisiteHints": [
+        "掌握各标点的基本功能",
+        "能判断分句与短语的边界"
+       ],
+       "taskFamily": "编辑校对",
+       "skill": "writing"
+      }
+     ]
+    },
+    {
+     "groupId": "K177",
+     "drafts": [
+      {
+       "name": "修正大小写与撇号错误",
+       "behavior": "学习者能在给定的邮件或项目文本中，识别并修正专有名词、句首字母的大小写错误，以及所有格、缩写中撇号的误用或缺失。",
+       "boundary": "仅评估大小写规则与撇号功能（所有格、缩写、复数）；不评估拼写错误或连字符；不适用于品牌名或特殊术语的既定大小写。",
+       "prerequisiteHints": [
+        "了解专有名词与普通名词的区别",
+        "掌握撇号表示所有格和缩写的基本规则"
+       ],
+       "taskFamily": "编辑校对",
+       "skill": "writing"
+      },
+      {
+       "name": "使用连字符与拼写规范",
+       "behavior": "学习者能在编辑文本时，正确使用连字符连接复合形容词、避免歧义，并识别常见拼写错误（如混淆词、重复字母），使文本符合常规书面拼写规范。",
+       "boundary": "仅评估连字符的必要使用与常见拼写错误；不评估大小写或撇号；不适用于专有名词、外来词或行业术语的特定拼写。",
+       "prerequisiteHints": [
+        "了解复合形容词的构成",
+        "熟悉常见易混词（如their/there）"
+       ],
+       "taskFamily": "编辑校对",
+       "skill": "writing"
+      },
+      {
+       "name": "综合拼写与标点编辑",
+       "behavior": "学习者能在一段邮件或项目文本中，综合修正大小写、撇号、连字符和拼写错误，产出符合常规书面语规范的文本。",
+       "boundary": "仅评估大小写、撇号、连字符和拼写；不评估句法、标点（逗号、分号等）或文体；不适用于需要保留个人风格的创意写作。",
+       "prerequisiteHints": [
+        "掌握大小写、撇号、连字符的基本规则",
+        "能识别常见拼写错误"
+       ],
+       "taskFamily": "编辑校对",
+       "skill": "writing"
+      }
+     ]
+    }
+   ]
+  },
+  "U60": {
+   "model": "deepseek",
+   "generatedAt": "2026-09-30T14:52:26.184Z",
+   "groups": [
+    {
+     "groupId": "K178",
+     "drafts": [
+      {
+       "name": "正式程度识别与选择",
+       "behavior": "学习者能在给定同一交际意图（如请求延期提交作业）和两个不同对象（同学、导师）的条件下，从提供的三组表达中选出适合各对象的正式程度版本，并口头说明选择理由。",
+       "boundary": "仅判分对正式程度（正式/中性/非正式）的匹配是否正确及理由是否指向对象关系；不判分语法准确性、发音或词汇丰富度。不适用于需要即兴生成全新表达的场合。",
+       "prerequisiteHints": [
+        "能识别常见正式与非正式词汇（如 request vs ask for）",
+        "能理解权力距离与社交距离的基本概念"
+       ],
+       "taskFamily": "识别与选择",
+       "skill": "reading"
+      },
+      {
+       "name": "正式程度转换表达",
+       "behavior": "学习者在准备后，能针对同一要求分别向同学和导师进行口头表达，每个版本至少使用一个与对象匹配的正式程度标记（如情态动词、敬语、称呼语），并在录音中可被独立听辨。",
+       "boundary": "判分仅关注正式程度标记是否与对象匹配，以及两个版本是否存在可观察的差异；不判分流利度、语法错误数量或口音。不适用于书面表达或多人即时互动。",
+       "prerequisiteHints": [
+        "掌握至少两种请求句式（如 Can you...? / I was wondering if you could...）",
+        "能根据对象调整称呼语"
+       ],
+       "taskFamily": "口头表达",
+       "skill": "speaking"
+      },
+      {
+       "name": "正式程度不当的识别与修正",
+       "behavior": "学习者能在听一段包含正式程度不当的对话（如对导师使用过于随意的表达）后，指出不当之处并给出一个更合适的替代表达。",
+       "boundary": "判分以能否定位不当表达并给出至少一个可接受的替代版本为准；不要求解释全部语用理论。不适用于没有明显正式程度冲突的语篇。",
+       "prerequisiteHints": [
+        "能区分正式与非正式表达的基本特征",
+        "具备基础听力理解能力"
+       ],
+       "taskFamily": "听辨与修正",
+       "skill": "listening"
+      }
+     ]
+    },
+    {
+     "groupId": "K179",
+     "drafts": [
+      {
+       "name": "美英变体识别",
+       "behavior": "学习者能在阅读或聆听包含美式与英式英语差异（如词汇、拼写、语法）的短句后，正确标注每个划线部分属于美式、英式或两者均可接受。",
+       "boundary": "仅判分对变体归属的判断是否正确；不判分对变体来源的历史或社会语言学解释。不适用于高度专业或地域性极强的方言表达。",
+       "prerequisiteHints": [
+        "知道常见美英差异词对（如 elevator/lift, apartment/flat）",
+        "能识别基本拼写差异（如 color/colour）"
+       ],
+       "taskFamily": "识别与分类",
+       "skill": "reading"
+      },
+      {
+       "name": "可接受变体选择与表达",
+       "behavior": "学习者在向同学和导师分别表达同一要求时，能根据对象和语境选择美式或英式变体（或两者均可接受的表达），并保持同一版本内变体使用一致。",
+       "boundary": "判分关注变体选择是否可接受且内部一致；不要求固定使用某一变体，也不判分口音。不适用于要求严格遵循单一变体标准的正式写作任务。",
+       "prerequisiteHints": [
+        "能识别至少三组美英差异词汇",
+        "了解同一变体内应保持一致性"
+       ],
+       "taskFamily": "口头表达",
+       "skill": "speaking"
+      },
+      {
+       "name": "变体可接受性判断",
+       "behavior": "学习者能在给定句子中判断某个美式或英式表达在特定语境（如向英国导师写邮件）下是否可接受，并给出简短理由。",
+       "boundary": "判分以可接受性判断是否正确及理由是否合理为准；不要求穷尽所有变体规则。不适用于没有明确语境或对象信息的孤立句子。",
+       "prerequisiteHints": [
+        "了解美英变体在正式语境中通常均可接受",
+        "能根据对象推断语境正式程度"
+       ],
+       "taskFamily": "判断与解释",
+       "skill": "reading"
+      }
+     ]
+    },
+    {
+     "groupId": "K180",
+     "drafts": [
+      {
+       "name": "话语标记识别与功能标注",
+       "behavior": "学习者能在听一段口语对话后，识别出至少三个话语标记（如 well, you know, I mean），并标注每个标记在语境中的功能（如延缓、修正、吸引注意）。",
+       "boundary": "仅判分标记识别和功能标注的合理性；不判分对标记的语法分类或历史来源。不适用于书面正式语篇。",
+       "prerequisiteHints": [
+        "能听懂日常口语对话",
+        "知道话语标记的基本定义"
+       ],
+       "taskFamily": "听辨与标注",
+       "skill": "listening"
+      },
+      {
+       "name": "话语标记在口语中的运用",
+       "behavior": "学习者在向同学和导师分别表达同一要求时，能自然使用至少两个话语标记（如 so, actually, just）来组织话语或缓和语气，且使用不造成理解障碍。",
+       "boundary": "判分关注话语标记是否出现且使用得当；不判分标记数量上限或口音。不适用于要求高度正式、无口语标记的书面表达。",
+       "prerequisiteHints": [
+        "能识别常见话语标记",
+        "能在口语中保持基本流畅"
+       ],
+       "taskFamily": "口头表达",
+       "skill": "speaking"
+      },
+      {
+       "name": "话语标记的互动回应",
+       "behavior": "学习者能在与同学的角色扮演对话中，对他人的话语使用至少一个话语标记（如 oh, right, I see）作出回应，以表明理解或延续对话。",
+       "boundary": "判分以回应中是否包含合适的话语标记并推动对话为准；不判分语法准确性或词汇难度。不适用于独白或书面互动。",
+       "prerequisiteHints": [
+        "能进行简单日常对话",
+        "知道回应性话语标记的基本用法"
+       ],
+       "taskFamily": "互动回应",
+       "skill": "interaction"
+      }
+     ]
+    }
+   ]
+  },
+  "U61": {
+   "model": "deepseek",
+   "generatedAt": "2026-09-30T14:52:31.876Z",
+   "groups": [
+    {
+     "groupId": "K181",
+     "drafts": [
+      {
+       "name": "整块语块脱稿调用",
+       "behavior": "学习者能在给定新场景提示卡（如餐厅点餐、机场问询）后，不借助书面稿，口头说出至少3个与场景匹配的整块语块，并保持语义完整。",
+       "boundary": "仅判分语块是否完整、语义是否匹配场景；不判分语法细节、发音准确度或语块数量超过3个的部分。不适用于需要即兴长篇论述的场景。",
+       "prerequisiteHints": [
+        "K181核心语块表",
+        "场景词汇基础"
+       ],
+       "taskFamily": "口头语块调用",
+       "skill": "speaking"
+      },
+      {
+       "name": "整块语块听力辨识",
+       "behavior": "学习者能在听到一段含目标语块的短对话后，从三个选项中选出与录音中整块语块意义最接近的释义。",
+       "boundary": "仅判分对整块语块意义的理解；不判分对对话中其他词汇或语法的理解。不适用于语块被拆分或改写的听力材料。",
+       "prerequisiteHints": [
+        "K181核心语块表",
+        "基础听力理解"
+       ],
+       "taskFamily": "听力选择",
+       "skill": "listening"
+      },
+      {
+       "name": "整块语块书面填空",
+       "behavior": "学习者能在无参考资料的条件下，在句子空白处填入正确的整块语块，使句子语义通顺且语块形式完整。",
+       "boundary": "仅判分语块形式是否完整、语义是否通顺；不判分拼写错误以外的语法错误。不适用于需要自由创作句子的任务。",
+       "prerequisiteHints": [
+        "K181核心语块表"
+       ],
+       "taskFamily": "书面填空",
+       "skill": "writing"
+      }
+     ]
+    },
+    {
+     "groupId": "K182",
+     "drafts": [
+      {
+       "name": "固定槽位识别与替换",
+       "behavior": "学习者能在给定含固定和可替换槽位的语块示例后，口头说出至少2个可替换槽位的合法替换词，并保持语块整体意义不变。",
+       "boundary": "仅判分替换词是否合法且不改变语块核心意义；不判分替换词的拼写或发音。不适用于固定槽位不可替换的语块。",
+       "prerequisiteHints": [
+        "K182固定与可替换槽位规则",
+        "基础词汇量"
+       ],
+       "taskFamily": "口头替换练习",
+       "skill": "speaking"
+      },
+      {
+       "name": "槽位替换书面改写",
+       "behavior": "学习者能在书面练习中，将给定句子中的可替换槽位用另一个合法词替换，并写出改写后的完整句子。",
+       "boundary": "仅判分替换词是否合法且句子语义通顺；不判分句子其他部分的语法或拼写。不适用于固定槽位或需要改变句子结构的任务。",
+       "prerequisiteHints": [
+        "K182固定与可替换槽位规则"
+       ],
+       "taskFamily": "书面改写",
+       "skill": "writing"
+      },
+      {
+       "name": "槽位替换听力判断",
+       "behavior": "学习者能在听到两个含同一语块但槽位替换不同的句子后，判断两个句子的核心意义是否一致。",
+       "boundary": "仅判分对槽位替换后核心意义一致性的判断；不判分对句子其他细节的理解。不适用于槽位替换导致意义改变的语块。",
+       "prerequisiteHints": [
+        "K182固定与可替换槽位规则",
+        "基础听力理解"
+       ],
+       "taskFamily": "听力判断",
+       "skill": "listening"
+      }
+     ]
+    },
+    {
+     "groupId": "K183",
+     "drafts": [
+      {
+       "name": "搭配小品词习语检索",
+       "behavior": "学习者能在给定一个动词或核心词后，在30秒内从记忆或词典中检索出至少2个与该词搭配的小品词习语，并口头说出其意义。",
+       "boundary": "仅判分习语检索数量与意义正确性；不判分发音或例句质量。不适用于非小品词习语或需要长篇解释的任务。",
+       "prerequisiteHints": [
+        "K183搭配小品词习语表",
+        "词典使用基础"
+       ],
+       "taskFamily": "口头检索",
+       "skill": "speaking"
+      },
+      {
+       "name": "小品词习语语境匹配",
+       "behavior": "学习者能在阅读一段含目标小品词习语的短文后，从四个选项中选出该习语在文中的正确意义。",
+       "boundary": "仅判分对习语在具体语境中意义的理解；不判分对短文其他内容的理解。不适用于习语意义与字面意义相同的材料。",
+       "prerequisiteHints": [
+        "K183搭配小品词习语表",
+        "基础阅读理解"
+       ],
+       "taskFamily": "阅读选择",
+       "skill": "reading"
+      },
+      {
+       "name": "小品词习语互动运用",
+       "behavior": "学习者能在与同伴的角色扮演对话中，主动使用至少1个目标小品词习语，并使其在对话中意义恰当。",
+       "boundary": "仅判分习语使用是否主动且意义恰当；不判分对话流利度、语法或发音。不适用于独白或书面任务。",
+       "prerequisiteHints": [
+        "K183搭配小品词习语表",
+        "基础口语互动能力"
+       ],
+       "taskFamily": "角色扮演",
+       "skill": "interaction"
+      }
+     ]
+    }
+   ]
+  },
+  "U62": {
+   "model": "deepseek",
+   "generatedAt": "2026-09-30T14:52:37.077Z",
+   "groups": [
+    {
+     "groupId": "K184",
+     "drafts": [
+      {
+       "name": "识别讲授信号词",
+       "behavior": "学习者在听一段2-3分钟的学术讲授音频时，能圈出至少4个表示论点、证据或限制的信号词（如first, according to, however, limited to），并标注其功能类别。",
+       "boundary": "仅评信号词的识别与功能归类，不评对讲授内容的理解深度；不适用于无明确信号词的即兴对话。",
+       "prerequisiteHints": [
+        "能听懂常见学术高频词",
+        "能区分事实与观点"
+       ],
+       "taskFamily": "listening",
+       "skill": "listening"
+      },
+      {
+       "name": "复述论点与证据链",
+       "behavior": "学习者在听完一段新讲授后，能用自己的话口头复述核心论点、支撑证据及至少一条限制条件，时长60-90秒。",
+       "boundary": "允许使用笔记，但不得逐字朗读原文；不评语音语调，只评信息完整性与逻辑顺序。",
+       "prerequisiteHints": [
+        "能识别信号词",
+        "能记关键词笔记"
+       ],
+       "taskFamily": "speaking",
+       "skill": "speaking"
+      },
+      {
+       "name": "区分证据与限制",
+       "behavior": "学习者在阅读讲授文字稿时，能用不同颜色标出证据句和限制句，并口头说明两类句子在论证中的作用差异。",
+       "boundary": "仅评证据与限制的区分，不评对论证有效性的评价；不适用于纯叙述性文本。",
+       "prerequisiteHints": [
+        "能识别信号词",
+        "能理解因果与让步关系"
+       ],
+       "taskFamily": "reading",
+       "skill": "reading"
+      }
+     ]
+    },
+    {
+     "groupId": "K185",
+     "drafts": [
+      {
+       "name": "建立关系笔记结构",
+       "behavior": "学习者在听一段新讲授时，能用关系图或双栏笔记记录论点、证据与限制之间的支持/反驳/限定关系，至少覆盖3组关系。",
+       "boundary": "仅评关系记录的完整性与方向正确性，不评笔记美观度；不适用于无明确论证结构的独白。",
+       "prerequisiteHints": [
+        "能识别信号词",
+        "能区分论点与证据"
+       ],
+       "taskFamily": "writing",
+       "skill": "writing"
+      },
+      {
+       "name": "口头复述关系笔记",
+       "behavior": "学习者能依据自己制作的关系笔记，在90秒内口头复述新讲授的论点、证据及限制，并明确说出各成分之间的逻辑关系。",
+       "boundary": "允许看笔记，但不得照读完整句子；不评发音，只评关系表述的准确性。",
+       "prerequisiteHints": [
+        "能建立关系笔记",
+        "能使用逻辑连接词"
+       ],
+       "taskFamily": "speaking",
+       "skill": "speaking"
+      },
+      {
+       "name": "核对笔记缺口",
+       "behavior": "学习者在与同伴交换关系笔记后，能指出对方笔记中缺失的至少一处证据或限制，并说明依据。",
+       "boundary": "仅评缺口识别与依据说明，不评笔记格式；不适用于双方笔记均完整无缺的情况。",
+       "prerequisiteHints": [
+        "能建立关系笔记",
+        "能进行简单互动反馈"
+       ],
+       "taskFamily": "interaction",
+       "skill": "interaction"
+      }
+     ]
+    },
+    {
+     "groupId": "K186",
+     "drafts": [
+      {
+       "name": "标记漏听位置",
+       "behavior": "学习者在听一段新讲授时，能在漏听或不确定处做标记，并在听后用一句话说明漏听的大致内容类型（如数字、人名、转折）。",
+       "boundary": "仅评标记行为与缺口类型描述，不评是否真正听懂；不适用于完全无漏听的听力材料。",
+       "prerequisiteHints": [
+        "能识别信号词",
+        "能边听边做简单标记"
+       ],
+       "taskFamily": "listening",
+       "skill": "listening"
+      },
+      {
+       "name": "诊断缺口原因",
+       "behavior": "学习者在复述新讲授后，能针对至少两处信息缺口，口头说明可能原因（如语速、连读、词汇不熟、注意力分散）。",
+       "boundary": "仅评原因归类的合理性，不评原因是否唯一正确；不适用于无缺口的学习者。",
+       "prerequisiteHints": [
+        "能标记漏听位置",
+        "能使用简单因果表达"
+       ],
+       "taskFamily": "speaking",
+       "skill": "speaking"
+      },
+      {
+       "name": "补全缺口并复述",
+       "behavior": "学习者在获得同伴或文字稿辅助后，能补全先前标记的缺口，并重新完整复述新讲授的论点、证据与限制。",
+       "boundary": "仅评补全后复述的完整性，不评首次听力的表现；不适用于未标记缺口直接复述的情况。",
+       "prerequisiteHints": [
+        "能标记漏听位置",
+        "能诊断缺口原因",
+        "能复述论点证据限制"
+       ],
+       "taskFamily": "speaking",
+       "skill": "speaking"
+      }
+     ]
+    }
+   ]
+  },
+  "U63": {
+   "model": "deepseek",
+   "generatedAt": "2026-09-30T14:52:42.802Z",
+   "groups": [
+    {
+     "groupId": "K187",
+     "drafts": [
+      {
+       "name": "识别长句中的指代链",
+       "behavior": "学习者能在阅读一篇含多重从句和代词的议论性段落时，标出至少3条指代链（如代词、指示词、省略名词短语）并说明每条链的先行词。",
+       "boundary": "仅评判指代链的识别与先行词匹配是否正确；不要求解释作者立场，也不适用于无指代或指代极少的简单句。",
+       "prerequisiteHints": [
+        "能识别基本代词和指示词",
+        "能划分简单句的主谓宾"
+       ],
+       "taskFamily": "指代链标注与先行词匹配",
+       "skill": "reading"
+      },
+      {
+       "name": "解释长句的命题结构",
+       "behavior": "学习者能在给定一个含嵌套从句的长句后，用2~3个短句复述该长句的核心命题与修饰关系，不遗漏主要逻辑连接。",
+       "boundary": "仅评判命题复述的完整性与修饰关系正确性；不要求评价作者态度，也不适用于并列简单句或单层从句。",
+       "prerequisiteHints": [
+        "能识别从句类型",
+        "能区分主句与从句"
+       ],
+       "taskFamily": "长句命题拆解与复述",
+       "skill": "reading"
+      },
+      {
+       "name": "判断长句中的指代歧义",
+       "behavior": "学习者能在阅读含潜在指代歧义的长句时，指出至少一处歧义并给出两种可能的先行词解释。",
+       "boundary": "仅评判歧义识别与解释的合理性；不要求解决歧义或选择作者意图，也不适用于无歧义指代。",
+       "prerequisiteHints": [
+        "能识别指代链",
+        "能区分语法上可能的先行词"
+       ],
+       "taskFamily": "指代歧义识别与解释",
+       "skill": "reading"
+      }
+     ]
+    },
+    {
+     "groupId": "K188",
+     "drafts": [
+      {
+       "name": "识别段落论证结构",
+       "behavior": "学习者能在阅读一个议论性段落后，用图或表标出论点、论据和结论，并指出至少一个隐含前提。",
+       "boundary": "仅评判论证要素标注与隐含前提识别的合理性；不要求评价论证质量，也不适用于纯描述或叙事段落。",
+       "prerequisiteHints": [
+        "能区分事实与观点",
+        "能识别常见逻辑连接词"
+       ],
+       "taskFamily": "论证结构标注与隐含前提识别",
+       "skill": "reading"
+      },
+      {
+       "name": "解释段落间的隐含关系",
+       "behavior": "学习者能在阅读两个相邻段落后，用一句话说明后一段落与前一段落的关系（如支持、反驳、举例、因果），并引用至少一处语言线索。",
+       "boundary": "仅评判关系判断与语言线索引用的匹配性；不要求评价作者立场，也不适用于关系显性标注的段落。",
+       "prerequisiteHints": [
+        "能识别段落主题句",
+        "能识别逻辑连接词"
+       ],
+       "taskFamily": "段落关系推断与线索引用",
+       "skill": "reading"
+      },
+      {
+       "name": "推断作者隐含立场",
+       "behavior": "学习者能在阅读一个含让步与转折的段落后，用一句话写出作者隐含支持的立场，并指出至少一处支持该推断的语言证据。",
+       "boundary": "仅评判立场推断与语言证据的一致性；不要求全面评价作者论证，也不适用于立场完全显性的段落。",
+       "prerequisiteHints": [
+        "能识别让步与转折结构",
+        "能区分作者观点与引用观点"
+       ],
+       "taskFamily": "隐含立场推断与证据定位",
+       "skill": "reading"
+      }
+     ]
+    },
+    {
+     "groupId": "K189",
+     "drafts": [
+      {
+       "name": "快速定位可查证信息",
+       "behavior": "学习者能在限时阅读一篇议论性文章时，用略读和扫读在90秒内定位至少两个可查证的事实性陈述（如数据、日期、人名），并标注其位置。",
+       "boundary": "仅评判定位速度与事实性陈述识别的准确性；不要求判断信息真伪，也不适用于纯观点或虚构文本。",
+       "prerequisiteHints": [
+        "能区分事实与观点",
+        "能使用扫读定位关键词"
+       ],
+       "taskFamily": "限时略读与事实定位",
+       "skill": "reading"
+      },
+      {
+       "name": "推断并标记待查证点",
+       "behavior": "学习者能在阅读一篇议论性文章后，列出至少两个需要外部查证才能确认的推断性陈述，并说明查证方向（如查数据来源、查作者背景）。",
+       "boundary": "仅评判待查证点识别与查证方向合理性；不要求实际完成查证，也不适用于无需查证的常识性陈述。",
+       "prerequisiteHints": [
+        "能区分事实与推断",
+        "能识别信息来源类型"
+       ],
+       "taskFamily": "推断识别与查证方向规划",
+       "skill": "reading"
+      },
+      {
+       "name": "口头报告查证结果",
+       "behavior": "学习者能在完成一次快速查证后，用1分钟口头报告一个推断的查证结果，并说明该结果如何影响对作者支持内容的理解。",
+       "boundary": "仅评判报告内容与查证结果的一致性及对作者立场的关联说明；不要求评价查证方法优劣，也不适用于未进行查证的推断。",
+       "prerequisiteHints": [
+        "能进行基本网络或数据库检索",
+        "能口头概括信息"
+       ],
+       "taskFamily": "查证结果口头报告",
+       "skill": "speaking"
+      }
+     ]
+    }
+   ]
+  },
+  "U64": {
+   "model": "deepseek",
+   "generatedAt": "2026-09-30T14:52:47.199Z",
+   "groups": [
+    {
+     "groupId": "K190",
+     "drafts": [
+      {
+       "name": "无原稿检索释义-口头释义",
+       "behavior": "学习者在无书面原稿、仅看关键词或图片提示的条件下，能用英语口头解释目标作品的核心含义，并给出至少一个支持性理由。",
+       "boundary": "只判分口头释义是否清晰、可理解且与作品相关；不评判发音准确性、语法完全正确或文学分析深度；不适用于有完整原稿朗读或背诵的场景。",
+       "prerequisiteHints": [
+        "能识别作品基本信息",
+        "具备基础释义词汇"
+       ],
+       "taskFamily": "脱稿口头释义",
+       "skill": "speaking"
+      },
+      {
+       "name": "无原稿检索释义-理由补充",
+       "behavior": "学习者在无原稿条件下，能在口头介绍作品后补充至少一条个人理由，并说明该理由与作品含义的关联。",
+       "boundary": "只判分理由是否与作品相关且能自圆其说；不要求理由的原创性或深度；不适用于书面写作或提前准备完整稿件的场景。",
+       "prerequisiteHints": [
+        "能表达个人偏好",
+        "能使用简单因果连接词"
+       ],
+       "taskFamily": "脱稿观点补充",
+       "skill": "speaking"
+      }
+     ]
+    },
+    {
+     "groupId": "K191",
+     "drafts": [
+      {
+       "name": "步骤理由例子-口头说明",
+       "behavior": "学习者在脱稿介绍作品时，能按顺序说明至少两个步骤或要点，并为每个步骤给出一个理由或例子。",
+       "boundary": "只判分步骤顺序是否可跟随、理由或例子是否与步骤对应；不评判步骤数量是否完整或例子是否新颖；不适用于书面列举或仅罗列步骤无理由的场景。",
+       "prerequisiteHints": [
+        "能使用顺序连接词",
+        "能给出简单理由或例子"
+       ],
+       "taskFamily": "脱稿步骤说明",
+       "skill": "speaking"
+      },
+      {
+       "name": "步骤理由例子-互动追问",
+       "behavior": "学习者在脱稿介绍作品后，能回应他人关于步骤或理由的追问，并补充一个额外例子或解释。",
+       "boundary": "只判分回应是否切题且能补充例子或解释；不要求即时反应速度或语言完全准确；不适用于无追问的独白场景。",
+       "prerequisiteHints": [
+        "能理解简单追问",
+        "能即兴补充例子"
+       ],
+       "taskFamily": "互动追问回应",
+       "skill": "interaction"
+      }
+     ]
+    },
+    {
+     "groupId": "K192",
+     "drafts": [
+      {
+       "name": "语音分组停顿修正-自我修正",
+       "behavior": "学习者在脱稿口头介绍作品时，能在意识到语音分组或停顿不当后，立即用修正性重述调整该片段，使表达更清晰。",
+       "boundary": "只判分是否出现可识别的自我修正行为且修正后表达更清晰；不要求修正后完全无停顿或发音完美；不适用于无自我监控的朗读或背诵场景。",
+       "prerequisiteHints": [
+        "能识别自身表达不清",
+        "能使用简单修正表达"
+       ],
+       "taskFamily": "脱稿自我修正",
+       "skill": "speaking"
+      },
+      {
+       "name": "语音分组停顿修正-意义分组",
+       "behavior": "学习者在脱稿介绍作品时，能按意义单位进行语音分组和停顿，使听者能跟随主要信息点。",
+       "boundary": "只判分主要信息点之间是否有可识别的意义分组和停顿；不评判口音或语速；不适用于逐词朗读或完全无停顿的快速独白。",
+       "prerequisiteHints": [
+        "能识别句子主要成分",
+        "能控制基本语速"
+       ],
+       "taskFamily": "脱稿意义分组表达",
+       "skill": "speaking"
+      }
+     ]
+    }
+   ]
+  },
+  "U65": {
+   "model": "deepseek",
+   "generatedAt": "2026-09-30T14:52:54.626Z",
+   "groups": [
+    {
+     "groupId": "K193",
+     "drafts": [
+      {
+       "name": "识别并利用轮次转换信号",
+       "behavior": "学习者在听一段2~3人、语速接近自然的对话时，能标出说话人轮次转换的位置，并指出至少2个触发转换的语言或副语言信号（如降调、停顿、连接词、称呼语）。",
+       "boundary": "仅评对轮次边界的识别与信号标注；不评对内容细节的理解，不评学习者自己发起插话的得体性。",
+       "prerequisiteHints": [
+        "能听懂日常话题的连续语流",
+        "知道基本话语标记词（so, well, anyway等）"
+       ],
+       "taskFamily": "听力标注/信号识别",
+       "skill": "listening"
+      },
+      {
+       "name": "在信息差任务中礼貌插话",
+       "behavior": "在两人共同完成有信息差的口头任务时，学习者能在对方话轮未结束时，使用至少一种礼貌插话策略（如Excuse me, Sorry to interrupt, Can I just add...）成功获取话轮，并推进任务信息交换。",
+       "boundary": "只评插话是否成功获取话轮且未造成明显交际中断；不评语法准确性或口音，不适用于正式演讲或单向陈述场景。",
+       "prerequisiteHints": [
+        "能说出基本请求/打断句式",
+        "能在小组任务中维持话题"
+       ],
+       "taskFamily": "双人信息差口语任务",
+       "skill": "interaction"
+      },
+      {
+       "name": "判断插话时机是否得体",
+       "behavior": "学习者在回听自己或同伴的对话录音时，能依据轮次转换点，判断某次插话属于得体、过早或过晚，并给出至少一条理由。",
+       "boundary": "只评对时机得体性的判断与理由陈述；不评学习者实际插话的流利度，不适用于书面语篇分析。",
+       "prerequisiteHints": [
+        "已掌握轮次转换的基本概念",
+        "能进行简单的自我/同伴评价"
+       ],
+       "taskFamily": "录音回听与同伴互评",
+       "skill": "interaction"
+      }
+     ]
+    },
+    {
+     "groupId": "K194",
+     "drafts": [
+      {
+       "name": "识别异议与追问的功能",
+       "behavior": "学习者在听一段含分歧的讨论时，能区分说话人是在表达异议、要求澄清还是追问理由，并为每类至少举出一处语言证据。",
+       "boundary": "只评对言语功能类别的判断与证据定位；不评学习者是否同意该观点，不适用于无分歧的独白。",
+       "prerequisiteHints": [
+        "能听懂表达不同意的基本句式",
+        "能识别because, but等逻辑连接词"
+       ],
+       "taskFamily": "听力功能分类",
+       "skill": "listening"
+      },
+      {
+       "name": "用追问澄清对方异议",
+       "behavior": "在信息差任务中，当同伴提出异议时，学习者能使用至少一个追问句式（如What do you mean by...? Could you give an example?）获取更多信息，并据此调整自己的表达。",
+       "boundary": "只评追问是否针对异议内容且获得有效回应；不评语音语调，不适用于需要立即服从指令的场景。",
+       "prerequisiteHints": [
+        "能表达基本异议",
+        "能使用wh-问句"
+       ],
+       "taskFamily": "双人信息差口语任务",
+       "skill": "interaction"
+      },
+      {
+       "name": "回应异议并维持合作",
+       "behavior": "在共同解决信息差任务时，学习者能在同伴提出异议后，用至少一种缓和或协商表达（如I see your point, but... / Maybe we could...）作出回应，使任务继续推进而非终止。",
+       "boundary": "只评回应是否维持了任务合作与推进；不评观点本身的对错，不适用于辩论赛等对抗性场景。",
+       "prerequisiteHints": [
+        "能表达同意/不同意",
+        "能使用but, however等转折词"
+       ],
+       "taskFamily": "双人信息差口语任务",
+       "skill": "speaking"
+      }
+     ]
+    },
+    {
+     "groupId": "K195",
+     "drafts": [
+      {
+       "name": "复述并确认关键信息",
+       "behavior": "在听完同伴一段含具体信息的陈述后，学习者能用改述方式复述至少两条关键信息，并以确认问句（如So you mean...? / Did I get that right?）向对方核实。",
+       "boundary": "只评复述信息的准确性与确认问句的使用；不评复述的语法完美度，不适用于无需确认的单向听写任务。",
+       "prerequisiteHints": [
+        "能提取时间、地点、数量等关键信息",
+        "能使用一般疑问句"
+       ],
+       "taskFamily": "双人信息差口语任务",
+       "skill": "speaking"
+      },
+      {
+       "name": "协商理解分歧",
+       "behavior": "当双方对同一信息的理解出现不一致时，学习者能通过至少两轮复述—确认—修正的循环，与同伴达成一致的理解，并在任务记录中体现最终共识。",
+       "boundary": "只评是否通过协商达成一致及循环轮次；不评协商所用语言的复杂度，不适用于一方拥有绝对权威的指令场景。",
+       "prerequisiteHints": [
+        "能复述并确认信息",
+        "能表达不理解或需要重复"
+       ],
+       "taskFamily": "双人信息差口语任务",
+       "skill": "interaction"
+      },
+      {
+       "name": "记录并核对协商结果",
+       "behavior": "在完成口头信息差任务后，学习者能根据协商过程，用简短书面形式记录双方确认的要点，并标注至少一处曾发生理解分歧后修正的内容。",
+       "boundary": "只评记录是否反映协商结果与修正点；不评书写语法与拼写的完全正确，不适用于无需书面留痕的纯口语活动。",
+       "prerequisiteHints": [
+        "能提取对话要点",
+        "能写简单笔记"
+       ],
+       "taskFamily": "任务后书面记录",
+       "skill": "writing"
+      }
+     ]
+    }
+   ]
+  },
+  "U66": {
+   "model": "deepseek",
+   "generatedAt": "2026-09-30T14:53:00.499Z",
+   "groups": [
+    {
+     "groupId": "K196",
+     "drafts": [
+      {
+       "name": "主题句与支撑句展开",
+       "behavior": "学习者能在无教师提示的情况下，针对给定新题目先写出一个明确主题句，再写出至少两个围绕该主题展开的支撑句，使段落中心一致、无离题句。",
+       "boundary": "只判段落内部主题一致性：主题句是否可识别、支撑句是否服务于同一中心；不判语法准确性、词汇丰富度或篇章间衔接。",
+       "prerequisiteHints": [
+        "能写出完整简单句",
+        "能识别主题句与支撑句的区别"
+       ],
+       "taskFamily": "段落写作",
+       "skill": "writing"
+      },
+      {
+       "name": "多角度展开同一主题",
+       "behavior": "学习者能在限定时间内，针对同一主题从至少两个不同角度（如原因、结果、对比）各写一句展开内容，并保持各句均指向原主题。",
+       "boundary": "只判角度是否不同且均与主题相关；不要求角度之间形成逻辑递进，也不判修辞效果。",
+       "prerequisiteHints": [
+        "能区分原因、结果、对比等基本逻辑关系"
+       ],
+       "taskFamily": "段落写作",
+       "skill": "writing"
+      },
+      {
+       "name": "修改后在新题中独立展开",
+       "behavior": "学习者能在参考修改意见后，针对一个未练习过的新题目独立写出一段主题展开文字，其中主题句清晰、支撑句不少于两句且无明显离题。",
+       "boundary": "适用于单元出口任务中的独立写作；不适用于需要引用外部资料或进行多段篇章组织的任务。",
+       "prerequisiteHints": [
+        "已完成本单元主题展开的修改练习",
+        "能根据反馈调整段落中心"
+       ],
+       "taskFamily": "独立段落写作",
+       "skill": "writing"
+      }
+     ]
+    },
+    {
+     "groupId": "K197",
+     "drafts": [
+      {
+       "name": "为观点补充例证",
+       "behavior": "学习者能在写出一个观点句后，至少补充一个具体例子作为支撑，并确保例子与观点直接相关。",
+       "boundary": "只判例子是否具体且与观点相关；不判例子的真实性、来源可靠性或语言复杂度。",
+       "prerequisiteHints": [
+        "能区分观点与事实",
+        "能写出简单例子句"
+       ],
+       "taskFamily": "段落写作",
+       "skill": "writing"
+      },
+      {
+       "name": "使用理由与限制条件",
+       "behavior": "学习者能在给定观点后写出至少一个理由，并附加一个限制条件（如适用对象、例外情况），使论证不过度绝对。",
+       "boundary": "只判理由与限制条件是否同时出现且逻辑上不矛盾；不判限制条件是否全面或是否覆盖所有例外。",
+       "prerequisiteHints": [
+        "能识别绝对化表达",
+        "能使用 because、however 等基本连接词"
+       ],
+       "taskFamily": "段落写作",
+       "skill": "writing"
+      },
+      {
+       "name": "修改后在新题中独立运用例证理由限制",
+       "behavior": "学习者能在参考修改意见后，针对新题目独立写出一段包含观点、例证、理由和限制条件的文字，且各成分可被清晰识别。",
+       "boundary": "适用于单元出口任务中的独立写作；不适用于需要多段论证或反驳对立观点的任务。",
+       "prerequisiteHints": [
+        "已完成本单元例证、理由、限制的修改练习",
+        "能区分观点、例证、理由和限制条件"
+       ],
+       "taskFamily": "独立段落写作",
+       "skill": "writing"
+      }
+     ]
+    },
+    {
+     "groupId": "K198",
+     "drafts": [
+      {
+       "name": "改写并保留原立场",
+       "behavior": "学习者能在阅读一段含明确立场的短文后，用自己的话改写其中关键句，并保持原作者的立场不变。",
+       "boundary": "只判改写后是否保留原立场且语言与原句有明显差异；不判改写是否优美或是否覆盖所有细节。",
+       "prerequisiteHints": [
+        "能识别作者立场",
+        "能进行同义替换"
+       ],
+       "taskFamily": "改写写作",
+       "skill": "reading"
+      },
+      {
+       "name": "摘要中保留立场",
+       "behavior": "学习者能在读完一段含立场的文字后，写出一句摘要，其中包含原立场且不加入个人观点。",
+       "boundary": "只判摘要是否包含原立场且无个人评价；不判摘要长度是否最优或是否涵盖所有支撑细节。",
+       "prerequisiteHints": [
+        "能区分事实与观点",
+        "能提取段落主旨"
+       ],
+       "taskFamily": "摘要写作",
+       "skill": "reading"
+      },
+      {
+       "name": "修改后在新题中独立改写摘要并保留立场",
+       "behavior": "学习者能在参考修改意见后，针对新短文独立完成改写和摘要，且改写句与摘要句均保留原立场、无立场偏移。",
+       "boundary": "适用于单元出口任务中的独立读写结合任务；不适用于需要评价或反驳原立场的任务。",
+       "prerequisiteHints": [
+        "已完成本单元改写和摘要的修改练习",
+        "能识别并保持作者立场"
+       ],
+       "taskFamily": "独立读写结合",
+       "skill": "writing"
+      }
+     ]
+    }
+   ]
+  },
+  "U67": {
+   "model": "deepseek",
+   "generatedAt": "2026-09-30T14:53:08.616Z",
+   "groups": [
+    {
+     "groupId": "K199",
+     "drafts": [
+      {
+       "name": "邮件摘要要点提取",
+       "behavior": "学习者能在阅读一封150-250词的英文商务邮件后，用3-5个英文短句口头或书面概括发件人身份、核心请求与截止时间，不添加邮件未提及的信息。",
+       "boundary": "判分仅依据是否覆盖身份、请求、截止时间三类要点；不评估语法准确性、措辞地道性或对隐含态度的推断；不适用于需要分析邮件修辞策略或情绪色彩的任务。",
+       "prerequisiteHints": [
+        "识别商务邮件常见开头与结尾套语",
+        "提取who/what/when基本信息"
+       ],
+       "taskFamily": "信息提取与概括",
+       "skill": "reading"
+      },
+      {
+       "name": "摘要陈述邮件草稿",
+       "behavior": "学习者能基于给定项目要点清单，在30分钟内写出一封80-120词的英文摘要陈述邮件，包含主题行、收件人称谓、项目目标一句、关键行动项两句和礼貌结束语。",
+       "boundary": "判分检查是否包含主题行、称谓、项目目标、至少两个行动项和结束语；不要求使用特定时态或高级词汇；不适用于正式提案全文或需要谈判语气的邮件。",
+       "prerequisiteHints": [
+        "掌握英文邮件基本格式",
+        "能用简单句陈述项目目标"
+       ],
+       "taskFamily": "格式化写作",
+       "skill": "writing"
+      },
+      {
+       "name": "摘要邮件口头复述",
+       "behavior": "学习者在听完一段60-90秒的英文项目摘要录音后，能面对同伴用英文口头复述其中的项目名称、主要目标和至少一个预期成果，允许参考关键词笔记。",
+       "boundary": "判分仅记录是否提及项目名称、主要目标和至少一个成果；不评估发音、流利度或语法错误；不适用于需要评价录音内容或进行追问的互动场景。",
+       "prerequisiteHints": [
+        "听懂数字与项目相关名词",
+        "做关键词笔记"
+       ],
+       "taskFamily": "听后复述",
+       "skill": "listening"
+      }
+     ]
+    },
+    {
+     "groupId": "K200",
+     "drafts": [
+      {
+       "name": "来源归属标记识别",
+       "behavior": "学习者在阅读一段含直接引用、转述和未标注来源的英文短项目提案时，能用下划线标出所有直接引用，用括号标出转述内容，并指出至少一处缺少来源归属的句子。",
+       "boundary": "判分仅依据标记是否正确区分直接引用与转述，以及是否指出缺失归属；不评估引用格式是否符合APA/MLA等具体规范；不适用于需要判断来源可信度或进行文献综述的任务。",
+       "prerequisiteHints": [
+        "识别引号与转述动词",
+        "理解直接引用与间接转述的区别"
+       ],
+       "taskFamily": "文本标注与识别",
+       "skill": "reading"
+      },
+      {
+       "name": "转述改写练习",
+       "behavior": "学习者能选取给定英文原文中的两个句子，在保持原意的前提下用不同的词汇和句式写出转述句，并为每句添加“(Author, Year)”形式的来源标注。",
+       "boundary": "判分检查转述是否保留原意、是否使用不同措辞、是否添加来源标注；不要求标注格式完全符合某一特定学术规范；不适用于需要综合多个来源或进行批判性评价的写作。",
+       "prerequisiteHints": [
+        "同义词替换",
+        "基本句式转换",
+        "来源标注符号认知"
+       ],
+       "taskFamily": "转述改写",
+       "skill": "writing"
+      },
+      {
+       "name": "引用转述口头归属",
+       "behavior": "学习者在小组讨论中引用课前阅读材料的一个观点时，能用英文口头说明该观点来自哪篇文章或哪位作者，并用自己的话解释该观点与当前项目提案的关联。",
+       "boundary": "判分仅记录是否口头提及来源和是否用自己的话解释关联；不评估讨论中的互动礼仪或说服效果；不适用于需要即时反驳或综合多方来源的辩论场景。",
+       "prerequisiteHints": [
+        "记住阅读材料的作者或标题",
+        "用英语表达观点与项目的关联"
+       ],
+       "taskFamily": "口头引用与关联",
+       "skill": "speaking"
+      }
+     ]
+    },
+    {
+     "groupId": "K201",
+     "drafts": [
+      {
+       "name": "论证强度分级标注",
+       "behavior": "学习者在阅读一段英文项目提案草稿后，能用高/中/低三档标出其中三个论证句的强度，并各用一句英文说明判断理由（如证据类型、限定词使用）。",
+       "boundary": "判分仅依据分级是否合理及理由是否指向文本线索；不要求分级与教师预设完全一致，允许合理差异；不适用于需要修改论证或补充证据的任务。",
+       "prerequisiteHints": [
+        "识别情态动词与限定词",
+        "区分事实陈述与观点陈述"
+       ],
+       "taskFamily": "批判性阅读标注",
+       "skill": "reading"
+      },
+      {
+       "name": "面向读者修订论证",
+       "behavior": "学习者能针对指定的读者对象（如项目资助方或部门同事），从给定提案中选出一个论证句，通过添加证据、调整限定词或改变语气将其修订为更适合该读者的版本，并口头说明修改理由。",
+       "boundary": "判分检查修订后的句子是否体现对读者需求的考虑（如更正式或更具体），以及理由是否与读者特征相关；不评估修订后句子的语法完美度；不适用于需要重写整段或进行多轮同行互评的任务。",
+       "prerequisiteHints": [
+        "识别正式与非正式语气",
+        "使用限定词调节断言强度",
+        "了解不同读者对证据类型的需求差异"
+       ],
+       "taskFamily": "读者导向修订",
+       "skill": "writing"
+      },
+      {
+       "name": "论证强度同伴反馈",
+       "behavior": "学习者在两人小组中交换英文提案草稿，能针对同伴的一个论证句用英文口头给出至少一条关于论证强度是否适合目标读者的反馈，并倾听同伴的回应。",
+       "boundary": "判分仅记录是否给出与论证强度或读者相关的具体反馈，以及是否对同伴回应做出确认或追问；不评估反馈的语言准确性或是否达成一致；不适用于需要评分或撰写正式评语的任务。",
+       "prerequisiteHints": [
+        "用英语表达赞同与不同意见",
+        "识别论证中的证据与主张"
+       ],
+       "taskFamily": "同伴互评",
+       "skill": "interaction"
+      }
+     ]
+    }
+   ]
+  },
+  "U68": {
+   "model": "deepseek",
+   "generatedAt": "2026-09-30T14:53:14.586Z",
+   "groups": [
+    {
+     "groupId": "K202",
+     "drafts": [
+      {
+       "name": "预约/开户场景中提出信息询问",
+       "behavior": "在预约或开户模拟对话中，学习者能针对缺失信息（如时间、所需材料、办理流程）向对方提出至少2个直接问句，且问句结构完整、意图明确。",
+       "boundary": "仅判分是否提出可理解的信息询问；不判分语法完全正确，不判分是否使用礼貌委婉策略，不适用于非预约/开户场景的自由讨论。",
+       "prerequisiteHints": [
+        "疑问句基本语序",
+        "常见预约/开户词汇"
+       ],
+       "taskFamily": "预约或开户模拟对话",
+       "skill": "interaction"
+      },
+      {
+       "name": "对信息范围进行限制",
+       "behavior": "在预约或开户模拟对话中，当对方给出宽泛或模糊信息时，学习者能用限定表达（如具体日期、时间段、账户类型）将询问范围缩小到可操作选项。",
+       "boundary": "仅判分能否用限定词或补充条件缩小信息范围；不判分是否最终获得答案，不适用于对方已给出精确信息的回应。",
+       "prerequisiteHints": [
+        "限定词与修饰语",
+        "数字与日期表达"
+       ],
+       "taskFamily": "预约或开户模拟对话",
+       "skill": "speaking"
+      },
+      {
+       "name": "识别并回应信息限制",
+       "behavior": "在预约或开户模拟对话中，学习者能听懂对方对信息询问的限制条件（如“只能约周三”“需要两种证件”），并据此调整后续询问或确认行动。",
+       "boundary": "仅判分能否识别限制条件并做出相关回应；不判分回应是否完全符合目标语文化习惯，不适用于无限制条件的简单信息交换。",
+       "prerequisiteHints": [
+        "条件句听力理解",
+        "预约/开户常见限制词汇"
+       ],
+       "taskFamily": "预约或开户模拟对话",
+       "skill": "listening"
+      }
+     ]
+    },
+    {
+     "groupId": "K203",
+     "drafts": [
+      {
+       "name": "听写并复述数字日期姓名",
+       "behavior": "在预约或开户模拟对话中，学习者能准确听写对方说出的电话号码、日期和姓名拼写，并在复述时保持数字、日期和字母顺序一致。",
+       "boundary": "仅判分听写与复述的准确性；不判分发音是否地道，不适用于长段落或非关键信息的听写。",
+       "prerequisiteHints": [
+        "数字0-9及组合读法",
+        "月份与日期表达",
+        "英文字母表"
+       ],
+       "taskFamily": "预约或开户模拟对话",
+       "skill": "listening"
+      },
+      {
+       "name": "口头拼读姓名与确认数字日期",
+       "behavior": "在预约或开户模拟对话中，学习者能主动拼读自己的姓名，并对对方提供的数字或日期进行口头确认（如重复关键数字、询问“Is that correct?”）。",
+       "boundary": "仅判分拼读与确认行为的可理解性；不判分拼读速度，不适用于书面填写表格时的拼写检查。",
+       "prerequisiteHints": [
+        "字母拼读",
+        "数字与日期口头表达",
+        "确认疑问句"
+       ],
+       "taskFamily": "预约或开户模拟对话",
+       "skill": "speaking"
+      },
+      {
+       "name": "在表单中准确记录数字日期姓名",
+       "behavior": "在预约或开户模拟对话配套的简单表单中，学习者能根据听到的信息填写数字、日期和姓名，且格式符合常见要求（如日期顺序、姓名分栏）。",
+       "boundary": "仅判分填写内容的准确性与格式合规性；不判分书写美观度，不适用于需要推理或计算的信息转换。",
+       "prerequisiteHints": [
+        "数字与日期书写格式",
+        "姓名分写规则"
+       ],
+       "taskFamily": "预约或开户模拟对话",
+       "skill": "writing"
+      }
+     ]
+    },
+    {
+     "groupId": "K204",
+     "drafts": [
+      {
+       "name": "请求局部澄清",
+       "behavior": "在预约或开户模拟对话中，当未听清或未理解某个具体信息点时，学习者能针对该局部信息使用澄清请求（如重复关键词、询问拼写或含义），而非笼统表示听不懂。",
+       "boundary": "仅判分能否针对局部信息发起澄清；不判分澄清后是否立即理解，不适用于完全未听到任何信息时的整体求助。",
+       "prerequisiteHints": [
+        "澄清疑问句",
+        "关键词提取"
+       ],
+       "taskFamily": "预约或开户模拟对话",
+       "skill": "interaction"
+      },
+      {
+       "name": "确认理解并推进行动",
+       "behavior": "在预约或开户模拟对话中，学习者能在澄清后用自己的话复述关键信息（如时间、所需材料），并据此提出下一步行动或确认预约/开户结果。",
+       "boundary": "仅判分复述关键信息的准确性与行动推进的关联性；不判分复述是否使用复杂句式，不适用于无需确认的简单信息接收。",
+       "prerequisiteHints": [
+        "间接引语基础",
+        "行动动词"
+       ],
+       "taskFamily": "预约或开户模拟对话",
+       "skill": "speaking"
+      },
+      {
+       "name": "识别澄清信号并回应",
+       "behavior": "在预约或开户模拟对话中，学习者能识别对方发出的澄清信号（如重复、反问、停顿），并针对该信号提供补充信息或换一种表达方式。",
+       "boundary": "仅判分能否识别信号并做出相关回应；不判分回应是否完全消除对方疑惑，不适用于对方未发出明确澄清信号的场景。",
+       "prerequisiteHints": [
+        "澄清信号词汇",
+        "同义替换"
+       ],
+       "taskFamily": "预约或开户模拟对话",
+       "skill": "listening"
+      }
+     ]
+    }
+   ]
+  },
+  "U69": {
+   "model": "deepseek",
+   "generatedAt": "2026-09-30T14:53:20.398Z",
+   "groups": [
+    {
+     "groupId": "K205",
+     "drafts": [
+      {
+       "name": "用经历动机解释作品选择",
+       "behavior": "学习者在无逐字稿、仅有提示卡或关键词的条件下，能连续说出2~3句，说明自己选择某作品/项目/决定与个人经历或动机之间的关系，并至少包含一个具体经历细节和一个动机表述。",
+       "boundary": "只判是否出现‘经历细节+动机关联’两项要素及语句可理解度；不判语法准确性、不判是否使用高级词汇、不判内容是否真实。不适用于需要引用外部资料或数据论证的学术陈述。",
+       "prerequisiteHints": [
+        "能使用一般过去时描述个人经历",
+        "能使用 because/so/that's why 等基础因果连接词"
+       ],
+       "taskFamily": "脱稿个人陈述",
+       "skill": "speaking"
+      },
+      {
+       "name": "回应经历动机类追问",
+       "behavior": "学习者在脱稿解释作品和选择的对话中，被问及‘为什么这对你重要’或‘这和你的经历有什么关系’时，能在3秒内开始回应，并给出至少一个与先前陈述一致的经历或动机理由。",
+       "boundary": "只判回应是否切题、是否与先前内容一致、是否给出理由；不判流利度分数、不判发音、不判是否使用复杂句式。不适用于需要即时辩论或反驳对方观点的场景。",
+       "prerequisiteHints": [
+        "能听懂 wh- 类追问句",
+        "能维持同一话题不跑题"
+       ],
+       "taskFamily": "问答互动",
+       "skill": "interaction"
+      }
+     ]
+    },
+    {
+     "groupId": "K206",
+     "drafts": [
+      {
+       "name": "应对即时追问中的未知问题",
+       "behavior": "学习者在脱稿解释作品和选择的互动中，遇到未准备或未知的追问时，能使用至少一种争取时间或澄清策略（如重复问题、说 Let me think、问 Do you mean...），并在随后给出一个可理解的初步回应。",
+       "boundary": "只判是否出现策略性语言和是否给出初步回应；不判回应内容是否完整正确、不判是否最终解决问题。不适用于需要立即给出精确事实答案的知识竞赛类场景。",
+       "prerequisiteHints": [
+        "能识别常见追问句式",
+        "能使用基础澄清问句"
+       ],
+       "taskFamily": "即时问答应对",
+       "skill": "interaction"
+      },
+      {
+       "name": "追问后补充或修正信息",
+       "behavior": "学习者在被追问细节或原因后，能在同一轮对话中补充至少一条新信息，或修正先前表述中的一处内容，使解释更具体。",
+       "boundary": "只判是否新增信息或做出修正、是否与话题相关；不判修正是否语法完美、不判信息量是否充分。不适用于书面修改或正式演讲排练。",
+       "prerequisiteHints": [
+        "能理解追问指向的是细节还是原因",
+        "能使用 and/also/I mean 等补充或修正标记语"
+       ],
+       "taskFamily": "对话修补",
+       "skill": "speaking"
+      }
+     ]
+    },
+    {
+     "groupId": "K207",
+     "drafts": [
+      {
+       "name": "表达受限时回问澄清",
+       "behavior": "学习者在脱稿解释作品和选择时，因词汇或表达受限而卡住，能主动向对方回问澄清（如 How do you say...? / Can you repeat? / What does ... mean?），并在获得帮助后继续表达。",
+       "boundary": "只判是否主动发起澄清请求和是否在帮助后继续话题；不判请求句式的语法正确性、不判是否完全理解对方解释。不适用于不允许中断的独白或考试口试固定流程。",
+       "prerequisiteHints": [
+        "能识别自己表达受阻的时刻",
+        "能使用基础求助句型"
+       ],
+       "taskFamily": "交际策略",
+       "skill": "interaction"
+      },
+      {
+       "name": "修正后重述原意",
+       "behavior": "学习者在表达被对方指出不清楚或错误后，能在不依赖逐字稿的条件下，用不同措辞重述同一意思，使对方能理解其关于作品或选择的核心观点。",
+       "boundary": "只判重述后核心意思是否可被理解、是否与原始意图一致；不判是否使用更高级表达、不判是否完全消除所有语法错误。不适用于需要精确术语或法律/技术定义的场景。",
+       "prerequisiteHints": [
+        "能识别对方的不理解信号",
+        "能使用同义替换或简化表达"
+       ],
+       "taskFamily": "意义协商",
+       "skill": "speaking"
+      }
+     ]
+    }
+   ]
+  },
+  "U70": {
+   "model": "deepseek",
+   "generatedAt": "2026-09-30T14:53:26.593Z",
+   "groups": [
+    {
+     "groupId": "K208",
+     "drafts": [
+      {
+       "name": "识别事实暗示",
+       "behavior": "学习者在听或读一段含预设触发语（如 stop、again、know、realize）的成人英语材料时，能标出说话者/作者视为既定事实的信息，并用自己的话复述该预设内容。",
+       "boundary": "仅判定对预设内容的识别与复述；不要求判断预设是否真实，也不适用于无预设触发语的普通陈述句。",
+       "prerequisiteHints": [
+        "能理解常见预设触发词的基本义",
+        "能区分句子主干与附加信息"
+       ],
+       "taskFamily": "识别与标注",
+       "skill": "listening"
+      },
+      {
+       "name": "区分事实暗示与猜测",
+       "behavior": "学习者在阅读含隐含信息的对话或短文后，能对给定陈述逐条判断其属于事实暗示还是说话者猜测，并指出原文中支持该判断的语言线索。",
+       "boundary": "仅判定事实暗示与猜测的二分类及线索引用；不适用于需要背景世界知识才能推断的隐含意义，也不要求评价猜测的合理性。",
+       "prerequisiteHints": [
+        "能识别预设触发语",
+        "能识别情态动词和模糊限制语"
+       ],
+       "taskFamily": "分类与判断",
+       "skill": "reading"
+      },
+      {
+       "name": "基于语境推断隐含意义",
+       "behavior": "学习者在听一段含语境线索的简短对话后，能写出说话者未直接说出的隐含意义，并说明是依据哪一句或哪个词推断出来的。",
+       "boundary": "仅判定对说话者意图的合理推断及依据说明；不适用于字面已明说的信息，也不接受无文本依据的任意联想。",
+       "prerequisiteHints": [
+        "能理解对话字面意思",
+        "能识别语气和重音变化"
+       ],
+       "taskFamily": "推断与解释",
+       "skill": "listening"
+      }
+     ]
+    },
+    {
+     "groupId": "K209",
+     "drafts": [
+      {
+       "name": "识别委婉语调",
+       "behavior": "学习者在听一段含委婉表达的成人英语对话时，能指出说话者使用了委婉语调的句子，并说明该语调如何弱化直接程度。",
+       "boundary": "仅判定对委婉语调句子的识别及弱化功能说明；不适用于纯书面无语音材料的文本，也不要求模仿该语调。",
+       "prerequisiteHints": [
+        "能听辨基本语调升降",
+        "能理解委婉表达的字面意思"
+       ],
+       "taskFamily": "识别与标注",
+       "skill": "listening"
+      },
+      {
+       "name": "识别幽默语调",
+       "behavior": "学习者在听一段含幽默意图的对话或独白时，能标出说话者使用幽默语调的位置，并解释该处为何可能被理解为玩笑而非字面陈述。",
+       "boundary": "仅判定对幽默语调位置的识别及解释；不适用于文化特定笑话的理解，也不要求学习者自己讲笑话。",
+       "prerequisiteHints": [
+        "能听辨语调变化",
+        "能识别字面义与言外义的区别"
+       ],
+       "taskFamily": "识别与解释",
+       "skill": "listening"
+      },
+      {
+       "name": "区分委婉幽默与事实暗示",
+       "behavior": "学习者在听或读一段同时含委婉、幽默和事实暗示的材料后，能对给定句子判断其主导功能是委婉、幽默还是事实暗示，并给出判断依据。",
+       "boundary": "仅判定三分类判断及依据；不适用于功能重叠且无法确定主导功能的情况，也不要求分析所有修辞手法。",
+       "prerequisiteHints": [
+        "能识别委婉语调",
+        "能识别幽默语调",
+        "能识别事实暗示"
+       ],
+       "taskFamily": "分类与判断",
+       "skill": "interaction"
+      }
+     ]
+    },
+    {
+     "groupId": "K210",
+     "drafts": [
+      {
+       "name": "识别特殊固定结构",
+       "behavior": "学习者在阅读含特殊固定结构（如 if I were you、would rather、it's high time）的成人英语句子时，能指出该结构并说明其语用功能（如建议、偏好、催促）。",
+       "boundary": "仅判定对固定结构的识别及语用功能说明；不适用于自由组合的普通短语，也不要求产出该结构。",
+       "prerequisiteHints": [
+        "能识别常见固定搭配",
+        "能理解虚拟语气基本形式"
+       ],
+       "taskFamily": "识别与解释",
+       "skill": "reading"
+      },
+      {
+       "name": "区分固定结构的语用与字面义",
+       "behavior": "学习者在阅读含特殊固定结构的对话后，能判断该结构在语境中表达的是字面义还是语用义，并指出判断依据。",
+       "boundary": "仅判定字面义与语用义的二分类及依据；不适用于无语境支撑的孤立句子，也不要求分析语法结构本身。",
+       "prerequisiteHints": [
+        "能识别特殊固定结构",
+        "能理解语境对意义的影响"
+       ],
+       "taskFamily": "分类与判断",
+       "skill": "reading"
+      },
+      {
+       "name": "在互动中回应特殊固定结构",
+       "behavior": "学习者在角色扮演对话中听到含特殊固定结构的表达后，能给出符合语用功能的恰当回应（如听到建议结构后表示接受或拒绝）。",
+       "boundary": "仅判定回应的语用恰当性；不要求学习者主动使用该固定结构，也不适用于非互动性的独白任务。",
+       "prerequisiteHints": [
+        "能识别特殊固定结构",
+        "能理解建议、偏好等基本语用功能"
+       ],
+       "taskFamily": "互动回应",
+       "skill": "interaction"
+      }
+     ]
+    }
+   ]
+  },
+  "U71": {
+   "model": "deepseek",
+   "generatedAt": "2026-09-30T14:53:32.798Z",
+   "groups": [
+    {
+     "groupId": "K211",
+     "drafts": [
+      {
+       "name": "跨来源信息整合陈述",
+       "behavior": "学习者在听完一段2分钟音频并读完一篇300词短文后，能口头陈述两篇材料中关于同一议题的3个关键信息点，并指出至少1处信息互补或冲突之处。",
+       "boundary": "仅评判信息点是否来自给定材料且表述可理解；不要求评价材料可信度，不适用于无材料依据的个人观点表达。",
+       "prerequisiteHints": [
+        "能听懂语速正常的2分钟音频主旨",
+        "能读懂300词左右说明文"
+       ],
+       "taskFamily": "听读后口头综合陈述",
+       "skill": "speaking"
+      },
+      {
+       "name": "多来源提案要点写作",
+       "behavior": "学习者在阅读两份立场不同的短材料后，能在20分钟内写出一份80~120词的提案要点，包含问题陈述、至少两条来自不同材料的证据、以及一条建议。",
+       "boundary": "仅评判是否包含规定要素且证据可追溯至材料；不要求语法完全准确，不适用于需要引用外部数据的学术写作。",
+       "prerequisiteHints": [
+        "能提取段落主旨",
+        "能写简单因果句"
+       ],
+       "taskFamily": "基于多材料的短提案写作",
+       "skill": "writing"
+      },
+      {
+       "name": "中介性口头转述",
+       "behavior": "学习者在小组讨论中，能将他人的一段发言用英语转述给另一名组员，保留原意并补充一个来自阅读材料的关联信息点。",
+       "boundary": "仅评判转述是否保留原意且关联信息可识别；不要求逐字翻译，不适用于正式口译场景。",
+       "prerequisiteHints": [
+        "能听懂同伴的课堂发言",
+        "能使用转述句式"
+       ],
+       "taskFamily": "小组内信息中介转述",
+       "skill": "interaction"
+      }
+     ]
+    },
+    {
+     "groupId": "K212",
+     "drafts": [
+      {
+       "name": "问题定义与证据筛选",
+       "behavior": "学习者在听读一段关于社会议题的材料后，能在10分钟内写出一个可讨论的问题定义句，并从材料中选出2条支持该问题的证据，标注证据出处。",
+       "boundary": "仅评判问题定义是否可讨论、证据是否来自材料且与问题相关；不要求证据充分性论证，不适用于需要统计显著性的研究设计。",
+       "prerequisiteHints": [
+        "能区分事实与观点",
+        "能识别材料中的论据"
+       ],
+       "taskFamily": "听读后问题定义与证据标注",
+       "skill": "reading"
+      },
+      {
+       "name": "证据取舍口头说明",
+       "behavior": "学习者在小组讨论中，能针对同一问题从3条候选证据中排除1条不相关证据，并用英语说明排除理由。",
+       "boundary": "仅评判排除理由是否与证据相关性有关；不要求评价证据强度，不适用于需要专业领域知识的证据评估。",
+       "prerequisiteHints": [
+        "能判断信息与问题的关联度",
+        "能使用because等连接词表达理由"
+       ],
+       "taskFamily": "小组证据取舍讨论",
+       "skill": "interaction"
+      },
+      {
+       "name": "提案中的证据取舍写作",
+       "behavior": "学习者在写提案时，能从听读材料中选取2条证据并舍弃1条，在提案中用一句话说明取舍标准。",
+       "boundary": "仅评判是否明确取舍并给出可理解标准；不要求标准具有学术严谨性，不适用于需要系统综述的写作任务。",
+       "prerequisiteHints": [
+        "能写简单比较句",
+        "能提取材料中的证据句"
+       ],
+       "taskFamily": "提案写作中的证据取舍",
+       "skill": "writing"
+      }
+     ]
+    },
+    {
+     "groupId": "K213",
+     "drafts": [
+      {
+       "name": "突发变化下的听力应对",
+       "behavior": "学习者在听一段包含话题突然转换或说话人打断的音频时，能记录转换后的新话题关键词，并口头说出至少2个新话题要点。",
+       "boundary": "仅评判是否捕捉到变化后的关键信息；不要求理解变化原因，不适用于无干扰的单一话题听力。",
+       "prerequisiteHints": [
+        "能听懂常规语速的对话",
+        "能识别话题转换信号词"
+       ],
+       "taskFamily": "含突发变化的听力记录与复述",
+       "skill": "listening"
+      },
+      {
+       "name": "突发变化下的口头回应",
+       "behavior": "学习者在讨论中遇到他人突然提出新观点或质疑时，能在30秒内用英语做出回应，包含承认变化并补充一个相关理由。",
+       "boundary": "仅评判回应是否针对新观点且包含理由；不要求回应完全说服对方，不适用于正式辩论中的即时反驳。",
+       "prerequisiteHints": [
+        "能听懂质疑句",
+        "能使用I see your point等回应句式"
+       ],
+       "taskFamily": "讨论中应对突发质疑",
+       "skill": "speaking"
+      },
+      {
+       "name": "突发变化下的提案调整写作",
+       "behavior": "学习者在写作提案过程中收到一条新的口头或书面信息后，能在15分钟内修改提案，增加一句回应新信息的句子并保持原提案结构完整。",
+       "boundary": "仅评判是否回应新信息且结构未破坏；不要求全面重写，不适用于需要重新调研的提案修改。",
+       "prerequisiteHints": [
+        "能写简单提案段落",
+        "能根据反馈修改句子"
+       ],
+       "taskFamily": "提案写作中的即时调整",
+       "skill": "writing"
+      }
+     ]
+    }
+   ]
+  },
+  "U30": {
+   "model": "deepseek",
+   "generatedAt": "2026-09-30T14:54:10.929Z",
+   "groups": [
+    {
+     "groupId": "K088",
+     "drafts": [
+      {
+       "name": "识别分词修饰的施受关系",
+       "behavior": "学习者能在阅读含现在分词或过去分词修饰名词的句子时，标出被修饰名词与分词的施受关系（主动/被动），在无生词干扰的短句中正确率不低于80%。",
+       "boundary": "仅判定分词与中心名词之间的施受关系，不要求解释时体意义或改写为从句；不适用于独立主格、悬垂结构或分词作状语的情况。",
+       "prerequisiteHints": [
+        "动词及物性判断",
+        "主动/被动语态基本概念"
+       ],
+       "taskFamily": "识别与标注",
+       "skill": "reading"
+      },
+      {
+       "name": "用分词短语压缩事件",
+       "behavior": "学习者能在写作任务中，将两个含同一主语的简单句合并为一个含分词修饰短语的句子，并保持原句的施受关系不变，在5组句子中至少正确完成4组。",
+       "boundary": "仅限同一主语、事件关系为同时或先后的压缩；不评估修辞效果或多种改写方案；不适用于不同主语或需要保留连接词逻辑关系的句子。",
+       "prerequisiteHints": [
+        "简单句合并",
+        "分词形式选择（-ing/-ed）"
+       ],
+       "taskFamily": "句子改写",
+       "skill": "writing"
+      },
+      {
+       "name": "判断分词修饰的合法性",
+       "behavior": "学习者能在给定句子中判断分词修饰是否造成施受关系歧义或错误，并指出问题所在，在10个句子中正确判断不少于8个。",
+       "boundary": "仅判断施受关系是否清晰、分词形式是否与中心名词匹配；不涉及悬垂修饰、完成体或被动语态的复杂情况。",
+       "prerequisiteHints": [
+        "分词作定语的基本位置",
+        "名词与分词的逻辑搭配"
+       ],
+       "taskFamily": "错误识别与判断",
+       "skill": "reading"
+      }
+     ]
+    },
+    {
+     "groupId": "K089",
+     "drafts": [
+      {
+       "name": "识别附加语的逻辑主语",
+       "behavior": "学习者能在含分词附加语的句子中，指出附加语的逻辑主语是主句主语还是其他成分，在无歧义的短文中正确标注不低于80%。",
+       "boundary": "仅针对附加语逻辑主语与主句主语一致或不一致的基本情况；不要求分析悬垂结构的可接受性；不适用于独立主格结构。",
+       "prerequisiteHints": [
+        "主句主语的识别",
+        "分词附加语的位置"
+       ],
+       "taskFamily": "识别与标注",
+       "skill": "reading"
+      },
+      {
+       "name": "改写附加语保持逻辑主语一致",
+       "behavior": "学习者能在写作中，将逻辑主语不一致的分词附加语改写为逻辑主语一致的句子，或改为独立主格/从句，在5个句子中至少正确改写4个。",
+       "boundary": "仅限逻辑主语不一致的常见情况；不评估改写后的文体风格；不适用于完成被动分词或复杂嵌套结构。",
+       "prerequisiteHints": [
+        "独立主格结构",
+        "状语从句转换"
+       ],
+       "taskFamily": "句子改写",
+       "skill": "writing"
+      },
+      {
+       "name": "口头解释附加语逻辑关系",
+       "behavior": "学习者能在口语练习中，用简单英语解释含分词附加语句子中谁对谁做了什么，在3个句子中至少清晰解释2个。",
+       "boundary": "仅评估逻辑主语的指认和施受关系，不要求使用语法术语；不适用于多重附加语或歧义句。",
+       "prerequisiteHints": [
+        "基本动作动词",
+        "主谓宾句型"
+       ],
+       "taskFamily": "口头解释",
+       "skill": "speaking"
+      }
+     ]
+    },
+    {
+     "groupId": "K090",
+     "drafts": [
+      {
+       "name": "识别完成被动分词结构",
+       "behavior": "学习者能在阅读中识别 having been + 过去分词结构，并指出其表示的动作发生在主句动作之前且为被动，在5个句子中正确识别不少于4个。",
+       "boundary": "仅识别完成被动分词的形式与时间/语态含义；不要求与完成进行时或情态完成结构区分；不适用于省略having的简化形式。",
+       "prerequisiteHints": [
+        "现在完成时被动语态",
+        "分词完成体形式"
+       ],
+       "taskFamily": "识别与标注",
+       "skill": "reading"
+      },
+      {
+       "name": "判断悬垂修饰的可接受性",
+       "behavior": "学习者能在给定句子中判断完成被动分词附加语是否悬垂（逻辑主语与主句主语不一致），并说明理由，在8个句子中正确判断不少于6个。",
+       "boundary": "仅判断逻辑主语一致性；不涉及修辞上可接受的悬垂用法或固定表达；不适用于独立主格或介词短语悬垂。",
+       "prerequisiteHints": [
+        "附加语逻辑主语",
+        "主句主语识别"
+       ],
+       "taskFamily": "错误识别与判断",
+       "skill": "reading"
+      },
+      {
+       "name": "用完成被动分词压缩事件",
+       "behavior": "学习者能在写作中，将两个含被动关系且有时间先后的句子合并为含having been + 过去分词的句子，并保持施受关系和时间顺序，在4组句子中至少正确完成3组。",
+       "boundary": "仅限被动关系明确、时间先后清晰的压缩；不评估文体多样性；不适用于主动关系或同时发生的事件。",
+       "prerequisiteHints": [
+        "被动语态转换",
+        "完成体时间关系"
+       ],
+       "taskFamily": "句子合并",
+       "skill": "writing"
+      }
+     ]
+    }
+   ]
+  },
+  "U44": {
+   "model": "deepseek",
+   "generatedAt": "2026-09-30T14:54:19.116Z",
+   "groups": [
+    {
+     "groupId": "K130",
+     "drafts": [
+      {
+       "name": "识别wish/hope/if only的语义类型",
+       "behavior": "学习者在阅读或听一段含wish/hope/if only的短对话后，能圈出目标句并标注其表达的是'可实现希望''遗憾'还是'正式要求'，正确率不低于80%。",
+       "boundary": "仅判定语义类型，不要求改写或产出新句；不适用于区分wish与hope的时态搭配细节；不适用于虚拟语气其他结构（如would rather）。",
+       "prerequisiteHints": [
+        "一般现在时/一般过去时基本用法",
+        "hope后接that从句的常见形式"
+       ],
+       "taskFamily": "识别与分类",
+       "skill": "reading"
+      },
+      {
+       "name": "用wish/if only表达遗憾",
+       "behavior": "学习者在给定3个已发生的不如意情境（如错过航班、没学法语）后，能用wish或if only写出3个表达遗憾的句子，且动词形式使用过去完成时或过去时，至少2句正确。",
+       "boundary": "只判分遗憾语义与动词形式，不判分标点或拼写小错；不适用于表达对未来的希望（应用hope）；不适用于正式要求语境。",
+       "prerequisiteHints": [
+        "wish后接过去完成时表过去遗憾",
+        "if only与wish的句法相似性"
+       ],
+       "taskFamily": "受控产出",
+       "skill": "writing"
+      },
+      {
+       "name": "区分hope与wish在正式要求中的选择",
+       "behavior": "学习者在给定5个正式要求或礼貌请求的书面语境中，能选择hope或wish填空，并说明选择理由，至少4题正确且理由与'可实现性/正式度'相关。",
+       "boundary": "仅限hope/wish二选一，不涉及if only；不适用于口语即时互动；不判分理由的措辞质量，只判分是否指向可实现性或正式度。",
+       "prerequisiteHints": [
+        "hope表可实现希望",
+        "wish表遗憾或正式要求",
+        "正式要求中wish的礼貌用法"
+       ],
+       "taskFamily": "选择与解释",
+       "skill": "reading"
+      }
+     ]
+    },
+    {
+     "groupId": "K131",
+     "drafts": [
+      {
+       "name": "识别would rather/it's time/as if的语义功能",
+       "behavior": "学习者在听一段含would rather、it's time、as if的对话后，能勾选每个目标句所表达的'偏好''建议/该做某事'或'虚拟比较'，正确率不低于75%。",
+       "boundary": "仅识别语义功能，不要求产出；不适用于区分would rather与prefer的细微差别；不适用于as if后接真实与虚拟的时态对比。",
+       "prerequisiteHints": [
+        "would rather后接动词原形的用法",
+        "it's time后接过去时的虚拟用法",
+        "as if后接从句的常见形式"
+       ],
+       "taskFamily": "识别与分类",
+       "skill": "listening"
+      },
+      {
+       "name": "用it's time和would rather表达建议与偏好",
+       "behavior": "学习者在给定3个情境（如房间太乱、朋友总迟到）后，能用it's time或would rather写出3个句子，分别表达'该做某事'和'宁愿做某事'，至少2句语法正确且语义匹配。",
+       "boundary": "只判分it's time/would rather的句法形式与语义匹配，不判分词汇丰富度；不适用于as if；不适用于正式书面要求。",
+       "prerequisiteHints": [
+        "it's time (that) + 过去时",
+        "would rather + 动词原形",
+        "would rather + that从句的虚拟"
+       ],
+       "taskFamily": "受控产出",
+       "skill": "writing"
+      },
+      {
+       "name": "用as if进行虚拟比较的口头表达",
+       "behavior": "学习者在看图说话任务中，能针对3张夸张图片（如某人像要飞起来）用as if说出3个虚拟比较句，至少2句使用正确的时态（过去时/过去完成时）且语义可理解。",
+       "boundary": "只判分as if从句的时态与语义可理解性，不判分发音或流利度；不适用于真实比较（应用like）；不适用于would rather/it's time。",
+       "prerequisiteHints": [
+        "as if + 过去时表虚拟",
+        "as if + 过去完成时表过去虚拟"
+       ],
+       "taskFamily": "口头描述",
+       "skill": "speaking"
+      }
+     ]
+    },
+    {
+     "groupId": "K132",
+     "drafts": [
+      {
+       "name": "识别建议型原形与公式祝愿",
+       "behavior": "学习者在阅读5个含建议型原形（如suggest that he go）或公式祝愿（如Long live the King）的句子后，能判断其属于'建议'还是'祝愿'，正确率不低于80%。",
+       "boundary": "仅判断功能类别，不要求改写；不适用于其他虚拟语气结构（wish/if only/would rather）；不适用于区分suggest与recommend的搭配差异。",
+       "prerequisiteHints": [
+        "建议动词后接that+原形的结构",
+        "公式祝愿的固定表达"
+       ],
+       "taskFamily": "识别与分类",
+       "skill": "reading"
+      },
+      {
+       "name": "用建议型原形改写句子",
+       "behavior": "学习者在给定5个含should的建议句后，能用建议型原形（省略should）改写，至少4句正确，且主句动词与that从句原形搭配无误。",
+       "boundary": "只判分should省略与原形使用，不判分标点或大小写；不适用于否定建议（not+原形）的复杂情况；不适用于公式祝愿。",
+       "prerequisiteHints": [
+        "suggest/insist/demand等动词后接that+原形",
+        "should在建议从句中的省略"
+       ],
+       "taskFamily": "改写",
+       "skill": "writing"
+      },
+      {
+       "name": "在正式场合使用公式祝愿",
+       "behavior": "学习者在模拟正式场合（如会议开幕、祝酒）中，能说出2个公式祝愿句（如May you succeed/Long live...），至少1句结构正确且语域正式。",
+       "boundary": "只判分公式祝愿的结构与语域，不判分发音或流利度；不适用于日常非正式祝愿（应用Hope you...）；不适用于建议型原形。",
+       "prerequisiteHints": [
+        "May+主语+动词原形的祝愿结构",
+        "Long live+主语的固定表达"
+       ],
+       "taskFamily": "角色扮演",
+       "skill": "speaking"
+      }
+     ]
+    }
+   ]
+  },
+  "U72": {
+   "model": "deepseek",
+   "generatedAt": "2026-09-30T14:54:24.953Z",
+   "groups": [
+    {
+     "groupId": "K214",
+     "drafts": [
+      {
+       "name": "识别低频高级结构变体",
+       "behavior": "学习者在阅读或聆听真实语料时，能标出至少3个低频高级结构（如倒装、虚拟语气变体、分裂句变体），并说明其常规对应形式。",
+       "boundary": "仅判定结构识别与对应说明是否正确；不要求产出该结构，不适用于口语流利度或写作风格评分。",
+       "prerequisiteHints": [
+        "掌握对应常规语法结构",
+        "具备句法成分分析基础"
+       ],
+       "taskFamily": "识别与标注",
+       "skill": "reading"
+      },
+      {
+       "name": "在受控写作中产出低频高级结构变体",
+       "behavior": "学习者在给定主题的短文中，能使用至少2个低频高级结构变体，且语法正确、语义连贯。",
+       "boundary": "仅判定结构使用的正确性与适切性；不评估篇章整体修辞效果，不适用于即兴口语。",
+       "prerequisiteHints": [
+        "能识别目标结构",
+        "掌握基本书面语篇衔接"
+       ],
+       "taskFamily": "受控产出",
+       "skill": "writing"
+      },
+      {
+       "name": "审计个人低频结构使用范围",
+       "behavior": "学习者能对照全范围清单，在自身近期口语或写作样本中标记已使用与未使用的低频高级结构，并列出拓展计划。",
+       "boundary": "仅判定审计记录的完整性与准确性；不判定拓展计划的实际执行效果，不适用于实时互动评分。",
+       "prerequisiteHints": [
+        "具备元语言术语知识",
+        "能保存并回看自身语言样本"
+       ],
+       "taskFamily": "自我审计",
+       "skill": "writing"
+      }
+     ]
+    },
+    {
+     "groupId": "K215",
+     "drafts": [
+      {
+       "name": "跨领域迁移使用目标结构",
+       "behavior": "学习者在两个不同领域（如科技与艺术）的阅读材料中，能各找出并解释至少1个相同高级结构的不同功能。",
+       "boundary": "仅判定跨领域识别与功能解释；不要求产出新领域内容，不适用于单一领域深度分析。",
+       "prerequisiteHints": [
+        "熟悉至少两个领域的基础词汇",
+        "能识别目标结构"
+       ],
+       "taskFamily": "跨域比较",
+       "skill": "reading"
+      },
+      {
+       "name": "在领域任务中调用长期迁移知识",
+       "behavior": "学习者在模拟职场或学术场景的口头陈述中，能主动调用至少2个此前单元学过的结构，并适应领域语域。",
+       "boundary": "仅判定结构调用与语域适配；不评估领域内容专业度，不适用于书面考试。",
+       "prerequisiteHints": [
+        "具备目标领域基本图式",
+        "有口头陈述经验"
+       ],
+       "taskFamily": "情境迁移",
+       "skill": "speaking"
+      },
+      {
+       "name": "制定分领域长期迁移计划",
+       "behavior": "学习者能针对三个目标领域，各写出1条未来四周内使用特定高级结构的可执行计划。",
+       "boundary": "仅判定计划的领域针对性与可执行性；不判定计划完成度，不适用于即时语言表现。",
+       "prerequisiteHints": [
+        "能进行自我审计",
+        "了解目标领域交际需求"
+       ],
+       "taskFamily": "计划制定",
+       "skill": "writing"
+      }
+     ]
+    },
+    {
+     "groupId": "K216",
+     "drafts": [
+      {
+       "name": "从真实材料中提取新增知识",
+       "behavior": "学习者在阅读一篇未改编的真实材料后，能提取至少2个此前未学过的语言点，并给出语境释义。",
+       "boundary": "仅判定提取与释义的准确性；不要求立即产出使用，不适用于听力材料或虚构文本。",
+       "prerequisiteHints": [
+        "具备略读与猜词策略",
+        "能使用词典验证"
+       ],
+       "taskFamily": "提取与释义",
+       "skill": "reading"
+      },
+      {
+       "name": "在互动中即时记录并回应新增知识",
+       "behavior": "学习者在与同伴讨论真实材料时，能记录对方使用的1个新语言点，并在后续发言中尝试回应或追问。",
+       "boundary": "仅判定记录与回应的相关性；不评估新语言点使用的准确性，不适用于独立写作。",
+       "prerequisiteHints": [
+        "具备基本互动策略",
+        "能进行快速笔记"
+       ],
+       "taskFamily": "互动回应",
+       "skill": "interaction"
+      },
+      {
+       "name": "将真实材料新增知识纳入个人知识库",
+       "behavior": "学习者能将本周从真实材料中收集的至少3个新语言点，按主题分类整理并附上真实例句。",
+       "boundary": "仅判定分类合理性与例句真实性；不判定长期记忆效果，不适用于课堂即时任务。",
+       "prerequisiteHints": [
+        "能使用笔记工具",
+        "具备基本分类能力"
+       ],
+       "taskFamily": "知识管理",
+       "skill": "writing"
+      }
+     ]
+    }
+   ]
+  },
+  "U16": {
+   "model": "deepseek",
+   "generatedAt": "2026-09-30T14:55:07.947Z",
+   "groups": [
+    {
+     "groupId": "K046",
+     "drafts": [
+      {
+       "name": "经验问答：Have you ever...? 的肯定/否定回答",
+       "behavior": "学习者在听到或读到 Have you ever + 过去分词 的问句后，能在无准备的口语或书面回答中，用 Yes, I have. / No, I haven't. 或完整句 I have/haven't + 过去分词 作出与事实一致的回答，且不附加具体过去时间。",
+       "boundary": "只判分是否用现在完成回答经验有无；若学习者用一般过去时回答（如 Yes, I did.）或附加 yesterday/last week 等已结束过去时间，判为未达标；不适用于询问具体过去时刻的 Wh- 问句。",
+       "prerequisiteHints": [
+        "过去分词基本形式",
+        "一般过去时与现在完成时的初步区分"
+       ],
+       "taskFamily": "经验有无的问答",
+       "skill": "interaction"
+      },
+      {
+       "name": "经历列举：用现在完成说出做过的事",
+       "behavior": "学习者在被要求列举个人经历（如 Tell me about your experiences.）时，能在 30 秒内说出至少 2 个 I have + 过去分词 的句子，且句中不含具体过去时间状语。",
+       "boundary": "只判分是否用现在完成结构列举经历；若句子含 yesterday/in 2019 等已结束时间状语，或全部用一般过去时，判为未达标；不适用于叙述一次具体旅行细节。",
+       "prerequisiteHints": [
+        "常见过去分词读音与拼写",
+        "经历类动词词汇"
+       ],
+       "taskFamily": "个人经历陈述",
+       "skill": "speaking"
+      },
+      {
+       "name": "结果现在性：用现在完成说明过去动作对现在的影响",
+       "behavior": "学习者在阅读或听力中遇到现在完成句（如 I have lost my keys.）后，能在书面或口头解释中说明该句暗示的现在结果（如 I can't open the door now.），且不把动作定位到具体过去时刻。",
+       "boundary": "只判分能否识别并表达现在结果；若学习者把句子理解为纯过去事件并追问 When? 或改写为一般过去时，判为未达标；不适用于 already/yet 的语序专项。",
+       "prerequisiteHints": [
+        "现在完成基本形式",
+        "因果关系表达"
+       ],
+       "taskFamily": "结果推断与解释",
+       "skill": "reading"
+      }
+     ]
+    },
+    {
+     "groupId": "K047",
+     "drafts": [
+      {
+       "name": "for/since 时长问答",
+       "behavior": "学习者在回答 How long have you...? 时，能在口语或书面中正确选用 for + 时间段 或 since + 起点，说出如 I have lived here for five years. / I have lived here since 2019. 的句子，且动词用现在完成（非进行）表示持续状态。",
+       "boundary": "只判分 for/since 的选择与现在完成形式；若用 since five years 或 for 2019 等搭配错误，或误用一般现在时，判为未达标；不适用于瞬间动词（如 start/finish）的完成时。",
+       "prerequisiteHints": [
+        "时间段与时间点表达",
+        "现在完成基本结构"
+       ],
+       "taskFamily": "时长问答",
+       "skill": "speaking"
+      },
+      {
+       "name": "持续状态描述：用现在完成 + for/since 写个人现状",
+       "behavior": "学习者在书面任务中，能针对工作、居住、学习等持续状态写出 3 句现在完成 + for/since 的句子，每句均含正确的时间介词且动词为延续性动词。",
+       "boundary": "只判分持续状态与 for/since 的搭配；若使用非延续动词（如 I have joined the club for two years.）或时间介词错误，判为未达标；不适用于 already/yet/ever 的完成时用法。",
+       "prerequisiteHints": [
+        "延续性动词与瞬间动词区分",
+        "for/since 基本规则"
+       ],
+       "taskFamily": "个人现状书面描述",
+       "skill": "writing"
+      },
+      {
+       "name": "听辨 for/since 并回应",
+       "behavior": "学习者在听到含 for/since 的现在完成问句（如 How long have you worked there?）后，能在听力材料中选出与所听内容一致的时间表达，并用完整句口头回应，for/since 使用正确。",
+       "boundary": "只判分听辨时间介词与口头回应中的 for/since 正确性；若回应遗漏时间信息或介词错误，判为未达标；不适用于区分现在完成与现在完成进行时的语义差异。",
+       "prerequisiteHints": [
+        "for/since 发音弱读",
+        "现在完成疑问句语序"
+       ],
+       "taskFamily": "听力选择与口头回应",
+       "skill": "listening"
+      }
+     ]
+    },
+    {
+     "groupId": "K048",
+     "drafts": [
+      {
+       "name": "完成时与已结束过去时间状语的排斥判断",
+       "behavior": "学习者在书面或口头句子判断任务中，能识别并改正现在完成 + 已结束过去时间状语（如 I have seen him yesterday.）的错误，将其改为一般过去时（I saw him yesterday.），并说明理由。",
+       "boundary": "只判分能否识别并改正完成时与 yesterday/last week/in 2019 等已结束时间状语的冲突；若把现在完成与 just/already/yet 的搭配误判为错误，判为未达标；不适用于 since 引导的时间从句。",
+       "prerequisiteHints": [
+        "一般过去时形式",
+        "现在完成基本意义"
+       ],
+       "taskFamily": "句子判断与改错",
+       "skill": "writing"
+      },
+      {
+       "name": "选择时态：完成时 vs 一般过去时",
+       "behavior": "学习者在给定语境（含明确过去时间或与现在关联）的填空或选择题中，能正确选择现在完成或一般过去时，10 题中至少 8 题正确，并口头说明选择依据。",
+       "boundary": "只判分在明确时间状语提示下的时态选择；若语境同时允许两种时态（如 I have lived here for... 与 I lived there for...），不纳入判分；不适用于过去完成时。",
+       "prerequisiteHints": [
+        "时间状语与过去时搭配",
+        "现在完成与现在关联"
+       ],
+       "taskFamily": "时态选择",
+       "skill": "reading"
+      },
+      {
+       "name": "经验叙述中的时态切换",
+       "behavior": "学习者在口头叙述个人经历时，能在同一段话中正确切换现在完成（谈经验有无）与一般过去时（谈具体一次经历细节），如 I have been to Japan. I went there in 2019.，且切换处无时态错误。",
+       "boundary": "只判分经验概括用完成、具体细节用过去时的切换；若全段只用一种时态或切换处出现完成时 + 过去时间，判为未达标；不适用于过去完成时与过去时的配合。",
+       "prerequisiteHints": [
+        "现在完成经验用法",
+        "一般过去时叙述细节"
+       ],
+       "taskFamily": "经历叙述",
+       "skill": "speaking"
+      }
+     ]
+    }
+   ]
+  },
+  "U28": {
+   "model": "deepseek",
+   "generatedAt": "2026-09-30T14:55:22.166Z",
+   "groups": [
+    {
+     "groupId": "K082",
+     "drafts": [
+      {
+       "name": "识别宾语加不定式结构中的参与者",
+       "behavior": "学习者能在阅读含有promise/ask/seem等动词的句子时，标出不定式的逻辑主语（即谁执行不定式动作），并说明该主语是句子的宾语、主语还是隐含参与者。",
+       "boundary": "仅限含有显性不定式补语的句子；不适用于动名词、分词或that从句；不要求区分控制与提升的理论标签。",
+       "prerequisiteHints": [
+        "能识别句子主语和宾语",
+        "能识别to do形式"
+       ],
+       "taskFamily": "识别与标注",
+       "skill": "reading"
+      },
+      {
+       "name": "根据动词类型判断不定式参与者",
+       "behavior": "学习者能在听或读含有promise/ask/seem的句子后，用选择题或简答指出不定式动作的执行者，并说明是由主语还是宾语控制。",
+       "boundary": "仅限promise/ask/seem等常见动词；不适用于多义或语境依赖强的边缘用例；不要求产出完整语法解释。",
+       "prerequisiteHints": [
+        "知道promise/ask/seem的基本词义"
+       ],
+       "taskFamily": "判断与选择",
+       "skill": "listening"
+      },
+      {
+       "name": "用宾语加不定式描述不同参与者",
+       "behavior": "学习者能在口语或写作练习中，用promise/ask/seem等动词造句，使不定式的执行者与主句主语或宾语一致，并保持意义清晰。",
+       "boundary": "仅限单句或短对话；不要求使用复杂嵌套或被动结构；不评估语篇连贯性。",
+       "prerequisiteHints": [
+        "能使用一般现在时和一般过去时"
+       ],
+       "taskFamily": "句子产出",
+       "skill": "writing"
+      }
+     ]
+    },
+    {
+     "groupId": "K083",
+     "drafts": [
+      {
+       "name": "区分控制与提升动词的参与者指派",
+       "behavior": "学习者能在阅读含有promise/ask/seem的句子时，判断不定式的逻辑主语是主句主语、宾语还是无对应参与者，并给出简要理由。",
+       "boundary": "仅限典型控制动词（如promise, ask）和提升动词（如seem）；不要求区分控制与提升的所有子类；不涉及被动提升的复杂情况。",
+       "prerequisiteHints": [
+        "能识别主句主语和宾语",
+        "能识别不定式补语"
+       ],
+       "taskFamily": "分类与解释",
+       "skill": "reading"
+      },
+      {
+       "name": "根据控制/提升关系完成句子",
+       "behavior": "学习者能在填空或改写练习中，根据控制或提升关系选择正确的主语或宾语，使不定式的参与者与主句成分匹配。",
+       "boundary": "仅限单句填空或同义改写；不适用于自由写作；不要求解释理论术语。",
+       "prerequisiteHints": [
+        "知道promise/ask/seem的常见句型"
+       ],
+       "taskFamily": "填空与改写",
+       "skill": "writing"
+      },
+      {
+       "name": "听辨控制与提升句的参与者",
+       "behavior": "学习者能在听含有promise/ask/seem的短句后，口头回答不定式动作由谁执行，并指出是主语控制还是宾语控制或提升。",
+       "boundary": "仅限语速适中、发音清晰的短句；不适用于连续语流中的弱读或省略；不要求即时理论命名。",
+       "prerequisiteHints": [
+        "能听懂一般现在时和一般过去时的简单句"
+       ],
+       "taskFamily": "听辨与口头回答",
+       "skill": "listening"
+      }
+     ]
+    },
+    {
+     "groupId": "K084",
+     "drafts": [
+      {
+       "name": "识别感官使役裸不定式结构",
+       "behavior": "学习者能在阅读含有see/hear/make/let等动词的句子时，标出裸不定式（不带to）及其逻辑主语，并说明该主语是宾语还是被动句的主语。",
+       "boundary": "仅限主动和被动语态中的感官/使役动词+裸不定式；不适用于带to不定式或其他补语类型；不要求区分感官与使役的语义差异。",
+       "prerequisiteHints": [
+        "能识别主动句和被动句",
+        "能识别动词原形"
+       ],
+       "taskFamily": "识别与标注",
+       "skill": "reading"
+      },
+      {
+       "name": "将感官使役主动句改为被动句",
+       "behavior": "学习者能在写作练习中，将含有see/hear/make等动词的主动句改为被动句，并正确使用裸不定式或带to不定式（如be made to do）。",
+       "boundary": "仅限单句转换；不适用于复杂时态或情态动词；不评估语篇衔接。",
+       "prerequisiteHints": [
+        "能构成一般现在时和一般过去时的被动语态"
+       ],
+       "taskFamily": "句型转换",
+       "skill": "writing"
+      },
+      {
+       "name": "听辨并回应感官使役句",
+       "behavior": "学习者能在听含有see/hear/make/let的短句后，用完整句子口头回答谁对谁做了什么，并正确使用裸不定式或被动形式。",
+       "boundary": "仅限语速适中、发音清晰的短句；不适用于连续语流中的省略或弱读；不要求使用复杂时态。",
+       "prerequisiteHints": [
+        "能听懂简单句的主谓宾结构"
+       ],
+       "taskFamily": "听辨与口头回应",
+       "skill": "listening"
+      }
+     ]
+    }
+   ]
+  },
+  "U19": {
+   "model": "deepseek",
+   "generatedAt": "2026-09-30T14:55:54.687Z",
+   "groups": [
+    {
+     "groupId": "K055",
+     "drafts": [
+      {
+       "name": "用can/be able to表达能力与可能性",
+       "behavior": "学习者能在单句填空或改写任务中，针对已给出的主语和语境提示，正确选用can/can't或be able to的适当时态形式完成句子，使句意符合提示中的能力或可能性含义。",
+       "boundary": "仅判分can/be able to在能力与可能性义项上的形式选择与句法正确性；不判分must/need/should等其他情态动词的语义区分，不判分语篇层面的连贯性。",
+       "prerequisiteHints": [
+        "一般现在时与一般过去时的基本句型",
+        "情态动词后接动词原形的规则"
+       ],
+       "taskFamily": "单句填空/改写",
+       "skill": "writing"
+      },
+      {
+       "name": "在口语应答中区分can与be able to的语用差异",
+       "behavior": "学习者能在两人对话角色扮演中，针对同伴提出的请求或询问能力的问题，在3秒内用can或be able to作出语法正确且语用自然的应答，并至少一次使用be able to的完成时形式。",
+       "boundary": "仅判分目标结构在口语应答中的形式正确性与基本语用适切性；不判分发音准确度、流利度或话轮转换策略。",
+       "prerequisiteHints": [
+        "can/can't的基本问答句型",
+        "be able to的现在完成时形式"
+       ],
+       "taskFamily": "角色扮演/对话",
+       "skill": "speaking"
+      },
+      {
+       "name": "识别听力材料中can与be able to的语义差别",
+       "behavior": "学习者能在听一段包含can和be able to的短对话后，从三个选项中选出说话者表达的是'一般能力'还是'特定场合的能力'，正确率不低于80%。",
+       "boundary": "仅判分对can与be able to在能力义项上的语义区分；不判分对对话中其他情态动词或词汇的理解。",
+       "prerequisiteHints": [
+        "can表示一般能力的用法",
+        "be able to表示特定场合能力的用法"
+       ],
+       "taskFamily": "听力选择",
+       "skill": "listening"
+      }
+     ]
+    },
+    {
+     "groupId": "K056",
+     "drafts": [
+      {
+       "name": "用must/have to/need及否定形式表达义务与必要性",
+       "behavior": "学习者能在给定情境提示卡（如'规则要求''没有必要''禁止'）的条件下，写出一个语法正确且语义匹配的句子，正确使用must/mustn't/have to/don't have to/needn't中的至少一个结构。",
+       "boundary": "仅判分must/have to/need及其否定形式在义务与必要性义项上的形式与语义匹配；不判分should/ought to/had better的语义区分，不判分拼写以外的书写规范。",
+       "prerequisiteHints": [
+        "must与have to的基本肯定与否定形式",
+        "need作情态动词与实义动词的基本区别"
+       ],
+       "taskFamily": "情境写作/句子产出",
+       "skill": "writing"
+      },
+      {
+       "name": "在听力中区分mustn't与don't have to/needn't的语义",
+       "behavior": "学习者能在听一段包含mustn't、don't have to和needn't的指令或建议后，判断说话者表达的是'禁止'还是'没有必要'，并在答题纸上勾选对应类别，正确率不低于80%。",
+       "boundary": "仅判分对mustn't与don't have to/needn't在禁止与无必要性上的语义区分；不判分对must与have to之间细微差异的辨别。",
+       "prerequisiteHints": [
+        "mustn't表示禁止的用法",
+        "don't have to/needn't表示没有必要的用法"
+       ],
+       "taskFamily": "听力分类/判断",
+       "skill": "listening"
+      },
+      {
+       "name": "在互动中回应义务与必要性的询问",
+       "behavior": "学习者能在小组讨论中，针对同伴提出的'我必须做X吗？'或'我需要做Y吗？'等问题，用must/have to/need的适当形式作出语法正确且语义匹配的口头回应，并在教师观察下完成至少两个话轮。",
+       "boundary": "仅判分目标结构在互动应答中的形式正确性与语义匹配；不判分讨论内容的深度、发音或互动策略的丰富性。",
+       "prerequisiteHints": [
+        "must/have to/need的一般疑问句形式",
+        "简答与完整回答的基本结构"
+       ],
+       "taskFamily": "小组讨论/问答",
+       "skill": "interaction"
+      }
+     ]
+    },
+    {
+     "groupId": "K057",
+     "drafts": [
+      {
+       "name": "用should/ought to/had better表达建议与忠告",
+       "behavior": "学习者能在改写任务中，将给出的直陈句（如'You must study harder.'）改写为使用should/ought to/had better中至少一个结构的建议句，并保持原意基本不变。",
+       "boundary": "仅判分should/ought to/had better在建议与忠告义项上的形式正确性与语义适切性；不判分must/have to/need的语义区分，不判分改写后句子的文体风格。",
+       "prerequisiteHints": [
+        "should/ought to的基本句型",
+        "had better后接动词原形的规则"
+       ],
+       "taskFamily": "改写/转换",
+       "skill": "writing"
+      },
+      {
+       "name": "在阅读中识别should/ought to/had better的强度差异",
+       "behavior": "学习者能在阅读一段包含should、ought to和had better的建议类短文后，按'建议强度'从弱到强对三个句子进行排序，排序正确。",
+       "boundary": "仅判分对should/ought to/had better在建议强度上的相对区分；不判分对短文中其他词汇或语法项目的理解。",
+       "prerequisiteHints": [
+        "should表示一般建议的用法",
+        "had better表示较强忠告或警告的用法"
+       ],
+       "taskFamily": "阅读排序/匹配",
+       "skill": "reading"
+      },
+      {
+       "name": "在口语互动中给出并回应建议",
+       "behavior": "学习者能在两人情景对话中，针对同伴描述的困难，用should/ought to/had better给出至少一条建议，并对同伴的建议用适当结构作出回应（如接受或拒绝），完成至少两个话轮。",
+       "boundary": "仅判分目标结构在建议与回应中的形式正确性与基本语用适切性；不判分建议内容的合理性、发音或流利度。",
+       "prerequisiteHints": [
+        "should/ought to/had better的肯定与否定形式",
+        "接受或拒绝建议的简单表达"
+       ],
+       "taskFamily": "角色扮演/对话",
+       "skill": "speaking"
       }
      ]
     }
