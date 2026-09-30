@@ -1108,6 +1108,83 @@ describe('分档状态（21 §6.1：复杂度不同的表现不能互相覆盖�
   })
 })
 
+describe('复审二轮（子代理审出）回归', () => {
+  it('P1：内容耗尽账户的 /window 不崩溃——生成关闭时槽位如实标 generation_disabled', async () => {
+    const id = await mkAccount('复审-window')
+    await call('/api/v1/map') // 自给自足：不依赖其它测试先播种账本
+    await runDiagnostic(id, { D1: ANSWERS.rich_d1, D2: ANSWERS.pass_d2, D3: ANSWERS.pass_d3 }, 'rq-w1')
+    // 这条路径曾抛 "job is not defined"（catch 落空后无条件 push）
+    const r = await call(`/api/v1/accounts/${id}/window`)
+    expect(r.status).toBe(200)
+    expect(Array.isArray(r.json.slots)).toBe(true)
+    expect(r.json.slots.length).toBeGreaterThan(0)
+    const statuses = r.json.slots.map((s) => s.status)
+    expect(statuses.some((s) => ['generation_disabled', 'ready', 'candidate_position_only', 'generating', 'generation_cooldown'].includes(s))).toBe(true)
+  })
+
+  it('P2①②：否定扫描的分句截断与 not only 例外——跨句"没有"与递进句不再误伤；P2③双否定转争议', async () => {
+    const id = await mkAccount('复审-否定')
+    const post = (attemptId, text) => call(`/api/v1/accounts/${id}/attempts`, {
+      attemptId, activityId: 'ct03_semantics_guard',
+      response: { kind: 'text', text },
+      conditions: { firstExposure: true, hintLevel: 0, transcriptShown: false, playCount: 1, lookupUsed: false, responseMode: 'typed_summary' },
+    }, 'POST')
+    // ① 跨分句的"没有"属于上一分句，不得否定"保留了手势"
+    const clause = await post('rv-clause', '因为展厅里没有足够空间，团队保留了手势，暂缓语音，多人同时说话时表现不好；他们并未放弃语音，仍想再测试。')
+    expect(clause.json.pass).toBe(true)
+    expect(clause.json.objectiveResults['O-K115-03']).toBe('met')
+    // ② "not only ... but also" 是递进：kept gestures 不被 not 否定
+    const notOnly = await post('rv-notonly', 'so they not only kept gestures but also postponed voice control, because it failed when several groups spoke at once; they still want to explore it.')
+    expect(notOnly.json.pass).toBe(true)
+    // ③ 双否定（"并不是不保留"类）机器定不了极性 → 争议，不硬判
+    const dbl = await post('rv-dblneg', '团队并不是不保留手势，语音也不是被放弃——只是展厅里多人说话时表现不好，他们想再测试。')
+    expect(dbl.json.evaluationStatus).toBe('disputed')
+  })
+
+  it('P2：delay 阶段未预注册 → 400，不能事后指派任意作答', async () => {
+    const id = await mkAccount('复审-delay')
+    const reg = (await call(`/api/v1/accounts/${id}/trials`, {
+      label: '只有基线后测', skill: 'reading',
+      baselineTask: { taskFamilyId: 'projector_reference_probe', materialRef: 'm1', dimensions: ['所指'] },
+      postTask: { taskFamilyId: 'exhibit_hardware_reference', materialRef: 'm2', dimensions: ['所指'] },
+    }, 'POST')).json
+    await call(`/api/v1/accounts/${id}/attempts`, {
+      attemptId: 'rv-delay-att', activityId: 'ct03_semantics_guard',
+      response: { kind: 'text', text: '团队保留了手势，暂缓语音；多人说话表现不好；并未放弃语音。' },
+      conditions: { firstExposure: true, hintLevel: 0, transcriptShown: false, playCount: 1, lookupUsed: false, responseMode: 'typed_summary' },
+    }, 'POST')
+    const r = await call(`/api/v1/accounts/${id}/trials/${reg.trialId}/observations`, { phase: 'delay', attemptId: 'rv-delay-att' }, 'POST')
+    expect(r.json.error).toContain('TRIAL_DELAY_NOT_PREREGISTERED')
+  })
+
+  it('P3：生成活动按账户隔离——他人不能对 A 的私有生成活动作答', async () => {
+    const { getDb } = await import('./db.mjs')
+    const conn = (await import('./v3db.mjs')).ensureV3Schema(getDb())
+    const { registerGeneratedActivities } = await import('./v3gen.mjs')
+    const owner = await mkAccount('复审-gen-主')
+    const other = await mkAccount('复审-gen-他人')
+    const [actId] = registerGeneratedActivities('job_rv_scope', [{
+      taskFamilyId: 'rv_scope_fam', prompt: 'Private probe: the schedule changed twice. 问：改了几次？', hints: [],
+      objectiveIds: ['O-K184-02'], skillByObjective: { 'O-K184-02': 'reading' },
+      conditionsSpec: ['firstExposure', 'hintLevel', 'transcriptShown', 'playCount', 'lookupUsed', 'responseMode'],
+      relations: [{ id: 'twice', label: '改了两次', anyOf: ['twice', '两次'], required: true }, { id: 'sched', label: '日程', anyOf: ['schedule', '日程'], required: true }],
+    }])
+    conn.prepare("INSERT INTO generation_jobs (account_id, job_id, objective_id, input_spec, contract_version, status, created_at) VALUES (?, 'job_rv_scope', 'O-K184-02', '{}', 'GEN_CONTRACT_V1', 'succeeded', ?)").run(owner, Date.now())
+    const ok = await call(`/api/v1/accounts/${owner}/attempts`, {
+      attemptId: 'rv-gen-owner', activityId: actId,
+      response: { kind: 'text', text: '改了两次日程 schedule' },
+      conditions: { firstExposure: true, hintLevel: 0, transcriptShown: false, playCount: 1, lookupUsed: false, responseMode: 'typed_summary' },
+    }, 'POST')
+    expect(ok.status).toBe(200)
+    const leak = await call(`/api/v1/accounts/${other}/attempts`, {
+      attemptId: 'rv-gen-other', activityId: actId,
+      response: { kind: 'text', text: '改了两次日程 schedule' },
+      conditions: { firstExposure: true, hintLevel: 0, transcriptShown: false, playCount: 1, lookupUsed: false, responseMode: 'typed_summary' },
+    }, 'POST')
+    expect(leak.status).toBe(404)
+  })
+})
+
 describe('复审回归 F1–F8', () => {
   it('F1：无音频的文字模拟不改听力（证据归 reading）；合成音频的听力证据成立且标注 synthetic；无录音不产生口语证据', async () => {
     const id = await mkAccount('F1-模态')

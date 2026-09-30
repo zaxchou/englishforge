@@ -136,6 +136,7 @@ export function serveLesson(accountId, lessonId) {
     activities: visible.map((ref) => {
       const act = activityById(ref.activityId)
       const stages = ref.hintStages ?? act?.hints ?? []
+      const audio = audioPublicInfo(act)
       return {
         activityId: act.activityId,
         version: act.version,
@@ -143,9 +144,10 @@ export function serveLesson(accountId, lessonId) {
         prompt: act.prompt,
         simulatesAudio: !!act.simulatesAudio,
         oralTask: !!act.oralEvidenceDeferred,
-        audio: audioPublicInfo(act), // synthetic 合成音频；转写不在这（首听隐藏），l2b 的校对稿在题面里
+        audio, // synthetic 合成音频；转写不在这（首听隐藏），l2b 的校对稿在题面里
         conditionsSpec: act.conditionsSpec,
-        fixtureNotice: (act.simulatesAudio || act.oralEvidenceDeferred) && !act.audioRef
+        // 与 publicActivity 同口径：看解析后的 manifest 行，audioRef 悬空（清单缺行）时如实显示 fixture
+        fixtureNotice: (act.simulatesAudio || act.oralEvidenceDeferred) && !audio
           ? '开发 fixture：仅用于验收，正式材料见 18 号文档的发布检查表' : null,
         hintStageCount: stages.length,
         firstHint: stages[0] ?? null,

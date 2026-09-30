@@ -76,6 +76,13 @@ export function recordObservation(accountId, { trialId, phase, attemptId, materi
   const existing = conn.prepare('SELECT rowid FROM trial_observations WHERE account_id = ? AND trial_id = ? AND phase = ?')
     .get(accountId, trialId, phase)
   if (existing) throw new ApiError(409, 'TRIAL_PHASE_ALREADY_RECORDED: 该阶段已有观察（append-only；纠错请另立记录并说明理由）')
+  // C3（复审 P2）：delay 阶段必须预注册过 delay_task——"先注册后施测"对延迟测同样生效。
+  // 这道门在阶段顺序之前：没有预注册的 delay 连"合法阶段"都不是
+  const taskKey = phase === 'baseline' ? 'baseline_task' : phase === 'post' ? 'post_task' : 'delay_task'
+  const task = JSON.parse(reg[taskKey] || 'null')
+  if (!task || !task.taskFamilyId) {
+    throw new ApiError(400, `TRIAL_${phase.toUpperCase()}_NOT_PREREGISTERED: 该阶段没有预注册任务（不能事后指派）`)
+  }
   // 阶段顺序：post 需先有 baseline；delay 需先有 post
   const needPrev = phase === 'post' ? 'baseline' : phase === 'delay' ? 'post' : null
   if (needPrev && !conn.prepare('SELECT 1 FROM trial_observations WHERE account_id = ? AND trial_id = ? AND phase = ?')
@@ -83,18 +90,19 @@ export function recordObservation(accountId, { trialId, phase, attemptId, materi
     throw new ApiError(400, 'TRIAL_PHASE_ORDER: 先记录 ' + needPrev + ' 再记录 ' + phase)
   }
   // 陌生性核对：attempt 的任务家族必须与该 phase 预注册任务一致
-  const task = JSON.parse(reg[phase === 'baseline' ? 'baseline_task' : phase === 'post' ? 'post_task' : 'delay_task'] || '{}')
-  if (task.taskFamilyId && attempt.task_family_id !== task.taskFamilyId) {
+  if (attempt.task_family_id !== task.taskFamilyId) {
     throw new ApiError(400, 'TRIAL_TASK_FAMILY_MISMATCH: 该 attempt 不是预注册的任务家族')
   }
   // C3（F7 残留）：材料版本绑定——预注册了 activityId / materialVersion 时逐一核对，
-  // 防止"同名材料换版本"或"错材料"混进正式比较
+  // 防止"同名材料换版本"或"错材料"混进正式比较。版本以作答落库时的 activity_version
+  // 为准（复审 P3：静态活动日后升版不该 retroactively 改判旧作答），缺失回落当前定义
   const actDef = activityById(attempt.activity_id)
+  const attemptVersion = attempt.activity_version ?? actDef?.version ?? 1
   if (task.activityId && attempt.activity_id !== task.activityId) {
     throw new ApiError(400, 'TRIAL_MATERIAL_MISMATCH: 该 attempt 不是预注册的材料')
   }
-  if (task.materialVersion && (actDef?.version ?? 1) !== task.materialVersion) {
-    throw new ApiError(400, `TRIAL_MATERIAL_VERSION_MISMATCH: 预注册版本 ${task.materialVersion}，实际 ${actDef?.version ?? 1}`)
+  if (task.materialVersion && attemptVersion !== task.materialVersion) {
+    throw new ApiError(400, `TRIAL_MATERIAL_VERSION_MISMATCH: 预注册版本 ${task.materialVersion}，实际 ${attemptVersion}`)
   }
   // C3（F7 残留）：曝光核对由服务端判定，覆盖自报——同一材料在此观察前被该账户作答过
   // 一次，材料就不再陌生（materialWasNovel 自报 true 也不计入正式比较）

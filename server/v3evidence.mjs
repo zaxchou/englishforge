@@ -53,7 +53,8 @@ export function publicActivity(a) {
 // ---------------------------------------------------------------- 评估（确定性合同）
 
 function norm(s) {
-  return String(s ?? '').toLowerCase().replace(/[，。！？、；：""''（）,.!?;:'"()]/g, ' ').replace(/\s+/g, ' ')
+  // 分句标点归一为哨兵 '|'（而不是空格）：否定扫描靠它找分句边界；锚点本身不含标点，匹配不受影响
+  return String(s ?? '').toLowerCase().replace(/[，。！？、；：""''（）,.!?;:'"()]/g, '|').replace(/\s+/g, ' ')
 }
 
 // 否定判定（21§4）：多字否定词与英文否定在 14 字窗口内都算；中文单字否定词只认锚点前 3 字
@@ -61,12 +62,39 @@ function norm(s) {
 const NEGATION_STRONG = ['并非', '并未', '没有', '不是', '不再', '不会', '不能', '并不是', '并没有', '并不会', '不等于', '不算', '没完全', '未完全', "n't", 'never', 'neither']
 const NEGATION_LIGHT = ['不', '没', '未', '无', '别']
 
-function negatedAt(text, at) {
-  const window = text.slice(Math.max(0, at - 14), at)
-  if (NEGATION_STRONG.some((n) => window.includes(n))) return true
-  if (/(^|[^a-z])not([^a-z]|$)/.test(window)) return true
-  const adjacent = text.slice(Math.max(0, at - 3), at)
-  return NEGATION_LIGHT.some((n) => adjacent.includes(n))
+/** 锚点前文的否定扫描。返回 {negated, ambiguous}：
+ * - 分句边界截断：14 字窗里最后有分句标点则只看边界之后（"…没有空间，团队保留了手势"的
+ *   "没有"属上一分句，复审 P2 实测跨句误伤）；
+ * - "not only" 是递进不是否定；
+ * - 多个否定记号（"并不是不保留"类双否定）机器定不了极性 → ambiguous=true，调用方转争议，
+ *   不硬判（20 号 F4：无法可靠判断应 disputed）。 */
+/** 窗口内否定记号计数（重叠感知：STRONG 命中的片段不再按 LIGHT 单字重复计数——
+ * "没有"=1 个记号，不是"没"+"有"） */
+function countNegMarks(window) {
+  let marks = 0
+  let i = 0
+  while (i < window.length) {
+    const strong = NEGATION_STRONG.find((n) => window.startsWith(n, i))
+    if (strong) { marks++; i += strong.length; continue }
+    if (NEGATION_LIGHT.some((n) => window.startsWith(n, i))) { marks++; i += 1; continue }
+    i++
+  }
+  return marks
+}
+
+function negationScan(text, at) {
+  let window = text.slice(Math.max(0, at - 14), at)
+  const cut = window.lastIndexOf('|') // norm 后的分句边界哨兵
+  if (cut >= 0) window = window.slice(cut + 1)
+  const notOnly = /(^|[^a-z])not only/.test(window)
+  const englishNot = !notOnly && /(^|[^a-z])not([^a-z]|$)/.test(window)
+  const marks = countNegMarks(window) + (englishNot ? 1 : 0)
+  if (marks === 0) {
+    const adjacent = text.slice(Math.max(0, at - 3), at)
+    return { negated: NEGATION_LIGHT.some((n) => adjacent.includes(n)), ambiguous: false }
+  }
+  // 单个否定记号=极性明确；两个及以上（"并不是不保留"类双否定）机器定不了 → 争议
+  return { negated: true, ambiguous: marks >= 2 }
 }
 
 export function evaluateAttempt(activity, response) {
@@ -80,26 +108,43 @@ export function evaluateAttempt(activity, response) {
     let from = 0
     let sawNonNeg = false
     let sawNeg = false
+    let ambiguous = false
     while (true) {
       const at = text.indexOf(needle, from)
       if (at < 0) break
-      if (negatedAt(text, at)) sawNeg = true
+      const scan = negationScan(text, at)
+      if (scan.ambiguous) ambiguous = true // 极性定不了的出现：不参与命中，也不算违规
+      else if (scan.negated) sawNeg = true
       else sawNonNeg = true
       from = at + needle.length
     }
-    if (mode === 'nonNegated') return sawNonNeg
-    if (mode === 'negated') return sawNeg
-    return sawNonNeg || sawNeg
+    const present = sawNonNeg || sawNeg || ambiguous
+    if (mode === 'nonNegated') return { hit: sawNonNeg, ambiguous: ambiguous && !sawNonNeg, present }
+    if (mode === 'negated') return { hit: sawNeg, ambiguous: ambiguous && !sawNeg, present }
+    return { hit: sawNonNeg || sawNeg, ambiguous: ambiguous && !(sawNonNeg || sawNeg), present }
   }
   const modeOf = (r) => (r.polarity === 'negated' ? 'negated' : (r.negationAware ? 'nonNegated' : 'any'))
-  const relations = c.relations.map((r) => ({
-    id: r.id, label: r.label, required: !!r.required,
-    hit: r.anyOf.some((k) => anchorHit(norm(k), modeOf(r))),
-  }))
+  const relScans = c.relations.map((r) => {
+    let hit = false
+    let present = 0
+    let ambiguousCount = 0
+    for (const k of r.anyOf) {
+      const one = anchorHit(norm(k), modeOf(r))
+      if (!one.present) continue // 锚点没出现：不算命中也不算歧义（缺席≠歧义）
+      present++
+      if (one.hit) { hit = true; break }
+      if (one.ambiguous) ambiguousCount++
+      else break // 出现且极性明确但未命中 → 干净的未命中
+    }
+    return { r, hit, allAmbiguous: present > 0 && ambiguousCount === present }
+  })
+  const relations = relScans.map(({ r, hit }) => ({ id: r.id, label: r.label, required: !!r.required, hit }))
+  // 双否定类歧义：某关系的全部锚点出现都定不了极性且未命中 → 整题转争议，不硬判
+  const negationAmbiguous = relScans.some(({ hit, allAmbiguous }) => !hit && allAmbiguous)
   // mustNot 否定语境守卫（F4/21§4）：“并未完全放弃”不是“完全放弃”。至少一次非否定出现才算违规；
   // 活动可用 mustNotNegationGuard:false 显式退出守卫（现为所有库内活动的默认开）
   const mustNotMode = c.mustNotNegationGuard === false ? 'any' : 'nonNegated'
-  const violated = (c.mustNot ?? []).filter((m) => m.anyOf.some((k) => anchorHit(norm(k), mustNotMode))).map((m) => m.label)
+  const violated = (c.mustNot ?? []).filter((m) => m.anyOf.some((k) => anchorHit(norm(k), mustNotMode).hit)).map((m) => m.label)
   const requiredOk = relations.filter((r) => r.required).every((r) => r.hit)
   const pass = requiredOk && violated.length === 0
   // 逐目标结果（F4/21§1）：活动级 pass 只控流程；每个目标按其归属关系单独判
@@ -117,18 +162,20 @@ export function evaluateAttempt(activity, response) {
     else if (hits > 0 || mine.some((r) => r.hit)) objectiveResults[oid] = 'partial'
     else objectiveResults[oid] = 'unmet'
   }
-  return {
-    status: 'evaluated',
-    evaluation: {
-      pass,
-      dimensions: c.dimensions,
-      relations,
-      mustNotViolations: violated,
-      objectiveResults,
-      evaluator: 'deterministic-contract-v1',
-      confidence: 'fixture', // 开发合同，不是校准过的评分器
-    },
+  const evaluation = {
+    pass,
+    dimensions: c.dimensions,
+    relations,
+    mustNotViolations: violated,
+    objectiveResults,
+    evaluator: 'deterministic-contract-v1',
+    confidence: 'fixture', // 开发合同，不是校准过的评分器
   }
+  // 双否定类歧义：机器定不了极性 → 争议待复核，不硬判对错（也不写正分证据）
+  if (negationAmbiguous && !pass) {
+    return { status: 'disputed', evaluation: { ...evaluation, reason: 'NEGATION_AMBIGUOUS' } }
+  }
+  return { status: 'evaluated', evaluation }
 }
 
 // ---------------------------------------------------------------- 尝试落库
@@ -156,6 +203,13 @@ export function recordAttempt(accountId, payload = {}) {
   if (!attemptId) throw new ApiError(400, 'ATTEMPT_ID_REQUIRED')
   const activity = activityById(String(payload.activityId || ''))
   if (!activity) throw new ApiError(404, 'ACTIVITY_NOT_PUBLISHED: ' + payload.activityId)
+  // C4 纵深：生成活动是账户私有内容（课已按 scope 隔离，活动本身也要）——他人的生成题
+  // 对本账户不可见；查不到所属 job 的孤儿生成活动同样不可见（复审 P3 实测可跨账户直答）
+  const genRow = getDb().prepare('SELECT job_id FROM generated_activities WHERE activity_id = ?').get(activity.activityId)
+  if (genRow) {
+    const job = getDb().prepare('SELECT account_id FROM generation_jobs WHERE job_id = ?').get(genRow.job_id)
+    if (!job || job.account_id !== accountId) throw new ApiError(404, 'ACTIVITY_NOT_PUBLISHED: ' + payload.activityId)
+  }
 
   // 幂等：同 ID 同正文 → 原样返回首次结果；同 ID 异正文 → 冲突，绝不覆盖原始作答
   const hash = bodyHash(payload)
@@ -415,10 +469,12 @@ export function recomputeStates(accountId) {
   }
 
   // base 聚合：状态只在**有作答证据**的带里取最弱（免修/争议这类纯标志槽不把状态拖回 unmeasured）；
-  // 标志并集（任何带的 waived/disputed/needs_repair 都要在综合行可见）
+  // 单次挑战失败的带（未见过成功、也非连败）不参与最弱合并——否则一次高复杂度尝试会把
+  // 易档已证的 trained/independent 抹回 unmeasured（复审 P3：推荐抖动）
   for (const s of acc.values()) {
     const b = baseOf(s.objectiveId, s.skill)
-    if (s.hasObserved && (b.observedRank === null || STATE_RANK[s.state] < b.observedRank)) {
+    const meaningful = s.hasObserved && (STATE_RANK[s.state] > 0 || s.failStreak >= 2)
+    if (meaningful && (b.observedRank === null || STATE_RANK[s.state] < b.observedRank)) {
       b.observedRank = STATE_RANK[s.state]
       b.state = s.state
     }

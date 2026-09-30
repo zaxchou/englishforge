@@ -146,26 +146,8 @@ export function decide(objectives, states, snapshot) {
     live.push(obj)
   }
 
-  // ③ 多假设 → 最短区分任务。F2：诊断假设可被后续证据修正——只在诊断仍新鲜且区分目标
-  // 还薄弱时生效；目标已 trained 说明假设已被学习消解，走正常排序（否则永久锁路线）
-  const hypotheses = snapshot.diagnostic?.hypotheses ?? []
-  const lastAttemptAt0 = snapshot.recentAttempts[0]?.createdAt ?? 0
-  const diagFresh0 = !!snapshot.diagnosticCreatedAt && snapshot.diagnosticCreatedAt >= lastAttemptAt0
-  if (diagFresh0 && hypotheses.length >= 2) {
-    const target = live.find((o) => o.objectiveId === 'O-K115-01') ?? live[0]
-    if (STATE_RANK[stateOf(target.objectiveId).state] < 2) {
-      return finalize({
-        primaryGoal: target.objectiveId, strategyId: 'discriminate_cause',
-        reason: `同一失败有两种合理解释（${hypotheses.join('、')}），先给最短的区分任务再定路线`,
-        hypotheses, uncertainAreas: snapshot.diagnostic?.unmeasured ?? [], candidates,
-        lessonActivityId: STRATEGY_LESSONS.discriminate_cause, snapshot, live, stateOf,
-        accountId: snapshot.accountId, // F2：排除已完成课在这里同样生效（轨迹走查实测漏传导致已完成课被复推）
-      })
-    }
-  }
-
-
-  // ④–⑦ 排序选主；⑤ 已斩掉的目标直接出列（同层同质练习不再进推荐）
+  // ④–⑦ 前置：eligible 先算（⑤ 已斩掉的目标直接出列，同层同质练习不再进推荐）——
+  // 多假设分支也要它的 eligibleRanked，窗口才不会在该分支塌缩成仅主目标（复审 P3）
   const eligible = live.filter((obj) => {
     if (isWaived(obj.objectiveId)) {
       candidates.push({ objectiveId: obj.objectiveId, reason: 'waived_by_user：同层同质练习移出队列（不批量重刷）；若复杂任务暴露缺口只开局部短修复' })
@@ -177,6 +159,26 @@ export function decide(objectives, states, snapshot) {
     }
     return true
   })
+
+  // ③ 多假设 → 最短区分任务。F2：诊断假设可被后续证据修正——只在诊断仍新鲜且区分目标
+  // 还薄弱时生效；目标已 trained 说明假设已被学习消解，走正常排序（否则永久锁路线）
+  const hypotheses = snapshot.diagnostic?.hypotheses ?? []
+  const lastAttemptAt0 = snapshot.recentAttempts[0]?.createdAt ?? 0
+  const diagFresh0 = !!snapshot.diagnosticCreatedAt && snapshot.diagnosticCreatedAt >= lastAttemptAt0
+  if (diagFresh0 && hypotheses.length >= 2) {
+    const target = eligible.find((o) => o.objectiveId === 'O-K115-01') ?? eligible[0] ?? live[0]
+    if (target && STATE_RANK[stateOf(target.objectiveId).state] < 2) {
+      return finalize({
+        primaryGoal: target.objectiveId, strategyId: 'discriminate_cause',
+        reason: `同一失败有两种合理解释（${hypotheses.join('、')}），先给最短的区分任务再定路线`,
+        hypotheses, uncertainAreas: snapshot.diagnostic?.unmeasured ?? [], candidates,
+        lessonActivityId: STRATEGY_LESSONS.discriminate_cause, snapshot, live, stateOf,
+        accountId: snapshot.accountId, // F2：排除已完成课在这里同样生效（轨迹走查实测漏传导致已完成课被复推）
+        eligibleRanked: eligible.map((o) => o.objectiveId),
+      })
+    }
+  }
+
   // F2：诊断是可修正的假设。诊断晚于最近作答时才有路线发言权；且路线目标必须仍 eligible
   const lastAttemptAt = snapshot.recentAttempts[0]?.createdAt ?? 0
   const diag = snapshot.diagnostic
@@ -214,7 +216,8 @@ export function decide(objectives, states, snapshot) {
   }
 
   // ⑦ 策略：修复 > 诊断路线 > 默认挑战先行
-  const repairTarget = findRepairTarget(snapshot, objectives)
+  const repair = findRepairTarget(snapshot, objectives)
+  const repairTarget = repair?.objectiveId ?? null
   const repairProbe = repairTarget ? repairProbeFor(repairTarget) : null
   let strategyId, lessonActivityId, reason
   if (repairTarget && repairProbe) {
@@ -222,7 +225,10 @@ export function decide(objectives, states, snapshot) {
     // 探针要对着修复目标本身：取含该目标的诊断活动（写死的通用探针会答了也没用——
     // 轨迹走查实测：O-K190-01 的缺口被拿 O-K115-01 的对比探针"定位"，永远修不掉）
     lessonActivityId = repairProbe
-    reason = `复杂任务失败暴露 ${repairTarget} 的可靠缺口（该目标已被用户斩掉）：只开局部短修复定位，不批量重刷基础`
+    // needs_repair 也可能来自未免修目标的连败——文案跟事实一致（复审 P3）
+    reason = repair.waived
+      ? `复杂任务失败暴露 ${repairTarget} 的可靠缺口（该目标已被用户斩掉）：只开局部短修复定位，不批量重刷基础`
+      : `复杂任务失败暴露 ${repairTarget} 的可靠缺口（连续两次未过）：只开局部短修复定位，不批量重刷`
   } else if (diagRouteApplicable && diag?.route) {
     // F2：诊断路线只在其目标仍 eligible 且诊断足够新时生效；否则按最新证据选择
     strategyId = diag.strategyId
@@ -252,10 +258,13 @@ export function decide(objectives, states, snapshot) {
 }
 
 function findRepairTarget(snapshot, objectives) {
-  // 最近的 repair 事件来自哪个目标（快照里带最近尝试，不查库 —— 保证可回放）
+  // 最近的 repair 事件来自哪个目标（快照里带最近尝试，不查库 —— 保证可回放）。
+  // 返回 {objectiveId, waived}：needs_repair 不只来自免修目标（连败也会），文案要跟事实一致
   const ids = objectives.map((o) => o.objectiveId)
   for (const s of snapshot.states) {
-    if (s.flags.includes('needs_repair') && ids.includes(s.objectiveId)) return s.objectiveId
+    if (s.flags.includes('needs_repair') && ids.includes(s.objectiveId)) {
+      return { objectiveId: s.objectiveId, waived: s.flags.includes('waived_by_user') }
+    }
   }
   return null
 }

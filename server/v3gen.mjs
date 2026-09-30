@@ -383,7 +383,6 @@ export function ensureWindow(accountId, { chat = chatWithMeta } = {}) {
         slots.push({ slot, objectiveId: oid, status: 'generation_cooldown', note: '同目标近期失败，冷却中' })
       } else throw e
     }
-    slots.push({ slot, objectiveId: oid, jobId: job.jobId, jobReused: !!job.reused, status: 'generating' })
   })
   return { accountId, windowVersion: getMeta(accountId, 'window_version') ?? 0, slots }
 }

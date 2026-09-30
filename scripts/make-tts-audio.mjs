@@ -165,5 +165,13 @@ function rowFor(entry, buf, durationMs, text, segments) {
 }
 
 const outPath = join(ROOT, 'server', 'data', 'audio-manifest.json')
-writeFileSync(outPath, JSON.stringify({ notice: spec.notice, assets: manifest }, null, 2) + '\n')
-console.log(`manifest → ${outPath}（${manifest.length} 条）`)
+// 合并写入：脚本只更新自己产出的行（按 scriptId），其他行（如复审后手工入账的
+// real_material 真实素材）原样保留——重跑合成不得抹掉三核入账记录（复审 P2）
+let previous = { notice: '', assets: [] }
+if (existsSync(outPath)) {
+  try { previous = JSON.parse(readFileSync(outPath, 'utf8')) } catch { /* 损坏清单视为空 */ }
+}
+const scriptIds = new Set(spec.scripts.map((s) => s.scriptId))
+const preserved = (previous.assets ?? []).filter((a) => !scriptIds.has(a.scriptId))
+writeFileSync(outPath, JSON.stringify({ notice: spec.notice, assets: [...preserved, ...manifest] }, null, 2) + '\n')
+console.log(`manifest → ${outPath}（脚本 ${manifest.length} 条 + 保留 ${preserved.length} 条）`)
