@@ -969,14 +969,16 @@ describe('C2 课程音频（21 §6.1/§6.2）', () => {
     expect(mf.assets.length).toBeGreaterThanOrEqual(2)
     const assetDir = join(dirname(fileURLToPath(import.meta.url)), 'assets', 'audio')
     for (const entry of mf.assets) {
-      expect(entry.kind).toBe('lesson_audio')
-      expect(entry.sourceType).toBe('synthetic')
+      expect(['lesson_audio', 'real_material']).toContain(entry.kind)
+      expect(entry.sourceType).toBe(entry.kind === 'real_material' ? 'real' : 'synthetic')
       expect(entry.licenseStatus).toBe('confirmed')
       expect(entry.durationMs).toBeGreaterThan(10_000) // 真实时长（WAV 头解析），不是 HTTP 200
-      expect(entry.segments.length).toBeGreaterThanOrEqual(4)
-      for (const seg of entry.segments) expect(seg.meaningBasis.length).toBeGreaterThan(5) // 21 §6.1 逐段意义依据
+      if (entry.kind === 'lesson_audio') {
+        expect(entry.segments.length).toBeGreaterThanOrEqual(4)
+        for (const seg of entry.segments) expect(seg.meaningBasis.length).toBeGreaterThan(5) // 21 §6.1 逐段意义依据
+      }
       // 完整性四关：真文件过；坏哈希/坏许可/空字节各归各的失败
-      const buf = readFileSync(join(assetDir, entry.mediaId + '.wav'))
+      const buf = readFileSync(join(assetDir, entry.file ?? entry.mediaId + '.wav'))
       expect(audio.verifyAudioEntry(entry, buf)).toBe('ok')
       expect(audio.verifyAudioEntry({ ...entry, sha256: 'deadbeef' }, buf)).toBe('hash_mismatch')
       expect(audio.verifyAudioEntry({ ...entry, licenseStatus: 'unverified' }, buf)).toBe('unlicensed')
@@ -1005,6 +1007,23 @@ describe('C2 课程音频（21 §6.1/§6.2）', () => {
     expect(l2.audio.synthetic).toBe(true)
     expect(l2.audio.mediaId).toBe('aud_l2_museum_v1')
     expect(l2.fixtureNotice).toBeNull() // 有音频的活动不再是"文字模拟"fixture
+  })
+
+  it('真实外部材料（21 §6.3）：来源/许可/哈希三核可分发；合成/真实在响应中可辨', async () => {
+    await call('/api/v1/map')
+    const audio = await import('./v3audio.mjs')
+    const real = audio.audioByMediaId('real_cylinder_weakness_richards')
+    expect(real.kind).toBe('real_material')
+    expect(real.license).toContain('Public Domain')
+    expect(real.sourceUrl).toContain('archive.org')
+    expect(real.candidateStatus).toContain('pending_listen_check') // 听校未做，不得进课程
+    expect(real.activityIds).toEqual([])
+    const r = await call('/api/v1/media/real_cylinder_weakness_richards')
+    expect(r.status).toBe(200)
+    expect(r.json.synthetic).toBe(false) // 与合成件可辨
+    expect(r.json.author).toBe('Robert Hallowell Richards')
+    expect(r.json.license).toContain('Public Domain')
+    expect(Buffer.from(r.json.audioBase64, 'base64').length).toBe(real.bytes)
   })
 })
 

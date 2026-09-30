@@ -32,10 +32,12 @@ export function audioForActivity(activityId) {
   return loadAudioManifest().assets.find((a) => (a.activityIds ?? []).includes(activityId)) ?? null
 }
 
-/** 纯函数：单条清单行 + 字节 → 完整性结论（供测试注入坏哈希） */
+/** 纯函数：单条清单行 + 字节 → 完整性结论（供测试注入坏哈希）。
+ * 两类都收：lesson_audio（synthetic 自制）与 real_material（许可核验过的真实外部素材，21 §6.3）。 */
 export function verifyAudioEntry(entry, buf) {
   if (!entry) return 'missing'
-  if (entry.kind !== 'lesson_audio' || entry.licenseStatus !== 'confirmed') return 'unlicensed'
+  if (!['lesson_audio', 'real_material'].includes(entry.kind)) return 'unlicensed'
+  if (entry.licenseStatus !== 'confirmed') return 'unlicensed'
   if (!buf?.length) return 'empty'
   if (createHash('sha256').update(buf).digest('hex') !== entry.sha256) return 'hash_mismatch'
   return 'ok'
@@ -47,7 +49,7 @@ export function readLessonAudio(mediaId) {
   if (!entry) throw new ApiError(404, 'MEDIA_NOT_FOUND: ' + mediaId)
   const cached = verified.get(mediaId)
   if (cached instanceof Error) throw cached
-  const path = join(ASSET_DIR, mediaId + '.wav')
+  const path = join(ASSET_DIR, entry.file ?? `${mediaId}.wav`)
   if (!existsSync(path)) {
     const err = new ApiError(404, 'MEDIA_FILE_MISSING: ' + mediaId)
     verified.set(mediaId, err)

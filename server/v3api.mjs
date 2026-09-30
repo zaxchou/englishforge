@@ -170,14 +170,17 @@ export const V3_ROUTES = [
   // 录音删除控制（15 §4：可删除；保留期规格见 v3oral.mjs 头注）
   ['DELETE', '/api/v1/accounts/:id/oral/:mediaId', (ctx) => deleteOralAudio(ctx.params.id, ctx.params.mediaId)],
 
-  // 课程音频（21 §6.1/§6.2）：synthetic 合成练习音频，manifest+sha256 四关校验后才分发；
+  // 课程音频（21 §6.1/§6.2）+ 真实外部素材（§6.3）：manifest+sha256 四关校验后才分发；
   // 转写不随音频下发（首听隐藏脚本）。账户无关的公共受控内容，不要求登录
   ['GET', '/api/v1/media/:mediaId', (ctx) => {
     const { entry, buf, mime } = readLessonAudio(ctx.params.mediaId)
     return {
       audioBase64: buf.toString('base64'), mime,
-      synthetic: entry.sourceType === 'synthetic', speakerLabel: entry.speakerLabel,
+      synthetic: entry.sourceType === 'synthetic', speakerLabel: entry.speakerLabel ?? null,
       durationMs: entry.durationMs, licenseNote: entry.licenseNote,
+      // 真实素材的溯源（21 §6.3：来源、可播放/使用条件、片段起止一并带出）
+      sourceUrl: entry.sourceUrl ?? null, author: entry.author ?? null,
+      license: entry.license ?? null, segmentWindow: entry.segmentWindow ?? null,
     }
   }],
 

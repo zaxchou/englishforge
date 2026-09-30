@@ -1,5 +1,5 @@
 {
-  "notice": "受控原创听力脚本（18 §2/§5 为权威稿）。合成管线：Windows SAPI（Microsoft Zira en-US），纯文本 + Rate 属性（SSML <prosody> 实测致语速减半，禁用）。本机只有一个英文声源——18 §2 的『两名讲者平行版本』与 21 §6 的跨讲者检查无法做到，也不以变速冒充（18 §2 制作注），缺口如实保持开放，待真人录音补足。产物全部标注 synthetic（受控练习音频，不得冒充真实 podcast，21 §6.2）；设备播放与自然度试听由人完成（23 号报告记录）。",
+  "notice": "受控原创听力脚本（18 §2/§5 为权威稿）。合成管线：Windows SAPI（Microsoft Zira en-US），纯文本 + Rate 属性（SSML <prosody> 实测致语速减半，禁用）。本机只有一个英文声源——18 §2 的『两名讲者平行版本』与 21 §6 的跨讲者检查无法做到，也不以变速冒充（18 §2 制作注），缺口如实保持开放，待真人录音补足。产物全部标注 synthetic（受控练习音频，不得冒充真实 podcast，21 §6.2）；设备播放与自然度试听由人完成（23 号报告记录）。 真实外部素材（kind=real_material）经来源+许可+哈希三核后才入清单；进入课程还差人耳听校（噪声/字幕/片段起止），听校完成前不得当正式材料（21 §6.3）。",
   "assets": [
     {
       "mediaId": "aud_d2_library_v1",
@@ -98,6 +98,32 @@
         }
       ],
       "madeAt": 1790770496697
+    },
+    {
+      "mediaId": "real_cylinder_weakness_richards",
+      "kind": "real_material",
+      "sourceType": "real",
+      "licenseStatus": "confirmed",
+      "license": "Public Domain Mark 1.0",
+      "licenseNote": "LibriVox 公有领域朗读（Public Domain Mark 1.0）；作者 Robert Hallowell Richards（1912 年前后文本）；朗读者为 LibriVox 志愿者 ava",
+      "sourceUrl": "https://archive.org/details/short_nonfiction_collection_vol_031_1312_librivox",
+      "fileUrl": "https://archive.org/download/short_nonfiction_collection_vol_031_1312_librivox/snf031_linesweaknesscylinder_richards_ava_128kb.mp3",
+      "author": "Robert Hallowell Richards",
+      "title": "Lines of Weakness in Cylinders",
+      "reader": "ava（LibriVox 志愿者）",
+      "activityIds": [],
+      "candidateFor": "09 号真实讲座长句训练样板课",
+      "candidateStatus": "registered_pending_listen_check：哈希与许可已核，片段起止/噪声/字幕听校未做——听校完成前不得进入课程",
+      "segmentWindow": null,
+      "externalSha1": "43b7d873ae5b591adccca1b8621b9d16a7aa8864",
+      "mime": "audio/mpeg",
+      "bytes": 3491302,
+      "durationMs": 217910,
+      "sha256": "542f84f7036331ce43bf87e8c4873d4b7e24fd51b3343b902beaf8171312ad18",
+      "transcript": null,
+      "segments": null,
+      "madeAt": 1790770702387,
+      "file": "real_cylinder_weakness_richards.mp3"
     }
   ]
 }
