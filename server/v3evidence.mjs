@@ -25,7 +25,12 @@ export function loadActivities() {
   return actCache.activities
 }
 export function activityById(id) {
-  return loadActivities().find((a) => a.activityId === id) ?? null
+  const staticHit = loadActivities().find((a) => a.activityId === id)
+  if (staticHit) return staticHit
+  try { // W4 生成活动落库后与静态注册表同形（静态优先，保证 fixture 稳定）
+    const row = ensureV3Schema().prepare('SELECT definition FROM generated_activities WHERE activity_id = ?').get(id)
+    return row ? JSON.parse(row.definition) : null
+  } catch { return null }
 }
 
 /** 学习者可见的活动视图：没有评估合同、没有答案、没有关系清单 */

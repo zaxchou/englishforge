@@ -10,6 +10,7 @@ import { recordAttempt, evidenceSummary, waive, reportContent } from './v3eviden
 import { startDiagnostic, getDiagnostic, advanceDiagnostic } from './v3diag.mjs'
 import { getPlan, recomputePlan } from './v3plan.mjs'
 import { serveLesson, revealHint, completeLesson, listLessons, seedLessons, withdrawLesson, publishLesson, signLesson } from './v3lessons.mjs'
+import { ensureWindow, reestimateWindow, generationMetrics, listJobs, startGenerationJob } from './v3gen.mjs'
 
 export const V3_ROUTES = [
   ['GET', '/api/v1/health', () => {
@@ -111,6 +112,18 @@ export const V3_ROUTES = [
   })],
   ['POST', '/api/v1/lessons/:lessonId/withdraw', (ctx) => withdrawLesson(
     ctx.params.lessonId, body_str(ctx, 'reason'), body_str(ctx, 'confirm'))],
+
+  // W4：按需生成供给。生成默认关闭（防误调真实模型计费），ENGLISHFORGE_V4_GENERATION=1 显式开启
+  ['GET', '/api/v1/accounts/:id/window', (ctx) => ensureWindow(ctx.params.id)],
+  ['POST', '/api/v1/accounts/:id/window/reestimate', (ctx) => reestimateWindow(ctx.params.id, body_str(ctx, 'trigger') || 'manual')],
+  ['GET', '/api/v1/accounts/:id/generation', (ctx) => ({ metrics: generationMetrics(ctx.params.id), jobs: listJobs(ctx.params.id) })],
+  ['POST', '/api/v1/accounts/:id/generation/start', (ctx) => {
+    const r = startGenerationJob(ctx.params.id, {
+      objectiveId: body_str(ctx, 'objectiveId'),
+      strategyId: body_str(ctx, 'strategyId') || null,
+    })
+    return r // fire-and-forget：{jobId}；任务完成看 GET /generation
+  }],
 
   // 诚实的未实现状态：录音在 W5 接入，不伪装
   ['POST', '/api/v1/accounts/:id/oral', () => {

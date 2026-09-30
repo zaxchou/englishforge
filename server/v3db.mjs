@@ -194,6 +194,53 @@ CREATE TABLE IF NOT EXISTS activity_support_events (
   PRIMARY KEY (account_id, activity_id, kind, level)
 );
 
+-- W4：按需生成的任务账（15 §4 generation_jobs）。异步、可重试、不重复发布；
+-- 费用/时延/拒收/失败都在账上 —— 衡量质量与成本，而不是只数生成了多少课
+CREATE TABLE IF NOT EXISTS generation_jobs (
+  account_id      TEXT REFERENCES accounts(id) ON DELETE CASCADE, -- NULL=全局内容任务
+  job_id          TEXT PRIMARY KEY,
+  request_id      TEXT,
+  objective_id    TEXT,
+  strategy_id     TEXT,
+  input_spec      TEXT NOT NULL,               -- JSON：规划器产出的目标/策略/素材规格（输入合同版本）
+  contract_version TEXT NOT NULL,              -- 生成+审核合同版本（独立于旧 content-ai 流水线）
+  model           TEXT,
+  prompt_version  TEXT,
+  status          TEXT NOT NULL DEFAULT 'queued', -- queued|running|succeeded|rejected|failed
+  attempts        INTEGER NOT NULL DEFAULT 0,
+  output_lesson_id TEXT,
+  output_version  INTEGER,
+  validation      TEXT,                        -- JSON：各质量门结果
+  reject_reasons  TEXT,                        -- JSON：拒收原因（重试上限后仍失败则撤出候选）
+  cost_tokens     INTEGER NOT NULL DEFAULT 0,
+  latency_ms      INTEGER NOT NULL DEFAULT 0,
+  created_at      INTEGER NOT NULL,
+  finished_at     INTEGER
+);
+CREATE INDEX IF NOT EXISTS ix_gj_account ON generation_jobs(account_id, created_at);
+
+-- W4：学习者课窗（预取 接下来 2 节完整课 + ≤4 个候选位置；每课后重估，可被新证据作废）
+CREATE TABLE IF NOT EXISTS lesson_cache (
+  account_id     TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  objective_id   TEXT NOT NULL,
+  lesson_id      TEXT NOT NULL,
+  version        INTEGER NOT NULL,
+  slot           INTEGER NOT NULL,             -- 0/1 = 完整课位；2..5 = 候选位置
+  status         TEXT NOT NULL DEFAULT 'ready', -- ready|served|invalidated
+  invalidated_reason TEXT,
+  created_at     INTEGER NOT NULL,
+  PRIMARY KEY (account_id, objective_id, lesson_id)
+);
+
+-- W4：生成活动（与静态注册表同形；activityById 先查静态、再查这里）
+CREATE TABLE IF NOT EXISTS generated_activities (
+  activity_id TEXT PRIMARY KEY,
+  version     INTEGER NOT NULL DEFAULT 1,
+  job_id      TEXT,
+  definition  TEXT NOT NULL,                   -- JSON：与 v3-activities.json 的活动对象同形
+  created_at  INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS diagnostic_sessions (
   account_id    TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
   diagnostic_id TEXT NOT NULL,

@@ -265,6 +265,21 @@ export function lessonForStrategy(strategyId) {
   return row ? { lessonId: row.lesson_id, devOnly: row.release_channel === 'dev_only' } : null
 }
 
+/** 按目标找已发布课（任意策略；窗口兜底用） */
+export function lessonForObjective(objectiveId) {
+  const conn = ensureV3Schema()
+  seedLessons()
+  const rows = conn.prepare(
+    `SELECT lesson_id, release_channel, objective_ids FROM lesson_versions
+     WHERE content_status = 'published' ORDER BY (release_channel = 'mainline') DESC, version DESC`).all()
+  for (const r of rows) {
+    if (JSON.parse(r.objective_ids || '[]').includes(objectiveId)) {
+      return { lessonId: r.lesson_id, devOnly: r.release_channel === 'dev_only' }
+    }
+  }
+  return null
+}
+
 export function listLessons() {
   seedLessons()
   return ensureV3Schema().prepare('SELECT * FROM lesson_versions ORDER BY lesson_id, version').all().map(rowToLesson)

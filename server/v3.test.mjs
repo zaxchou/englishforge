@@ -624,3 +624,90 @@ describe('W2/附加 幂等与诚实状态', () => {
     expect(msg).toContain('LESSON_VERSION_PUBLISHED_IMMUTABLE')
   })
 })
+
+// ==================================================================
+// W4 / T5：生成质量门 —— 坏输出全部不得发布；T6：窗口重估与模型失败回退
+// ==================================================================
+describe('W4/T5+T6 按需生成供给', () => {
+  const goodPkg = {
+    title: '把转折接回主张', whyNow: 'D2 首听漏结论：先抓 but 之前的主张，再看它对照什么。',
+    teachingNote: '说话人先说一件事看起来不错，再用 but 换到另一面：but 前是他承认的，but 后才是他真正要说的。',
+    explanationKind: 'established',
+    activities: [
+      { taskFamilyId: 'gen_contrast_a', prompt: '听：The app looked perfect in the demo, but it crashed every hour at school. 问：说话人真正强调什么？', hints: ['but 之后是重点'],
+        relations: [{ id: 'demo', label: 'demo 里看起来完美', anyOf: ['demo', '演示', '看起来'], required: true }, { id: 'crash', label: '学校里每小时崩', anyOf: ['crash', '崩', 'school', '学校'], required: true }] },
+      { taskFamilyId: 'gen_contrast_b', prompt: 'Our first test worked well, but real users stopped at step three. 问：两半分别是什么？', hints: [],
+        relations: [{ id: 'test', label: '首测顺利', anyOf: ['test', '测试', 'worked'], required: true }, { id: 'step3', label: '真实用户停在第三步', anyOf: ['step', '第三', 'users'], required: true }] },
+    ],
+    sourceRefs: [{ ref: 'G3', claim: 'but 表示对照' }],
+  }
+  const fakeChat = (payload) => async () => JSON.stringify(typeof payload === 'function' ? payload() : payload)
+
+  it('T5：空字段/无来源/术语解析/家族重复/截断 —— 全部拒收且留原因；好输出经全门发布（dev_only）', async () => {
+    const id = await mkAccount('W4-T5')
+    await call('/api/v1/map') // 自给自足：不依赖其它测试先播种账本
+    const gen = await import('./v3gen.mjs')
+    const bad = [
+      ['schema 缺字段', { title: '', whyNow: '', teachingNote: '', activities: [], sourceRefs: [] }],
+      ['无来源', { ...goodPkg, sourceRefs: [] }],
+      ['解析含术语', { ...goodPkg, teachingNote: 'but 引导的从句在句中作状语，主语是真主语。' }],
+      ['家族与最近重复', { ...goodPkg, activities: goodPkg.activities.map((a) => ({ ...a, taskFamilyId: 'exhibit_decision_read_A' })) }],
+    ]
+    for (const [label, payload] of bad) {
+      const r = await gen.startGenerationJob(id, { objectiveId: 'O-K184-02', strategyId: 'sound_segmentation', chat: fakeChat(payload), await: true })
+      console.log('T5CASE', label, JSON.stringify(r).slice(0, 200))
+      expect(r.status, label).toBe('rejected')
+      expect(r.reasons.length, label).toBeGreaterThan(0)
+    }
+    // 截断（非法 JSON）
+    const trunc = await gen.startGenerationJob(id, { objectiveId: 'O-K184-02', chat: async () => '{"title":"半截', await: true })
+    expect(trunc.status).toBe('rejected')
+    // 好输出：发布（dev_only 通道），来源可溯到 job
+    const okJob = await gen.startGenerationJob(id, { objectiveId: 'O-K184-02', strategyId: 'sound_segmentation', chat: fakeChat(goodPkg), await: true })
+    expect(okJob.status).toBe('succeeded')
+    expect(okJob.published).toBe(true)
+    const lessons = (await call('/api/v1/lessons')).json.lessons
+    const genLesson = lessons.find((l) => l.lessonId === okJob.lessonId)
+    expect(genLesson.contentStatus).toBe('published')
+    // 未核验目标（design_rationale）→ 只到 ready 等签署，不自动发布
+    const pend = await gen.startGenerationJob(id, { objectiveId: 'O-K190-01', chat: fakeChat(goodPkg), await: true })
+    expect(pend.status).toBe('succeeded')
+    expect(pend.published).toBe(false)
+    // 指标：拒收率/原因可查；旧 published 种子课没丢
+    const m = (await call(`/api/v1/accounts/${id}/generation`)).json.metrics
+    expect(m.rejected).toBeGreaterThanOrEqual(5)
+    expect(m.succeeded).toBe(2)
+    expect(m.rejectionRate).toBeGreaterThan(0)
+    expect(lessons.filter((l) => l.lessonId.startsWith('les-')).length).toBeGreaterThanOrEqual(3)
+  }, 30000)
+
+  it('T6：学第 1 课时证据前进 → 缓存课被作废留痕；模型失败 → job failed 且有适配后继或诚实不足', async () => {
+    const id = await mkAccount('W4-T6')
+    await call('/api/v1/map')
+    await runDiagnostic(id, { D1: ANSWERS.rich_d1, D2: ANSWERS.fail_d2, D2b: ANSWERS.pass_d2, D3: ANSWERS.pass_d3 }, 'rq-t6')
+    // 建窗：L2 路线有已发布课 → 缓存 ready
+    const w = (await call(`/api/v1/accounts/${id}/window`)).json
+    expect(w.slots.some((s) => s.status === 'ready')).toBe(true)
+    // 学一点新东西（证据前进）→ 重估 → 缓存作废 + 原因
+    await call(`/api/v1/accounts/${id}/attempts`, {
+      attemptId: 't6-extra', activityId: 'les_l1_sensor_read',
+      response: { kind: 'text', text: '出问题的是实验室里准的那颗传感器；现在可用于室内测试；安装被推迟到灯光检查。' },
+      conditions: { firstExposure: true, hintLevel: 0, lookupUsed: false, responseMode: 'typed_summary' },
+    }, 'POST')
+    const re = (await call(`/api/v1/accounts/${id}/window/reestimate`, { trigger: 'after_lesson' }, 'POST')).json
+    expect(re.invalidated).toBeGreaterThan(0)
+    const { getDb } = await import('./db.mjs')
+    const conn = (await import('./v3db.mjs')).ensureV3Schema(getDb())
+    const inv = conn.prepare("SELECT invalidated_reason FROM lesson_cache WHERE account_id = ? AND status = 'invalidated'").all(id)
+    expect(inv[0].invalidated_reason).toContain('evidence_changed')
+    // 模型失败：job failed + 诚实状态；计划层回退到已审核替代（种子课）不循环熟题
+    const gen = await import('./v3gen.mjs')
+    const boom = await gen.startGenerationJob(id, { objectiveId: 'O-K115-03', chat: async () => { throw new Error('provider down') }, await: true })
+    expect(boom.status).toBe('failed')
+    const jobs = (await call(`/api/v1/accounts/${id}/generation`)).json.jobs
+    expect(jobs.find((j) => j.status === 'failed')).toBeTruthy()
+    // 生成关闭时窗口诚实告知（默认防误计费）
+    const w2 = (await call(`/api/v1/accounts/${id}/window`)).json
+    expect(w2.slots.every((s) => s.status !== 'generating')).toBe(true)
+  }, 30000)
+})
