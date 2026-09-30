@@ -993,6 +993,27 @@ describe('复审回归 F1–F8', () => {
     expect(swapped.json.pass).toBe(false)
     const over = await post('f4-over', 'They kept gesture control because all voice systems always fail in crowded places.')
     expect(over.json.pass).toBe(false)
+    // 21§4 收尾：否定语境里的正向关系不命中——"没有保留手势"不得给 kept_gesture 记达成
+    const negSwapped = await post('f4-neg', '他们没有保留手势，反而先试了语音；展厅里多人同时说话，他们仍想继续探索。')
+    expect(negSwapped.json.pass).toBe(false)
+    expect(negSwapped.json.objectiveResults['O-K115-03']).not.toBe('met')
+    // 裸否定词不再充当"保留计划"证据：'没调好'不是'没放弃'
+    const loose = await post('f4-loose', '他们放弃了语音，因为设备没调好。团队保留了手势，展厅人太多。')
+    expect(loose.json.pass).toBe(false)
+    expect(loose.json.objectiveResults['O-K115-03']).toBe('partial')
+    // 21§2：CT01 只背口诀未说明指代单位 → partial（不是 unmet 也不得 met）
+    const ct01 = (attemptId, text) => call(`/api/v1/accounts/${id}/attempts`, {
+      attemptId, activityId: 'ct01_which_probe',
+      response: { kind: 'text', text },
+      conditions: { firstExposure: true, hintLevel: 0, transcriptShown: false, playCount: 1, lookupUsed: false, responseMode: 'typed_summary' },
+    }, 'POST')
+    const slogan = await ct01('f4-slogan', 'which 都是指前面的东西。')
+    expect(slogan.json.objectiveResults['O-K115-02']).toBe('partial')
+    expect(slogan.json.pass).toBe(false)
+    // 21§4 第三候选：否定式保留计划（haven't ruled out）+ 完整决定/原因 → met
+    const cand3 = await post('f4-cand3', "They haven't ruled out voice interaction. They kept the gesture controls and put voice control on hold because the exhibition was crowded with several groups speaking at once.")
+    expect(cand3.json.pass).toBe(true)
+    expect(cand3.json.objectiveResults['O-K115-03']).toBe('met')
   })
 
   it('F6：诊断乱序拒绝；幂等重放不二次推进', async () => {

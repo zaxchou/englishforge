@@ -1169,6 +1169,21 @@
       "objectiveIds": [
        "O-K115-02"
       ]
+     },
+     {
+      "id": "which_rule_only",
+      "label": "只背'which 指前面'类口诀、未说明指代单位（21§2：记部分，不计达成）",
+      "anyOf": [
+       "指前面",
+       "指前一个",
+       "指前面的",
+       "指代词",
+       "指前面的名词"
+      ],
+      "required": false,
+      "objectiveIds": [
+       "O-K115-02"
+      ]
      }
     ],
     "mustNot": [
@@ -1313,11 +1328,12 @@
     "relations": [
      {
       "id": "kept_gesture",
-      "label": "保留的是手势控制",
+      "label": "保留的是手势控制（否定语境不算：'没有保留手势'不得命中）",
       "anyOf": [
        "手势",
        "gesture"
       ],
+      "negationAware": true,
       "required": true,
       "objectiveIds": [
        "O-K115-03"
@@ -1325,11 +1341,12 @@
      },
      {
       "id": "hold_voice",
-      "label": "暂缓/延后的是语音控制（角色不能反）",
+      "label": "暂缓/延后的是语音控制（角色不能反；否定语境不算）",
       "anyOf": [
        "语音",
        "voice"
       ],
+      "negationAware": true,
       "required": true,
       "objectiveIds": [
        "O-K115-03"
@@ -1337,14 +1354,17 @@
      },
      {
       "id": "reason_crowd",
-      "label": "原因：多人说话时该原型在展厅表现不好",
+      "label": "原因：多人说话时该原型在展厅表现不好（否定语境不算）",
       "anyOf": [
        "多人",
        "crowded",
        "同时说话",
        "展厅",
-       "exhibition"
+       "exhibition",
+       "spoke at once",
+       "several groups"
       ],
+      "negationAware": true,
       "required": true,
       "objectiveIds": [
        "O-K115-03"
@@ -1352,18 +1372,36 @@
      },
      {
       "id": "not_permanent",
-      "label": "保留计划：未完全放弃/仍要探索",
+      "label": "保留计划：未完全放弃/仍要探索（锚点=完整的保留表述，裸否定词不算——'没试过'不是'没放弃'）",
       "anyOf": [
-       "没",
-       "未",
-       "not",
-       "haven't",
-       "仍",
-       "still",
-       "探索",
+       "未完全放弃",
+       "没完全放弃",
+       "并未放弃",
+       "没有放弃",
+       "不是永久",
+       "非永久",
+       "不会永久",
+       "不是最终",
+       "仍想",
+       "仍要",
+       "仍打算",
+       "还想",
+       "再测试",
+       "会再测",
+       "继续探索",
+       "still want",
+       "still plan",
+       "want to explore",
+       "plan to explore",
+       "still explore",
+       "not ruled out",
+       "haven't ruled out",
+       "没有完全排除",
+       "未完全排除",
        "explore",
-       "再测试"
+       "探索"
       ],
+      "negationAware": true,
       "required": true,
       "objectiveIds": [
        "O-K115-03"

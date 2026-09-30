@@ -52,26 +52,50 @@ function norm(s) {
   return String(s ?? '').toLowerCase().replace(/[，。！？、；：""''（）,.!?;:'"()]/g, ' ').replace(/\s+/g, ' ')
 }
 
-const NEGATION = ['没', '未', '不', '别', '无', '并非', '并未', 'not', "n't", 'never', 'neither']
+// 否定判定（21§4）：多字否定词与英文否定在 14 字窗口内都算；中文单字否定词只认锚点前 3 字
+// 的紧邻——否则"表现不好 他们想再测试"里的"不"会把远处的"再测试"误标成否定（实测踩过）。
+const NEGATION_STRONG = ['并非', '并未', '没有', '不是', '不再', '不会', '没完全', '未完全', "n't", 'never', 'neither']
+const NEGATION_LIGHT = ['不', '没', '未', '无', '别']
+
+function negatedAt(text, at) {
+  const window = text.slice(Math.max(0, at - 14), at)
+  if (NEGATION_STRONG.some((n) => window.includes(n))) return true
+  if (/(^|[^a-z])not([^a-z]|$)/.test(window)) return true
+  const adjacent = text.slice(Math.max(0, at - 3), at)
+  return NEGATION_LIGHT.some((n) => adjacent.includes(n))
+}
 
 export function evaluateAttempt(activity, response) {
   const c = activity.evaluationContract
   if (!c) return { status: 'pending', evaluation: null }
   const text = norm(typeof response === 'string' ? response : response?.text)
-  const relations = c.relations.map((r) => ({ id: r.id, label: r.label, required: !!r.required, hit: r.anyOf.some((k) => text.includes(norm(k))) }))
-  // mustNot 否定语境守卫（F4/21§4）：“并未完全放弃”不是“完全放弃”。命中点往前找否定词则不判违规
-  const guard = c.mustNotNegationGuard !== false
-  const violated = (c.mustNot ?? []).filter((m) => m.anyOf.some((k) => {
-    const needle = norm(k)
+  // 锚点命中扫描（21§4 收尾）：同一锚点可能出现多次，逐次看前置 14 字窗口里的否定词。
+  // mode: 'any' 出现即命中 | 'nonNegated' 至少一次非否定出现（关系为真才会说的话）
+  // | 'negated' 至少一次否定语境出现（关系本身是"否定了某主张"，如"并未放弃"）
+  const anchorHit = (needle, mode) => {
     let from = 0
+    let sawNonNeg = false
+    let sawNeg = false
     while (true) {
       const at = text.indexOf(needle, from)
-      if (at < 0) return false
-      const window = text.slice(Math.max(0, at - 14), at)
-      if (!guard || !NEGATION.some((n) => window.includes(norm(n)))) return true
+      if (at < 0) break
+      if (negatedAt(text, at)) sawNeg = true
+      else sawNonNeg = true
       from = at + needle.length
     }
-  })).map((m) => m.label)
+    if (mode === 'nonNegated') return sawNonNeg
+    if (mode === 'negated') return sawNeg
+    return sawNonNeg || sawNeg
+  }
+  const modeOf = (r) => (r.polarity === 'negated' ? 'negated' : (r.negationAware ? 'nonNegated' : 'any'))
+  const relations = c.relations.map((r) => ({
+    id: r.id, label: r.label, required: !!r.required,
+    hit: r.anyOf.some((k) => anchorHit(norm(k), modeOf(r))),
+  }))
+  // mustNot 否定语境守卫（F4/21§4）：“并未完全放弃”不是“完全放弃”。至少一次非否定出现才算违规；
+  // 活动可用 mustNotNegationGuard:false 显式退出守卫（现为所有库内活动的默认开）
+  const mustNotMode = c.mustNotNegationGuard === false ? 'any' : 'nonNegated'
+  const violated = (c.mustNot ?? []).filter((m) => m.anyOf.some((k) => anchorHit(norm(k), mustNotMode))).map((m) => m.label)
   const requiredOk = relations.filter((r) => r.required).every((r) => r.hit)
   const pass = requiredOk && violated.length === 0
   // 逐目标结果（F4/21§1）：活动级 pass 只控流程；每个目标按其归属关系单独判
