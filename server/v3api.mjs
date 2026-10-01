@@ -9,6 +9,7 @@ import { ensureV3Schema, oldRecordMap } from './v3db.mjs'
 import { mapIndex, rowToObjective } from './v3map.mjs'
 import { recordAttempt, evidenceSummary, waive, revokeWaiver, reportContent, getStoredAttempt, claimExpression } from './v3evidence.mjs'
 import { getJourney, getGrowth } from './v3journey.mjs'
+import { getWorks } from './v3works.mjs'
 import { startDiagnostic, getDiagnostic, advanceDiagnostic, expectedActivityFor, latestOpenDiagnostic } from './v3diag.mjs'
 import { getPlan, recomputePlan } from './v3plan.mjs'
 import { serveLesson, revealHint, completeLesson, listLessons, seedLessons, withdrawLesson, publishLesson, signLesson } from './v3lessons.mjs'
@@ -182,6 +183,7 @@ export const V3_ROUTES = [
   // 47 号：学习路线时间线 + 段位成长（只读）
   ['GET', '/api/v1/accounts/:id/journey', (ctx) => getJourney(ctx.params.id)],
   ['GET', '/api/v1/accounts/:id/growth', (ctx) => getGrowth(ctx.params.id)],
+  ['GET', '/api/v1/accounts/:id/works', (ctx) => getWorks(ctx.params.id)],
   ['GET', '/api/v1/accounts/:id/generation', (ctx) => { requireAccount(ctx.params.id); return { metrics: generationMetrics(ctx.params.id), jobs: listJobs(ctx.params.id), stock: generationStock(ctx.params.id) } }],
   ['POST', '/api/v1/accounts/:id/generation/start', (ctx) => {
     requireAccount(ctx.params.id)

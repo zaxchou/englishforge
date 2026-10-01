@@ -97,3 +97,101 @@ export function JourneyTimeline({ journey, growth }: { journey: JourneyData | nu
     </div>
   )
 }
+
+// ---------- 49 号：成长作品页（quest.html data-screen="growth" 的真实产品版） ----------
+export type WorkItem = {
+  attemptId: string; activityId: string; objectiveId: string | null; skill: string
+  taskLabel: string; at: number; text: string; mediaId: string | null; oral: boolean
+  label: string; pass: boolean | null; aiVerdict: string | null; aiFeedback: string | null
+  relations: { label: string; hit: boolean; required: boolean }[]; practiceOnly: boolean
+  materialTitle: string | null; materialText: string | null
+}
+export type WorksData = {
+  pair: { objectiveId: string; old: WorkItem; new: WorkItem } | null
+  recent: WorkItem[]
+  adjustments: { reduce: { real: boolean; title: string; body: string }; keep: { real: boolean; title: string; body: string }; add: { real: boolean; title: string; body: string } }
+  level: { title: string; nextTitle: string | null; nextHow: string | null }
+  totalWorks: number
+}
+
+function WorkCard({ w, kind }: { w: WorkItem; kind: 'old' | 'new' }) {
+  return (
+    <div className={kind === 'new' ? 'work new' : 'work'}>
+      <div className="kicker">{kind === 'old' ? `原来的回应 / ${w.label}` : `新的回应 / ${w.label}`}</div>
+      {w.mediaId
+        ? <audio controls src={`/media/${w.mediaId}`} style={{ width: '100%', marginTop: 12 }} />
+        : <blockquote>{w.text || '（这题没有留下文字——录音文件缺失，如实标注）'}</blockquote>}
+      {w.mediaId && w.text && <p className="works-transcript">转写：{w.text}</p>}
+      <p>
+        {w.aiFeedback ? `AI 批改：${w.aiFeedback}` : w.relations.length ? w.relations.map((r) => `${r.hit ? '✓' : '✗'}${r.label}`).join(' ') : ''}
+        {w.practiceOnly && '（练习参考，不算成绩）'}
+      </p>
+      <small className="works-meta">{new Date(w.at).toLocaleString()} · {w.taskLabel}{w.materialTitle ? ` · 材料：${w.materialTitle}` : ''}{!w.mediaId && w.oral ? ' · 录音文件缺失' : ''}</small>
+    </div>
+  )
+}
+
+export function GrowthWorksPage({ works, onGoToday, onGoEvidence }: {
+  works: WorksData | null
+  onGoToday: () => void
+  onGoEvidence: () => void
+}) {
+  if (!works) return <div className="v4-card"><p className="v4-dim">正在读取你的作品…</p></div>
+  const empty = works.totalWorks === 0
+  return (
+    <div className="works-page">
+      <div className="page-head">
+        <div className="kicker">成长档案 / 记住真正跨过的地方</div>
+        <h1>进步是这句话，<br />现在你能说清楚了。</h1>
+        <p>比较作品和完成条件，比比较刷题数量更有意义。</p>
+      </div>
+      {empty ? (
+        <div className="work" style={{ marginBottom: 20 }}>
+          <div className="kicker">还没有可对照的作品</div>
+          <blockquote>完成第一课之后，这里会放上你当时和现在的回答。</blockquote>
+          <p>只用你自己保存的提交和录音，不会拿别人的或模拟的内容冒充。</p>
+        </div>
+      ) : works.pair ? (
+        <>
+          <div className="grid">
+            <WorkCard w={works.pair.old} kind="old" />
+            <WorkCard w={works.pair.new} kind="new" />
+          </div>
+          <p className="works-note">这一对来自同一个目标（{works.pair.objectiveId}）：从「{works.pair.old.label}」到「{works.pair.new.label}」。{works.pair.new.label !== '独立完成' && '注意：这次还不是独立完成，先算练习进步。'}</p>
+        </>
+      ) : (
+        <div className="work" style={{ marginBottom: 20 }}>
+          <div className="kicker">还没有可配对的进步</div>
+          <blockquote>{works.totalWorks === 1 ? '已经有一份作品了。' : `已有 ${works.totalWorks} 份作品。`}</blockquote>
+          <p>配对需要同一个目标下"先需要帮助、后独立完成"的两次真实记录。下面的作品按时间列出，不做硬凑的比较。</p>
+        </div>
+      )}
+      {works.recent.length > 0 && (
+        <div className="works-recent">
+          <div className="kicker">最近的作品（按时间，不做硬凑比较）</div>
+          <ul>
+            {works.recent.map((w) => (
+              <li key={w.attemptId}>
+                <b>{new Date(w.at).toLocaleDateString()}</b> · {w.taskLabel || '练习'} · {w.label}
+                {w.mediaId && ' · 🎧 有录音'} — {w.text.slice(0, 60)}{w.text.length > 60 ? '…' : ''}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      <div className="section">
+        <h2>这次之后，课程怎样变化？</h2>
+        <div className="three">
+          <div className="panel"><div className="kicker">保留</div><h3>{works.adjustments.keep.title}</h3><p>{works.adjustments.keep.body}</p></div>
+          <div className="panel"><div className="kicker">减少</div><h3>{works.adjustments.reduce.title}</h3><p>{works.adjustments.reduce.body}</p></div>
+          <div className="panel"><div className="kicker">增加</div><h3>{works.adjustments.add.title}</h3><p>{works.adjustments.add.body}</p></div>
+        </div>
+      </div>
+      <div className="actions">
+        <button className="v4-primary" onClick={onGoToday}>看看更新后的下一站 →</button>
+        <button className="v4-ghost" onClick={onGoEvidence}>变化有哪些证据？</button>
+      </div>
+      <div className="works-footer">需要提示的进步值得保留。更强的能力结论等待独立迁移和后续观察。</div>
+    </div>
+  )
+}

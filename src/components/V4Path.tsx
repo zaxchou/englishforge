@@ -8,7 +8,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { goalLabel, learnerToday } from '../learning/learnerView'
 import { clearDraft, draftKey, loadDraft, saveDraft } from '../learning/draftStore'
 import './v4.css'
-import { JourneyHero, JourneyRoute, JourneyAbilities, JourneyTimeline } from './LearningJourney'
+import { JourneyHero, JourneyRoute, JourneyAbilities, JourneyTimeline, GrowthWorksPage, type WorksData } from './LearningJourney'
 import './learning-space.css'
 
 type Plan = {
@@ -24,7 +24,7 @@ type Plan = {
   notChosen: { objectiveId: string; reason: string }[]
   status: string
 }
-type AttemptFeedback = { pass: boolean | null; displayPass?: boolean | null; evaluationStatus: string; practiceOnly?: boolean; studentClaimed?: boolean; dimensions?: { id: string; label: string; hit: boolean; required: boolean }[]; slotResults?: { slotId: string; prompt: string; given: string | null; status: string }[]; mustNotViolations?: string[]; aiReview?: { verdict: string; feedback: string; agreesWithMechanical: boolean } | null; reveal?: { referenceExpression: string; supportingQuotes: string[]; followup: string | null } }
+type AttemptFeedback = { pass: boolean | null; displayPass?: boolean | null; evaluationStatus: string; practiceOnly?: boolean; studentClaimed?: boolean; conditions?: { hintLevel?: number; transcriptShown?: boolean; firstExposure?: boolean; responseMode?: string }; dimensions?: { id: string; label: string; hit: boolean; required: boolean }[]; slotResults?: { slotId: string; prompt: string; given: string | null; status: string }[]; mustNotViolations?: string[]; aiReview?: { verdict: string; feedback: string; agreesWithMechanical: boolean } | null; reveal?: { referenceExpression: string; supportingQuotes: string[]; followup: string | null } }
 type ContentReview = { preview: boolean; humanSignPending: boolean; semanticVerdict: string | null; pending: string | null }
 type LessonPkg = {
   lessonId: string
@@ -84,7 +84,7 @@ const BAND_LABEL: Record<string, string> = {
 export function V4Path({ accountId }: { accountId: string | null }) {
   // 28 号薄片：默认入口 = 今日学习（唯一主按钮回答"练什么/点哪里/为什么"）；
   // 后台视角（推荐详情/证据/地图）降为辅助入口，审核收进运营折叠
-  const [tab, setTab] = useState<'today' | 'plan' | 'diag' | 'evidence' | 'map' | 'review'>('today')
+  const [tab, setTab] = useState<'today' | 'plan' | 'diag' | 'evidence' | 'works' | 'map' | 'review'>('today')
   const [theme, setTheme] = useState<'light' | 'dark'>(() => { try { return localStorage.getItem('forge-learning-theme') === 'dark' ? 'dark' : 'light' } catch { return 'light' } })
   useEffect(() => { document.documentElement.dataset.learningTheme = theme; try { localStorage.setItem('forge-learning-theme', theme) } catch { /* Theme still works without storage. */ } return () => { delete document.documentElement.dataset.learningTheme } }, [theme])
   const [err, setErr] = useState('')
@@ -95,9 +95,15 @@ export function V4Path({ accountId }: { accountId: string | null }) {
   const [evidence, setEvidence] = useState<Evidence | null>(null)
   const [waiverBusy,setWaiverBusy] = useState(false)
   const [mapIdx, setMapIdx] = useState<MapIdx | null>(null)
-  // 47 号：学习路线时间线 + 段位
+  // 47 号：学习路线时间线 + 段位。48号：账户范围数据在换账户时清空，迟到响应按代次丢弃
   const [journey, setJourney] = useState<Journey | null>(null)
   const [growth, setGrowth] = useState<Growth | null>(null)
+  const [works, setWorks] = useState<WorksData | null>(null)
+  const acctGenRef = useRef(0)
+  useEffect(() => {
+    acctGenRef.current++
+    setJourney(null); setGrowth(null); setEvidence(null); setStock(null); setWorks(null)
+  }, [accountId])
   // 31 第三批：个体生成库存（只读接口，不触发任务）——推荐详情页诚实显示补课管线状态
   const [stock, setStock] = useState<{ disabled: boolean; ready: number; pendingReview: number; failedCooldown: number } | null>(null)
 
@@ -123,12 +129,18 @@ export function V4Path({ accountId }: { accountId: string | null }) {
     if (tab === 'map' && !mapIdx) {
       api<MapIdx>('/map').then(setMapIdx).catch((e) => setErr(String(e)))
     }
+    if (tab === 'works' && accountId) {
+      const gen = ++acctGenRef.current
+      api<WorksData>(`/accounts/${accountId}/works`).then((v) => { if (gen === acctGenRef.current) setWorks(v) }).catch(() => { /* 加载失败不打扰 */ })
+    }
     if (tab === 'map' && accountId) {
-      api<Journey>(`/accounts/${accountId}/journey`).then(setJourney).catch(() => { /* 路线加载失败不打扰 */ })
-      api<Growth>(`/accounts/${accountId}/growth`).then(setGrowth).catch(() => { /* 段位加载失败不打扰 */ })
+      const gen = ++acctGenRef.current
+      api<Journey>(`/accounts/${accountId}/journey`).then((v) => { if (gen === acctGenRef.current) setJourney(v) }).catch(() => { /* 路线加载失败不打扰 */ })
+      api<Growth>(`/accounts/${accountId}/growth`).then((v) => { if (gen === acctGenRef.current) setGrowth(v) }).catch(() => { /* 段位加载失败不打扰 */ })
     }
     if (tab === 'today' && accountId && !journey) {
-      api<Journey>(`/accounts/${accountId}/journey`).then(setJourney).catch(() => { /* 路线加载失败不打扰 */ })
+      const gen = ++acctGenRef.current
+      api<Journey>(`/accounts/${accountId}/journey`).then((v) => { if (gen === acctGenRef.current) setJourney(v) }).catch(() => { /* 路线加载失败不打扰 */ })
     }
     if (tab === 'plan' && accountId && !stock) {
       api<{ stock: { disabled: boolean; ready: number; pendingReview: number; failedCooldown: number } }>(`/accounts/${accountId}/generation-stock`)
@@ -220,6 +232,7 @@ async function changeWaiver(objectiveId:string,skill:string,revoked:boolean) {
         <button className={tab === 'plan' ? 'on' : ''} disabled={waiverBusy} onClick={() => setTab('plan')}>推荐详情</button>
         <button className={tab === 'diag' ? 'on' : ''} disabled={waiverBusy} onClick={() => setTab('diag')}>入口诊断</button>
         <button className={tab === 'evidence' ? 'on' : ''} disabled={waiverBusy} onClick={() => setTab('evidence')}>我的成长</button>
+        <button className={tab === 'works' ? 'on' : ''} disabled={waiverBusy} onClick={() => setTab('works')}>成长作品</button>
         <button className={tab === 'map' ? 'on' : ''} disabled={waiverBusy} onClick={() => setTab('map')}>学习路线</button>
         <details className="v4-ops">
           <summary>运营工具</summary>
@@ -339,6 +352,10 @@ async function changeWaiver(objectiveId:string,skill:string,revoked:boolean) {
           {evidence && <p className="v4-dim">{evidence.note}</p>}
           </details>
         </div>
+      )}
+
+      {tab === 'works' && (
+        <GrowthWorksPage works={works} onGoToday={() => setTab('today')} onGoEvidence={() => setTab('evidence')} />
       )}
 
       {tab === 'review' && <ReviewPanel />}
@@ -594,7 +611,7 @@ function LessonRunner({ accountId, pkg, onDone }: {
   // D0-1：封闭槽位题的逐槽选择（activityId → slotId → 选项代号）
   const [slotPicks, setSlotPicks] = useState<Record<string, Record<string, string>>>(() => Object.fromEntries(pkg.activities.map(a => [a.activityId, a.resume?.response.answers ?? {}])))
   const [revealed, setRevealed] = useState<Record<string, string[]>>({})
-  const [feedback, setFeedback] = useState<Record<string, { pass: boolean | null; status: string; practiceOnly?: boolean; studentClaimed?: boolean; relations?: { id: string; label: string; hit: boolean; required: boolean }[]; mustNot?: string[]; slotResults?: { slotId: string; prompt: string; given: string | null; status: string }[]; aiReview?: AttemptFeedback['aiReview']; reveal?: AttemptFeedback['reveal'] }>>(() => Object.fromEntries(pkg.activities.filter(a => a.resume).map(a => [a.activityId, { pass: a.resume!.result.displayPass ?? a.resume!.result.pass, status: a.resume!.result.evaluationStatus, practiceOnly: a.resume!.result.practiceOnly, studentClaimed: a.resume!.result.studentClaimed, relations: a.resume!.result.dimensions, slotResults: a.resume!.result.slotResults, aiReview: a.resume!.result.aiReview, reveal: a.resume!.result.reveal }])))
+  const [feedback, setFeedback] = useState<Record<string, { pass: boolean | null; status: string; practiceOnly?: boolean; studentClaimed?: boolean; relations?: { id: string; label: string; hit: boolean; required: boolean }[]; mustNot?: string[]; slotResults?: { slotId: string; prompt: string; given: string | null; status: string }[]; aiReview?: AttemptFeedback['aiReview']; conditions?: AttemptFeedback['conditions']; reveal?: AttemptFeedback['reveal'] }>>(() => Object.fromEntries(pkg.activities.filter(a => a.resume).map(a => [a.activityId, { pass: a.resume!.result.displayPass ?? a.resume!.result.pass, status: a.resume!.result.evaluationStatus, practiceOnly: a.resume!.result.practiceOnly, studentClaimed: a.resume!.result.studentClaimed, relations: a.resume!.result.dimensions, slotResults: a.resume!.result.slotResults, aiReview: a.resume!.result.aiReview, reveal: a.resume!.result.reveal }])))
   const [pkgLive, setPkgLive] = useState(pkg)
   const [refreshing, setRefreshing] = useState(false)
   const [err, setErr] = useState('')
@@ -658,7 +675,7 @@ function LessonRunner({ accountId, pkg, onDone }: {
       if (usedTake) setTakes((t) => ({ ...t, [act.activityId]: Math.max(t[act.activityId] ?? 1, Number(usedTake)) }))
       lastAttemptRef.current[act.activityId] = String(r.attemptIdUsed ?? attemptId)
       // 40 号：mustNotViolations 一并带给"词全有但关系错"的区分展示
-      setFeedback((f) => ({ ...f, [act.activityId]: { pass: r.displayPass ?? r.pass, status: r.evaluationStatus, practiceOnly: r.practiceOnly, studentClaimed: r.studentClaimed, relations: r.dimensions, mustNot: r.mustNotViolations, slotResults: r.slotResults, aiReview: r.aiReview ?? null, reveal: r.reveal } }))
+      setFeedback((f) => ({ ...f, [act.activityId]: { pass: r.displayPass ?? r.pass, status: r.evaluationStatus, practiceOnly: r.practiceOnly, studentClaimed: r.studentClaimed, relations: r.dimensions, mustNot: r.mustNotViolations, slotResults: r.slotResults, aiReview: r.aiReview ?? null, conditions: (r as unknown as { conditions?: AttemptFeedback['conditions'] }).conditions, reveal: r.reveal } }))
       // 门控活动（如未预告追问）在前提活动提交后才出现：重取课包
       const fresh = await api<LessonPkg>(`/accounts/${accountId}/lessons/${pkgLive.lessonId}`)
       if (fresh.activities.length > visibleActs.length) setPkgLive(fresh)
@@ -684,7 +701,7 @@ function LessonRunner({ accountId, pkg, onDone }: {
       const changed = new Set(fresh.activities.filter(a=>{const old=pkgLive.activities.find(o=>o.activityId===a.activityId);return !old || old.activityVersion!==a.activityVersion || old.prompt!==a.prompt}).map(a=>a.activityId))
       setAnswers(old=>Object.fromEntries(fresh.activities.map(a=>[a.activityId,a.resume?.response.text ?? (changed.has(a.activityId)?'':old[a.activityId] ?? '')])))
       setSlotPicks(old=>Object.fromEntries(fresh.activities.map(a=>[a.activityId,a.resume?.response.answers ?? (changed.has(a.activityId)?{}:old[a.activityId] ?? {})])))
-      setFeedback(Object.fromEntries(fresh.activities.filter(a=>a.resume).map(a=>[a.activityId,{pass:a.resume!.result.displayPass ?? a.resume!.result.pass,status:a.resume!.result.evaluationStatus,practiceOnly:a.resume!.result.practiceOnly,studentClaimed:a.resume!.result.studentClaimed,relations:a.resume!.result.dimensions,mustNot:a.resume!.result.mustNotViolations,slotResults:a.resume!.result.slotResults,aiReview:a.resume!.result.aiReview,reveal:a.resume!.result.reveal}])))
+      setFeedback(Object.fromEntries(fresh.activities.filter(a=>a.resume).map(a=>[a.activityId,{pass:a.resume!.result.displayPass ?? a.resume!.result.pass,status:a.resume!.result.evaluationStatus,practiceOnly:a.resume!.result.practiceOnly,studentClaimed:a.resume!.result.studentClaimed,relations:a.resume!.result.dimensions,mustNot:a.resume!.result.mustNotViolations,slotResults:a.resume!.result.slotResults,aiReview:a.resume!.result.aiReview,conditions:a.resume!.result.conditions,reveal:a.resume!.result.reveal}])))
       setTakes(Object.fromEntries(fresh.activities.map(a=>[a.activityId,a.nextTake ?? 1])))
       const next=fresh.activities.findIndex(a=>!a.resume);setCurrentIndex(next<0?Math.max(0,fresh.activities.length-1):next)
       setPkgLive(fresh);setErr('')
@@ -707,8 +724,13 @@ function LessonRunner({ accountId, pkg, onDone }: {
 
   if (done) {
     const acts = visibleActs
-    const once = acts.filter((a) => feedback[a.activityId] && (revealed[a.activityId]?.length ?? 0) === 0 && feedback[a.activityId].pass).length
-    const hinted = acts.filter((a) => feedback[a.activityId] && (revealed[a.activityId]?.length ?? 0) > 0 && feedback[a.activityId].pass).length
+    // 48号拆分：按**服务端条件**分类——独立=firstExposure+无提示+未看稿；
+    // AI/词表批改的开放题与口述是练习反馈，不算独立能力证据
+    const cond = (a: { activityId: string }) => feedback[a.activityId]?.conditions ?? {}
+    const isIndep = (a: { activityId: string }) => { const cc = cond(a); return !!cc.firstExposure && (cc.hintLevel ?? 0) === 0 && !cc.transcriptShown }
+    const once = acts.filter((a) => feedback[a.activityId] && feedback[a.activityId].pass && isIndep(a) && !a.oralTask).length
+    const hinted = acts.filter((a) => feedback[a.activityId] && feedback[a.activityId].pass && !isIndep(a) && !a.oralTask).length
+    const oralPractice = acts.filter((a) => feedback[a.activityId] && a.oralTask).length
     const tricky = acts.filter((a) => feedback[a.activityId] && !feedback[a.activityId].pass).length
     const leveledUp = doneGrowth && levelAtStartRef.current != null && doneGrowth.levelIndex > levelAtStartRef.current
     const nextUp = doneJourney?.upcoming?.[0]
@@ -717,10 +739,12 @@ function LessonRunner({ accountId, pkg, onDone }: {
         <h3>{pkgLive.title} · 已完成</h3>
         <p>这一课练完了！你的表现都记下来了，后面会安排复习。</p>
         <div className="v4-done-summary">
-          <span>✅ {once} 步独立做对</span>
-          {hinted > 0 && <span>💡 {hinted} 步看提示后做对</span>}
+          {once > 0 && <span>✅ {once} 步独立做对</span>}
+          {hinted > 0 && <span>💡 {hinted} 步在帮助后做对</span>}
+          {oralPractice > 0 && <span>🎙️ {oralPractice} 步口头练习（只作参考，不算独立证据）</span>}
           {tricky > 0 && <span>📝 {tricky} 步要多练一次（都记下来了，不算你的错）</span>}
         </div>
+        <p className="v4-dim">「独立做对」只统计不看提示、不看稿、第一次就答对的步骤；口头与开放题的批改是练习参考，能力结论等独立迁移和老师确认。</p>
         {doneGrowth && (
           <div className="v4-done-level">
             {leveledUp
@@ -844,7 +868,9 @@ function LessonRunner({ accountId, pkg, onDone }: {
             )}
           </div>
           {feedback[act.activityId]?.practiceOnly && (
-            <p className="v4-advise">这题由 AI 老师批改，算<b>练习参考</b>，不算进成绩。真正的成绩来自选择题和老师的确认。</p>
+            feedback[act.activityId]?.aiReview
+              ? <p className="v4-advise">这题由 AI 老师批改，算<b>练习参考</b>，不算进成绩。真正的成绩来自选择题和老师的确认。</p>
+              : <p className="v4-advise">这题按机器词表给了<b>练习参考</b>（这次 AI 没参与），不算进成绩。</p>
           )}
           {feedback[act.activityId]?.slotResults?.length ? (
             <ul className="v4-relations">

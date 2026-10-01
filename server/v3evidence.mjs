@@ -521,6 +521,8 @@ function attemptResult(conn, accountId, row, activity) {
     practiceOnly: evaluation?.keywordOnly === true,
     // 46 号：AI 批改结论（开放题/口述题的主要判定；机械规则只作参考）
     aiReview: evaluation?.aiReview ?? null,
+    // 48 号：服务端覆盖后的有效支持条件（完成小结/作品标注读它，不读客户端自报）
+    conditions: JSON.parse(row.conditions || '{}'),
     displayPass: evaluation ? (evaluation.aiReview ? evaluation.aiReview.verdict === 'correct' : evaluation.pass) : null,
     // 40 号：学生表达申诉已记录过 → 前端按钮置灰，不重复记录
     studentClaimed: !!conn.prepare("SELECT 1 FROM evidence_events WHERE account_id = ? AND attempt_id = ? AND kind = 'student_claim' LIMIT 1").get(accountId, row.attempt_id),

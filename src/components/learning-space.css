@@ -47,3 +47,36 @@ html[data-learning-theme=dark] .learning-mode .sidebar-focus{background:#343047!
 .v4-done-summary { display: flex; gap: 14px; flex-wrap: wrap; margin: 10px 0; font-size: 14px; }
 .v4-done-level { border-left: 3px solid #3b6ef6; padding: 6px 12px; margin: 10px 0; background: rgba(59,110,246,.06); border-radius: 0 8px 8px 0; }
 [data-learning-theme='dark'] .v4-done-level { border-color: #9d8bff; background: rgba(157,139,255,.08); }
+
+/* ---- 49 号：成长作品页（quest growth 基准） ---- */
+.works-page { --wline: rgba(120,140,175,.35); --whigh: rgba(36,86,220,.08); }
+.works-page .page-head { padding: 26px 0 10px; }
+.works-page .kicker { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; opacity: .75; }
+.works-page h1 { font-size: 40px; line-height: 1.25; margin: 12px 0 10px; }
+.works-page .page-head p { opacity: .8; }
+.works-page .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; margin: 18px 0; }
+.works-page .work { padding: 22px; border: 1px solid var(--wline); border-radius: 4px; background: transparent; }
+.works-page .work.new { background: var(--whigh); }
+.works-page .work blockquote { font-size: 20px; line-height: 1.7; margin: 14px 0; font-family: 'Trebuchet MS', sans-serif; }
+.works-page .work p { font-size: 14px; opacity: .85; margin: 8px 0 0; }
+.works-page .work audio { margin-top: 10px; }
+.works-page .works-transcript { font-size: 13px !important; opacity: .7; }
+.works-page .works-meta { font-size: 12px; opacity: .6; display: block; margin-top: 8px; }
+.works-page .works-note { font-size: 13px; opacity: .75; margin: 10px 0 4px; }
+.works-page .works-recent { margin: 16px 0 4px; }
+.works-page .works-recent ul { margin: 8px 0 0; padding-left: 18px; font-size: 13px; opacity: .85; }
+.works-page .works-recent li { margin: 4px 0; }
+.works-page .section { padding: 22px 0 4px; }
+.works-page .section h2 { font-size: 24px; margin-bottom: 12px; }
+.works-page .three { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; margin-top: 14px; }
+.works-page .panel { padding: 18px; border: 1px solid var(--wline); border-radius: 4px; }
+.works-page .panel h3 { font-size: 16px; margin: 6px 0; }
+.works-page .panel p { font-size: 13px; opacity: .8; margin: 6px 0 0; }
+.works-page .actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 22px; }
+.works-page .works-footer { font-size: 12px; opacity: .65; border-top: 1px solid var(--wline); padding: 18px 0 6px; margin-top: 24px; line-height: 1.8; }
+@media (max-width: 760px) {
+  .works-page .grid { grid-template-columns: 1fr; }
+  .works-page .three { grid-template-columns: 1fr; }
+  .works-page h1 { font-size: 30px; }
+}
+[data-learning-theme='dark'] .works-page { --wline: rgba(160,140,255,.3); --whigh: rgba(157,139,255,.12); }

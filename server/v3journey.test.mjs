@@ -18,7 +18,7 @@ const c = () => db.getDb()
 
 const st = (objectiveId, skill, state, flags = '[]') => ({ objectiveId, skill, complexity: 'base', state, flags })
 
-it('段位纯函数：从零到高手逐级到位；条件说人话且可解释', () => {
+it('段位纯函数：48 号五个反例逐项锁定；条件按实际缺口动态生成', () => {
   // 零记录 → 起步者
   expect(journey.computeLevel([], 0).level).toBe('起步者')
   // 完成 1 课 → 入门了
@@ -28,25 +28,53 @@ it('段位纯函数：从零到高手逐级到位；条件说人话且可解释'
   const lv3 = journey.computeLevel(g5, 2)
   expect(lv3.level).toBe('上手了')
   expect(lv3.nextHow).toContain('能自己做对')
-  // 2 个 independent → 站稳了
-  const g6 = [...g5, st('f', 'listening', 'independent')]
-  expect(journey.computeLevel(g6, 3).level).toBe('站稳了')
-  // 1 个 transferred → 能迁移
-  const g7 = [...g6, st('g', 'speaking', 'transferred')]
-  expect(journey.computeLevel(g7, 4).level).toBe('能迁移')
-  // 免修目标不计入（不冒充能力）：其余 3 项独立/迁移 + 5 课 → 熟练了（h 被排除）
-  const waived = [...g7, st('h', 'writing', 'independent', '["waived_by_user"]')]
-  const lv = journey.computeLevel(waived, 5)
-  expect(lv.level).toBe('熟练了')
-  expect(lv.summary.independent).toBe(3) // h 不计入
-  // 听说读写四方向都有 independent+ → 高手
+
+  // 48-反例1：四技能显式判定——interaction 不冒充 writing；缺写作时不是"四项起步"
+  const interactionAsWriting = [
+    st('r', 'reading', 'independent'), st('l', 'listening', 'independent'),
+    st('sp', 'speaking', 'independent'), st('i', 'interaction', 'independent'),
+  ]
+  const notMaster = journey.computeLevel(interactionAsWriting, 1)
+  expect(notMaster.level).not.toBe('四项起步')
+  expect(notMaster.summary.fourSkills).toBe(3)
+  expect(notMaster.summary.untestedSkills).toContain('writing')
+
+  // 48-反例2：争议不计入段位（与成长视图同口径）；免修同样排除
+  const disputed = [
+    st('r', 'reading', 'independent', '["disputed"]'), st('l', 'listening', 'independent', '["disputed"]'),
+    st('s', 'speaking', 'independent', '["disputed"]'), st('w', 'writing', 'independent', '["disputed"]'),
+  ]
+  expect(journey.computeLevel(disputed, 1).level).toBe('入门了')
+  const waived = [
+    st('r', 'reading', 'independent', '["waived_by_user"]'), st('l', 'listening', 'independent', '["waived_by_user"]'),
+    st('s', 'speaking', 'independent', '["waived_by_user"]'), st('w', 'writing', 'independent', '["waived_by_user"]'),
+  ]
+  expect(journey.computeLevel(waived, 1).level).toBe('入门了')
+
+  // 48-反例3：transferred 不与 independent 重复累加——3 个目标（其中1个迁移）+5课 ≠ 熟练了
+  const doubleCount = [
+    st('a', 'reading', 'independent'), st('b', 'reading', 'transferred'), st('c', 'reading', 'retained'),
+  ]
+  expect(journey.computeLevel(doubleCount, 5).level).toBe('能迁移') // 唯一键=3，不足 4
+  // 4 个唯一目标 + 5 课 → 熟练了
+  const fourDistinct = [...doubleCount, st('d', 'reading', 'independent')]
+  expect(journey.computeLevel(fourDistinct, 5).level).toBe('熟练了')
+
+  // 48-反例4：升级文案按实际缺口——0 课但 growth≥2 时，"入门了"的下一步不再是"完成第一课"
+  const justGrowth = [st('a', 'reading', 'independent')] // growth=2：零课也能"入门了"（复审原例）
+  const lv2 = journey.computeLevel(justGrowth, 0)
+  expect(lv2.level).toBe('入门了')
+  expect(lv2.nextHow).not.toContain('完成第一课')
+
+  // 48-反例5（产品边界）：四项独立也只叫"四项起步"，并给出未测方向
   const four = [
     st('r', 'reading', 'independent'), st('l', 'listening', 'independent'),
     st('s', 'speaking', 'independent'), st('w', 'writing', 'independent'),
   ]
-  const master = journey.computeLevel(four, 2)
-  expect(master.level).toBe('高手')
-  expect(master.nextTitle).toBeNull()
+  const top = journey.computeLevel(four, 2)
+  expect(top.level).toBe('四项起步')
+  expect(top.level).not.toContain('高手')
+  expect(top.summary.untestedSkills).toHaveLength(0)
 })
 
 it('学习路线接口：完成课时间线有序不重复；当前课带步数进度；后继课进"接下来"', async () => {
