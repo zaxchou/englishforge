@@ -1,5 +1,5 @@
 {
-  "notice": "受控原创听力脚本（18 §2/§5 为权威稿）。合成管线：Windows SAPI（Microsoft Zira en-US），纯文本 + Rate 属性（SSML <prosody> 实测致语速减半，禁用）。本机只有一个英文声源——18 §2 的『两名讲者平行版本』与 21 §6 的跨讲者检查无法做到，也不以变速冒充（18 §2 制作注），缺口如实保持开放，待真人录音补足。产物全部标注 synthetic（受控练习音频，不得冒充真实 podcast，21 §6.2）；设备播放与自然度试听由人完成（23 号报告记录）。 真实外部素材（kind=real_material）经来源+许可+哈希三核后才入清单；人耳听校（噪声/字幕/片段起止）完成前不得当正式材料。本脚本合并写 manifest：只更新自己产出的行，手工入账的行保留。",
+  "notice": "受控原创听力脚本（18 §2/§5 为权威稿）。合成管线：Qwen3-TTS Flash（云端神经合成，24kHz WAV，逐段生成 + 500ms 段间静音，段级 sha256 缓存；--engine sapi 保留 Windows Zira 离线兜底）。语音仍是合成（synthetic）——更自然不改变边界：不得冒充真人或真实 podcast，synthetic 听力证据照旧封顶（21 §6.2）。两套声源（A=Cherry / B=Serena）使『换材料换声音』成立（l1d 用 B）；单脚本内的跨讲者对话仍无（脚本是单人叙述），待真人录音补足。设备播放与自然度试听由人完成。真实外部素材（kind=real_material）经来源+许可+哈希三核后才入清单；人耳听校（噪声/字幕/片段起止）完成前不得当正式材料。本脚本合并写 manifest：只更新自己产出的行，手工入账的行保留。",
   "assets": [
     {
       "mediaId": "real_cylinder_weakness_richards",
@@ -32,22 +32,22 @@
       "kind": "lesson_audio",
       "sourceType": "synthetic",
       "licenseStatus": "confirmed",
-      "licenseNote": "Windows SAPI 合成语音（Microsoft Zira en-US）；本项目原创受控脚本；标注 synthetic，仅用于受控练习，不冒充真实 podcast（21 §6.2）",
-      "speakerLabel": "synthetic-A（Zira，非真人；单一英文声源）",
+      "licenseNote": "Qwen3-TTS Flash 云端合成语音（voice=Cherry，非真人）；本项目原创受控脚本；标注 synthetic，仅用于受控练习，不冒充真实 podcast（21 §6.2）",
+      "speakerLabel": "synthetic-A（Qwen3-TTS Cherry，非真人）",
       "activityIds": [
         "diag_d2_listen_sim"
       ],
       "scriptId": "d2_library_v1",
       "version": 1,
-      "voice": "Microsoft Zira Desktop",
+      "voice": "Cherry",
       "voiceParams": {
-        "rate": 0
+        "engine": "qwen3-tts-flash"
       },
       "mime": "audio/wav",
-      "bytes": 1009324,
-      "durationMs": 31540,
-      "sha256": "a13b8b7ad0ac325bf96784ddcd8bf7b557808c8c3aa6422a3de93f5b12b34cb8",
-      "sampleRate": 16000,
+      "bytes": 1538924,
+      "durationMs": 32060,
+      "sha256": "799e3db36d3d6480ef63086e2443dfa0fe6c9caae839684f67509ad7aea69df6",
+      "sampleRate": 24000,
       "transcript": "In a campus library, our class tested an AI assistant that suggests articles for design projects. At first, the suggestions looked useful because the assistant found papers on the topics we entered. But when we checked the sources, several summaries missed important limits in the original papers. So our conclusion was narrower than we expected: the tool can help us find papers worth reading, but we still need to read each source before using it to support a design decision.",
       "segments": [
         {
@@ -71,30 +71,30 @@
           "meaningBasis": "最终评价（带限定）：能帮助找到值得读的论文；但支撑设计决策前必须自己读每篇来源——不是『不能用』也不是『随便用』。"
         }
       ],
-      "madeAt": 1790856700942
+      "madeAt": 1790879958832
     },
     {
       "mediaId": "aud_l2_museum_v1",
       "kind": "lesson_audio",
       "sourceType": "synthetic",
       "licenseStatus": "confirmed",
-      "licenseNote": "Windows SAPI 合成语音（Microsoft Zira en-US）；本项目原创受控脚本；标注 synthetic，仅用于受控练习，不冒充真实 podcast（21 §6.2）",
-      "speakerLabel": "synthetic-A（Zira，与 D2 同声源不同稿——18 §5 要求 L2 与 D2 不同情境）",
+      "licenseNote": "Qwen3-TTS Flash 云端合成语音（voice=Cherry，非真人）；本项目原创受控脚本；标注 synthetic，仅用于受控练习，不冒充真实 podcast（21 §6.2）",
+      "speakerLabel": "synthetic-A（Qwen3-TTS Cherry，与 D2 同声源不同稿——18 §5 要求 L2 与 D2 不同情境）",
       "activityIds": [
         "les_l2_museum_map_audio",
         "les_l2b_museum_transcript"
       ],
       "scriptId": "l2_museum_v1",
       "version": 1,
-      "voice": "Microsoft Zira Desktop",
+      "voice": "Cherry",
       "voiceParams": {
-        "rate": 0
+        "engine": "qwen3-tts-flash"
       },
       "mime": "audio/wav",
-      "bytes": 894604,
-      "durationMs": 27955,
-      "sha256": "ed3d5c712bae0e04fbf3de2752cd4f5b243e4f8942e10812e5e6c836c62c5bff",
-      "sampleRate": 16000,
+      "bytes": 1301804,
+      "durationMs": 27120,
+      "sha256": "79d6fdfbf6ab26d3ba63c51c0701659201b327a20336e269e845ca9701d4cf8d",
+      "sampleRate": 24000,
       "transcript": "We made a map that tells visitors which rooms in the museum are busy. We expected people to choose a quieter route. In fact, some visitors walked toward the crowded rooms because they thought something interesting was happening there. The map was working as designed, but our assumption about what visitors wanted was incomplete. Next month, we will ask visitors why they chose a route before we change the design.",
       "segments": [
         {
@@ -123,15 +123,15 @@
           "meaningBasis": "后续计划：先问游客选路线的原因，再决定改不改设计。"
         }
       ],
-      "madeAt": 1790856700952
+      "madeAt": 1790879958851
     },
     {
       "mediaId": "aud_l1_standup_v1",
       "kind": "lesson_audio",
       "sourceType": "synthetic",
       "licenseStatus": "confirmed",
-      "licenseNote": "Windows SAPI 合成语音（Microsoft Zira en-US）；本项目原创受控脚本；标注 synthetic，仅用于受控练习，不冒充真实 podcast（21 §6.2）",
-      "speakerLabel": "synthetic-A（Zira，单一英文声源——换真人间隙如实标注；与 D2/L2 不同情境）",
+      "licenseNote": "Qwen3-TTS Flash 云端合成语音（voice=Cherry，非真人）；本项目原创受控脚本；标注 synthetic，仅用于受控练习，不冒充真实 podcast（21 §6.2）",
+      "speakerLabel": "synthetic-A（Qwen3-TTS Cherry，非真人；l1d 换材料时换 B 声源）",
       "activityIds": [
         "l1a_first_listen",
         "l1b_transcript_study",
@@ -139,15 +139,15 @@
       ],
       "scriptId": "l1_standup_reminder_v1",
       "version": 1,
-      "voice": "Microsoft Zira Desktop",
+      "voice": "Cherry",
       "voiceParams": {
-        "rate": 0
+        "engine": "qwen3-tts-flash"
       },
       "mime": "audio/wav",
-      "bytes": 1098924,
-      "durationMs": 34340,
-      "sha256": "3fb9c1c64c954c668b50d01c7e061b37c10fa449644f788ed91843e7f18d44d9",
-      "sampleRate": 16000,
+      "bytes": 1611884,
+      "durationMs": 33580,
+      "sha256": "99c92dd4c56ba63db8e554283f40e6d1df1ce4a5c8d2515d392f79783ee22d03",
+      "sampleRate": 24000,
       "transcript": "In our study group, we set up daily review reminders in October. The idea was to send a short message every evening at eight. We expected the daily reminders to help everyone keep up with the readings. In fact, after two weeks, most of us ignored the evening messages, and the reminders stopped feeling useful. So here is our conclusion: reminders do help, but only before exam week, when everyone wants a schedule; on normal weeks, we will turn them off and review on our own.",
       "segments": [
         {
@@ -171,57 +171,53 @@
           "meaningBasis": "最终主张带限制：提醒有用——但只在考试周前（大家想要时间表时）；平时周关掉、自己安排。限制是使用条件，不是“提醒没用”。"
         }
       ],
-      "madeAt": 1790856700972
+      "madeAt": 1790879958870
     },
     {
       "mediaId": "aud_l1d_laundry_v1",
       "kind": "lesson_audio",
       "sourceType": "synthetic",
       "licenseStatus": "confirmed",
-      "licenseNote": "Windows SAPI 合成语音（Microsoft Zira en-US）；本项目原创受控脚本；标注 synthetic，仅用于受控练习，不冒充真实 podcast（21 §6.2）",
-      "speakerLabel": "synthetic-A（Zira，单一英文声源——换材料换情境，“换声音”待真人录音，如实开放）",
+      "licenseNote": "Qwen3-TTS Flash 云端合成语音（voice=Serena，非真人）；本项目原创受控脚本；标注 synthetic，仅用于受控练习，不冒充真实 podcast（21 §6.2）",
+      "speakerLabel": "synthetic-B（Qwen3-TTS Serena，非真人；与 A 不同声源——跨材料『换声音』迁移已落实）",
       "activityIds": [
         "l1d_second_context"
       ],
       "scriptId": "l1d_laundry_v1",
       "version": 1,
-      "voice": "Microsoft Zira Desktop",
+      "voice": "Serena",
       "voiceParams": {
-        "rate": 0
+        "engine": "qwen3-tts-flash"
       },
       "mime": "audio/wav",
-      "bytes": 877964,
-      "durationMs": 27435,
-      "sha256": "1c4761f42e3f601f023d452c291ff6f1d4d25cc6cea9193e3c0dc9e24dfbb58a",
-      "sampleRate": 16000,
+      "bytes": 1373804,
+      "durationMs": 28620,
+      "sha256": "f60534c1347fdd82b7922d39ad3a9468a8b119df93e0091461fcb468215a8877",
+      "sampleRate": 24000,
       "transcript": "Our dorm floor shares one washing machine, so we made a sign-up sheet for laundry times. Before the sheet, two or three people always picked the same hour and argued about it. The sheet works well on weekdays, because everyone is in class at different hours. But on Friday evenings everyone wants to wash at the same time, so the sheet does not help then. We will keep it for weekdays only.",
       "segments": [
         {
           "label": "做了什么",
           "text": "Our dorm floor shares one washing machine, so we made a sign-up sheet for laundry times.",
-          "meaningBasis": "背景与做法：全层共用一台洗衣机，做了洗衣时间登记表。",
-          "startMs": 0
+          "meaningBasis": "背景与做法：全层共用一台洗衣机，做了洗衣时间登记表。"
         },
         {
           "label": "为何这么做",
           "text": "Before the sheet, two or three people always picked the same hour and argued about it.",
-          "meaningBasis": "动因：表做出来之前总有人撞点吵架——表是为了解决真实冲突。",
-          "startMs": 6615
+          "meaningBasis": "动因：表做出来之前总有人撞点吵架——表是为了解决真实冲突。"
         },
         {
           "label": "何时有效",
           "text": "The sheet works well on weekdays, because everyone is in class at different hours.",
-          "meaningBasis": "主张成立范围：工作日好用——大家上课时间错开。",
-          "startMs": 12410
+          "meaningBasis": "主张成立范围：工作日好用——大家上课时间错开。"
         },
         {
           "label": "限制与决定",
           "text": "But on Friday evenings everyone wants to wash at the same time, so the sheet does not help then. We will keep it for weekdays only.",
-          "meaningBasis": "限制说得很具体：周五晚上大家同时想洗，表帮不上忙——决定是只在工作日保留。限制是适用范围，不是“表没用”。",
-          "startMs": 18475
+          "meaningBasis": "限制说得很具体：周五晚上大家同时想洗，表帮不上忙——决定是只在工作日保留。限制是适用范围，不是“表没用”。"
         }
       ],
-      "madeAt": 1790856706000
+      "madeAt": 1790879958882
     }
   ]
 }

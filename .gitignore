@@ -45,3 +45,6 @@ releases/
 
 # TTS 管线的临时 PowerShell 脚本
 scripts/.tmp-tts.ps1
+
+# TTS 段级缓存（Qwen3-TTS，按 model|voice|text 哈希）
+scripts/.tts-cache/

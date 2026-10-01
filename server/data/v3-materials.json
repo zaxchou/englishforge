@@ -171,12 +171,12 @@
     "O-K184-02"
    ],
    "sourceRef": "T",
-   "note": "受控原创听力脚本（合成语音 synthetic）：学习小组周会汇报（复习提醒的结论与限制）。正文=音频本身，转写首听不下发（21 §6.2）；脚本逐段意义依据见 audio-manifest。许可=本项目原创+Windows SAPI 合成，来源清楚（42 号：先用已持有且许可清楚的材料）。",
+   "note": "受控原创听力脚本（合成语音 synthetic）：学习小组周会汇报（复习提醒的结论与限制）。正文=音频本身，转写首听不下发（21 §6.2）；脚本逐段意义依据见 audio-manifest。许可=本项目原创+Qwen3-TTS 合成（云端神经语音，非真人），来源清楚（42 号：先用已持有且许可清楚的材料）。",
    "review": {
     "humanReviewed": false,
     "reviewer": null,
     "selfRevised": true,
-    "notes": "synthetic_exact 转写按构造成立；设备播放与自然度试听留真人（23 号）。单一合成声源，“换声音”缺口如实开放。"
+    "notes": "synthetic_exact 转写按构造成立；设备播放与自然度试听留真人（23 号）。合成声源 A=Cherry，l1d 换材料时用 B=Serena（跨材料换声音已落实）；单脚本内跨讲者对话仍开放。"
    },
    "segments": []
   },
@@ -190,12 +190,12 @@
     "O-K184-02"
    ],
    "sourceRef": "T",
-   "note": "受控原创听力脚本（合成语音 synthetic）：宿舍洗衣时间表说明（适用范围与限制）。正文=音频本身，转写首听不下发（21 §6.2）；脚本逐段意义依据见 audio-manifest。许可=本项目原创+Windows SAPI 合成，来源清楚（42 号：先用已持有且许可清楚的材料）。",
+   "note": "受控原创听力脚本（合成语音 synthetic）：宿舍洗衣时间表说明（适用范围与限制）。正文=音频本身，转写首听不下发（21 §6.2）；脚本逐段意义依据见 audio-manifest。许可=本项目原创+Qwen3-TTS 合成（云端神经语音，非真人），来源清楚（42 号：先用已持有且许可清楚的材料）。",
    "review": {
     "humanReviewed": false,
     "reviewer": null,
     "selfRevised": true,
-    "notes": "synthetic_exact 转写按构造成立；设备播放与自然度试听留真人（23 号）。单一合成声源，“换声音”缺口如实开放。"
+    "notes": "synthetic_exact 转写按构造成立；设备播放与自然度试听留真人（23 号）。本条用合成声源 B=Serena——与 standup 的 A 声源不同，跨材料『换声音』迁移已落实。"
    },
    "segments": []
   }

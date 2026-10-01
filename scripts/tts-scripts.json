@@ -1,5 +1,5 @@
 {
- "notice": "受控原创听力脚本（18 §2/§5 为权威稿）。合成管线：Windows SAPI（Microsoft Zira en-US），纯文本 + Rate 属性（SSML <prosody> 实测致语速减半，禁用）。本机只有一个英文声源——18 §2 的『两名讲者平行版本』与 21 §6 的跨讲者检查无法做到，也不以变速冒充（18 §2 制作注），缺口如实保持开放，待真人录音补足。产物全部标注 synthetic（受控练习音频，不得冒充真实 podcast，21 §6.2）；设备播放与自然度试听由人完成（23 号报告记录）。 真实外部素材（kind=real_material）经来源+许可+哈希三核后才入清单；人耳听校（噪声/字幕/片段起止）完成前不得当正式材料。本脚本合并写 manifest：只更新自己产出的行，手工入账的行保留。",
+ "notice": "受控原创听力脚本（18 §2/§5 为权威稿）。合成管线：Qwen3-TTS Flash（云端神经合成，24kHz WAV，逐段生成 + 500ms 段间静音，段级 sha256 缓存；--engine sapi 保留 Windows Zira 离线兜底）。语音仍是合成（synthetic）——更自然不改变边界：不得冒充真人或真实 podcast，synthetic 听力证据照旧封顶（21 §6.2）。两套声源（A=Cherry / B=Serena）使『换材料换声音』成立（l1d 用 B）；单脚本内的跨讲者对话仍无（脚本是单人叙述），待真人录音补足。设备播放与自然度试听由人完成。真实外部素材（kind=real_material）经来源+许可+哈希三核后才入清单；人耳听校（噪声/字幕/片段起止）完成前不得当正式材料。本脚本合并写 manifest：只更新自己产出的行，手工入账的行保留。",
  "scripts": [
   {
    "scriptId": "d2_library_v1",
@@ -8,11 +8,12 @@
     "diag_d2_listen_sim"
    ],
    "version": 1,
-   "voice": "Microsoft Zira Desktop",
+   "engine": "qwen",
+   "voice": "Cherry",
    "voiceParams": {
-    "rate": 0
+    "engine": "qwen3-tts-flash"
    },
-   "speakerLabel": "synthetic-A（Zira，非真人；单一英文声源）",
+   "speakerLabel": "synthetic-A（Qwen3-TTS Cherry，非真人）",
    "family": "library_ai_audio_A",
    "segments": [
     {
@@ -45,11 +46,12 @@
     "les_l2b_museum_transcript"
    ],
    "version": 1,
-   "voice": "Microsoft Zira Desktop",
+   "engine": "qwen",
+   "voice": "Cherry",
    "voiceParams": {
-    "rate": 0
+    "engine": "qwen3-tts-flash"
    },
-   "speakerLabel": "synthetic-A（Zira，与 D2 同声源不同稿——18 §5 要求 L2 与 D2 不同情境）",
+   "speakerLabel": "synthetic-A（Qwen3-TTS Cherry，与 D2 同声源不同稿——18 §5 要求 L2 与 D2 不同情境）",
    "family": "museum_map_audio_D",
    "segments": [
     {
@@ -88,11 +90,12 @@
     "l1c_relisten_closed"
    ],
    "version": 1,
-   "voice": "Microsoft Zira Desktop",
+   "engine": "qwen",
+   "voice": "Cherry",
    "voiceParams": {
-    "rate": 0
+    "engine": "qwen3-tts-flash"
    },
-   "speakerLabel": "synthetic-A（Zira，单一英文声源——换真人间隙如实标注；与 D2/L2 不同情境）",
+   "speakerLabel": "synthetic-A（Qwen3-TTS Cherry，非真人；l1d 换材料时换 B 声源）",
    "family": "standup_reminder_audio_E",
    "segments": [
     {
@@ -124,11 +127,12 @@
     "l1d_second_context"
    ],
    "version": 1,
-   "voice": "Microsoft Zira Desktop",
+   "engine": "qwen",
+   "voice": "Serena",
    "voiceParams": {
-    "rate": 0
+    "engine": "qwen3-tts-flash"
    },
-   "speakerLabel": "synthetic-A（Zira，单一英文声源——换材料换情境，“换声音”待真人录音，如实开放）",
+   "speakerLabel": "synthetic-B（Qwen3-TTS Serena，非真人；与 A 不同声源——跨材料『换声音』迁移已落实）",
    "family": "laundry_schedule_audio_F",
    "segments": [
     {
