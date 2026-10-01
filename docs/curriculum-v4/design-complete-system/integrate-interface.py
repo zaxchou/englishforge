@@ -1,0 +1,25 @@
+from pathlib import Path
+r=Path(r'Z:\BaiduNetdiskWorkspace\myagent-work\zcode\JunEnglish\sentence-forge')
+p=r/'src/components/V4Path.tsx';s=p.read_text(encoding='utf-8-sig')
+s=s.replace("import './v4.css'","import './v4.css'\nimport { JourneyHero, JourneyRoute, JourneyAbilities } from './LearningJourney'\nimport './learning-space.css'")
+s=s.replace("  const [err, setErr] = useState('')", "  const [theme, setTheme] = useState<'light' | 'dark'>(() => { try { return localStorage.getItem('forge-learning-theme') === 'dark' ? 'dark' : 'light' } catch { return 'light' } })\n  useEffect(() => { document.documentElement.dataset.learningTheme = theme; try { localStorage.setItem('forge-learning-theme', theme) } catch { /* Theme still works without storage. */ } return () => { delete document.documentElement.dataset.learningTheme } }, [theme])\n  const [err, setErr] = useState('')",1)
+s=s.replace("if (tab === 'evidence' && accountId && !evidence)","if (accountId && !evidence)",1)
+s=s.replace('<div className="v4">','<div className="v4 learning-space" data-theme={theme}>')
+a=s.index('      <details className="v4-legacy">');b=s.index('      <div className="v4-tabs">',a)
+s=s[:a]+'''      <div className="journey-top"><div className="journey-wordmark">FORGE <span>→</span><small>理解 · 表达 · 持续生长</small></div><button className="journey-theme" aria-label={theme === 'light' ? '切换暗色表达工作室' : '切换亮色成长关卡'} onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}>{theme === 'light' ? '◐ 暗色工作室' : '☀ 亮色关卡'}</button></div>
+''' +s[b:]
+s=s.replace('>我的成长</button>','>我的成长</button>')
+needle="      {err && <div className=\"v4-err\">{err}</div>}"
+s=s.replace(needle,needle+'''\n      {tab === 'today' && !lesson && <><JourneyHero goal={plan?.primaryGoal ?? null} skill={plan?.primarySkill} mode={today.mode} onMap={() => setTab('map')} /><JourneyRoute goal={plan?.primaryGoal ?? null} /></>}''',1)
+s=s.replace('<h2 className="v4-today-head">','<div className="journey-eyebrow">今日挑战 / {plan?.primarySkill ? (SKILL_LABEL[plan.primarySkill] ?? \'理解与表达\') : \'找到起点\'}</div>\n          <h2 className="v4-today-head">',1)
+s=s.replace('          <p className="v4-dim">旧版刷题练习仍在侧栏「今日练习」，作为历史练习保留，两边分开计量。</p>','''          <div className="journey-cycle"><span><b>理解</b>抓住真实关系</span><span><b>补足</b>提示后再尝试</span><span><b>表达</b>用自己的话</span><span><b>迁移</b>换情境再观察</span></div>''')
+s=s.replace("      {tab === 'evidence' && (\n        <div className=\"v4-card\">","      {tab === 'evidence' && (\n        <div className=\"v4-card journey-growth\">\n          <JourneyAbilities states={evidence?.states ?? []} loading={!evidence} />",1)
+s=s.replace('          <h3>能力地图 {mapIdx.mapVersion}</h3>','''          <div className="journey-eyebrow">完整知识地图 / 个人路径按需展开</div><h2>看清方向，再深入到知识。</h2><JourneyRoute goal={plan?.primaryGoal ?? null} expanded /><p>同一结构逐步深入，并在听说读写中迁移。下列目标说明系统覆盖的内容；内容草案不等于已经能学习的课程。</p><h3>具体能力目标</h3>''',1)
+s=s.replace('<h3>当前推荐 · {plan.primaryGoal ?? \'—\'}</h3>','<h3>当前推荐 · {goalLabel(plan.primaryGoal)}</h3>')
+s=s.replace('<span>策略 {plan.strategyId}</span>','<span>按你最近的学习表现安排</span>')
+s=s.replace('<h3>{pkgLive.title}</h3>','<div className="journey-eyebrow">专注训练 / 理解 → 表达 → 迁移</div><h2>{pkgLive.title}</h2>',1)
+s=s.replace('<p className="v4-dim">当前第 {currentIndex + 1} 步，共 {visibleActs.length} 步。看懂反馈后再进入下一步。</p>','''<div className="journey-task-progress" aria-label={`当前第 ${currentIndex + 1} 步，共 ${visibleActs.length} 步`}><span>当前第 {currentIndex + 1} 步，共 {visibleActs.length} 步</span><div>{visibleActs.map((a, i) => <i key={a.activityId} className={i === currentIndex ? 'current' : i < currentIndex ? 'visited' : ''} />)}</div><small>看懂反馈后再进入下一步；经过的步骤不代表能力认证。</small></div>''',1)
+p.write_text(s,encoding='utf-8')
+p=r/'src/App.tsx';s=p.read_text(encoding='utf-8-sig');s=s.replace("window.location.hash === '#learn' ? 'v4' : 'home'","window.location.hash === '#legacy' ? 'home' : 'v4'");s=s.replace('<div className="app shell view-inner">','<div className={`app shell view-inner ${view.name === \'v4\' ? \'learning-mode\' : \'\'}`}>',1);p.write_text(s,encoding='utf-8')
+p=r/'src/components/Dashboard.tsx';s=p.read_text(encoding='utf-8-sig');s=s.replace("onNavigate('today')} aria-label=\"EnglishForge 首页\"","onNavigate('v4path')} aria-label=\"EnglishForge 首页\"",1);p.write_text(s,encoding='utf-8')
+print('Journey interface integrated; original scoring/media routes preserved')

@@ -57,13 +57,13 @@ export default function App() {
   const progressRef = useRef(progress)
   const [notice, setNotice] = useState<LoadNotice>(loaded.notice)
   const [saveErr, setSaveErr] = useState(hadSaveError)
-  const [view, setView] = useState<View>(() => ({ name: window.location.hash === '#learn' ? 'v4' : 'home' }))
+  const [view, setView] = useState<View>(() => ({ name: window.location.hash === '#legacy' ? 'home' : 'v4' }))
   /** 侧栏里被选中的那一项（首页与内页共用同一条侧栏） */
   const [nav, setNav] = useState<NavTarget>('today')
   const navActive: NavTarget = view.name === 'lesson' ? 'courses' : view.name === 'v4' ? 'v4path' : view.name === 'records' ? nav : 'today'
 
   function handleNav(target: NavTarget) {
-    window.history.replaceState(null,'',target==='v4path'?'#learn':window.location.pathname+window.location.search)
+    window.history.replaceState(null,'',target==='v4path'?'#learn':target==='today'?'#legacy':window.location.pathname+window.location.search)
     setNav(target)
     if (target === 'today') {
       setView({ name: 'home' })
@@ -473,7 +473,7 @@ export default function App() {
   }, [progress, pool, dueList, evidence, active])
 
   return (
-    <div className="app shell view-inner">
+    <div className={`app shell view-inner ${view.name === 'v4' ? 'learning-mode' : ''}`}>
       {/* 外壳（侧栏 / 顶栏 / 页脚）对**所有视图**一致渲染：首页与内页不再有"有没有侧栏"的区别。
           账户与数据库状态就在左侧栏底部，右边（内容区）保持简单。 */}
       <Sidebar

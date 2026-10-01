@@ -8,6 +8,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { goalLabel, learnerToday } from '../learning/learnerView'
 import { clearDraft, draftKey, loadDraft, saveDraft } from '../learning/draftStore'
 import './v4.css'
+import { JourneyHero, JourneyRoute, JourneyAbilities } from './LearningJourney'
+import './learning-space.css'
 
 type Plan = {
   decisionId: string
@@ -75,6 +77,8 @@ export function V4Path({ accountId }: { accountId: string | null }) {
   // 28 号薄片：默认入口 = 今日学习（唯一主按钮回答"练什么/点哪里/为什么"）；
   // 后台视角（推荐详情/证据/地图）降为辅助入口，审核收进运营折叠
   const [tab, setTab] = useState<'today' | 'plan' | 'diag' | 'evidence' | 'map' | 'review'>('today')
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => { try { return localStorage.getItem('forge-learning-theme') === 'dark' ? 'dark' : 'light' } catch { return 'light' } })
+  useEffect(() => { document.documentElement.dataset.learningTheme = theme; try { localStorage.setItem('forge-learning-theme', theme) } catch { /* Theme still works without storage. */ } return () => { delete document.documentElement.dataset.learningTheme } }, [theme])
   const [err, setErr] = useState('')
   const [plan, setPlan] = useState<Plan | null>(null)
   const [noPlan, setNoPlan] = useState(false)
@@ -101,8 +105,9 @@ export function V4Path({ accountId }: { accountId: string | null }) {
   useEffect(() => { void loadPlan() }, [loadPlan])
   useEffect(() => { setEvidence(null) }, [accountId])
   useEffect(() => {
-    if (tab === 'evidence' && accountId && !evidence) {
-      api<Evidence>(`/accounts/${accountId}/evidence`).then(setEvidence).catch((e) => setErr(String(e)))
+    let cancelled = false
+    if (accountId && !evidence) {
+      api<Evidence>(`/accounts/${accountId}/evidence`).then((value) => { if (!cancelled) setEvidence(value) }).catch((e) => { if (!cancelled) setErr(String(e)) })
     }
     if (tab === 'map' && !mapIdx) {
       api<MapIdx>('/map').then(setMapIdx).catch((e) => setErr(String(e)))
@@ -111,6 +116,7 @@ export function V4Path({ accountId }: { accountId: string | null }) {
       api<{ stock: { disabled: boolean; ready: number; pendingReview: number; failedCooldown: number } }>(`/accounts/${accountId}/generation-stock`)
         .then((r) => setStock(r.stock)).catch(() => { /* 只读展示，失败不打扰 */ })
     }
+    return () => { cancelled = true }
   }, [tab, accountId, evidence, mapIdx, stock])
 
   // ---------- 诊断流程（会话状态在 DiagPanel 内部管理） ----------
@@ -175,7 +181,7 @@ export function V4Path({ accountId }: { accountId: string | null }) {
   }, [accountId, today.goalId, loadPlan])
   
   if (!accountId) {
-    return <div className="v4"><div className="v4-empty">正在连接数据库……连接后这里显示你的能力路径。</div></div>
+    return <div className="v4 learning-space" data-theme={theme}><div className="v4-empty">正在连接数据库……连接后这里显示你的能力路径。</div></div>
   }
 
 async function changeWaiver(objectiveId:string,skill:string,revoked:boolean) {
@@ -189,8 +195,8 @@ async function changeWaiver(objectiveId:string,skill:string,revoked:boolean) {
   }
 
   return (
-    <div className="v4">
-      <details className="v4-legacy"><summary>关于学习记录</summary>本页是新版能力路径（curriculum-v4）。旧首页的 XP、题量、箱数只是历史活动记录，<b>不会换算</b>为这里的能力状态。</details>
+    <div className="v4 learning-space" data-theme={theme}>
+      <div className="journey-top"><div className="journey-wordmark">FORGE <span>→</span><small>理解 · 表达 · 持续生长</small></div><button className="journey-theme" aria-label={theme === 'light' ? '切换暗色表达工作室' : '切换亮色成长关卡'} onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}>{theme === 'light' ? '◐ 暗色工作室' : '☀ 亮色关卡'}</button></div>
       <div className="v4-tabs">
         <button className={tab === 'today' ? 'on' : ''} disabled={waiverBusy} onClick={() => setTab('today')}>今日学习</button>
         <button className={tab === 'plan' ? 'on' : ''} disabled={waiverBusy} onClick={() => setTab('plan')}>推荐详情</button>
@@ -203,9 +209,11 @@ async function changeWaiver(objectiveId:string,skill:string,revoked:boolean) {
         </details>
       </div>
       {err && <div className="v4-err">{err}</div>}
+      {tab === 'today' && !lesson && <><JourneyHero goal={plan?.primaryGoal ?? null} skill={plan?.primarySkill} mode={today.mode} onMap={() => setTab('map')} /><JourneyRoute goal={plan?.primaryGoal ?? null} /></>}
 
       {tab === 'today' && !lesson && (
         <div className="v4-card v4-today">
+          <div className="journey-eyebrow">今日挑战 / {plan?.primarySkill ? (SKILL_LABEL[plan.primarySkill] ?? '理解与表达') : '找到起点'}</div>
           <h2 className="v4-today-head">{today.headline}</h2>
           {today.reason && <p className="v4-why">{today.reason}</p>}
           {today.mode === 'wait' ? (
@@ -271,7 +279,7 @@ async function changeWaiver(objectiveId:string,skill:string,revoked:boolean) {
             <button className="v4-ghost" disabled={waiverBusy} onClick={() => setTab('map')}>学习路线</button>
             <button className="v4-ghost" disabled={waiverBusy} onClick={() => setTab('plan')}>推荐详情</button>
           </div>
-          <p className="v4-dim">旧版刷题练习仍在侧栏「今日练习」，作为历史练习保留，两边分开计量。</p>
+          <div className="journey-cycle"><span><b>理解</b>抓住真实关系</span><span><b>补足</b>提示后再尝试</span><span><b>表达</b>用自己的话</span><span><b>迁移</b>换情境再观察</span></div>
         </div>
       )}
 
@@ -283,7 +291,8 @@ async function changeWaiver(objectiveId:string,skill:string,revoked:boolean) {
       {tab === 'diag' && <DiagPanel key={accountId} accountId={accountId} onDone={async () => { await loadPlan(); setTab('today') }} />}
 
       {tab === 'evidence' && (
-        <div className="v4-card">
+        <div className="v4-card journey-growth">
+          <JourneyAbilities states={evidence?.states ?? []} loading={!evidence} />
           <h3>我的成长</h3>
           {evidence?.completedLessons?.length ? <>
             <p>最近完成的训练</p>
@@ -318,7 +327,7 @@ async function changeWaiver(objectiveId:string,skill:string,revoked:boolean) {
 
       {tab === 'map' && mapIdx && (
         <div className="v4-card">
-          <h3>能力地图 {mapIdx.mapVersion}</h3>
+          <div className="journey-eyebrow">完整知识地图 / 个人路径按需展开</div><h2>看清方向，再深入到知识。</h2><JourneyRoute goal={plan?.primaryGoal ?? null} expanded /><p>同一结构逐步深入，并在听说读写中迁移。下列目标说明系统覆盖的内容；内容草案不等于已经能学习的课程。</p><h3>具体能力目标</h3>
           <p>
             {mapIdx.summary.groups} 个知识组 · {mapIdx.summary.objectives} 条首批原子目标 ·
             已拆解 {mapIdx.summary.byAtomization.partial_draft ?? 0} 组 / 待拆解 {mapIdx.summary.byAtomization.pending ?? 0} 组 ·
@@ -377,10 +386,10 @@ function PlanPanel({ plan, noPlan, stock, onDiagnostic, onOpenLesson }: {
     : null
   return (
     <div className="v4-card">
-      <h3>当前推荐 · {plan.primaryGoal ?? '—'}</h3>
+      <h3>当前推荐 · {goalLabel(plan.primaryGoal)}</h3>
       <p className="v4-why">{plan.reason}</p>
       <div className="v4-meta">
-        <span>策略 {plan.strategyId}</span>
+        <span>按你最近的学习表现安排</span>
         {plan.lesson.lessonId && (
           <button className="v4-primary" onClick={() => onOpenLesson(plan.lesson.lessonId!)}>打开课程</button>
         )}
@@ -674,7 +683,7 @@ function LessonRunner({ accountId, pkg, onDone }: {
   }
   return (
     <div className="v4-card">
-      <h3>{pkgLive.title}</h3>
+      <div className="journey-eyebrow">专注训练 / 理解 → 表达 → 迁移</div><h2>{pkgLive.title}</h2>
       <button className="v4-ghost" disabled={refreshing} onClick={()=>{void refreshLesson().catch(()=>{})}}>重新读取当前任务</button>
       <p className="v4-why">为什么现在学：{pkgLive.whyNow}</p>
       {pkgLive.teachingNote && <p className="v4-teach">要点：{pkgLive.teachingNote}</p>}
@@ -682,7 +691,7 @@ function LessonRunner({ accountId, pkg, onDone }: {
       {/* 38-S3：课内与推荐卡、生成结果页同一份审核事实（缓存恢复后重取课包也带 contentReview） */}
       {pkgLive.contentReview?.preview && <p className="v4-dev">内容试验预览：题目与讲法经过了机器质量门和模型辅助内容检查；专业人工核验还没做。</p>}
       {pkgLive.contentReview?.pending === 'content_semantic_review' && <p className="v4-dev">这节课的内容审核还没有完成，暂时不能继续——回到上一页可以重新生成或换备用课。</p>}
-      <p className="v4-dim">当前第 {currentIndex + 1} 步，共 {visibleActs.length} 步。看懂反馈后再进入下一步。</p>
+      <div className="journey-task-progress" aria-label={`当前第 ${currentIndex + 1} 步，共 ${visibleActs.length} 步`}><span>当前第 {currentIndex + 1} 步，共 {visibleActs.length} 步</span><div>{visibleActs.map((a, i) => <i key={a.activityId} className={i === currentIndex ? 'current' : i < currentIndex ? 'visited' : ''} />)}</div><small>看懂反馈后再进入下一步；经过的步骤不代表能力认证。</small></div>
       {visibleActs.slice(currentIndex, currentIndex + 1).map((act) => (
         <div key={act.activityId + act.activityVersion + act.prompt} className="v4-act">
           <div className="v4-act-head">

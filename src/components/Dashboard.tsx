@@ -64,7 +64,7 @@ export function Sidebar({ active = 'today', dueCount, account, dbState, onNaviga
         ? '正在连接数据库…'
         : `已存入数据库 · ${account.attempts} 条`
   return <aside className="forge-sidebar">
-    <button className="forge-brand" onClick={() => onNavigate('today')} aria-label="EnglishForge 首页">
+    <button className="forge-brand" onClick={() => onNavigate('v4path')} aria-label="EnglishForge 首页">
       <img className="forge-mark" src="/icon-96.png" alt="" /><span>EnglishForge<small>英语思维训练</small></span>
     </button>
     <div className="nav-label">LEARNING SPACE</div><nav aria-label="主导航">
@@ -75,7 +75,7 @@ export function Sidebar({ active = 'today', dueCount, account, dbState, onNaviga
       <button className={active === 'history' ? 'selected' : ''} onClick={() => onNavigate('history')}><NavIcon kind="chart" />学习记录</button>
       <button onClick={onReviewContent}><NavIcon kind="check" />题目审核</button>
     </nav>
-    <div className="sidebar-bottom"><div className="sidebar-focus"><span>✦ 每天，一点进步</span><p>让理解成为直觉</p><button onClick={() => onNavigate('today')}>回到今日练习 <span>↗</span></button></div><button className={active === 'settings' ? 'selected' : ''} onClick={() => onNavigate('settings')}><NavIcon kind="settings" />设置与存档</button>
+    <div className="sidebar-bottom"><div className="sidebar-focus"><span>学习是为了用得出来</span><p>理解 · 表达 · 迁移</p><button onClick={() => onNavigate('v4path')}>继续学习路径 <span>↗</span></button></div><button className={active === 'settings' ? 'selected' : ''} onClick={() => onNavigate('settings')}><NavIcon kind="settings" />设置与存档</button>
       <button className="sidebar-account" onClick={onOpenAccount} title="点这里切换 / 新建账户">
         <span className="profile-circle">{initial}</span>
         <span className="acct-name">{who}</span>
