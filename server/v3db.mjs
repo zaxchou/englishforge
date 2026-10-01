@@ -319,7 +319,7 @@ export function ensureV3Schema(conn = getDb()) {
     ['release_channel', "TEXT NOT NULL DEFAULT 'dev_only'"],
   ])
   ensureV3Columns(conn, 'plan_decisions', [['served_lesson_id', 'TEXT'], ['served_at', 'INTEGER']])
-  ensureV3Columns(conn, 'learner_attempts_v3', [['issued_task_id', 'TEXT']])
+  ensureV3Columns(conn, 'learner_attempts_v3', [['issued_task_id', 'TEXT'], ['activity_snapshot', 'TEXT']])
   ensureV3Columns(conn, 'lesson_cache', [['practice_revision', 'INTEGER']])
   ensured = true
   return conn

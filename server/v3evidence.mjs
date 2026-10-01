@@ -404,11 +404,17 @@ export function recordAttempt(accountId, payload = {}) {
   }
 
   const ts = Date.now()
+  // 31 收口：**定义快照冻结**——重放语义需要的评估相关字段随作答落库；
+  // 之后活动内容修订（换版）不改写历史作答的模态/带归属，旧事件重放按冻结版本判（可追溯）。
+  const activitySnapshot = JSON.stringify({
+    simulatesAudio: !!activity.simulatesAudio, audioRef: activity.audioRef ?? null,
+    complexityBand: activity.complexityBand ?? null, skillByObjective: activity.skillByObjective ?? {},
+  })
   conn.prepare(
     `INSERT INTO learner_attempts_v3 (account_id, attempt_id, session_id, activity_id, activity_version,
        objective_ids, task_family_id, role, response_kind, response, conditions, evaluation_status,
-       evaluation, disputed_reason, body_hash, created_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+       evaluation, disputed_reason, body_hash, created_at, activity_snapshot)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
   ).run(
     accountId, effectiveAttemptId, String(payload.sessionId || ''), activity.activityId, activity.version,
     JSON.stringify(activity.objectiveIds), activity.taskFamilyId, activity.role, activity.responseKind,
@@ -418,7 +424,7 @@ export function recordAttempt(accountId, payload = {}) {
       mediaId: payload.response?.mediaId ?? null,
     }),
     JSON.stringify(effectiveConditions), evalStatus, JSON.stringify(evaluation),
-    evalStatus === 'disputed' ? (evaluation?.reason ?? 'DISPUTED') : null, hash, ts,
+    evalStatus === 'disputed' ? (evaluation?.reason ?? 'DISPUTED') : null, hash, ts, activitySnapshot,
   )
 
   if (payload.taskId) conn.prepare('UPDATE learner_attempts_v3 SET issued_task_id=? WHERE account_id=? AND attempt_id=?').run(payload.taskId,accountId,effectiveAttemptId)
@@ -572,13 +578,22 @@ export function complexityBandFor(conn, objectiveId) {
 export function recomputeStates(accountId) {
   const conn = ensureV3Schema()
   const events = conn.prepare('SELECT * FROM evidence_events WHERE account_id = ? ORDER BY created_at, evidence_id').all(accountId)
-  // F1 历史重算：事件只追加不改写；重放时按活动**当前定义**纠正模态错位
-  // （旧事件把文字模拟音频记成 listening —— 重放归位到 reading，原始事件保留可追溯）
+  // F1 重算：事件只追加不改写；重放按**作答时冻结的定义快照**判模态/带归属（31 收口：
+  // 内容修订换版后，历史作答不再读当前定义）。快照缺失的历史行回退当前定义（诚实兼容，
+  // 覆盖面见 32 号 D0 报告）。
   const activityOf = (() => {
     const m = new Map(
-      conn.prepare('SELECT attempt_id, activity_id FROM learner_attempts_v3 WHERE account_id = ?').all(accountId)
-        .map((r) => [r.attempt_id, r.activity_id]))
-    return (attemptId) => (attemptId && m.get(attemptId) ? activityById(m.get(attemptId)) : null)
+      conn.prepare('SELECT attempt_id, activity_id, activity_snapshot FROM learner_attempts_v3 WHERE account_id = ?').all(accountId)
+        .map((r) => {
+          if (r.activity_snapshot) {
+            try {
+              return [r.attempt_id, { activityId: r.activity_id, ...JSON.parse(r.activity_snapshot) }]
+            } catch { /* 坏快照回退当前定义 */ }
+          }
+          return [r.attempt_id, r.activity_id && activityById(r.activity_id)]
+        })
+        .filter(([k, v]) => k && v))
+    return (attemptId) => (attemptId && m.get(attemptId) ? m.get(attemptId) : null)
   })()
 
   // 分档槽位（21 §6.1/F1 验收）：每个 目标×技能×复杂度带 一个真实状态行——不同带的表现互不覆盖；

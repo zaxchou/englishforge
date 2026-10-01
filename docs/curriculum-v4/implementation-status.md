@@ -98,8 +98,14 @@ Codex 手动接管批（c264c7a/d329559/03a7a3d，本地未推送）已实现：
 - **低库存闭环显示**：`generationStock`（ready/pendingReview/failedCooldown/disabled 只读计数）+ `/generation` 路由与窗口载荷携带；推荐详情页诚实显示"课程供给：可学储备 X · 待人工审核 Y · 失败冷却 Z · 按需生成未开启"，不冒充"制作中"。
 - 回归 253/253（+v3materials 3 例）、tsc -b、oxlint、build、TRAJECTORY_OK、UI_JOURNEY_OK。测试过程修掉三处夹具/参数错位（默认参数吞掉未绑定用例、INSERT 占位错位、UPDATE ORDER BY 不支持）。
 
+### Zcode 第二批之三（31"不能算完成"清单收口，head=本批提交）
+
+- **定义快照冻结（版本映射兼容分支收口）**：`learner_attempts_v3.activity_snapshot` 随作答落库（simulatesAudio/audioRef/complexityBand/skillByObjective）；`recomputeStates` 重放按冻结快照判模态/带归属，**内容修订换版不再追溯改写历史作答**；无快照的历史行回退当前定义（32 号声明的诚实兼容，覆盖面随新增作答自然收敛）。回归：同一活动两种快照分别归 reading/listening 槽。
+- **真实调用生成抽检完成（3 次调用，约 1.5 万 tokens，出账见 job 记录）**：前两样本被 `materialsBound` 门拒（真实 DeepSeek 输出没带 materialId 字段——**抽检抓到真实模型不遵守新合同**）；提示强化（硬性要求+字段示例）后第三样本通过全部质量门（含素材绑定/家族新鲜/术语门/来源命题），落 `pending: human_sign` 等人审。内容自评：标题/教学说明白话合规、来源命题带边界、合成音频如实标注；**质量结论待人审，不自评合格**。抽检后生成开关已恢复关闭。
+- **跨页面录音草稿恢复**：`src/learning/draftStore.ts`（IndexedDB，Blob 直存，无 IDB 环境静默降级）；口语录制器接线（停止后保存 / 进页恢复并明示 / 提交与重录清除）；只存本机浏览器不上传。
+
 ## 下一提交
 
-1. **真实调用生成抽检**（等用户发话；DeepSeek 已充值）——验证真实模型输出是否遵循素材绑定/难度约束，抽检样本进人审队列。
-2. **31 第四批**：本人 3–7 天试学（依赖人审签署 + 合格材料，见 awaiting_user）。
-3. 模板库扩充与逐目标素材覆盖（随真实内容批次推进，不批量造空壳）。
+1. **31 第四批**：本人 3–7 天试学（#learn 入口；依赖人审签署 + 合格材料，见 awaiting_user——真人环节，不代做）。
+2. 人审队列消化：真实抽检样本 + 三课签署 + LibriVox 听校（全部真人环节）。
+3. 模板库扩充与逐目标素材覆盖（随真实内容批次推进）。

@@ -6,6 +6,7 @@ import { decodeRecordingWav } from '../learning/recordingWav'
 // 口语录音（W5）接入前，口述任务以文字版走通并如实标注“口语证据未测”。
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { goalLabel, learnerToday } from '../learning/learnerView'
+import { clearDraft, draftKey, loadDraft, saveDraft } from '../learning/draftStore'
 import './v4.css'
 
 type Plan = {
@@ -711,6 +712,21 @@ function OralRecorder({ accountId, taskId, activityId, onSubmitted, onRefreshTas
   const recRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
   const asrRef = useRef<{ stop: () => void; abort?: () => void } | null>(null)
+  const [draftRestored, setDraftRestored] = useState(false)
+  const draftKeyStr = draftKey(accountId, taskId)
+  // 31 收口：跨页面未提交录音草稿恢复——进页先查本机 IndexedDB；提交/删除后即清
+  useEffect(() => {
+    let alive = true
+    loadDraft(draftKeyStr).then((d) => {
+      if (!alive || !d) return
+      setBlob(d.blob)
+      setAudioUrl(URL.createObjectURL(d.blob))
+      setTranscript(d.transcript)
+      setTranscriptOrigin(d.transcriptOrigin)
+      setDraftRestored(true)
+    })
+    return () => { alive = false }
+  }, [draftKeyStr])
   useEffect(() => () => {
     asrRef.current?.abort?.()
     const rec = recRef.current
@@ -736,6 +752,7 @@ function OralRecorder({ accountId, taskId, activityId, onSubmitted, onRefreshTas
           const wav = await decodeRecordingWav(raw)
           setBlob(wav)
           setAudioUrl(URL.createObjectURL(wav))
+          void saveDraft(draftKeyStr, { blob: wav, transcript, transcriptOrigin, mime: wav.type || 'audio/wav' })
         } catch {
           setBlob(raw)
           setAudioUrl(URL.createObjectURL(raw))
@@ -791,6 +808,7 @@ function OralRecorder({ accountId, taskId, activityId, onSubmitted, onRefreshTas
       if (!blob) {
         submissionRef.current ??= `oral-text-${crypto.randomUUID()}`
         const r = await api<AttemptFeedback>(`/accounts/${accountId}/attempts`, { attemptId: submissionRef.current, taskId, activityId, response:{kind:'text',text:transcript},conditions:{firstExposure:true,hintLevel:0,transcriptShown:false,playCount:0,lookupUsed:false,responseMode:'typed_summary'} }, 'POST')
+        void clearDraft(draftKeyStr)
         onSubmitted({pass:r.pass,status:r.evaluationStatus,relations:r.dimensions})
         return
       }
@@ -810,13 +828,15 @@ function OralRecorder({ accountId, taskId, activityId, onSubmitted, onRefreshTas
         conditions: { firstExposure: true, hintLevel: 0, lookupUsed: false, responseMode: 'oral_recording' },
       }, 'POST')
       setMediaId(r.mediaId)
+      void clearDraft(draftKeyStr)
       onSubmitted({ pass: r.pass, status: r.evaluationStatus, relations: r.dimensions })
     } catch (e) { setErr(String(e)) } finally { setBusy(false) }
   }
 
   function retake() {
     // F5 验收：支持重新录一遍——新 take/新 attempt ID，旧作答保留
-    setBlob(null); setAudioUrl(''); setTranscript(''); setTranscriptOrigin('user_typed'); submissionRef.current = null; setMediaId(''); setCorrected(false); uploadRequestRef.current = null
+    void clearDraft(draftKeyStr)
+    setBlob(null); setAudioUrl(''); setTranscript(''); setTranscriptOrigin('user_typed'); submissionRef.current = null; setMediaId(''); setCorrected(false); uploadRequestRef.current = null; setDraftRestored(false)
   }
 
   async function correct() {
@@ -845,6 +865,7 @@ function OralRecorder({ accountId, taskId, activityId, onSubmitted, onRefreshTas
         </button>
       )}
       {micDenied && <p className="v4-dim">你可以先保存文字练习，口语能力仍为未测。</p>}
+      {draftRestored && audioUrl && <p className="v4-dim">已恢复你上次未提交的录音草稿（只存在本机浏览器；提交或重录后会清除）。</p>}
       {audioUrl && <audio controls src={audioUrl} />}
       <textarea value={transcript} rows={2} onChange={(e) => { asrRef.current?.abort?.(); setTranscriptOrigin('user_typed'); setTranscript(e.target.value); submissionRef.current = null }}
         placeholder={asrSupported ? '语音转写（可手动纠正后再提交）' : '浏览器不支持语音识别：请打字写下你说的内容'} />

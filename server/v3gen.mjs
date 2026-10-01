@@ -301,6 +301,7 @@ async function runJob(jobId, { chat = chatWithMeta } = {}) {
           return [
             `可用已审素材（每个活动的 materialId 必须从这里选）：${JSON.stringify(m.audited)}`,
             m.pendingReview.length ? `待审素材（不得绑定）：${JSON.stringify(m.pendingReview)}` : '',
+            '硬性要求：每个活动对象必须有 materialId 字段，值只能取上列表中的 materialId 原文；缺失或自造 → 整课拒收。示例：{"taskFamilyId":"fam_x","materialId":"' + (m.audited[0]?.materialId ?? 'mat_xxx') + '","prompt":"…","relations":[…]}',
           ].filter(Boolean).join('\n')
         })(),
         ctx.learnerEvidence.recentPracticeFeedback?.length ? `本目标近期练习反馈（关键词反馈只用于教学假设，不能视为能力认证；结合支持条件选择下一步）：${JSON.stringify(ctx.learnerEvidence.recentPracticeFeedback)}` : '',

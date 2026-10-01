@@ -1233,6 +1233,32 @@ describe('复审二轮（子代理审出）回归', () => {
 })
 
 describe('复审回归 F1–F8', () => {
+  it('31 收口·定义快照冻结：重放按作答时落库的定义快照判模态，不读当前定义；无快照旧行回退', async () => {
+    const { getDb } = await import('./db.mjs')
+    const conn = (await import('./v3db.mjs')).ensureV3Schema(getDb())
+    const ev = await import('./v3evidence.mjs')
+    const id = await mkAccount('快照冻结')
+    const now = Date.now()
+    // 同一活动 id 的两次作答，携带**不同**冻结快照（模拟作答发生在不同内容版本）；
+    // 当前注册表无论该活动定义如何，重放都按各自快照归属
+    const mkAttempt = (attemptId, snapshot, skill) => {
+      conn.prepare(`INSERT INTO learner_attempts_v3 (account_id, attempt_id, session_id, activity_id, activity_version,
+        objective_ids, task_family_id, role, response_kind, response, conditions, evaluation_status,
+        evaluation, disputed_reason, body_hash, created_at, activity_snapshot)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
+        .run(id, attemptId, '', 'some_activity_vX', 1, JSON.stringify(['O-K184-02']), 'frozen_fam', 'practice', 'text',
+          '{"kind":"text","text":"x"}', '{}', 'evaluated', '{}', null, 'h' + attemptId, now, JSON.stringify(snapshot))
+      conn.prepare(`INSERT INTO evidence_events (account_id, evidence_id, attempt_id, objective_id, skill, complexity,
+        kind, condition, pass, basis, created_at) VALUES (?,?,?,?,?,?,'observed','first_independent',1,?,?)`)
+        .run(id, `ev_${attemptId}`, attemptId, 'O-K184-02', skill, 'base', '{}', now + 1)
+    }
+    mkAttempt('snap-text', { simulatesAudio: true, audioRef: null, complexityBand: null, skillByObjective: { 'O-K184-02': 'listening' } }, 'listening') // 文字模拟 → reading
+    mkAttempt('snap-audio', { simulatesAudio: true, audioRef: 'aud_some_real', complexityBand: null, skillByObjective: { 'O-K184-02': 'listening' } }, 'listening') // 带音频 → listening
+    ev.recomputeStates(id)
+    const states = conn.prepare("SELECT skill, state FROM learner_states WHERE account_id = ? AND objective_id = 'O-K184-02'").all(id)
+    expect(states.some((s) => s.skill === 'reading')).toBe(true)   // 快照无 audioRef → reading 槽
+    expect(states.some((s) => s.skill === 'listening')).toBe(true) // 快照有 audioRef → listening 槽
+  })
   it('F1/R3/R4：无音频文字模拟与开放题都不产生能力事件；有播放记录的合成音频听力=受限定证据；无录音不产生口语证据', async () => {
     const id = await mkAccount('F1-模态')
     // 夹具：simulatesAudio 但**无 audioRef**，且是开放文本 → keyword 练习：不写任何事件
