@@ -1,0 +1,11 @@
+{
+ "materialsVersion": 1,
+ "materials": [
+  {"materialId": "mat_g1_relation_pairs", "sourceRef": "G1", "kind": "read", "status": "audited", "objectiveIds": [], "licenseStatus": "confirmed", "note": "限定/非限定从句对照句组（语料派生，G1 命题覆盖）"},
+  {"materialId": "mat_g3_contrast_texts", "sourceRef": "G3", "kind": "read", "status": "audited", "objectiveIds": [], "licenseStatus": "confirmed", "note": "but/although 对照短文（G3 命题覆盖）"},
+  {"materialId": "mat_g4_discourse_markers", "sourceRef": "G4", "kind": "read", "status": "audited", "objectiveIds": [], "licenseStatus": "confirmed", "note": "话语标记组织短篇（G4 命题覆盖）"},
+  {"materialId": "aud_d2_library_v1", "sourceRef": "G4", "kind": "listen_synthetic", "status": "audited", "objectiveIds": ["O-K007-02", "O-K007-03", "O-K184-01"], "licenseStatus": "confirmed", "note": "受控合成音频（清单四关校验），非真人讲者"},
+  {"materialId": "aud_l2_museum_v1", "sourceRef": "G4", "kind": "listen_synthetic", "status": "audited", "objectiveIds": ["O-K184-01", "O-K184-02"], "licenseStatus": "confirmed", "note": "受控合成音频（清单四关校验），非真人讲者"},
+  {"materialId": "real_cylinder_weakness_richards", "sourceRef": "T", "kind": "listen_real", "status": "pending_review", "objectiveIds": [], "licenseStatus": "confirmed", "note": "LibriVox 公有领域；人工听校未做，完成前不得绑定"}
+ ]
+}

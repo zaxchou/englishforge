@@ -11,7 +11,7 @@ import { recordAttempt, evidenceSummary, waive, revokeWaiver, reportContent, get
 import { startDiagnostic, getDiagnostic, advanceDiagnostic, expectedActivityFor, latestOpenDiagnostic } from './v3diag.mjs'
 import { getPlan, recomputePlan } from './v3plan.mjs'
 import { serveLesson, revealHint, completeLesson, listLessons, seedLessons, withdrawLesson, publishLesson, signLesson } from './v3lessons.mjs'
-import { ensureWindow, reestimateWindow, generationMetrics, listJobs, startGenerationJob } from './v3gen.mjs'
+import { ensureWindow, reestimateWindow, generationMetrics, generationStock, listJobs, startGenerationJob } from './v3gen.mjs'
 import { createOralIntent, storeOralAudio, readOralAudio, deleteOralAudio, submitOralAttempt, correctTranscript, signOralReview, mediaUsableForCertification } from './v3oral.mjs'
 import { readLessonAudio, loadAudioManifest, audioForActivity } from './v3audio.mjs'
 import { issueTrialTask, registerTrial, recordObservation, compareTrial, listTrials } from './v3trial.mjs'
@@ -168,7 +168,7 @@ export const V3_ROUTES = [
   // W4：按需生成供给。生成默认关闭（防误调真实模型计费），ENGLISHFORGE_V4_GENERATION=1 显式开启
   ['GET', '/api/v1/accounts/:id/window', (ctx) => { requireAccount(ctx.params.id); return ensureWindow(ctx.params.id) }],
   ['POST', '/api/v1/accounts/:id/window/reestimate', (ctx) => { requireAccount(ctx.params.id); return reestimateWindow(ctx.params.id, body_str(ctx, 'trigger') || 'manual') }],
-  ['GET', '/api/v1/accounts/:id/generation', (ctx) => { requireAccount(ctx.params.id); return { metrics: generationMetrics(ctx.params.id), jobs: listJobs(ctx.params.id) } }],
+  ['GET', '/api/v1/accounts/:id/generation', (ctx) => { requireAccount(ctx.params.id); return { metrics: generationMetrics(ctx.params.id), jobs: listJobs(ctx.params.id), stock: generationStock(ctx.params.id) } }],
   ['POST', '/api/v1/accounts/:id/generation/start', (ctx) => {
     requireAccount(ctx.params.id)
     const r = startGenerationJob(ctx.params.id, {

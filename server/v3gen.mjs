@@ -20,15 +20,11 @@ import { rowToObjective } from './v3map.mjs'
 import { runQualityGates, lessonForStrategy, lessonForObjective, getLesson, lessonApplicable } from './v3lessons.mjs'
 import { activityById } from './v3evidence.mjs'
 import { decide } from './v3plan.mjs'
+import { sourceLedger, loadMaterials, materialUsableFor, materialsForPrompt, contentSignature } from './v3registry.mjs'
 import { chatWithMeta, LlmError } from './llm.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
-let ledgerCache = null
-/** 来源账本（v3-objectives.json sources）：代号 → {claim, limit}。命题级核验的锚点在这里 */
-function sourceLedger() {
-  if (!ledgerCache) ledgerCache = JSON.parse(readFileSync(resolve(HERE, 'data', 'v3-objectives.json'), 'utf8')).sources ?? {}
-  return ledgerCache
-}
+export { sourceLedger }
 
 /**
  * C4：内容指纹 —— prompt+关系标签+候选句/禁例 归一化后哈希。
@@ -162,8 +158,11 @@ export function validateGeneratedPackage(pkg, ctx) {
     const b = Number(a.complexityBand ?? ctx.band ?? maxBand)
     return Number.isFinite(b) && b >= 1 && b <= maxBand
   })
+  // 31 第三批：已审素材绑定门——每个活动必须绑定"audited 且对该目标可用"的素材条目；
+  // 未绑定/未知/待审素材一律拒（输出必须落在真实素材上，不能凭空编材料）。
+  gates.materialsBound = (pkg.activities ?? []).every((a) => materialUsableFor(String(a.materialId ?? ''), ctx.objectiveId))
   gates.truncated = false // chatJson 解析失败根本到不了这里；截断=reject 上游
-  gates.allPassed = ['schemaComplete', 'answersConsistent', 'sourcesUsable', 'explanationClean', 'familyFresh', 'holdoutIsolated', 'bandWithinMax']
+  gates.allPassed = ['schemaComplete', 'answersConsistent', 'sourcesUsable', 'explanationClean', 'familyFresh', 'holdoutIsolated', 'bandWithinMax', 'materialsBound']
     .every((k) => gates[k])
   return gates
 }
@@ -185,7 +184,8 @@ export function startGenerationJob(accountId, { objectiveId, strategyId, chat = 
   const conn = ensureV3Schema()
   const dup = conn.prepare("SELECT job_id,input_spec FROM generation_jobs WHERE account_id = ? AND objective_id = ? AND status IN ('queued','running')")
     .get(accountId, objectiveId)
-  if (dup && generationSnapshotCurrent(conn, accountId, JSON.parse(dup.input_spec).learnerEvidence)) return { jobId: dup.job_id, reused: true }
+  const dupSpec = dup ? JSON.parse(dup.input_spec) : null
+  if (dup && generationSnapshotCurrent(conn, accountId, dupSpec.learnerEvidence, dupSpec.contentSignature)) return { jobId: dup.job_id, reused: true }
   if (dup) conn.prepare("UPDATE generation_jobs SET status='superseded',reject_reasons=?,finished_at=? WHERE job_id=?").run(JSON.stringify(['LEARNING_FEEDBACK_CHANGED']),Date.now(),dup.job_id)
   // 重试耗尽后的冷却：§7「仍失败则撤出候选」——冷却期内窗口槽位如实显示，不再自动起新 job；
   // force=true 是操作者的显式重试，不受冷却限制
@@ -222,6 +222,8 @@ export function startGenerationJob(accountId, { objectiveId, strategyId, chat = 
   ).run(accountId, jobId, objectiveId, strategyId ?? null,
     JSON.stringify({
       objective: rowToObjective(obj), contract: GEN_CONTRACT_V1.version,
+      // 31 第三批：内容版本签名——地图/来源命题变化 ⇒ 在途与未分发任务按失效处理
+      contentSignature: contentSignature(),
       learnerEvidence: {
         evidenceVersion: evRow?.value ?? 0,
         practiceRevision: conn.prepare('SELECT COUNT(*) AS n FROM learner_attempts_v3 WHERE account_id = ?').get(accountId).n,
@@ -268,6 +270,7 @@ async function runJob(jobId, { chat = chatWithMeta } = {}) {
     // 声音/口述目标的文本课不能记听力/口语证据（15 §5 技能不互升）——这类目标强制人审
     audioOralDependent: primarySkill(objective) !== 'reading' && primarySkill(objective) !== 'writing'
       || (Array.isArray(objective.flags) ? objective.flags : JSON.parse(objective.flags || '[]')).includes('needs_audio'),
+    objectiveId: objective.objectiveId,
   }
 
   let lastReasons = []
@@ -292,6 +295,14 @@ async function runJob(jobId, { chat = chatWithMeta } = {}) {
         // 术语规则与质量门一致：复杂度 <5 禁语法术语；≥5 允许精确术语（但"从句"仍要用白话解释到位）
         ctx.band >= 5 ? '允许精确语法术语，但术语旁必须跟白话解释。' : '禁止任何语法术语，全部用白话描述。',
         `本课教学调整约束（必须落实在任务和提示，不只改标题；复杂度不得越过 maxBand）：${JSON.stringify(ctx.adaptation)}`,
+        // 31 第三批：已审素材池——每个活动必须设 materialId 绑定下列已审素材；待审素材不得绑定
+        (() => {
+          const m = materialsForPrompt(ctx.objectiveId)
+          return [
+            `可用已审素材（每个活动的 materialId 必须从这里选）：${JSON.stringify(m.audited)}`,
+            m.pendingReview.length ? `待审素材（不得绑定）：${JSON.stringify(m.pendingReview)}` : '',
+          ].filter(Boolean).join('\n')
+        })(),
         ctx.learnerEvidence.recentPracticeFeedback?.length ? `本目标近期练习反馈（关键词反馈只用于教学假设，不能视为能力认证；结合支持条件选择下一步）：${JSON.stringify(ctx.learnerEvidence.recentPracticeFeedback)}` : '',
         ctx.learnerEvidence.states?.length ? `学习者当前状态：${JSON.stringify(ctx.learnerEvidence.states)}` : '',
         ctx.learnerEvidence.rootHypotheses?.length ? `根因假设：${ctx.learnerEvidence.rootHypotheses.join('、')}` : '',
@@ -311,10 +322,15 @@ async function runJob(jobId, { chat = chatWithMeta } = {}) {
         return { jobId, status: 'failed' }
       }
       // 模型响应等待期间可能已产生新反馈；旧快照不能发布为当前个体课程。
-      if (job().status === 'superseded' || !generationSnapshotCurrent(conn,job().account_id,learnerEvidence)) {
+      // 内容签名同样在此复核：比对**启动时落库的签名**与当前实时签名（行是启动事实，
+      // 内存副本不是）；地图/来源命题变化 → 任务作废（31 第三批失效规则）。
+      let storedSig
+      try { storedSig = JSON.parse(job().input_spec).contentSignature } catch { storedSig = undefined }
+      if (job().status === 'superseded'
+        || !generationSnapshotCurrent(conn, job().account_id, learnerEvidence, storedSig)) {
         conn.prepare("UPDATE generation_jobs SET status='superseded',cost_tokens=?,reject_reasons=?,latency_ms=?,finished_at=? WHERE job_id=?")
-          .run(totalTokens,JSON.stringify(['LEARNING_FEEDBACK_CHANGED']),Date.now()-started,Date.now(),jobId)
-        return {jobId,status:'superseded',published:false,reasons:['LEARNING_FEEDBACK_CHANGED']}
+          .run(totalTokens,JSON.stringify(['LEARNING_FEEDBACK_OR_CONTENT_CHANGED']),Date.now()-started,Date.now(),jobId)
+        return {jobId,status:'superseded',published:false,reasons:['LEARNING_FEEDBACK_OR_CONTENT_CHANGED']}
       }
       let pkg
       try {
@@ -452,7 +468,7 @@ export function ensureWindow(accountId, { chat = chatWithMeta } = {}) {
       } else throw e
     }
   })
-  return { accountId, windowVersion: getMeta(accountId, 'window_version') ?? 0, slots }
+  return { accountId, windowVersion: getMeta(accountId, 'window_version') ?? 0, slots, stock: generationStock(accountId) }
 }
 
 function snap(arr) { return Array.isArray(arr) ? arr : [] }
@@ -479,9 +495,12 @@ function buildLiteSnapshot(conn, accountId) {
   }
 }
 
-function generationSnapshotCurrent(conn, accountId, snapshot) {
-  return snapshot && snapshot.evidenceVersion === evVersion(conn,accountId)
+function generationSnapshotCurrent(conn, accountId, snapshot, storedContentSignature) {
+  const feedbackCurrent = snapshot && snapshot.evidenceVersion === evVersion(conn,accountId)
     && snapshot.practiceRevision === conn.prepare('SELECT COUNT(*) AS n FROM learner_attempts_v3 WHERE account_id=?').get(accountId).n
+  // 31 第三批：内容签名失效——地图/来源命题变化 ⇒ 旧签名任务不再算当前（历史无签名不追溯）
+  const contentCurrent = storedContentSignature === undefined || storedContentSignature === contentSignature()
+  return feedbackCurrent && contentCurrent
 }
 
 function evVersion(conn, accountId) {
@@ -548,6 +567,27 @@ export function generationMetrics(accountId) {
     invalidatedCache: inv,
     inFlight: running,
     note: '时延/拒收率/弃用计数/在途已实现；费用=token 数（真实调用写入，fixture 为 0）。未实现：撤回率与生成课的关联、用户等待时间（§7 差距，如实标注）',
+  }
+}
+
+/** 31 第三批：个体生成库存（只读计数，无副作用）——页面诚实显示"能学/待人审/失败冷却/未开启"。
+ * ready=已发布未完成的个体生成课；pendingReview=生成成功但等人审签署；failedCooldown=冷却期内失败。 */
+export function generationStock(accountId) {
+  const conn = ensureV3Schema()
+  const genPrefix = 'gen-%'
+  const done = conn.prepare("SELECT COUNT(*) AS n FROM plan_decisions WHERE account_id = ? AND status = 'completed' AND served_lesson_id LIKE ?")
+    .get(accountId, genPrefix).n
+  const published = conn.prepare("SELECT COUNT(*) AS n FROM lesson_versions WHERE account_scope = ? AND content_status = 'published' AND lesson_id LIKE ?")
+    .get(accountId, genPrefix).n
+  const pendingReview = conn.prepare("SELECT COUNT(*) AS n FROM generation_jobs WHERE account_id = ? AND status = 'succeeded' AND output_lesson_id IS NOT NULL AND validation LIKE '%human_sign%'")
+    .get(accountId).n
+  const failedCooldown = conn.prepare("SELECT COUNT(*) AS n FROM generation_jobs WHERE account_id = ? AND status IN ('failed','rejected') AND finished_at > ?")
+    .get(accountId, Date.now() - COOLDOWN_MS).n
+  return {
+    disabled: !['1', 'true'].includes(String(process.env.ENGLISHFORGE_V4_GENERATION ?? '')),
+    ready: Math.max(0, published - done),
+    pendingReview,
+    failedCooldown,
   }
 }
 

@@ -79,6 +79,8 @@ export function V4Path({ accountId }: { accountId: string | null }) {
   const [evidence, setEvidence] = useState<Evidence | null>(null)
   const [waiverBusy,setWaiverBusy] = useState(false)
   const [mapIdx, setMapIdx] = useState<MapIdx | null>(null)
+  // 31 第三批：个体生成库存（只读接口，不触发任务）——推荐详情页诚实显示补课管线状态
+  const [stock, setStock] = useState<{ disabled: boolean; ready: number; pendingReview: number; failedCooldown: number } | null>(null)
 
   const loadPlan = useCallback(async () => {
     if (!accountId) return
@@ -101,7 +103,11 @@ export function V4Path({ accountId }: { accountId: string | null }) {
     if (tab === 'map' && !mapIdx) {
       api<MapIdx>('/map').then(setMapIdx).catch((e) => setErr(String(e)))
     }
-  }, [tab, accountId, evidence, mapIdx])
+    if (tab === 'plan' && accountId && !stock) {
+      api<{ stock: { disabled: boolean; ready: number; pendingReview: number; failedCooldown: number } }>(`/accounts/${accountId}/generation-stock`)
+        .then((r) => setStock(r.stock)).catch(() => { /* 只读展示，失败不打扰 */ })
+    }
+  }, [tab, accountId, evidence, mapIdx, stock])
 
   // ---------- 诊断流程（会话状态在 DiagPanel 内部管理） ----------
 
@@ -169,7 +175,7 @@ export function V4Path({ accountId }: { accountId: string | null }) {
       )}
 
       {tab === 'plan' && (
-        <PlanPanel plan={plan} noPlan={noPlan} onDiagnostic={() => setTab('diag')}
+        <PlanPanel plan={plan} noPlan={noPlan} stock={stock} onDiagnostic={() => setTab('diag')}
           onOpenLesson={(lessonId) => void openLesson(lessonId)} />
       )}
 
@@ -243,9 +249,10 @@ export function V4Path({ accountId }: { accountId: string | null }) {
   )
 }
 
-function PlanPanel({ plan, noPlan, onDiagnostic, onOpenLesson }: {
+function PlanPanel({ plan, noPlan, stock, onDiagnostic, onOpenLesson }: {
   plan: Plan | null
   noPlan: boolean
+  stock: { disabled: boolean; ready: number; pendingReview: number; failedCooldown: number } | null
   onDiagnostic: () => void
   onOpenLesson: (lessonId: string) => void
 }) {
@@ -258,6 +265,15 @@ function PlanPanel({ plan, noPlan, onDiagnostic, onOpenLesson }: {
       </div>
     )
   }
+  // 31 第三批：补课管线状态诚实显示——区分可学/待人审/失败冷却/未开启，不冒充"制作中"
+  const stockLine = stock && (stock.ready > 0 || stock.pendingReview > 0 || stock.failedCooldown > 0 || stock.disabled)
+    ? [
+      stock.disabled ? '按需生成未开启' : null,
+      stock.ready > 0 ? `可学储备 ${stock.ready} 段` : null,
+      stock.pendingReview > 0 ? `待人工审核 ${stock.pendingReview} 段` : null,
+      stock.failedCooldown > 0 ? `近期生成失败（冷却中）${stock.failedCooldown} 次` : null,
+    ].filter(Boolean).join(' · ')
+    : null
   return (
     <div className="v4-card">
       <h3>当前推荐 · {plan.primaryGoal ?? '—'}</h3>
@@ -273,6 +289,7 @@ function PlanPanel({ plan, noPlan, onDiagnostic, onOpenLesson }: {
         {plan.lesson.status === 'content_pending' && <span className="v4-wait">⏳ {plan.lesson.waitNotice}</span>}
         {plan.lesson.devSample && <span className="v4-dev">开发样本 · 人审未签署</span>}
       </div>
+      {stockLine && <p className="v4-dim">课程供给：{stockLine}。</p>}
       {!!plan.hypotheses.length && <p><b>根因假设：</b>{plan.hypotheses.join('、')}</p>}
       {!!plan.uncertainAreas.length && <p><b>未测区域：</b>{plan.uncertainAreas.join('、')}</p>}
       <details>

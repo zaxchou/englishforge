@@ -687,9 +687,9 @@ describe('W4/T5+T6 按需生成供给', () => {
     teachingNote: '说话人先说一件事看起来不错，再用 but 换到另一面：but 前是他承认的，but 后才是他真正要说的。',
     explanationKind: 'established',
     activities: [
-      { taskFamilyId: 'gen_contrast_a', prompt: '听：The app looked perfect in the demo, but it crashed every hour at school. 问：说话人真正强调什么？', hints: ['but 之后是重点'],
+      { taskFamilyId: 'gen_contrast_a', materialId: 'mat_g3_contrast_texts', prompt: '听：The app looked perfect in the demo, but it crashed every hour at school. 问：说话人真正强调什么？', hints: ['but 之后是重点'],
         relations: [{ id: 'demo', label: 'demo 里看起来完美', anyOf: ['demo', '演示', '看起来'], required: true }, { id: 'crash', label: '学校里每小时崩', anyOf: ['crash', '崩', 'school', '学校'], required: true }] },
-      { taskFamilyId: 'gen_contrast_b', prompt: 'Our first test worked well, but real users stopped at step three. 问：两半分别是什么？', hints: [],
+      { taskFamilyId: 'gen_contrast_b', materialId: 'mat_g3_contrast_texts', prompt: 'Our first test worked well, but real users stopped at step three. 问：两半分别是什么？', hints: [],
         relations: [{ id: 'test', label: '首测顺利', anyOf: ['test', '测试', 'worked'], required: true }, { id: 'step3', label: '真实用户停在第三步', anyOf: ['step', '第三', 'users'], required: true }] },
     ],
     sourceRefs: [{ ref: 'G3', claim: 'but 表示对照' }],
@@ -792,13 +792,13 @@ describe('W4/T5+T6 按需生成供给', () => {
     const r = await gen.startGenerationJob(id, { objectiveId: 'O-K184-02', strategyId: 'sound_segmentation', chat: fakeChat(reskin), await: true, force: true })
     expect(r.status).toBe('rejected')
     expect(r.reasons.join('')).toContain('familyFresh')
-    // 对照组：真新内容（不同 prompt/关系）同账户正常过门
+    // 对照组：真新内容（不同 prompt/关系）+ 绑定已审素材，同账户正常过门
     const fresh = {
       ...reskin,
       title: '真正的新课', activities: [
-        { taskFamilyId: 'fresh_fam_a', prompt: 'New plan, new problems: the team changed the schedule twice this week. 问：改变了几次？', hints: [],
+        { taskFamilyId: 'fresh_fam_a', materialId: 'mat_g3_contrast_texts', prompt: 'New plan, new problems: the team changed the schedule twice this week. 问：改变了几次？', hints: [],
           relations: [{ id: 'twice', label: '改了两次', anyOf: ['twice', '两次', 'two'], required: true }, { id: 'sched', label: '改的是日程', anyOf: ['schedule', '日程', '计划'], required: true }] },
-        { taskFamilyId: 'fresh_fam_b', prompt: 'The printer jammed again, so we switched rooms. 问：结果是什么？', hints: [],
+        { taskFamilyId: 'fresh_fam_b', materialId: 'mat_g3_contrast_texts', prompt: 'The printer jammed again, so we switched rooms. 问：结果是什么？', hints: [],
           relations: [{ id: 'switch', label: '换了房间', anyOf: ['switch', '换', 'room'], required: true }, { id: 'jam', label: '原因又是卡纸', anyOf: ['jam', '卡纸', 'printer'], required: true }] },
       ],
     }

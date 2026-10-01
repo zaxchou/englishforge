@@ -17,6 +17,7 @@ import { requireAccount } from './v3api.mjs'
 import { getStoredAttempt, activityById, publicActivity } from './v3evidence.mjs'
 import { audioPublicInfo } from './v3audio.mjs'
 import { seedMap } from './v3map.mjs'
+import { contentSignature } from './v3registry.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const LESSON_SEED = resolve(HERE, 'data', 'v3-lessons.json')
@@ -308,7 +309,11 @@ export function lessonApplicable(accountId, lesson) {
   const job=conn.prepare('SELECT account_id,input_spec FROM generation_jobs WHERE output_lesson_id=? ORDER BY created_at DESC LIMIT 1').get(lesson.lessonId)
   if (!job) return true // curated reusable material, not a personalized generated course
   if (job.account_id !== accountId) return false
-  const snapshot=JSON.parse(job.input_spec || '{}').learnerEvidence
+  // 31 第三批失效规则：地图/来源命题签名变化 ⇒ 未分发的个体生成课不再适用。
+  // 历史任务无签名（undefined）不追溯——只有携带签名的新任务按此失效。
+  const spec = JSON.parse(job.input_spec || '{}')
+  if (spec.contentSignature && spec.contentSignature !== contentSignature()) return false
+  const snapshot = spec.learnerEvidence
   return !!snapshot && snapshot.practiceRevision===conn.prepare('SELECT COUNT(*) AS n FROM learner_attempts_v3 WHERE account_id=?').get(accountId).n
     && snapshot.evidenceVersion===(conn.prepare("SELECT value FROM v3_counters WHERE account_id=? AND name='evidence'").get(accountId)?.value ?? 0)
 }

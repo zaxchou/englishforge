@@ -27,8 +27,8 @@ const goodPkg = (tag, band) => ({
   teachingNote: '先看关系线索，再自己说出对照的两边；材料是新的，做法不变。',
   sourceRefs: [{ ref: 'G3', claim: '本课两句的 but 都对照预期与实际结果' }],
   activities: [
-    { taskFamilyId: `prof_${tag}_a`, role: 'practice', prompt: `材料 ${tag}：观众以为安静展区没意思，其实那边正在演示。团队因此调整了路线说明。问：but 对照了哪两件事？`, relations: [{ id: 'contrast', label: '对照预期与实际', anyOf: ['以为', '其实', 'expected', 'in fact'], required: true }, { id: 'decision', label: '团队调整', anyOf: ['调整', '决定', 'changed'], required: false }], complexityBand: band },
-    { taskFamilyId: `prof_${tag}_b`, role: 'transfer', prompt: `新情境 ${tag}：我们以为大家喜欢长说明，但反馈说太啰嗦，所以改成了短指引。问：这个 but 否定了什么预期？`, relations: [{ id: 'contrast', label: '对照预期与实际', anyOf: ['以为', '但', 'but', 'expected'], required: true }], complexityBand: band },
+    { taskFamilyId: `prof_${tag}_a`, materialId: 'mat_g3_contrast_texts', role: 'practice', prompt: `材料 ${tag}：观众以为安静展区没意思，其实那边正在演示。团队因此调整了路线说明。问：but 对照了哪两件事？`, relations: [{ id: 'contrast', label: '对照预期与实际', anyOf: ['以为', '其实', 'expected', 'in fact'], required: true }, { id: 'decision', label: '团队调整', anyOf: ['调整', '决定', 'changed'], required: false }], complexityBand: band },
+    { taskFamilyId: `prof_${tag}_b`, materialId: 'mat_g3_contrast_texts', role: 'transfer', prompt: `新情境 ${tag}：我们以为大家喜欢长说明，但反馈说太啰嗦，所以改成了短指引。问：这个 but 否定了什么预期？`, relations: [{ id: 'contrast', label: '对照预期与实际', anyOf: ['以为', '但', 'but', 'expected'], required: true }], complexityBand: band },
   ],
 })
 
