@@ -578,6 +578,9 @@ function appendObservedEvents(conn, accountId, attemptRow, activity, conditions)
         basisExtra.audio = audioSource
         basisExtra.playCount = playCount
         basisExtra.playbackVerified = playCount > 0 // 服务端播放事件在 recordAttempt 已强制
+        // 43 号兑现课程文案的承诺：synthetic 听力记录**封顶 trained**（受控练习音频，非自然讲者
+        // ——自然讲者版本到位后人审/真实素材才升级）。cap 在回放侧执行（下方 recomputeStates）。
+        basisExtra.syntheticAudio = audioSource === 'synthetic' ? true : undefined
       }
       // R3：keyword 内容检查的听力证据 = 受限定——回放时封顶 trained（升不了 independent）
       if (evaluation.keywordOnly && listeningWithAudio) basisExtra.keywordContentCheck = true
@@ -726,6 +729,9 @@ export function recomputeStates(accountId) {
       if (e.condition === 'hinted' || e.condition === 'supported') { if (rank < 2) s2.state = 'trained'; continue }
       // first_independent
       if (basis.keywordContentCheck) { if (rank < 2) s2.state = 'trained'; continue } // R3：词表内容检查封顶 trained
+      // 43 号：synthetic 音频的听力证据封顶 trained（受控练习音频，非自然讲者；见课程文案与 21 §6.2）。
+      // 机器 closed 题也只到 trained；升级留给自然讲者素材或人审结论。
+      if (basis.syntheticAudio && skill === 'listening') { if (rank < 2) s2.state = 'trained'; continue }
       s2.independentFamilies.add(basis.taskFamilyId ?? '?')
       if (basis.role === 'transfer' && s2.independentFamilies.size >= 2) s2.state = 'transferred'
       else if (s2.independentFamilies.size >= 2) s2.state = 'independent'

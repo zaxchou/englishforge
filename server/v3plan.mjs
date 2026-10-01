@@ -358,7 +358,7 @@ function fallbackLesson(accountId) {
     for (const nid of from?.nextCandidates ?? []) {
       const cand = getLesson(nid)
       if (usable(cand)) {
-        return { lessonId: cand.lessonId, title: cand.title,
+        return { lessonId: cand.lessonId, title: cand.title, objectiveIds: cand.objectiveIds ?? [],
           reason: `你刚完成的《${from.title}》还有一节后继迁移课，趁热在新情境里检验；当前主目标的课还在准备中。完成它之后会重新安排下一步。` }
       }
     }
@@ -378,15 +378,15 @@ function fallbackLesson(accountId) {
     const l = getLesson(r.lesson_id)
     if (!usable(l)) continue
     if ((l.objectiveIds ?? []).some((oid) => practiced.has(oid))) {
-      return { lessonId: l.lessonId, title: l.title,
-        reason: `《${l.title}》与你练过的方向相关、还没学过；当前主目标的课还在准备中，可以先练它，完成后再回来定位下一步。` }
+      return { lessonId: l.lessonId, title: l.title, objectiveIds: l.objectiveIds ?? [],
+        reason: `《${l.title}》与你练过的方向相关、还没学过；当前主目标的课还在准备中，可以先练它，完成后再回来定位下一步。它练的不是主目标本身——主目标缺的能力不会被它补上，也不会被它记成掌握。` }
     }
   }
   return null
 }
 
 function waitNotice(strategyId) {
-  if (strategyId === 'sound_segmentation') return 'L2 原声音频课未制作（W5 前无原声）：诚实等待，不回退旧题伪装课程'
+  if (strategyId === 'sound_segmentation') return '听力目标的主课要音频与听校配合：合成音频课已在准备/上线（如实标注 synthetic、听力证据受限），自然讲者版本仍待录制——先用下面的备用任务保持练习节奏，它不会把阅读结果记成听力。'
   if (strategyId === 'oral_retrieval') return 'L3 口述课需站内录音（W5 接入）：口语证据保持未测，不伪造成功'
   return '当前可用内容不足：等待经审核的材料，不塞同质题凑数'
 }

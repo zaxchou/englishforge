@@ -18,7 +18,7 @@ type Plan = {
   hypotheses: string[]
   uncertainAreas: string[]
   lesson: { lessonId: string | null; activityId: string | null; status: string; waitNotice?: string; devSample?: boolean; contentPreview?: boolean; fallbackTask?: boolean; fallbackReason?: string; resumeAvailable?: boolean }
-  fallback: { lessonId: string; title: string; reason: string } | null
+  fallback: { lessonId: string; title: string; reason: string; objectiveIds?: string[] } | null
   notChosen: { objectiveId: string; reason: string }[]
   status: string
 }
@@ -224,7 +224,13 @@ async function changeWaiver(objectiveId:string,skill:string,revoked:boolean) {
                 {plan?.fallback && (
                   <div className="v4-note" style={{ marginBottom: 8 }}>
                     <b>可以先练的备用任务：</b>{plan.fallback.title}
-                    <p style={{ margin: '4px 0 8px' }}>{plan.fallback.reason}</p>
+                    <p style={{ margin: '4px 0' }}>{plan.fallback.reason}</p>
+                    {!!plan.fallback.objectiveIds?.length && (
+                      <p style={{ margin: '4px 0' }}>它练的方向：{plan.fallback.objectiveIds.map((oid) => goalLabel(oid)).join('、')}。</p>
+                    )}
+                    {(plan.primarySkill === 'listening' || plan.primarySkill === 'speaking') && (
+                      <p style={{ margin: '4px 0 8px' }}>注意：主目标是{SKILL_LABEL[plan.primarySkill]}训练，备用任务不能替代它——它不会把阅读/写作结果记成{SKILL_LABEL[plan.primarySkill]}掌握；{SKILL_LABEL[plan.primarySkill]}主课在准备中（听力课为合成音频，如实标注、证据受限）。</p>
+                    )}
                     <button className="v4-primary" disabled={waiverBusy} onClick={() => { if (plan.fallback) void openLesson(plan.fallback.lessonId) }}>打开备用任务</button>
                   </div>
                 )}

@@ -151,9 +151,18 @@ Codex 手动接管批（c264c7a/d329559/03a7a3d，本地未推送）已实现：
 - **走查重写（40 号硬要求）**：chain-walk v2 真实规划器+真实入口（不再改 served_lesson_id），实际经过课程如实打印：relations→listening→oral→m1(备用)→c1(备用)→c2(链延续备用)→诚实空态；C1/C2 任一没真实走到即 CHAIN_WALK_PARTIAL 退出非零。
 - 验证：277/277（+4 个 40 号用例）、tsc -b、oxlint、build、TRAJECTORY_OK（自然走到第 4 课）、UI_JOURNEY_OK、CHAIN_WALK_OK。新增 `npm run trial-report`（只读试学记录导出）。详见 [41 号报告](41-连续路径交付.md)。
 
+### Zcode 第九批（42 号后：听力主课链 + 口头回应链 + 路径解释，head=本批提交）
+
+- **听力主课 les-listening-c1**（O-K184-01/02）：六步=无稿首听（学习小组周会新情境，听后选择）→提示/分段→校对稿定位（记 reading）→关稿重听→换材料（宿舍洗衣表）→口头回应。两段新合成音频（原创脚本+SAPI，manifest 带逐段意义依据/逐字转写/sha256）；素材池登记 listen_synthetic+audited、限 O-K184-*；"换声音"缺口如实标注（单一合成声源）。
+- **口头回应主课 les-oral-c1**（O-K190-01/194-01）：新情境站会改时间——脱稿三步式（决定/原因/条件）+ 门控追问（队友来不了的即时回应）。口述 defer=0 掌握事件（测试断言）。
+- **synthetic 听力封顶 trained 兑现到代码**：syntheticAudio 基标+回放封顶（此前只在文案里）；升级留给自然讲者素材/人审。
+- **过程修正**：开放文本题=keyword 不产生事件→听后任务改封闭槽位才有真实听力事件；口述活动 conditionsSpec 对齐 oral 路由实发键；洗衣稿补"为何"段成标准四段。
+- **路径解释（42-3）**：fallback 载荷带 objectiveIds，前端渲染"练的方向"+主目标是听/说时的"不替代"提示；sound_segmentation 等待文案更新为现状；fallback 理由固定含"不会被它记成掌握"。
+- 验证：280/280（+v3listening 3）、tsc、oxlint、build、TRAJECTORY_OK（自然走到第 5 课）、UI_JOURNEY_OK（夹具支持槽位题+下限断言）、**CHAIN_WALK_OK 实际 8 课**（含口述课=主推荐、听力链真实浏览器播放两段新音频、备用/链延续收尾）。详见 [44 号报告](44-听力与口头回应链交付.md)。
+
 ## 下一提交
 
-1. 本人短程试学（真人环节；`npm run trial-report <accountId>` 导出记录）→ 按反馈调内容。
+1. 本人短程试学（真人环节；`npm run trial-report <accountId>` 导出）——重点记录合成音频可懂度、听后选择难度、口述追问节奏。
 2. 真实模型语义审核抽样（明确数量/成本，等用户授权）——回填 38 号"判定质量"边界。
 2. 人审队列消化（真人环节）：策划链 + 三门生成课 + 用户生成样本签署；LibriVox 听校。
 3. D3 试学记录化：按真实试学反馈调链路；"推荐到了但没内容"的目标（O-K115-01 等）预制链或开启生成。

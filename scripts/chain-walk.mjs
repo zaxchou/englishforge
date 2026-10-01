@@ -36,6 +36,10 @@ const TEXT_OK = {
   g4c_recap_write: '地图一直按设计在运行；不完整的是我们对访客想要什么的假设。下一步先去问访客为什么这样选路线，再决定要不要改。',
   m1_projector_locate: 'A 的 which 是补充（去掉不影响所指）；B 的 which 指"在展览中停摆"这件事，在说明后果。',
   m1_transfer_write: '去掉 who 部分，句子指的还是那位助手——所以是补充信息：她是五月来的。说话人已经确定是哪位助手。',
+  // 43 号听力/口头链（开放题；听后选择题的 accept 从注册表自动取）
+  l1e_oral_respond: 'I agree with the change, as long as reminders come back before exam week.',
+  o1a_schedule_decision: "We're moving the stand-up to Saturday morning because Wednesday evenings conflict with class. If someone can't come, we will record it and share notes.",
+  o1b_followup_reply: "OK, good point. He can watch the recording and add notes async — he's still in, we are not cancelling him.",
   les_l1_sensor_read: '出问题的是实验室里看起来准、在舞台灯下不稳的那颗传感器；现在还可以继续在室内测试用它；但在公开活动前的灯光环境检查之前，先不安装到现场——这不是永久禁用。',
   rep_film_postpone_read: '我们保留了视觉序列，推迟了配音测试；同一部片在小放映室里好看，到吵闹的大堂就难跟上；不能因此推出影片本身差。',
   les_l2b_museum_transcript: 'that tells visitors 修饰 map；because 解释游客走向拥挤展厅的动机；but 对照"地图按设计工作"与"假设不完整"。',

@@ -10,6 +10,8 @@ const repo=fileURLToPath(new URL('../',import.meta.url)),dir=mkdtempSync(join(tm
 const dbPath=join(dir,'isolated.db'),port=5193,base=`http://127.0.0.1:${port}`
 let server,browser,logs=''
 const pause=ms=>new Promise(r=>setTimeout(r,ms))
+const registry=JSON.parse(await (await import('node:fs/promises')).readFile(new URL('../server/data/v3-activities.json',import.meta.url),'utf8'))
+const regById=aid=>registry.activities.find(x=>x.activityId===aid)
 async function api(path,body){const r=await fetch(base+path,{method:body===undefined?'GET':'POST',headers:{'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});const data=await r.json();if(!r.ok)throw Error(`${r.status} ${path}: ${JSON.stringify(data)}`);return data}
 try {
  const {chromium}=await import(process.env.EF_PLAYWRIGHT_IMPORT || 'playwright')
@@ -36,7 +38,7 @@ try {
  await page.reload();await page.getByText('学习路径 · 今天与下一步',{exact:true}).waitFor()
  if(!page.url().endsWith('#learn'))throw Error('learning entry lost after reload')
  let completed=0
- for(let course=0;course<4;course++){
+ for(let course=0;course<8;course++){
   const plan=(await api(`/api/v1/accounts/${id}/plan`)).decision
   if(!plan.lesson.lessonId){await page.getByRole('button',{name:/用 AI 生成这一课/}).waitFor();break}
   await page.getByRole('button',{name:/^(开始训练|继续上一段)$/}).click()
@@ -47,7 +49,10 @@ try {
    const area=page.locator('.v4-act')
    if(a.audio){await area.locator('audio').waitFor();const played=page.waitForResponse(r=>r.url().includes('/support/play')&&r.request().method()==='POST');await area.locator('audio').evaluate(el=>el.play());if((await played).status()!==200)throw Error('play rejected')}
    if(a.oralTask){await area.getByRole('button',{name:/开始录音/}).click();await pause(1100);await area.getByRole('button',{name:/停止录音/}).click();await area.getByRole('button',{name:'提交口语作答',exact:true}).waitFor()}
-   await area.locator('textarea').fill('The map worked as designed, but our assumption about visitors was incomplete. They walked toward crowded rooms because they thought something interesting was happening. We will ask why before changing the design.')
+   const contract=regById(a.activityId)?.evaluationContract?.slots
+   if(contract){for(const sc of contract){await area.locator('.v4-slot',{hasText:sc.prompt}).getByRole('button',{name:sc.accept,exact:true}).click()}}
+   const ta=area.locator('textarea')
+   if(await ta.count())await ta.first().fill('The map worked as designed, but our assumption about visitors was incomplete. They walked toward crowded rooms because they thought something interesting was happening. We will ask why before changing the design.')
    // Expiry recovery is exercised only inside this script's own guarded temporary DB.
    if(step===0 && (course===0 || course===2)) {
     const c=new DatabaseSync(dbPath);try{c.prepare('UPDATE issued_tasks SET expires_at=0 WHERE task_id=?').run(a.taskId)}finally{c.close()}
@@ -72,7 +77,7 @@ try {
   await page.getByRole('heading',{name:pkg.title+' · 已完成',exact:true}).waitFor()
   await page.getByRole('button',{name:'查看下一步',exact:true}).click();completed++
  }
- if(completed!==3)throw Error(`expected 3 development samples, got ${completed}`)
+ if(completed<5)throw Error(`expected at least 5 development samples, got ${completed}`)
  await page.getByRole('button',{name:'我的成长',exact:true}).first().click();await page.getByText('最近完成的训练',{exact:true}).waitFor()
  await page.setViewportSize({width:390,height:844});if(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth))throw Error('mobile overflow')
  // Self-rated exemption is an explicit user operation, never a mastery certificate.
@@ -88,7 +93,7 @@ try {
  const evidence=await api(`/api/v1/accounts/${id}/evidence`)
  if(evidence.states.some(s=>s.objectiveId===before.primaryGoal&&s.skill===before.primarySkill&&s.flags.includes('waived_by_user')))throw Error('waiver flag survived undo')
  if(errors.length)throw Error(errors.join(';'))
- console.log('UI_JOURNEY_OK: 3 development lessons, fake microphone, growth, honest exhausted content; no learning-effect claim')
+ console.log('UI_JOURNEY_OK: multiple development lessons, fake microphone, growth, honest exhausted content; no learning-effect claim')
 } finally {
  await browser?.close();server?.kill()
  if(server&&server.exitCode===null)await Promise.race([new Promise(r=>server.once('exit',r)),pause(3000)])

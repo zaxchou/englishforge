@@ -2800,6 +2800,565 @@
    },
    "complexityBand": 4,
    "revealFollowup": "开放追问：把这句改成限定版——比如团队有多位助手、这句要锁定“五月来的那位”。写出来对比。"
+  },
+  {
+   "activityId": "l1a_first_listen",
+   "version": 1,
+   "role": "practice",
+   "taskFamilyId": "standup_reminder_audio_E",
+   "objectiveIds": [
+    "O-K184-01",
+    "O-K184-02"
+   ],
+   "skillByObjective": {
+    "O-K184-01": "listening",
+    "O-K184-02": "listening"
+   },
+   "responseKind": "text",
+   "simulatesAudio": true,
+   "audioRef": "aud_l1_standup_v1",
+   "servesStrategies": [
+    "sound_segmentation"
+   ],
+   "prompt": "（受控练习音频：合成语音 synthetic，非真人；单一英文声源，“换声音”待真人录音。首听不显示脚本；点播放，可重复播放。听力记录受限——封顶「已练」，自然讲者版本到位后才升级。）\n\n点播放听一遍学习小组周会的汇报（新情境：复习提醒），然后逐空选择：团队最后的决定是什么？限制的条件是什么？“每天提醒”被说成彻底没用了吗？",
+   "hints": [
+    "先抓最后的结论句（So here is our conclusion…）。",
+    "注意 but only … 之后的部分：那是使用条件，不是“提醒没用”。"
+   ],
+   "conditionsSpec": [
+    "firstExposure",
+    "hintLevel",
+    "transcriptShown",
+    "playCount",
+    "lookupUsed",
+    "responseMode"
+   ],
+   "evaluationContract": {
+    "dimensions": [
+     "最终决定",
+     "限制条件",
+     "不是全盘否定"
+    ],
+    "slots": [
+     {
+      "slotId": "decision",
+      "prompt": "团队最后的决定是什么？",
+      "options": [
+       "每天继续提醒",
+       "平时关掉、只留考试周提醒",
+       "彻底取消提醒"
+      ],
+      "accept": "平时关掉、只留考试周提醒",
+      "objectiveIds": [
+       "O-K184-01",
+       "O-K184-02"
+      ]
+     },
+     {
+      "slotId": "limit",
+      "prompt": "限制的条件是什么？",
+      "options": [
+       "只在考试周前有用/需要",
+       "所有时候都有用",
+       "从来没有用过"
+      ],
+      "accept": "只在考试周前有用/需要",
+      "objectiveIds": [
+       "O-K184-01",
+       "O-K184-02"
+      ]
+     },
+     {
+      "slotId": "not_useless",
+      "prompt": "“每天提醒”被说成彻底没用了吗？",
+      "options": [
+       "没有——它只是平时没用，考试周有用",
+       "是——彻底没用"
+      ],
+      "accept": "没有——它只是平时没用，考试周有用",
+      "objectiveIds": [
+       "O-K184-01",
+       "O-K184-02"
+      ]
+     }
+    ],
+    "mustNotNegationGuard": true,
+    "unmeasuredObjectives": []
+   },
+   "revealFollowup": "开放追问：换一个你生活里的提醒（闹钟/待办/喝水提醒），用一句英语说出它的适用条件（as long as … / only when …）。",
+   "certification": "closed"
+  },
+  {
+   "activityId": "l1b_transcript_study",
+   "version": 1,
+   "role": "practice",
+   "taskFamilyId": "standup_reminder_audio_E",
+   "objectiveIds": [
+    "O-K184-01",
+    "O-K184-02"
+   ],
+   "skillByObjective": {
+    "O-K184-01": "reading",
+    "O-K184-02": "reading"
+   },
+   "responseKind": "text",
+   "simulatesAudio": true,
+   "audioRef": "aud_l1_standup_v1",
+   "transcriptShownByDefault": true,
+   "servesStrategies": [
+    "sound_segmentation"
+   ],
+   "prompt": "（合成音频 + 校对稿：本轮已展示校对稿，表现记入「文字理解」，不升级听力。音频为 synthetic 受控练习音频。）\n\n校对稿：In our study group, we set up daily review reminders in October. The idea was to send a short message every evening at eight. We expected the daily reminders to help everyone keep up with the readings. In fact, after two weeks, most of us ignored the evening messages, and the reminders stopped feeling useful. So here is our conclusion: reminders do help, but only before exam week, when everyone wants a schedule; on normal weeks, we will turn them off and review on our own.\n\n请逐空定位：1) 哪一句说了限制（只在什么时候有用）？2) In fact 分开的是哪两件事？",
+   "hints": [
+    "限制在最后一句的 but only before exam week。",
+    "In fact 前是预期（每天提醒有用），后是实际（两周后大家忽略）。"
+   ],
+   "conditionsSpec": [
+    "firstExposure",
+    "hintLevel",
+    "transcriptShown",
+    "playCount",
+    "lookupUsed",
+    "responseMode"
+   ],
+   "evaluationContract": {
+    "dimensions": [
+     "限制句定位",
+     "预期与实际"
+    ],
+    "slots": [
+     {
+      "slotId": "limit_sentence",
+      "prompt": "哪一句说了限制（只在什么时候有用）？",
+      "options": [
+       "最后一句：reminders do help, but only before exam week…",
+       "第一句：我们设了每天的提醒",
+       "In fact 那句：两周后大家忽略了"
+      ],
+      "accept": "最后一句：reminders do help, but only before exam week…",
+      "objectiveIds": [
+       "O-K184-01",
+       "O-K184-02"
+      ]
+     },
+     {
+      "slotId": "expect_vs_fact",
+      "prompt": "In fact 分开的是哪两件事？",
+      "options": [
+       "预期（每天提醒有用）和实际（两周后大家忽略）",
+       "两个不同的提醒工具",
+       "两个小组的不同做法"
+      ],
+      "accept": "预期（每天提醒有用）和实际（两周后大家忽略）",
+      "objectiveIds": [
+       "O-K184-01",
+       "O-K184-02"
+      ]
+     }
+    ],
+    "mustNotNegationGuard": true,
+    "unmeasuredObjectives": []
+   },
+   "revealFollowup": "开放追问：把你写的英文短建议再缩短一半——删掉哪些词意思还在？",
+   "certification": "closed"
+  },
+  {
+   "activityId": "l1c_relisten_closed",
+   "version": 1,
+   "role": "practice",
+   "taskFamilyId": "standup_reminder_audio_E",
+   "objectiveIds": [
+    "O-K184-01",
+    "O-K184-02"
+   ],
+   "skillByObjective": {
+    "O-K184-01": "listening",
+    "O-K184-02": "listening"
+   },
+   "responseKind": "text",
+   "simulatesAudio": true,
+   "audioRef": "aud_l1_standup_v1",
+   "servesStrategies": [
+    "sound_segmentation"
+   ],
+   "prompt": "（受控练习音频 synthetic；这一轮**关闭稿**重新听——校对稿已经收起。点播放，可重复播放。）\n\n再听一遍同一段汇报，逐空选择：讲者用什么词把「预期」和「实际」分开？团队对平时周的处理是哪种？",
+   "hints": [
+    "第 1 问听转折词：In fact 之后说的才是实际。",
+    "第 2 问听结论句里的 turn them off。"
+   ],
+   "conditionsSpec": [
+    "firstExposure",
+    "hintLevel",
+    "transcriptShown",
+    "playCount",
+    "lookupUsed",
+    "responseMode"
+   ],
+   "evaluationContract": {
+    "dimensions": [
+     "转折词",
+     "平时周的处理"
+    ],
+    "slots": [
+     {
+      "slotId": "pivot",
+      "prompt": "讲者用什么词把「预期」和「实际」分开？",
+      "options": [
+       "In fact",
+       "Because",
+       "So that"
+      ],
+      "accept": "In fact",
+      "objectiveIds": [
+       "O-K184-01",
+       "O-K184-02"
+      ]
+     },
+     {
+      "slotId": "turn_off",
+      "prompt": "团队对平时周的处理是哪种？",
+      "options": [
+       "关掉提醒（turn them off）",
+       "缩短提醒时间",
+       "提醒永远开着"
+      ],
+      "accept": "关掉提醒（turn them off）",
+      "objectiveIds": [
+       "O-K184-01",
+       "O-K184-02"
+      ]
+     }
+    ],
+    "mustNotNegationGuard": true,
+    "unmeasuredObjectives": []
+   },
+   "revealFollowup": "开放追问：用 In fact 造一句你自己的话——前半句是你原本以为的，后半句是实际发生的。",
+   "certification": "closed"
+  },
+  {
+   "activityId": "l1d_second_context",
+   "version": 1,
+   "role": "transfer",
+   "taskFamilyId": "laundry_schedule_audio_F",
+   "objectiveIds": [
+    "O-K184-01",
+    "O-K184-02"
+   ],
+   "skillByObjective": {
+    "O-K184-01": "listening",
+    "O-K184-02": "listening"
+   },
+   "responseKind": "text",
+   "simulatesAudio": true,
+   "audioRef": "aud_l1d_laundry_v1",
+   "servesStrategies": [
+    "sound_segmentation"
+   ],
+   "prompt": "（受控练习音频 synthetic；换材料换情境——从课堂汇报换到宿舍生活。首听不显示脚本；点播放，可重复播放。）\n\n听一遍关于宿舍洗衣时间表的说明，逐空选择：这个表什么时候好用？什么时候帮不上忙？最后的决定是什么？",
+   "hints": [
+    "先抓 works well on weekdays。",
+    "But 之后是限制：周五晚上；最后听 keep it for weekdays only。"
+   ],
+   "conditionsSpec": [
+    "firstExposure",
+    "hintLevel",
+    "transcriptShown",
+    "playCount",
+    "lookupUsed",
+    "responseMode"
+   ],
+   "evaluationContract": {
+    "dimensions": [
+     "何时有效",
+     "何时无效",
+     "决定"
+    ],
+    "slots": [
+     {
+      "slotId": "weekdays_ok",
+      "prompt": "这个表什么时候好用？",
+      "options": [
+       "工作日（大家上课时间错开）",
+       "周五晚上",
+       "从来不好用"
+      ],
+      "accept": "工作日（大家上课时间错开）",
+      "objectiveIds": [
+       "O-K184-01",
+       "O-K184-02"
+      ]
+     },
+     {
+      "slotId": "friday_bad",
+      "prompt": "什么时候帮不上忙？",
+      "options": [
+       "周五晚上（大家同时想洗）",
+       "周一早上",
+       "一直好用"
+      ],
+      "accept": "周五晚上（大家同时想洗）",
+      "objectiveIds": [
+       "O-K184-01",
+       "O-K184-02"
+      ]
+     },
+     {
+      "slotId": "keep_decision",
+      "prompt": "最后的决定是什么？",
+      "options": [
+       "只在工作日保留",
+       "彻底废弃",
+       "全天开放使用"
+      ],
+      "accept": "只在工作日保留",
+      "objectiveIds": [
+       "O-K184-01",
+       "O-K184-02"
+      ]
+     }
+    ],
+    "mustNotNegationGuard": true,
+    "unmeasuredObjectives": []
+   },
+   "revealFollowup": "开放追问：你们宿舍/班级还有一个「只在某些时候好用」的约定吗？用一句英语说它什么时候成立、什么时候不成立。",
+   "certification": "closed"
+  },
+  {
+   "activityId": "l1e_oral_respond",
+   "version": 1,
+   "role": "practice",
+   "taskFamilyId": "standup_respond_oral_E",
+   "objectiveIds": [
+    "O-K184-01"
+   ],
+   "skillByObjective": {
+    "O-K184-01": "speaking"
+   },
+   "responseKind": "text",
+   "oralEvidenceDeferred": true,
+   "servesStrategies": [
+    "sound_segmentation",
+    "oral_retrieval"
+   ],
+   "prompt": "（口头回应：页内录音。机器词表反馈只作练习参考，**口语掌握待人审复核**；转写词错≠你的错。这是听力链的收口——听完之后用自己的话回应。）\n\n如果你是小组一员，你会接受「只在考试周开提醒」吗？脱稿说一两句英语：先给立场（我接受/我不完全接受），再给一个限制条件（只要…／除非…）。",
+   "hints": [
+    "先说立场，再说条件：I agree … as long as … ／ I'm not sure … unless …",
+    "条件要具体：哪一周、哪类课、忙到什么程度。"
+   ],
+   "conditionsSpec": [
+    "firstExposure",
+    "hintLevel",
+    "responseMode"
+   ],
+   "evaluationContract": {
+    "dimensions": [
+     "立场",
+     "限制条件"
+    ],
+    "relations": [
+     {
+      "id": "stance",
+      "label": "给出立场（接受/不完全接受）",
+      "anyOf": [
+       "agree",
+       "接受",
+       "i think",
+       "not sure",
+       "不接受",
+       "部分",
+       "depends",
+       "看情况"
+      ],
+      "required": true,
+      "objectiveIds": [
+       "O-K184-01"
+      ]
+     },
+     {
+      "id": "condition",
+      "label": "给出限制条件（as long as / unless / 只要 / 除非）",
+      "anyOf": [
+       "as long as",
+       "unless",
+       "只要",
+       "除非",
+       "如果",
+       "if"
+      ],
+      "required": false,
+      "objectiveIds": [
+       "O-K184-01"
+      ]
+     }
+    ],
+    "mustNot": []
+   },
+   "revealFollowup": "开放追问：把你刚才的口头回应写下来，看看和你说的是不是同一件事——少了哪个词意思会变？"
+  },
+  {
+   "activityId": "o1a_schedule_decision",
+   "version": 1,
+   "role": "practice",
+   "taskFamilyId": "schedule_oral_G",
+   "objectiveIds": [
+    "O-K190-01"
+   ],
+   "skillByObjective": {
+    "O-K190-01": "speaking"
+   },
+   "responseKind": "text",
+   "oralEvidenceDeferred": true,
+   "servesStrategies": [
+    "oral_retrieval"
+   ],
+   "prompt": "（口头回应：页内录音；机器词表反馈只作练习参考，口语掌握待人审。新情境：你们小组的项目站会要从周三晚改到周六上午。）\n\n脱稿录音，把这件事讲清楚：决定是什么、为什么改、保留什么条件（比如有人来不了怎么办）。不用背句子——把三件事说清楚就行。",
+   "hints": [
+    "三件事各一句：决定（改到周六上午）→ 原因（…）→ 条件（来不了的人…）。",
+    "可用语块：We're moving … to … because … If someone can't come, we will …"
+   ],
+   "conditionsSpec": [
+    "firstExposure",
+    "hintLevel",
+    "responseMode"
+   ],
+   "evaluationContract": {
+    "dimensions": [
+     "决定",
+     "原因",
+     "条件"
+    ],
+    "relations": [
+     {
+      "id": "decision",
+      "label": "说清决定（改到周六上午）",
+      "anyOf": [
+       "saturday",
+       "周六",
+       "星期六",
+       "move",
+       "改到",
+       "换到"
+      ],
+      "required": true,
+      "objectiveIds": [
+       "O-K190-01"
+      ]
+     },
+     {
+      "id": "reason",
+      "label": "说出原因（冲突/来不及/因为…）",
+      "anyOf": [
+       "because",
+       "因为",
+       "conflict",
+       "冲突",
+       "can't",
+       "来不及",
+       "没时间"
+      ],
+      "required": false,
+      "objectiveIds": [
+       "O-K190-01"
+      ]
+     },
+     {
+      "id": "condition",
+      "label": "保留条件（来不了的人怎么办）",
+      "anyOf": [
+       "if someone",
+       "record",
+       "录音",
+       "回看",
+       "another time",
+       "其他时间",
+       "补",
+       "来不了"
+      ],
+      "required": false,
+      "objectiveIds": [
+       "O-K190-01"
+      ]
+     }
+    ],
+    "mustNot": []
+   },
+   "revealFollowup": "开放追问：把你的录音内容用三句英语写下来——写的时候发现哪句最难说清？那就是下次要先练的。"
+  },
+  {
+   "activityId": "o1b_followup_reply",
+   "version": 1,
+   "role": "transfer",
+   "taskFamilyId": "schedule_followup_oral_G2",
+   "objectiveIds": [
+    "O-K190-01",
+    "O-K194-01"
+   ],
+   "skillByObjective": {
+    "O-K190-01": "speaking",
+    "O-K194-01": "speaking"
+   },
+   "responseKind": "text",
+   "oralEvidenceDeferred": true,
+   "unlockAfter": "o1a_schedule_decision",
+   "servesStrategies": [
+    "oral_retrieval"
+   ],
+   "prompt": "（口头回应：页内录音；即时追问——听/看完追问后直接回应，不要打草稿。机器反馈只作练习参考。）\n\n队友追问：「小周周六要加班，来不了，那怎么办？」——录音回应：给出安排，并说明这不是取消小周的参与。",
+   "hints": [
+    "先接住问题（OK / Good point），再给安排：He can … ／ We will record …",
+    "最后补一句这不是取消：He's still in — he just …"
+   ],
+   "conditionsSpec": [
+    "firstExposure",
+    "hintLevel",
+    "responseMode"
+   ],
+   "evaluationContract": {
+    "dimensions": [
+     "给出安排",
+     "不取消参与"
+    ],
+    "relations": [
+     {
+      "id": "arrangement",
+      "label": "给出具体安排（录音/异步/另约时间）",
+      "anyOf": [
+       "record",
+       "录音",
+       "回看",
+       "another time",
+       "另",
+       "补",
+       "async",
+       "notes",
+       "笔记"
+      ],
+      "required": true,
+      "objectiveIds": [
+       "O-K194-01"
+      ]
+     },
+     {
+      "id": "still_in",
+      "label": "说明不是取消他的参与",
+      "anyOf": [
+       "still",
+       "仍然",
+       "还是",
+       "not cancel",
+       "没有取消",
+       "still in",
+       "照样"
+      ],
+      "required": false,
+      "objectiveIds": [
+       "O-K194-01"
+      ]
+     }
+    ],
+    "mustNot": []
+   },
+   "revealFollowup": "开放追问：把「先接住问题→给安排→说明不是取消」这个三步式用在另一个追问上（比如“作业延期了怎么办”）。"
   }
  ]
 }

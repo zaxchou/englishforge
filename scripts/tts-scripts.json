@@ -1,83 +1,157 @@
 {
-  "notice": "受控原创听力脚本（18 §2/§5 为权威稿）。合成管线：Windows SAPI（Microsoft Zira en-US），纯文本 + Rate 属性（SSML <prosody> 实测致语速减半，禁用）。本机只有一个英文声源——18 §2 的『两名讲者平行版本』与 21 §6 的跨讲者检查无法做到，也不以变速冒充（18 §2 制作注），缺口如实保持开放，待真人录音补足。产物全部标注 synthetic（受控练习音频，不得冒充真实 podcast，21 §6.2）；设备播放与自然度试听由人完成（23 号报告记录）。 真实外部素材（kind=real_material）经来源+许可+哈希三核后才入清单；人耳听校（噪声/字幕/片段起止）完成前不得当正式材料。本脚本合并写 manifest：只更新自己产出的行，手工入账的行保留。",
-  "scripts": [
+ "notice": "受控原创听力脚本（18 §2/§5 为权威稿）。合成管线：Windows SAPI（Microsoft Zira en-US），纯文本 + Rate 属性（SSML <prosody> 实测致语速减半，禁用）。本机只有一个英文声源——18 §2 的『两名讲者平行版本』与 21 §6 的跨讲者检查无法做到，也不以变速冒充（18 §2 制作注），缺口如实保持开放，待真人录音补足。产物全部标注 synthetic（受控练习音频，不得冒充真实 podcast，21 §6.2）；设备播放与自然度试听由人完成（23 号报告记录）。 真实外部素材（kind=real_material）经来源+许可+哈希三核后才入清单；人耳听校（噪声/字幕/片段起止）完成前不得当正式材料。本脚本合并写 manifest：只更新自己产出的行，手工入账的行保留。",
+ "scripts": [
+  {
+   "scriptId": "d2_library_v1",
+   "mediaId": "aud_d2_library_v1",
+   "activityIds": [
+    "diag_d2_listen_sim"
+   ],
+   "version": 1,
+   "voice": "Microsoft Zira Desktop",
+   "voiceParams": {
+    "rate": 0
+   },
+   "speakerLabel": "synthetic-A（Zira，非真人；单一英文声源）",
+   "family": "library_ai_audio_A",
+   "segments": [
     {
-      "scriptId": "d2_library_v1",
-      "mediaId": "aud_d2_library_v1",
-      "activityIds": [
-        "diag_d2_listen_sim"
-      ],
-      "version": 1,
-      "voice": "Microsoft Zira Desktop",
-      "voiceParams": {
-        "rate": 0
-      },
-      "speakerLabel": "synthetic-A（Zira，非真人；单一英文声源）",
-      "family": "library_ai_audio_A",
-      "segments": [
-        {
-          "label": "背景",
-          "text": "In a campus library, our class tested an AI assistant that suggests articles for design projects.",
-          "meaningBasis": "场景与主题：校园图书馆里全班测试一个为设计项目推荐文章的 AI 助手。"
-        },
-        {
-          "label": "最初有用",
-          "text": "At first, the suggestions looked useful because the assistant found papers on the topics we entered.",
-          "meaningBasis": "最初印象的依据：按输入话题找到了论文，所以『看起来』有用。"
-        },
-        {
-          "label": "发现问题",
-          "text": "But when we checked the sources, several summaries missed important limits in the original papers.",
-          "meaningBasis": "but 转折的对象：核查来源后发现，若干摘要漏掉了原论文的重要限制。"
-        },
-        {
-          "label": "最终结论",
-          "text": "So our conclusion was narrower than we expected: the tool can help us find papers worth reading, but we still need to read each source before using it to support a design decision.",
-          "meaningBasis": "最终评价（带限定）：能帮助找到值得读的论文；但支撑设计决策前必须自己读每篇来源——不是『不能用』也不是『随便用』。"
-        }
-      ]
+     "label": "背景",
+     "text": "In a campus library, our class tested an AI assistant that suggests articles for design projects.",
+     "meaningBasis": "场景与主题：校园图书馆里全班测试一个为设计项目推荐文章的 AI 助手。"
     },
     {
-      "scriptId": "l2_museum_v1",
-      "mediaId": "aud_l2_museum_v1",
-      "activityIds": [
-        "les_l2_museum_map_audio",
-        "les_l2b_museum_transcript"
-      ],
-      "version": 1,
-      "voice": "Microsoft Zira Desktop",
-      "voiceParams": {
-        "rate": 0
-      },
-      "speakerLabel": "synthetic-A（Zira，与 D2 同声源不同稿——18 §5 要求 L2 与 D2 不同情境）",
-      "family": "museum_map_audio_D",
-      "segments": [
-        {
-          "label": "做了什么",
-          "text": "We made a map that tells visitors which rooms in the museum are busy.",
-          "meaningBasis": "项目内容：一张告诉游客哪些展厅拥挤的地图。"
-        },
-        {
-          "label": "预期",
-          "text": "We expected people to choose a quieter route.",
-          "meaningBasis": "团队预期：人们会因此选更安静的路线。"
-        },
-        {
-          "label": "实际观察",
-          "text": "In fact, some visitors walked toward the crowded rooms because they thought something interesting was happening there.",
-          "meaningBasis": "实际行为与机制：有人反而走向拥挤展厅——因为他们以为那里有有意思的事。because 解释的是游客的动机。"
-        },
-        {
-          "label": "判定",
-          "text": "The map was working as designed, but our assumption about what visitors wanted was incomplete.",
-          "meaningBasis": "but 对照的两件事：地图按设计正常工作 ↔ 团队对游客需求的假设不完整。失灵的是假设，不是地图。"
-        },
-        {
-          "label": "下一步",
-          "text": "Next month, we will ask visitors why they chose a route before we change the design.",
-          "meaningBasis": "后续计划：先问游客选路线的原因，再决定改不改设计。"
-        }
-      ]
+     "label": "最初有用",
+     "text": "At first, the suggestions looked useful because the assistant found papers on the topics we entered.",
+     "meaningBasis": "最初印象的依据：按输入话题找到了论文，所以『看起来』有用。"
+    },
+    {
+     "label": "发现问题",
+     "text": "But when we checked the sources, several summaries missed important limits in the original papers.",
+     "meaningBasis": "but 转折的对象：核查来源后发现，若干摘要漏掉了原论文的重要限制。"
+    },
+    {
+     "label": "最终结论",
+     "text": "So our conclusion was narrower than we expected: the tool can help us find papers worth reading, but we still need to read each source before using it to support a design decision.",
+     "meaningBasis": "最终评价（带限定）：能帮助找到值得读的论文；但支撑设计决策前必须自己读每篇来源——不是『不能用』也不是『随便用』。"
     }
-  ]
+   ]
+  },
+  {
+   "scriptId": "l2_museum_v1",
+   "mediaId": "aud_l2_museum_v1",
+   "activityIds": [
+    "les_l2_museum_map_audio",
+    "les_l2b_museum_transcript"
+   ],
+   "version": 1,
+   "voice": "Microsoft Zira Desktop",
+   "voiceParams": {
+    "rate": 0
+   },
+   "speakerLabel": "synthetic-A（Zira，与 D2 同声源不同稿——18 §5 要求 L2 与 D2 不同情境）",
+   "family": "museum_map_audio_D",
+   "segments": [
+    {
+     "label": "做了什么",
+     "text": "We made a map that tells visitors which rooms in the museum are busy.",
+     "meaningBasis": "项目内容：一张告诉游客哪些展厅拥挤的地图。"
+    },
+    {
+     "label": "预期",
+     "text": "We expected people to choose a quieter route.",
+     "meaningBasis": "团队预期：人们会因此选更安静的路线。"
+    },
+    {
+     "label": "实际观察",
+     "text": "In fact, some visitors walked toward the crowded rooms because they thought something interesting was happening there.",
+     "meaningBasis": "实际行为与机制：有人反而走向拥挤展厅——因为他们以为那里有有意思的事。because 解释的是游客的动机。"
+    },
+    {
+     "label": "判定",
+     "text": "The map was working as designed, but our assumption about what visitors wanted was incomplete.",
+     "meaningBasis": "but 对照的两件事：地图按设计正常工作 ↔ 团队对游客需求的假设不完整。失灵的是假设，不是地图。"
+    },
+    {
+     "label": "下一步",
+     "text": "Next month, we will ask visitors why they chose a route before we change the design.",
+     "meaningBasis": "后续计划：先问游客选路线的原因，再决定改不改设计。"
+    }
+   ]
+  },
+  {
+   "scriptId": "l1_standup_reminder_v1",
+   "mediaId": "aud_l1_standup_v1",
+   "activityIds": [
+    "l1a_first_listen",
+    "l1b_transcript_study",
+    "l1c_relisten_closed"
+   ],
+   "version": 1,
+   "voice": "Microsoft Zira Desktop",
+   "voiceParams": {
+    "rate": 0
+   },
+   "speakerLabel": "synthetic-A（Zira，单一英文声源——换真人间隙如实标注；与 D2/L2 不同情境）",
+   "family": "standup_reminder_audio_E",
+   "segments": [
+    {
+     "label": "做了什么",
+     "text": "In our study group, we set up daily review reminders in October. The idea was to send a short message every evening at eight.",
+     "meaningBasis": "项目内容：十月起设了每天晚上八点的复习提醒。"
+    },
+    {
+     "label": "预期",
+     "text": "We expected the daily reminders to help everyone keep up with the readings.",
+     "meaningBasis": "团队预期：每天提醒能帮大家跟上阅读。"
+    },
+    {
+     "label": "实际观察",
+     "text": "In fact, after two weeks, most of us ignored the evening messages, and the reminders stopped feeling useful.",
+     "meaningBasis": "实际结果：两周后大多数人忽略了晚间消息——提醒不再有用。in fact 分开预期与实际。"
+    },
+    {
+     "label": "结论与限制",
+     "text": "So here is our conclusion: reminders do help, but only before exam week, when everyone wants a schedule; on normal weeks, we will turn them off and review on our own.",
+     "meaningBasis": "最终主张带限制：提醒有用——但只在考试周前（大家想要时间表时）；平时周关掉、自己安排。限制是使用条件，不是“提醒没用”。"
+    }
+   ]
+  },
+  {
+   "scriptId": "l1d_laundry_v1",
+   "mediaId": "aud_l1d_laundry_v1",
+   "activityIds": [
+    "l1d_second_context"
+   ],
+   "version": 1,
+   "voice": "Microsoft Zira Desktop",
+   "voiceParams": {
+    "rate": 0
+   },
+   "speakerLabel": "synthetic-A（Zira，单一英文声源——换材料换情境，“换声音”待真人录音，如实开放）",
+   "family": "laundry_schedule_audio_F",
+   "segments": [
+    {
+     "label": "做了什么",
+     "text": "Our dorm floor shares one washing machine, so we made a sign-up sheet for laundry times.",
+     "meaningBasis": "背景与做法：全层共用一台洗衣机，做了洗衣时间登记表。"
+    },
+    {
+     "label": "为何这么做",
+     "text": "Before the sheet, two or three people always picked the same hour and argued about it.",
+     "meaningBasis": "动因：表做出来之前总有人撞点吵架——表是为了解决真实冲突。"
+    },
+    {
+     "label": "何时有效",
+     "text": "The sheet works well on weekdays, because everyone is in class at different hours.",
+     "meaningBasis": "主张成立范围：工作日好用——大家上课时间错开。"
+    },
+    {
+     "label": "限制与决定",
+     "text": "But on Friday evenings everyone wants to wash at the same time, so the sheet does not help then. We will keep it for weekdays only.",
+     "meaningBasis": "限制说得很具体：周五晚上大家同时想洗，表帮不上忙——决定是只在工作日保留。限制是适用范围，不是“表没用”。"
+    }
+   ]
+  }
+ ]
 }

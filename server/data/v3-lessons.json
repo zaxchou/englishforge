@@ -334,6 +334,120 @@
    ],
    "holdoutRef": null,
    "chainNote": "40 号：O-K115-01 前沿目标课——真实推荐会落到这里的缺口，先补上让连续路径真连续"
+  },
+  {
+   "lessonId": "les-listening-c1",
+   "version": 1,
+   "title": "听出主张和限制：从一段汇报开始",
+   "whyNow": "听力目标的主课来了：无稿首听抓结论 → 校对稿解释 → 关稿重听 → 换情境再试 → 口头回应。音频是合成语音（synthetic，受控练习）——听力记录受限封顶「已练」，自然讲者版本到位后才升级，这里如实标注。",
+   "teachingNote": "听长段先抓最后一句结论（So here is our conclusion…）；转折词（but / in fact）前后各是预期和实际；限制是“什么时候成立”，不是“没用”。",
+   "strategyId": "sound_segmentation",
+   "objectiveIds": [
+    "O-K184-01",
+    "O-K184-02"
+   ],
+   "difficultyDims": [],
+   "activities": [
+    {
+     "activityId": "l1a_first_listen",
+     "version": 1,
+     "role": "practice",
+     "hintStages": [
+      "先抓最后的结论句（So here is our conclusion…）。",
+      "注意 but 只在……之后的部分：那是使用条件，不是“提醒没用”。"
+     ]
+    },
+    {
+     "activityId": "l1b_transcript_study",
+     "version": 1,
+     "role": "practice",
+     "hintStages": [
+      "限制在最后一句的 but only before exam week。",
+      "In fact 前是预期（每天提醒有用），后是实际（两周后大家忽略）。"
+     ]
+    },
+    {
+     "activityId": "l1c_relisten_closed",
+     "version": 1,
+     "role": "practice",
+     "hintStages": [
+      "第 1 问听转折词：In fact 之后说的才是实际。",
+      "第 2 问听结论句里的 turn them off。"
+     ]
+    },
+    {
+     "activityId": "l1d_second_context",
+     "version": 1,
+     "role": "transfer",
+     "hintStages": [
+      "先抓 works well on weekdays。",
+      "But 之后是限制：周五晚上；最后听 keep it for weekdays only。"
+     ]
+    },
+    {
+     "activityId": "l1e_oral_respond",
+     "version": 1,
+     "role": "practice",
+     "hintStages": [
+      "先说立场，再说条件：I agree … as long as … ／ I'm not sure … unless …",
+      "条件要具体：哪一周、哪类课、忙到什么程度。"
+     ]
+    }
+   ],
+   "nextCandidates": [
+    "les-oral-c1"
+   ],
+   "sourceRefs": [
+    {
+     "ref": "T",
+     "claim": "受控原创脚本：主张带使用条件（考试周/工作日）；限制≠没用——听力理解以结论+限制复述为准"
+    }
+   ],
+   "holdoutRef": null,
+   "chainNote": "43 号听力链：无稿首听→校对稿→关稿重听→换材料→口头回应；合成音频如实标注，听力证据受限封顶 trained"
+  },
+  {
+   "lessonId": "les-oral-c1",
+   "version": 1,
+   "title": "回应追问：把决定说清楚",
+   "whyNow": "听力链的收口是开口。这一课练实际表达：把一个小组决定脱稿讲清，再接住队友的即时追问。",
+   "teachingNote": "讲清一件事的三步：决定 → 原因 → 保留条件。接追问的三步：先接住（OK/Good point）→ 给安排 → 说明这不是取消。",
+   "strategyId": "oral_retrieval",
+   "objectiveIds": [
+    "O-K190-01",
+    "O-K194-01"
+   ],
+   "difficultyDims": [],
+   "activities": [
+    {
+     "activityId": "o1a_schedule_decision",
+     "version": 1,
+     "role": "practice",
+     "hintStages": [
+      "三件事各一句：决定（改到周六上午）→ 原因（…）→ 条件（来不了的人…）。",
+      "可用语块：We're moving … to … because … If someone can't come, we will …"
+     ]
+    },
+    {
+     "activityId": "o1b_followup_reply",
+     "version": 1,
+     "role": "transfer",
+     "unlockAfter": "o1a_schedule_decision",
+     "hintStages": [
+      "先接住问题（OK / Good point），再给安排：He can … ／ We will record …",
+      "最后补一句这不是取消：He's still in — he just …"
+     ]
+    }
+   ],
+   "nextCandidates": [],
+   "sourceRefs": [
+    {
+     "ref": "T",
+     "claim": "受控原创情境（项目站会改时间）：脱稿讲清决定/原因/条件 + 即时追问回应"
+    }
+   ],
+   "holdoutRef": null,
+   "chainNote": "43 号口头回应链：实际表达+即时追问；口语证据 defer（机器反馈练习级，掌握待人审）"
   }
  ]
 }

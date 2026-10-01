@@ -45,6 +45,10 @@ const ANSWER_BANK = {
   g3c_film_transfer: '第一句只是对照（小房间好用、大厅难跟上）；第二句的限制只是推迟配音测试——影片和视觉序列都保留，不是放弃。',
   g4c_claim_limit_slots: '主张是地图按设计正常工作；but 之后修正的是团队对访客想要什么的预期——地图没坏，是假设不完整。',
   g4c_recap_write: '地图一直按设计在运行；不完整的是我们对访客想要什么的假设。下一步先去问访客为什么这样选路线，再决定要不要改。',
+  // 43 号听力/口头链（开放题；听后选择题的 accept 从注册表自动取）
+  l1e_oral_respond: 'I agree with the change, as long as reminders come back before exam week.',
+  o1a_schedule_decision: "We're moving the stand-up to Saturday morning because Wednesday evenings conflict with class. If someone can't come, we will record it and share notes.",
+  o1b_followup_reply: "OK, good point. He can watch the recording and add notes async — he's still in, we are not cancelling him.",
   diag_d1b_contrast: '工具在小房间（安静的）可用，在大房间（吵的）失败。',
   diag_d3_oral_typed: '我们从 AI 助手学到：它能帮我们找到值得读的论文，但摘要可能漏掉原文的重要限制，所以使用前必须自己读。我的项目里我会用它找材料，但会自己核查来源。',
 }
