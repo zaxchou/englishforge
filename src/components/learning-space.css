@@ -20,3 +20,30 @@ html[data-learning-theme=dark] .learning-mode .sidebar-focus{background:#343047!
 .learning-mode .forge-sidebar nav{display:flex;flex-direction:column}.learning-mode .forge-sidebar nav button.selected{order:-1}.learning-mode .forge-sidebar nav button:not(.selected){font-size:12px;opacity:.8}
 .journey-hero{padding-top:12px;gap:30px}.journey-hero h1{font-size:40px;margin:10px 0 12px}.journey-hero p{margin:8px 0}.journey-stops button{padding-top:10px;padding-bottom:10px}.journey-stops span{font-size:20px;margin-bottom:6px}
 @media(max-width:900px){.learning-mode .forge-sidebar{padding:14px!important}.learning-mode .forge-sidebar nav{flex-direction:row;flex-wrap:wrap}.learning-mode .forge-sidebar nav button:not(.selected),.learning-mode .nav-label,.learning-mode .sidebar-focus,.learning-mode .sidebar-bottom>button{display:none}.learning-mode .sidebar-bottom{margin-top:0!important}.learning-mode .sidebar-account{padding:6px!important}.learning-mode .forge-brand{margin-bottom:8px!important}.learning-mode .forge-brand img{width:30px;height:30px}.learning-mode .topbar{min-height:35px;padding:7px 0!important}.journey-hero aside{padding-top:12px}.journey-hero aside strong{margin:8px 0}.journey-hero aside .journey-text-button{margin-top:8px}.journey-hero h1{font-size:34px}}
+
+/* ---- 47 号：学习路线时间线 + 段位卡 ---- */
+.journey-timeline { margin: 8px 0 4px; }
+.journey-level-card { border: 1px solid rgba(120,140,180,.25); border-radius: 14px; padding: 14px 16px; margin-bottom: 14px; background: linear-gradient(135deg, rgba(90,130,255,.10), rgba(120,220,180,.08)); }
+.journey-level-now { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.journey-level-label { font-size: 12px; opacity: .7; }
+.journey-level-now strong { font-size: 22px; }
+.journey-level-stats { font-size: 12px; opacity: .75; }
+.journey-level-next { margin-top: 6px; font-size: 13px; opacity: .85; }
+.journey-steps { list-style: none; margin: 0; padding: 0; }
+.journey-steps li { display: flex; gap: 12px; align-items: flex-start; padding: 8px 0; border-left: 2px solid rgba(130,150,180,.35); margin-left: 14px; padding-left: 16px; position: relative; }
+.journey-steps li .dot { position: absolute; left: -15px; top: 8px; width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; }
+.journey-steps li.done .dot { background: #2f9e6e; color: #fff; }
+.journey-steps li.now .dot { background: #3b6ef6; color: #fff; box-shadow: 0 0 0 4px rgba(59,110,246,.18); }
+.journey-steps li.next .dot { background: rgba(130,150,180,.35); color: inherit; }
+.journey-steps li.now b { color: #2b5fe3; }
+.journey-steps li small { display: block; opacity: .7; font-size: 12px; }
+.journey-steps .bar { height: 6px; border-radius: 4px; background: rgba(130,150,180,.25); margin-top: 6px; max-width: 260px; overflow: hidden; }
+.journey-steps .bar i { display: block; height: 100%; background: #3b6ef6; border-radius: 4px; }
+[data-learning-theme='dark'] .journey-level-card { background: linear-gradient(135deg, rgba(120,100,255,.16), rgba(60,200,200,.08)); border-color: rgba(150,130,255,.3); }
+[data-learning-theme='dark'] .journey-steps li.now b { color: #9d8bff; }
+[data-learning-theme='dark'] .journey-steps .bar i { background: #9d8bff; }
+
+/* ---- 47 号：完成页本次小结 ---- */
+.v4-done-summary { display: flex; gap: 14px; flex-wrap: wrap; margin: 10px 0; font-size: 14px; }
+.v4-done-level { border-left: 3px solid #3b6ef6; padding: 6px 12px; margin: 10px 0; background: rgba(59,110,246,.06); border-radius: 0 8px 8px 0; }
+[data-learning-theme='dark'] .v4-done-level { border-color: #9d8bff; background: rgba(157,139,255,.08); }

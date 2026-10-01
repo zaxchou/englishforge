@@ -8,6 +8,7 @@ import { ApiError, getAccount } from './db.mjs'
 import { ensureV3Schema, oldRecordMap } from './v3db.mjs'
 import { mapIndex, rowToObjective } from './v3map.mjs'
 import { recordAttempt, evidenceSummary, waive, revokeWaiver, reportContent, getStoredAttempt, claimExpression } from './v3evidence.mjs'
+import { getJourney, getGrowth } from './v3journey.mjs'
 import { startDiagnostic, getDiagnostic, advanceDiagnostic, expectedActivityFor, latestOpenDiagnostic } from './v3diag.mjs'
 import { getPlan, recomputePlan } from './v3plan.mjs'
 import { serveLesson, revealHint, completeLesson, listLessons, seedLessons, withdrawLesson, publishLesson, signLesson } from './v3lessons.mjs'
@@ -178,6 +179,9 @@ export const V3_ROUTES = [
   // W4：按需生成供给。生成默认关闭（防误调真实模型计费），ENGLISHFORGE_V4_GENERATION=1 显式开启
   ['GET', '/api/v1/accounts/:id/window', (ctx) => { requireAccount(ctx.params.id); return ensureWindow(ctx.params.id) }],
   ['POST', '/api/v1/accounts/:id/window/reestimate', (ctx) => { requireAccount(ctx.params.id); return reestimateWindow(ctx.params.id, body_str(ctx, 'trigger') || 'manual') }],
+  // 47 号：学习路线时间线 + 段位成长（只读）
+  ['GET', '/api/v1/accounts/:id/journey', (ctx) => getJourney(ctx.params.id)],
+  ['GET', '/api/v1/accounts/:id/growth', (ctx) => getGrowth(ctx.params.id)],
   ['GET', '/api/v1/accounts/:id/generation', (ctx) => { requireAccount(ctx.params.id); return { metrics: generationMetrics(ctx.params.id), jobs: listJobs(ctx.params.id), stock: generationStock(ctx.params.id) } }],
   ['POST', '/api/v1/accounts/:id/generation/start', (ctx) => {
     requireAccount(ctx.params.id)

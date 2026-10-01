@@ -39,3 +39,61 @@ export function JourneyAbilities({ states, loading }: { states: JourneyState[]; 
   const stateLabel: Record<string, string> = {unmeasured:'还没练到',tentative:'刚起步',trained:'练过',independent:'能自己做对',transferred:'换个情境也会',retained:'隔一阵还会'}
   return <section className="journey-abilities"><div className="journey-section-head"><div><div className="journey-eyebrow">你的情况 / 来自你自己的练习</div><h2>练过什么很清楚，<br/>还没会的也如实记着。</h2></div><p>练过不等于都会：看提示完成的、自己独立完成的，我们分开记。</p></div><div className="journey-skill-tabs">{skills.map(s=>{const n=states.filter(x=>x.skill===s.id&&x.complexity==='base'&&x.state!=='unmeasured').length;return <button key={s.id} className={selected===s.id?'on':''} aria-pressed={selected===s.id} onClick={()=>setSelected(s.id)}><strong>{s.title}</strong><span>{s.task}<small>{loading?'读取中…':n?`${n} 项有记录`:'还没有记录'}</small></span></button>})}</div><div className="journey-evidence-list">{loading?<p>正在读取…</p>:records.length?records.map(r=><div key={r.objectiveId}><b>{goalLabel(r.objectiveId)}</b><span>{r.flags.includes('disputed')?'有分歧，先不算数':stateLabel[r.state]??'待确认'}</span>{r.flags.includes('waived_by_user')&&<small>你选择了跳过；想练随时恢复。</small>}</div>):<p>这项还没有记录。下次遇到合适的练习，会如实记下来。</p>}</div></section>
 }
+
+// ---------- 47 号：学习路线时间线 + 段位卡 ----------
+export type JourneyData = {
+  completed: { lessonId: string; title: string; at: number }[]
+  current: { lessonId: string; title: string; doneSteps: number; total: number; finished: boolean } | null
+  upcoming: { lessonId: string; title: string; status: string; note: string }[]
+  lessonNumber: number
+  totalLessonsLearnable: number
+}
+export type GrowthData = { level: string; levelIndex: number; nextTitle: string | null; nextHow: string | null; stats: { lessons: number; independent: number; transfer: number; growth: number; fourSkills: number } }
+
+export function JourneyTimeline({ journey, growth }: { journey: JourneyData | null; growth: GrowthData | null }) {
+  if (!journey) return <p className="v4-dim">正在读取你的学习路线…</p>
+  return (
+    <div className="journey-timeline">
+      <div className="journey-level-card">
+        <div className="journey-level-now">
+          <span className="journey-level-label">当前段位</span>
+          <strong>{growth?.level ?? '起步者'}</strong>
+          {growth && <span className="journey-level-stats">已完成 {growth.stats.lessons} 课 · 独立做到 {growth.stats.independent} 项 · 换情境也会 {growth.stats.transfer} 项</span>}
+        </div>
+        {growth?.nextTitle && (
+          <div className="journey-level-next">
+            下一段位：<b>{growth.nextTitle}</b> —— {growth.nextHow}
+          </div>
+        )}
+        {!growth?.nextTitle && <div className="journey-level-next">已经是最高段位——保持练习，别让能力生锈。</div>}
+      </div>
+      <ol className="journey-steps">
+        {journey.completed.map((c, i) => (
+          <li key={c.lessonId} className="done">
+            <span className="dot">{i + 1}</span>
+            <div><b>{c.title}</b><small>已完成 · {new Date(c.at).toLocaleDateString()}</small></div>
+          </li>
+        ))}
+        {journey.current && (
+          <li className="now">
+            <span className="dot">{journey.completed.length + 1}</span>
+            <div>
+              <b>{journey.current.title}</b>
+              <small>正在学 · {journey.current.doneSteps}/{journey.current.total} 步</small>
+              <div className="bar"><i style={{ width: `${Math.round((journey.current.doneSteps / Math.max(1, journey.current.total)) * 100)}%` }} /></div>
+            </div>
+          </li>
+        )}
+        {journey.upcoming.map((u, i) => (
+          <li key={u.lessonId} className="next">
+            <span className="dot">{journey.completed.length + (journey.current ? 1 : 0) + i + 1}</span>
+            <div><b>{u.title}</b><small>{u.note}</small></div>
+          </li>
+        ))}
+        {!journey.current && !journey.upcoming.length && (
+          <li className="next"><span className="dot">?</span><div><b>下一课在准备中</b><small>做好了会出现在「今日学习」，也会排进这条路线</small></div></li>
+        )}
+      </ol>
+    </div>
+  )
+}

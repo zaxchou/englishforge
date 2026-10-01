@@ -8,7 +8,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { goalLabel, learnerToday } from '../learning/learnerView'
 import { clearDraft, draftKey, loadDraft, saveDraft } from '../learning/draftStore'
 import './v4.css'
-import { JourneyHero, JourneyRoute, JourneyAbilities } from './LearningJourney'
+import { JourneyHero, JourneyRoute, JourneyAbilities, JourneyTimeline } from './LearningJourney'
 import './learning-space.css'
 
 type Plan = {
@@ -43,6 +43,14 @@ type Evidence = {
   disputedAttempts: { attempt_id: string }[]
   note: string
 }
+type Journey = {
+  completed: { lessonId: string; title: string; at: number }[]
+  current: { lessonId: string; title: string; doneSteps: number; total: number; finished: boolean } | null
+  upcoming: { lessonId: string; title: string; status: string; note: string }[]
+  lessonNumber: number
+  totalLessonsLearnable: number
+}
+type Growth = { level: string; levelIndex: number; nextTitle: string | null; nextHow: string | null; stats: { lessons: number; independent: number; transfer: number; growth: number; fourSkills: number } }
 type MapIdx = {
   mapVersion: string
   summary: { groups: number; byAtomization: Record<string, number>; objectives: number; coveredClaims: number }
@@ -87,6 +95,9 @@ export function V4Path({ accountId }: { accountId: string | null }) {
   const [evidence, setEvidence] = useState<Evidence | null>(null)
   const [waiverBusy,setWaiverBusy] = useState(false)
   const [mapIdx, setMapIdx] = useState<MapIdx | null>(null)
+  // 47 号：学习路线时间线 + 段位
+  const [journey, setJourney] = useState<Journey | null>(null)
+  const [growth, setGrowth] = useState<Growth | null>(null)
   // 31 第三批：个体生成库存（只读接口，不触发任务）——推荐详情页诚实显示补课管线状态
   const [stock, setStock] = useState<{ disabled: boolean; ready: number; pendingReview: number; failedCooldown: number } | null>(null)
 
@@ -111,6 +122,13 @@ export function V4Path({ accountId }: { accountId: string | null }) {
     }
     if (tab === 'map' && !mapIdx) {
       api<MapIdx>('/map').then(setMapIdx).catch((e) => setErr(String(e)))
+    }
+    if (tab === 'map' && accountId) {
+      api<Journey>(`/accounts/${accountId}/journey`).then(setJourney).catch(() => { /* 路线加载失败不打扰 */ })
+      api<Growth>(`/accounts/${accountId}/growth`).then(setGrowth).catch(() => { /* 段位加载失败不打扰 */ })
+    }
+    if (tab === 'today' && accountId && !journey) {
+      api<Journey>(`/accounts/${accountId}/journey`).then(setJourney).catch(() => { /* 路线加载失败不打扰 */ })
     }
     if (tab === 'plan' && accountId && !stock) {
       api<{ stock: { disabled: boolean; ready: number; pendingReview: number; failedCooldown: number } }>(`/accounts/${accountId}/generation-stock`)
@@ -213,7 +231,7 @@ async function changeWaiver(objectiveId:string,skill:string,revoked:boolean) {
 
       {tab === 'today' && !lesson && (
         <div className="v4-card v4-today">
-          <div className="journey-eyebrow">今日挑战 / {plan?.primarySkill ? (SKILL_LABEL[plan.primarySkill] ?? '理解与表达') : '找到起点'}</div>
+          <div className="journey-eyebrow">{journey ? `第 ${journey.lessonNumber} 课` : '这一课'} / {plan?.primarySkill ? (SKILL_LABEL[plan.primarySkill] ?? '理解与表达') : '找到起点'}{growth ? ` · 当前段位：${growth.level}` : ''}</div>
           <h2 className="v4-today-head">{today.headline}</h2>
           {today.reason && <p className="v4-why">{today.reason}</p>}
           {today.mode === 'wait' ? (
@@ -325,9 +343,13 @@ async function changeWaiver(objectiveId:string,skill:string,revoked:boolean) {
 
       {tab === 'review' && <ReviewPanel />}
 
-      {tab === 'map' && mapIdx && (
+      {tab === 'map' && (
         <div className="v4-card">
-          <div className="journey-eyebrow">完整知识地图 / 个人路径按需展开</div><h2>看清方向，再深入到知识。</h2><JourneyRoute goal={plan?.primaryGoal ?? null} expanded /><p>下列是系统准备覆盖的内容。列出来 ≠ 已经能学——能学的课会出现在「今日学习」。</p><h3>具体能力目标</h3>
+          <div className="journey-eyebrow">学习路线 / 学到哪了，接下来是什么</div><h2>你的学习路线</h2>
+          <JourneyTimeline journey={journey} growth={growth} />
+          <div className="journey-eyebrow" style={{ marginTop: 18 }}>完整知识地图 / 个人路径按需展开</div><h2>看清方向，再深入到知识。</h2><JourneyRoute goal={plan?.primaryGoal ?? null} expanded /><p>下列是系统准备覆盖的内容。列出来 ≠ 已经能学——能学的课会出现在「今日学习」。</p>
+          {mapIdx && <>
+          <h3>具体能力目标</h3>
           <p>
             共 {mapIdx.summary.groups} 个话题组、{mapIdx.summary.objectives} 个具体目标。课程正在一项项做出来，能学的会出现在「今日学习」。
           </p>
@@ -342,6 +364,7 @@ async function changeWaiver(objectiveId:string,skill:string,revoked:boolean) {
             ))}
           </div>
           <p className="v4-dim">{mapIdx.legacyNotice}</p>
+          </>}
         </div>
       )}
 
@@ -578,6 +601,13 @@ function LessonRunner({ accountId, pkg, onDone }: {
   const [done, setDone] = useState(false)
   const playsRef = useRef<Record<string, number>>({}) // 音频播放次数：提交时计 playCount，不再写死 1
   const lastAttemptRef = useRef<Record<string, string>>({}) // 每活动最近一次作答的 attemptId（表达申诉用）
+  // 47 号：完成页强反馈——本次小结、段位（升级时刻）、下一课预告
+  const levelAtStartRef = useRef<number | null>(null)
+  const [doneGrowth, setDoneGrowth] = useState<Growth | null>(null)
+  const [doneJourney, setDoneJourney] = useState<Journey | null>(null)
+  useEffect(() => {
+    api<Growth>(`/accounts/${accountId}/growth`).then((g) => { levelAtStartRef.current = g.levelIndex; setDoneGrowth(g) }).catch(() => {})
+  }, [accountId])
   // R5（24 号）：每活动第几轮作答。首轮 attemptId 稳定（网络重试同 ID 不重复入库）；
   // 看到反馈后点「再试一次」→ take+1 → 新 attemptId（学生再次作答=新 take，不撞 409）
   const [takes, setTakes] = useState<Record<string, number>>(() => Object.fromEntries(pkg.activities.map(a => [a.activityId, a.nextTake ?? 1])))
@@ -665,16 +695,41 @@ function LessonRunner({ accountId, pkg, onDone }: {
     setErr('')
     try {
       await api(`/accounts/${accountId}/lessons/${pkgLive.lessonId}/complete`, {}, 'POST')
+      const [g, j] = await Promise.all([
+        api<Growth>(`/accounts/${accountId}/growth`).catch(() => null),
+        api<Journey>(`/accounts/${accountId}/journey`).catch(() => null),
+      ])
+      if (g) setDoneGrowth(g)
+      if (j) setDoneJourney(j)
       setDone(true)
     } catch (e) { setErr(String(e)) }
   }
 
   if (done) {
+    const acts = visibleActs
+    const once = acts.filter((a) => feedback[a.activityId] && (revealed[a.activityId]?.length ?? 0) === 0 && feedback[a.activityId].pass).length
+    const hinted = acts.filter((a) => feedback[a.activityId] && (revealed[a.activityId]?.length ?? 0) > 0 && feedback[a.activityId].pass).length
+    const tricky = acts.filter((a) => feedback[a.activityId] && !feedback[a.activityId].pass).length
+    const leveledUp = doneGrowth && levelAtStartRef.current != null && doneGrowth.levelIndex > levelAtStartRef.current
+    const nextUp = doneJourney?.upcoming?.[0]
     return (
       <div className="v4-card">
         <h3>{pkgLive.title} · 已完成</h3>
-        <p>这一课练完了！练过不等于完全掌握——你的表现都记下来了，后面会安排复习。</p>
-        <p>接下来学什么，会根据这一课的表现来安排。可以继续，也可以明天再来。</p>
+        <p>这一课练完了！你的表现都记下来了，后面会安排复习。</p>
+        <div className="v4-done-summary">
+          <span>✅ {once} 步独立做对</span>
+          {hinted > 0 && <span>💡 {hinted} 步看提示后做对</span>}
+          {tricky > 0 && <span>📝 {tricky} 步要多练一次（都记下来了，不算你的错）</span>}
+        </div>
+        {doneGrowth && (
+          <div className="v4-done-level">
+            {leveledUp
+              ? <p className="v4-ok"><b>🎉 升级了！你现在是一名「{doneGrowth.level}」</b>——靠的都是真实练习记录，不是打分。</p>
+              : <p>当前段位：<b>{doneGrowth.level}</b>{doneGrowth.nextTitle && <> · 下一段位「{doneGrowth.nextTitle}」：{doneGrowth.nextHow}</>}</p>}
+          </div>
+        )}
+        {nextUp && <p>下一课：<b>{nextUp.title}</b> —— {nextUp.note}。</p>}
+        <p className="v4-dim">接下来学什么，会根据这一课的表现来安排。可以继续，也可以明天再来。</p>
         <button className="v4-primary" onClick={onDone}>看下一步学什么</button>
       </div>
     )
