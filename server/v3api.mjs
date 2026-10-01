@@ -174,6 +174,9 @@ export const V3_ROUTES = [
     const r = startGenerationJob(ctx.params.id, {
       objectiveId: body_str(ctx, 'objectiveId'),
       strategyId: body_str(ctx, 'strategyId') || null,
+      // 用户在界面上点"生成这一课"（按钮明示调用真实模型、按次计费）= 单次明确确认，
+      // 可越过全局开关；冷却/去重/质量门照常生效
+      userConfirmed: !!ctx.body?.confirmCost,
     })
     return r // fire-and-forget：{jobId}；任务完成看 GET /generation
   }],

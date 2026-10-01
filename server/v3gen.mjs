@@ -176,9 +176,12 @@ function rejectReasons(gates) {
 
 const COOLDOWN_MS = 10 * 60 * 1000 // 失败后 10 分钟内不为同目标重射任务（防 GET 反复烧钱；§7 撤出候选）
 
-export function startGenerationJob(accountId, { objectiveId, strategyId, chat = chatWithMeta, await: awaitIt = false, force = false } = {}) {
-  // F8：统一开关判定——字符串 '0'/'false' 不算开启；直接接口与窗口同受控
-  if (!['1', 'true'].includes(String(process.env.ENGLISHFORGE_V4_GENERATION ?? ''))) {
+export function startGenerationJob(accountId, { objectiveId, strategyId, chat = chatWithMeta, await: awaitIt = false, force = false, userConfirmed = false } = {}) {
+  // F8：统一开关判定——字符串 '0'/'false' 不算开启；直接接口与窗口同受控。
+  // 例外：**用户单次明确点击**（userConfirmed，前端在按钮上明示"调用真实模型、按次计费"）
+  // 可以越过全局开关——这是"内容准备中"死等的正解：等的内容由学习者本人一键触发按需生成。
+  // 冷却/去重/质量门对这条路径**同样生效**，不会因确认而绕过任何安全检查。
+  if (!userConfirmed && !['1', 'true'].includes(String(process.env.ENGLISHFORGE_V4_GENERATION ?? ''))) {
     throw new ApiError(409, 'GENERATION_DISABLED: 设 ENGLISHFORGE_V4_GENERATION=1 显式开启按需生成（防误计费）')
   }
   const conn = ensureV3Schema()
@@ -224,6 +227,9 @@ export function startGenerationJob(accountId, { objectiveId, strategyId, chat = 
       objective: rowToObjective(obj), contract: GEN_CONTRACT_V1.version,
       // 31 第三批：内容版本签名——地图/来源命题变化 ⇒ 在途与未分发任务按失效处理
       contentSignature: contentSignature(),
+      // 学习者单次明确确认的生成：完成后按 dev_only 开发样本直接可用（27 §5 暂无人审时
+      // 先交付非正式可用体验），签审仍挂账、签署后转正
+      userConfirmed,
       learnerEvidence: {
         evidenceVersion: evRow?.value ?? 0,
         practiceRevision: conn.prepare('SELECT COUNT(*) AS n FROM learner_attempts_v3 WHERE account_id = ?').get(accountId).n,
@@ -377,10 +383,19 @@ async function runJob(jobId, { chat = chatWithMeta } = {}) {
       // 已知局限：explanationKind 是模型自报，机器无法验证"是否新解释"——所以生成的课永远带
       // human_review=pending + dev_only + 抽检标记，通过 sampling 队列待人工抽样（见 validation.samplingQueued）。
       const needsSign = objective.verification !== 'claim_checked' || pkg.explanationKind === 'new' || audioOral
-      if (needsSign) {
+      if (needsSign && !spec.userConfirmed) {
         conn.prepare("UPDATE generation_jobs SET status = 'succeeded', cost_tokens = ?, output_lesson_id = ?, output_version = 1, validation = ?, latency_ms = ?, finished_at = ? WHERE job_id = ?")
           .run(totalTokens, lessonId, JSON.stringify({ gates: lg, published: false, pending: 'human_sign', samplingQueued: true }), Date.now() - started, Date.now(), jobId)
         return { jobId, status: 'succeeded', lessonId, published: false }
+      }
+      if (needsSign && spec.userConfirmed) {
+        // 学习者点出来的课：dev_only 开发样本直接可学（界面明示"未签署"），签署要求不消失——
+        // 审核队列仍见 pending human_sign，签署后升 mainline
+        const { publishLesson } = await import('./v3lessons.mjs')
+        publishLesson(lessonId, { acknowledgeUnreviewed: true, by: 'generator:userConfirmed:' + jobId })
+        conn.prepare("UPDATE generation_jobs SET status = 'succeeded', cost_tokens = ?, output_lesson_id = ?, output_version = 1, validation = ?, latency_ms = ?, finished_at = ? WHERE job_id = ?")
+          .run(totalTokens, lessonId, JSON.stringify({ gates: lg, published: true, channel: 'dev_only', pending: 'human_sign', devSampleForUser: true, samplingQueued: true }), Date.now() - started, Date.now(), jobId)
+        return { jobId, status: 'succeeded', lessonId, published: true, devSample: true }
       }
       const { publishLesson } = await import('./v3lessons.mjs')
       publishLesson(lessonId, { acknowledgeUnreviewed: true, by: 'generator:' + jobId })

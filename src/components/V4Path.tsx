@@ -119,12 +119,46 @@ export function V4Path({ accountId }: { accountId: string | null }) {
     } catch (e) { setErr(String(e)) }
   }, [accountId])
 
+  const today = learnerToday(plan)
+  // 31 第三批落地：等待态一键生成——用户明示计费确认 → 调真实模型 → 轮询 → 完成后可直接开始（开发样本）
+  const [genPhase, setGenPhase] = useState<'idle' | 'running' | 'done' | 'failed'>('idle')
+  const [genNote, setGenNote] = useState('')
+  const [genLessonId, setGenLessonId] = useState<string | null>(null)
+  // 换了目标就重置生成流状态
+  useEffect(() => { setGenPhase('idle'); setGenNote(''); setGenLessonId(null) }, [today.goalId])
+
+  const startGeneration = useCallback(async () => {
+    if (!today.goalId) return
+    setGenPhase('running'); setGenNote('')
+    try {
+      const r = await api<{ jobId?: string; reused?: boolean; cooledDown?: boolean; note?: string }>(
+        `/accounts/${accountId}/generation/start`, { objectiveId: today.goalId, confirmCost: true }, 'POST')
+      if (r.cooledDown) { setGenPhase('failed'); setGenNote(r.note ?? '同目标刚失败过，10 分钟冷却后再试。'); return }
+      const jobId = r.jobId ?? null
+      // 轮询任务状态（生成的课约半分钟；最多等 3 分钟）
+      for (let i = 0; i < 60; i++) {
+        await new Promise((res) => setTimeout(res, 3000))
+        const d = await api<{ jobs: { job_id: string; status: string; output_lesson_id: string | null; reject_reasons: string | null }[] }>(`/accounts/${accountId}/generation`)
+        const job = d.jobs.find((j) => j.job_id === jobId)
+        if (!job) continue
+        if (job.status === 'succeeded' && job.output_lesson_id) {
+          setGenLessonId(job.output_lesson_id); setGenPhase('done'); return
+        }
+        if (job.status === 'failed' || job.status === 'rejected' || job.status === 'superseded') {
+          setGenPhase('failed')
+          setGenNote('生成没有通过质量门（' + String(job.reject_reasons ?? job.status).slice(0, 120) + '）。可以先免修这项，或稍后再试。')
+          return
+        }
+      }
+      setGenPhase('failed'); setGenNote('生成超时。可稍后再试。')
+    } catch (e) { setGenPhase('failed'); setGenNote(String(e)) }
+  }, [accountId, today.goalId])
+  
   if (!accountId) {
     return <div className="v4"><div className="v4-empty">正在连接数据库……连接后这里显示你的能力路径。</div></div>
   }
 
-  const today = learnerToday(plan)
-  async function changeWaiver(objectiveId:string,skill:string,revoked:boolean) {
+async function changeWaiver(objectiveId:string,skill:string,revoked:boolean) {
     if(waiverBusy)return
     setWaiverBusy(true)
     try {
@@ -154,11 +188,31 @@ export function V4Path({ accountId }: { accountId: string | null }) {
         <div className="v4-card v4-today">
           <h2 className="v4-today-head">{today.headline}</h2>
           {today.reason && <p className="v4-why">{today.reason}</p>}
-          <button className="v4-primary v4-today-btn" disabled={waiverBusy || today.waiting || planLoading || !!err}
-            onClick={() => {
-              if (today.mode === 'find_start') { setTab('diag'); return }
-              if (today.lessonId) void openLesson(today.lessonId)
-            }}>{planLoading ? '正在读取学习安排…' : today.primaryLabel}</button>
+          {today.mode === 'wait' ? (
+            // 等待态 = 可动作：一键按需生成（用户点按钮即明示计费确认），不再是死按钮
+            genPhase === 'done' && genLessonId ? (
+              <>
+                <button className="v4-primary v4-today-btn" onClick={() => void openLesson(genLessonId)}>开始这一课（开发样本 · 未签署）</button>
+                <p className="v4-dim">这一课是按你最近的练习实时生成的<b>开发样本</b>：可以学；通过人工审核后才算正式内容。</p>
+              </>
+            ) : genPhase === 'running' ? (
+              <button className="v4-primary v4-today-btn" disabled>正在生成这一课…（约半分钟，别关页面）</button>
+            ) : (
+              <>
+                <button className="v4-primary v4-today-btn" disabled={waiverBusy || planLoading || !!err} onClick={() => { void startGeneration() }}>
+                  用 AI 生成这一课（调用真实模型 · 按次计费 · 先标开发样本）
+                </button>
+                <p className="v4-dim">生成后它会出现在这里并进入人工审核队列；不想用也可以先免修这项。</p>
+              </>
+            )
+          ) : (
+            <button className="v4-primary v4-today-btn" disabled={waiverBusy || today.waiting || planLoading || !!err}
+              onClick={() => {
+                if (today.mode === 'find_start') { setTab('diag'); return }
+                if (today.lessonId) void openLesson(today.lessonId)
+              }}>{planLoading ? '正在读取学习安排…' : today.primaryLabel}</button>
+          )}
+          {genNote && <div className="v4-note">{genNote}</div>}
           {today.goalId && (
             <details className="v4-fold">
               <summary>查看安排依据</summary>

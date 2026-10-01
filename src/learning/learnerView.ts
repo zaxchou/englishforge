@@ -94,11 +94,11 @@ export function learnerToday(plan: { primaryGoal: string | null; reason?: string
     }
   }
   if (!plan.primaryGoal || (plan.lesson && plan.lesson.status !== 'published')) {
-    // 有目标但该内容还不能学：诚实等待，不预写、不凑数
+    // 有目标但该内容还不能学：诚实等待 + 给出可动作的出路（一键生成或免修），不冒充可学
     return {
       mode: 'wait',
       headline: `接下来该练：${goal}`,
-      reason: '目前没有可用的后继课程。内容补齐并通过审核后才能继续；这里不会用熟题填补空缺。',
+      reason: '目前没有现成的后继课程，这里也不会用熟题填补。你可以用 AI 按你最近的练习现场生成（生成后先标开发样本、进人工审核队列），或先免修这项。',
       primaryLabel: '内容准备中…',
       goalId: plan.primaryGoal,
       lessonId: null,

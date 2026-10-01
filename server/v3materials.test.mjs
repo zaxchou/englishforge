@@ -94,6 +94,35 @@ it('内容签名失效：等待期间签名变化 → 任务 superseded；未分
   expect(lessons.lessonApplicable(id, lessons.getLesson('legacy-lesson'))).toBe(true)
 })
 
+it('userConfirmed：全局开关关闭时，单次明确确认可生成；未确认仍 409（冷却/去重不受影响）', async () => {
+  const id = (await call('/api/accounts', { name: '确认生成' }, 'POST')).json.account.id
+  await call(`/api/v1/accounts/${id}/attempts`, {
+    attemptId: 'uc-seen', activityId: 'diag_d1_read', response: { kind: 'text', text: 'ok' },
+    conditions: { firstExposure: true, hintLevel: 0, transcriptShown: false, playCount: 1, lookupUsed: false, responseMode: 'typed_summary' },
+  }, 'POST')
+  const prev = process.env.ENGLISHFORGE_V4_GENERATION
+  delete process.env.ENGLISHFORGE_V4_GENERATION
+  try {
+    // 未确认 → 拒
+    expect(() => gen.startGenerationJob(id, { objectiveId: 'O-K184-02', chat: async () => '{}' })).toThrow('GENERATION_DISABLED')
+    // 用户单次确认（界面按钮明示计费）→ 照常走质量门并发布
+    const r = await gen.startGenerationJob(id, { objectiveId: 'O-K184-02', userConfirmed: true, await: true, force: true,
+      chat: async () => JSON.stringify(goodPkg('mat_g3_contrast_texts', 'uc')) })
+    expect(r.status).toBe('succeeded')
+    // 即使 normally 需要人审（explanationKind new）→ 用户确认的样本也以 dev_only 发布可学，签审挂账
+    const needsSignPkg = { ...goodPkg('mat_g3_contrast_texts', 'uc2'), explanationKind: 'new' }
+    const r2 = await gen.startGenerationJob(id, { objectiveId: 'O-K184-02', userConfirmed: true, await: true, force: true,
+      chat: async () => JSON.stringify(needsSignPkg) })
+    expect(r2.status).toBe('succeeded')
+    expect(r2.published).toBe(true)
+    expect(r2.devSample).toBe(true)
+    const row = db.getDb().prepare('SELECT content_status FROM lesson_versions WHERE lesson_id = ?').get(r2.lessonId)
+    expect(row.content_status).toBe('published')
+  } finally {
+    if (prev === undefined) delete process.env.ENGLISHFORGE_V4_GENERATION; else process.env.ENGLISHFORGE_V4_GENERATION = prev
+  }
+})
+
 it('生成库存：ready/pendingReview/failedCooldown/disabled 分开计数，只读无副作用', async () => {
   const id = (await call('/api/accounts', { name: '库存' }, 'POST')).json.account.id
   // 未开启 → disabled
