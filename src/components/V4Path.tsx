@@ -4,6 +4,7 @@
 // 页面常驻“旧进度不换算”的说明 —— 两个系统不能给用户互相矛盾的“掌握率”。
 // 口语录音（W5）接入前，口述任务以文字版走通并如实标注“口语证据未测”。
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { learnerToday } from '../learning/learnerView'
 import './v4.css'
 
 type Plan = {
@@ -63,7 +64,9 @@ const BAND_LABEL: Record<string, string> = {
 }
 
 export function V4Path({ accountId }: { accountId: string | null }) {
-  const [tab, setTab] = useState<'plan' | 'diag' | 'evidence' | 'map' | 'review'>('plan')
+  // 28 号薄片：默认入口 = 今日学习（唯一主按钮回答"练什么/点哪里/为什么"）；
+  // 后台视角（推荐详情/证据/地图）降为辅助入口，审核收进运营折叠
+  const [tab, setTab] = useState<'today' | 'plan' | 'diag' | 'evidence' | 'map' | 'review'>('today')
   const [err, setErr] = useState('')
   const [plan, setPlan] = useState<Plan | null>(null)
   const [noPlan, setNoPlan] = useState(false)
@@ -98,25 +101,59 @@ export function V4Path({ accountId }: { accountId: string | null }) {
 
   // ---------- 诊断流程（会话状态在 DiagPanel 内部管理） ----------
 
+  /** 打开课程（今日入口与推荐详情共用） */
+  const openLesson = useCallback(async (lessonId: string) => {
+    try {
+      setLesson(await api<LessonPkg>('/accounts/' + accountId + '/lessons/' + lessonId))
+    } catch (e) { setErr(String(e)) }
+  }, [accountId])
+
+  const today = learnerToday(plan)
+
   return (
     <div className="v4">
       <div className="v4-legacy">双轨说明：本页是新版能力路径（curriculum-v4）。旧首页的 XP、题量、箱数只是历史活动记录，<b>不会换算</b>为这里的能力状态。</div>
       <div className="v4-tabs">
-        <button className={tab === 'plan' ? 'on' : ''} onClick={() => setTab('plan')}>当前推荐</button>
+        <button className={tab === 'today' ? 'on' : ''} onClick={() => setTab('today')}>今日学习</button>
+        <button className={tab === 'plan' ? 'on' : ''} onClick={() => setTab('plan')}>推荐详情</button>
         <button className={tab === 'diag' ? 'on' : ''} onClick={() => setTab('diag')}>入口诊断</button>
-        <button className={tab === 'evidence' ? 'on' : ''} onClick={() => setTab('evidence')}>我的证据</button>
-        <button className={tab === 'map' ? 'on' : ''} onClick={() => setTab('map')}>能力地图</button>
-        <button className={tab === 'review' ? 'on' : ''} onClick={() => setTab('review')}>审核与试听</button>
+        <button className={tab === 'evidence' ? 'on' : ''} onClick={() => setTab('evidence')}>我的成长</button>
+        <button className={tab === 'map' ? 'on' : ''} onClick={() => setTab('map')}>学习路线</button>
+        <details className="v4-ops">
+          <summary>运营工具</summary>
+          <button className={tab === 'review' ? 'on' : ''} onClick={() => setTab('review')}>审核与试听</button>
+        </details>
       </div>
       {err && <div className="v4-err">{err}</div>}
 
+      {tab === 'today' && (
+        <div className="v4-card v4-today">
+          <div className="v4-dev">原型薄片（28 号 §6.1）· 开发模式：今日入口已可用，课后反馈与成长页的自然语言版在后续阶段</div>
+          <h2 className="v4-today-head">{today.headline}</h2>
+          {today.reason && <p className="v4-why">{today.reason}</p>}
+          <button className="v4-primary v4-today-btn" disabled={today.waiting}
+            onClick={() => {
+              if (today.mode === 'find_start') { setTab('diag'); return }
+              if (today.lessonId) void openLesson(today.lessonId)
+            }}>{today.primaryLabel}</button>
+          {today.goalId && (
+            <details className="v4-fold">
+              <summary>这条安排的详细依据（后台视角）</summary>
+              <p><code>{today.goalId}</code>{today.lessonId ? <> · 课程 <code>{today.lessonId}</code></> : null}</p>
+            </details>
+          )}
+          <div className="v4-today-aux">
+            <button className="v4-ghost" onClick={() => setTab('evidence')}>我的成长</button>
+            <button className="v4-ghost" onClick={() => setTab('map')}>学习路线</button>
+            <button className="v4-ghost" onClick={() => setTab('plan')}>推荐详情</button>
+          </div>
+          <p className="v4-dim">旧版刷题练习仍在侧栏「今日练习」，作为历史练习保留，两边分开计量。</p>
+        </div>
+      )}
+
       {tab === 'plan' && (
         <PlanPanel plan={plan} noPlan={noPlan} onDiagnostic={() => setTab('diag')}
-          onOpenLesson={async (lessonId) => {
-            try {
-              setLesson(await api<LessonPkg>('/accounts/' + accountId + '/lessons/' + lessonId))
-            } catch (e) { setErr(String(e)) }
-          }} />
+          onOpenLesson={(lessonId) => void openLesson(lessonId)} />
       )}
 
       {tab === 'diag' && <DiagPanel key={accountId} accountId={accountId} onDone={async () => { await loadPlan(); setTab('plan') }} />}
@@ -165,7 +202,7 @@ export function V4Path({ accountId }: { accountId: string | null }) {
         </div>
       )}
 
-      {tab === 'plan' && lesson && (
+      {(tab === 'plan' || tab === 'today') && lesson && (
         <LessonRunner
           key={lesson.lessonId}
           accountId={accountId}

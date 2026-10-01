@@ -526,10 +526,12 @@ function appendObservedEvents(conn, accountId, attemptRow, activity, conditions)
         'observed', condition,
         // 29 号 A1：closed 槽位题的事件成败按**槽位全对**（=活动级 pass）计——理由未认证把
         // 目标结果压到 partial，但那不是"作答失败"，不得累计连败、也不得抬成 met
+        // basis.slotOnly：选择定位成功但理由/自由表达未测 → 状态回放按**中性参与**处理（不升级不计败）
         (perObj === 'met' || (evaluation.slots && evaluation.pass && perObj === 'partial')) ? 1 : 0,
         JSON.stringify({ role: activity.role, taskFamilyId: activity.taskFamilyId, evaluator: evaluation.evaluator ?? null,
           confidence: evaluation.confidence ?? null, oralDeferred: !!activity.oralEvidenceDeferred,
           locating: !!activity.locating, perObjective: perObj,
+          slotOnly: evaluation.slots && perObj === 'partial' ? true : undefined,
           reasonAssessed: evaluation.reasonAssessed ?? null, ...basisExtra }),
         Date.now(),
       )
@@ -623,6 +625,13 @@ export function recomputeStates(accountId) {
     }
     if (basis.oralDeferred) continue // 口语证据在真录音（W5）前不升级状态
     s2.hasObserved = true
+
+    // 复审 AUTO-000001-A1（29 号 A1）：选择定位成功但理由/自由表达未测 = **中性参与**——
+    // 整目标不因未测理由升级（partial≠掌握），也不计失败连败。判定覆盖新旧行：
+    // 新事件带 slotOnly=true；修复前的 slots partial 事件按 evaluatorVersion+v2+partial 识别。
+    // 事件行原文未改（可追溯），判定规则与本注释及回归测试共同记录。
+    if (basis.slotOnly === true || basis.reasonAssessed === false
+      || (basis.reasonAssessed === undefined && basis.evaluatorVersion === 'deterministic-contract-v2' && basis.perObjective === 'partial')) continue
 
     if (e.pass) {
       s2.failStreak = 0

@@ -138,6 +138,17 @@
 }
 .v4-hint { color: #c9d96a; font-size: 13px !important; }
 
+/* 28 号薄片：今日学习入口 */
+.v4-today { gap: 10px; }
+.v4-today-head { font-size: 20px; margin: 4px 0; }
+.v4-today-btn { font-size: 16px; padding: 12px 26px; }
+.v4-today-aux { display: flex; gap: 8px; flex-wrap: wrap; }
+.v4-ops { display: inline-block; }
+.v4-ops summary { color: var(--ink-dim, #9a9aa2); font-size: 13px; cursor: pointer; }
+.v4-ops button { margin-left: 8px; }
+.v4-fold { margin: 4px 0; }
+.v4-fold summary { color: var(--ink-dim, #9a9aa2); font-size: 13px; cursor: pointer; }
+
 /* D0-1：封闭槽位题——逐空选项按钮 */
 .v4-slots { display: flex; flex-direction: column; gap: 8px; }
 .v4-slot { display: flex; flex-direction: column; gap: 4px; }

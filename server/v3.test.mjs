@@ -408,32 +408,32 @@ describe('W2/T2 三种画像 → 三种后继', () => {
 describe('W2/T3 争议与坏材料', () => {
   it('报告坏题 → 该次证据争议、状态不降级、材料隔离', async () => {
     const id = await mkAccount('T3-坏题')
-    // R3 后正分证据来自封闭题：用 ct03（closed 槽位）做争议基底
-    const post = (attemptId, text) => call(`/api/v1/accounts/${id}/attempts`, {
-      attemptId, activityId: 'ct03_semantics_guard',
-      response: { kind: 'choice', text, answers: { decision: 'A' } },
+    // 争议基底用 ct01（纯封闭、reasonAssessed=true，可升 trained；29 号 A1 后 ct03 是中性参与证据）
+    const post = (attemptId, answers) => call(`/api/v1/accounts/${id}/attempts`, {
+      attemptId, activityId: 'ct01_which_probe',
+      response: { kind: 'choice', text: '', answers },
       conditions: { firstExposure: true, hintLevel: 0, transcriptShown: false, playCount: 1, lookupUsed: false, responseMode: 'typed_summary' },
     }, 'POST')
-    const good = await post('t3-ct03-good', '因为多人同时说话时原型在展厅表现不好，他们并未完全放弃语音，仍想再测试。')
+    const good = await post('t3-ct01-good', { which_a: 'DEVICE', which_b: 'EVENT', tail_role: 'B' })
     expect(good.json.pass).toBe(true)
-    const before = (await call(`/api/v1/accounts/${id}/evidence?objective=O-K115-03`)).json
+    const before = (await call(`/api/v1/accounts/${id}/evidence?objective=O-K115-02`)).json
     expect(before.states[0].state).toBe('trained')
 
     const rep = await call(`/api/v1/accounts/${id}/content-reports`, {
-      attemptId: 't3-ct03-good', location: '选项 B 的题面歧义', description: '选项情境与原文决定存在歧义',
+      attemptId: 't3-ct01-good', location: '选项 B 的题面歧义', description: '选项情境与原文决定存在歧义',
     }, 'POST')
     expect(rep.status).toBe(200)
     expect(rep.json.certificationPaused).toBe(true)
 
-    const after = (await call(`/api/v1/accounts/${id}/evidence?objective=O-K115-03`)).json
+    const after = (await call(`/api/v1/accounts/${id}/evidence?objective=O-K115-02`)).json
     expect(after.states[0].state).toBe('trained') // 不降级
-    expect(after.states[0].flags).toContain('disputed') // 只挂争议
+    expect(after.states.some((s) => s.flags.includes('disputed'))).toBe(true) // 只挂争议（base 聚合行）
     expect(after.disputedAttempts.length).toBeGreaterThan(0)
     // 后续推荐：避开争议材料，不降级用户
     const plan = (await call(`/api/v1/accounts/${id}/plan/recompute`, { requestId: 'rq-t3-plan' }, 'POST')).json.decision
     const allNotChosen = plan.notChosen.map((n) => n.objectiveId).join(',')
-    expect(allNotChosen).toContain('O-K115-03')
-    expect(plan.notChosen.find((n) => n.objectiveId === 'O-K115-03').reason).toContain('争议')
+    expect(allNotChosen).toContain('O-K115-02')
+    expect(plan.notChosen.find((n) => n.objectiveId === 'O-K115-02').reason).toContain('争议')
   })
 
   it('holdout：答案与评分要点永不下发；被报告后隔离，不再计分', async () => {
@@ -1440,6 +1440,37 @@ describe('复审回归 F1–F8', () => {
     }
     expect(cur.status).toBe('completed')
     expect((await call(`/api/v1/accounts/${id}/diagnostics/latest`)).json.diagnostic).toBeNull()
+  })
+
+  it('复审 AUTO-000001-A1：槽位对+理由未测 = 中性参与（提交→GET evidence 端到端）——整目标不升级、不计连败；纯封闭题正常升级', async () => {
+    const id = await mkAccount('A1-中性')
+    const post = (attemptId, activityId, text, answers) => call(`/api/v1/accounts/${id}/attempts`, {
+      attemptId, activityId,
+      response: { kind: 'choice', text, answers },
+      conditions: { firstExposure: true, hintLevel: 0, transcriptShown: false, playCount: 1, lookupUsed: false, responseMode: 'typed_summary' },
+    }, 'POST')
+    // ct03（带 reason 合同）：选 A + 空理由 → partial + slotOnly 中性
+    const r1 = (await post('a1-ct03-empty', 'ct03_semantics_guard', '', { decision: 'A' })).json
+    expect(r1.objectiveResults['O-K115-03']).toBe('partial')
+    // ct01（纯封闭，无 reason 合同）：三槽全对 → met，正常升级
+    const r2 = (await post('a1-ct01-full', 'ct01_which_probe', '', { which_a: 'DEVICE', which_b: 'EVENT', tail_role: 'B' })).json
+    expect(r2.objectiveResults['O-K115-02']).toBe('met')
+    // 端到端：GET evidence 断言最终状态
+    const statesOf = async () => (await call(`/api/v1/accounts/${id}/evidence`)).json.states
+    let states = await statesOf()
+    const s03 = states.find((s) => s.objectiveId === 'O-K115-03' && s.skill === 'reading')
+    const s02 = states.find((s) => s.objectiveId === 'O-K115-02' && s.skill === 'reading')
+    // O-K115-03（只有 ct03 partial 证据）：不升 trained——中性参与，未测就是未测
+    expect(s03?.state ?? 'absent').not.toBe('trained')
+    expect(s03?.state ?? 'absent').not.toBe('independent')
+    expect(s03?.flags ?? []).not.toContain('needs_repair') // 不计连败
+    // O-K115-02（ct01 全对，reasonAssessed=true）：正常升级 trained
+    expect(s02?.state).toBe('trained')
+    // 冲突理由再提交：仍然中性（不升级、不因连败挂 needs_repair）
+    await post('a1-ct03-conflict', 'ct03_semantics_guard', '他们搁置手势，采用语音，因为多人同时说话，仍想探索。', { decision: 'A' })
+    states = await statesOf()
+    expect(states.find((s) => s.objectiveId === 'O-K115-03' && s.skill === 'reading')?.state ?? 'absent').not.toBe('trained')
+    expect(states.find((s) => s.objectiveId === 'O-K115-03' && s.skill === 'reading')?.flags ?? []).not.toContain('needs_repair')
   })
 
   it('R5 补丁：刷新后同 attemptId 不同内容 → 自动落下一轮 take 不 409；同内容幂等重放不重复入库', async () => {
