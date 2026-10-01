@@ -1,5 +1,6 @@
 // Engineering fixtures only; creates its own temporary DB and localhost server.
 // Set EF_PLAYWRIGHT_IMPORT to a Playwright module URL if not installed in this project.
+import { DatabaseSync } from 'node:sqlite'
 import { spawn } from 'node:child_process'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -45,6 +46,18 @@ try {
    if(a.audio){await area.locator('audio').waitFor();const played=page.waitForResponse(r=>r.url().includes('/support/play')&&r.request().method()==='POST');await area.locator('audio').evaluate(el=>el.play());if((await played).status()!==200)throw Error('play rejected')}
    if(a.oralTask){await area.getByRole('button',{name:/开始录音/}).click();await pause(1100);await area.getByRole('button',{name:/停止录音/}).click();await area.getByRole('button',{name:'提交口语作答',exact:true}).waitFor()}
    await area.locator('textarea').fill('The map worked as designed, but our assumption about visitors was incomplete. They walked toward crowded rooms because they thought something interesting was happening. We will ask why before changing the design.')
+   // Expiry recovery is exercised only inside this script's own guarded temporary DB.
+   if(step===0 && (course===0 || course===2)) {
+    const c=new DatabaseSync(dbPath);try{c.prepare('UPDATE issued_tasks SET expires_at=0 WHERE task_id=?').run(a.taskId)}finally{c.close()}
+    const [expired]=await Promise.all([page.waitForResponse(r=>r.url().includes(`/accounts/${id}/attempts`)&&r.request().method()==='POST'),area.getByRole('button',{name:a.oralTask?'提交口语作答':'提交',exact:true}).click()])
+    if(expired.status()!==409)throw Error('expired task accepted')
+    await page.getByRole('button',{name:a.oralTask?'重新获取任务后再试（保留这段录音）':'重新读取当前任务',exact:true}).click()
+    await page.getByRole('button',{name:'重新读取当前任务',exact:true}).waitFor()
+    if(!await area.locator('textarea').inputValue())throw Error('task refresh discarded draft')
+    if(a.oralTask)await area.getByRole('button',{name:'提交口语作答',exact:true}).waitFor()
+    const fresh=await api(`/api/v1/accounts/${id}/lessons/${plan.lesson.lessonId}`)
+    if(fresh.activities.find(x=>x.activityId===a.activityId).taskId===a.taskId)throw Error('expired task was not replaced')
+   }
    const response=page.waitForResponse(r=>r.url().includes(`/accounts/${id}/attempts`)&&r.request().method()==='POST')
    const [saved]=await Promise.all([response,area.getByRole('button',{name:a.oralTask?'提交口语作答':'提交',exact:true}).click()])
    if(saved.status()!==200)throw Error('attempt rejected')

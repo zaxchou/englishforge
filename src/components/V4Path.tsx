@@ -26,7 +26,7 @@ type LessonPkg = {
   whyNow: string
   teachingNote: string | null
   devSampleNotice: string | null
-  activities: { resume?: { response: { text?: string; answers?: Record<string, string> }; result: AttemptFeedback } | null; nextTake: number; taskId: string; activityId: string; role: string; prompt: string; hintStageCount: number; firstHint: string | null; simulatesAudio: boolean; fixtureNotice: string | null; oralTask?: boolean; audio?: AudioInfo | null; slots?: { slotId: string; prompt: string; options: string[] }[] | null; reasonLabel?: string | null }[]
+  activities: { resume?: { response: { text?: string; answers?: Record<string, string> }; result: AttemptFeedback } | null; nextTake: number; taskId: string; activityVersion: number; activityId: string; role: string; prompt: string; hintStageCount: number; firstHint: string | null; simulatesAudio: boolean; fixtureNotice: string | null; oralTask?: boolean; audio?: AudioInfo | null; slots?: { slotId: string; prompt: string; options: string[] }[] | null; reasonLabel?: string | null }[]
   nextCandidates: string[]
   holdout: { lessonId: string; answersIncluded: boolean } | null
 }
@@ -282,15 +282,15 @@ function LessonAudio({ info, taskId, activityId, accountId, onPlay }: { info: Au
   const [err, setErr] = useState('')
   const deliveryRef = useRef<string | null>(null)
   useEffect(() => {
+    setErr(''); setUrl(null); deliveryRef.current = null
     let revoke: string | null = null
     let alive = true
     ;(async () => {
       try {
         const r = await api<{ audioBase64: string; mime: string; deliveryId?: string }>(taskId && accountId ? `/accounts/${accountId}/tasks/${taskId}/media/${info.mediaId}` : `/media/${info.mediaId}`)
-        deliveryRef.current = r.deliveryId ?? null
         const bytes = Uint8Array.from(atob(r.audioBase64), (c) => c.charCodeAt(0))
         revoke = URL.createObjectURL(new Blob([bytes], { type: r.mime }))
-        if (alive) setUrl(revoke)
+        if (alive) { deliveryRef.current = r.deliveryId ?? null; setUrl(revoke) }
         else URL.revokeObjectURL(revoke)
       } catch (e) { if (alive) setErr(String(e)) }
     })()
@@ -494,6 +494,20 @@ function LessonRunner({ accountId, pkg, onDone }: {
     } catch (e) { setErr(String(e)) }
   }
 
+  async function refreshLesson() {
+    setRefreshing(true)
+    try {
+      const fresh = await api<LessonPkg>(`/accounts/${accountId}/lessons/${pkgLive.lessonId}`)
+      const changed = new Set(fresh.activities.filter(a=>{const old=pkgLive.activities.find(o=>o.activityId===a.activityId);return !old || old.activityVersion!==a.activityVersion || old.prompt!==a.prompt}).map(a=>a.activityId))
+      setAnswers(old=>Object.fromEntries(fresh.activities.map(a=>[a.activityId,a.resume?.response.text ?? (changed.has(a.activityId)?'':old[a.activityId] ?? '')])))
+      setSlotPicks(old=>Object.fromEntries(fresh.activities.map(a=>[a.activityId,a.resume?.response.answers ?? (changed.has(a.activityId)?{}:old[a.activityId] ?? {})])))
+      setFeedback(Object.fromEntries(fresh.activities.filter(a=>a.resume).map(a=>[a.activityId,{pass:a.resume!.result.pass,status:a.resume!.result.evaluationStatus,practiceOnly:a.resume!.result.practiceOnly,relations:a.resume!.result.dimensions,slotResults:a.resume!.result.slotResults}])))
+      setTakes(Object.fromEntries(fresh.activities.map(a=>[a.activityId,a.nextTake ?? 1])))
+      const next=fresh.activities.findIndex(a=>!a.resume);setCurrentIndex(next<0?Math.max(0,fresh.activities.length-1):next)
+      setPkgLive(fresh);setErr('')
+    }catch(e){setErr(String(e));throw e}finally{setRefreshing(false)}
+  }
+
   async function complete() {
     setErr('')
     try {
@@ -515,12 +529,13 @@ function LessonRunner({ accountId, pkg, onDone }: {
   return (
     <div className="v4-card">
       <h3>{pkgLive.title}</h3>
+      <button className="v4-ghost" disabled={refreshing} onClick={()=>{void refreshLesson().catch(()=>{})}}>重新读取当前任务</button>
       <p className="v4-why">为什么现在学：{pkgLive.whyNow}</p>
       {pkgLive.teachingNote && <p className="v4-teach">要点：{pkgLive.teachingNote}</p>}
       {pkgLive.devSampleNotice && <p className="v4-dev">{pkgLive.devSampleNotice}</p>}
       <p className="v4-dim">当前第 {currentIndex + 1} 步，共 {visibleActs.length} 步。看懂反馈后再进入下一步。</p>
       {visibleActs.slice(currentIndex, currentIndex + 1).map((act) => (
-        <div key={act.activityId} className="v4-act">
+        <div key={act.activityId + act.activityVersion + act.prompt} className="v4-act">
           <div className="v4-act-head">
             <b>{act.role === 'transfer' ? '陌生迁移' : act.role === 'practice' ? '练习' : act.role}</b>
             {act.simulatesAudio && !act.audio && <span className="v4-dev">文字模拟音频 · 听力证据未测</span>}
@@ -539,7 +554,7 @@ function LessonRunner({ accountId, pkg, onDone }: {
             </button>
           )}
           {act.oralTask
-            ? <OralRecorder taskId={act.taskId} accountId={accountId} activityId={act.activityId} onSubmitted={async (fb) => {
+            ? <OralRecorder onRefreshTask={refreshLesson} taskId={act.taskId} accountId={accountId} activityId={act.activityId} onSubmitted={async (fb) => {
                 setRefreshing(true)
                 setFeedback((f) => ({ ...f, [act.activityId]: fb }))
                 try { setPkgLive(await api<LessonPkg>(`/accounts/${accountId}/lessons/${pkgLive.lessonId}`)) }
@@ -641,10 +656,11 @@ function LessonRunner({ accountId, pkg, onDone }: {
 }
 
 /** 口语任务：浏览器录音（用户点按钮才录）→ 回放 → 提交 → 机器建议 + 可纠转写（15 §9 录音页） */
-function OralRecorder({ accountId, taskId, activityId, onSubmitted }: {
+function OralRecorder({ accountId, taskId, activityId, onSubmitted, onRefreshTask }: {
   taskId: string
   accountId: string
   activityId: string
+  onRefreshTask: () => Promise<void>
   onSubmitted: (fb: { pass: boolean | null; status: string; relations?: { id: string; label: string; hit: boolean; required: boolean }[] }) => void
 }) {
   const [recording, setRecording] = useState(false)
@@ -654,6 +670,7 @@ function OralRecorder({ accountId, taskId, activityId, onSubmitted }: {
   const [transcriptOrigin, setTranscriptOrigin] = useState<'asr' | 'user_typed'>('user_typed')
   const submissionRef = useRef<string | null>(null)
   const uploadRequestRef = useRef<string | null>(null)
+  useEffect(()=>{submissionRef.current=null;setErr('')},[taskId])
   const [asrSupported, setAsrSupported] = useState(true)
   const [mediaId, setMediaId] = useState('')
   const [corrected, setCorrected] = useState(false)
@@ -809,7 +826,7 @@ function OralRecorder({ accountId, taskId, activityId, onSubmitted }: {
       {mediaId && <button className="v4-ghost" onClick={retake}>重新录一遍（新 take）</button>}
       {mediaId && !deleted && <button className="v4-ghost" onClick={remove}>删除这段录音</button>}
       {deleted && <span className="v4-dim">录音已删除（数据库与文件一并移除）</span>}
-      {err && <div className="v4-err">{err}</div>}
+      {err && <div className="v4-err">{err}<button className="v4-ghost" disabled={busy || recording} onClick={async()=>{try{await onRefreshTask();setErr('')}catch(e){setErr(String(e))}}}>重新获取任务后再试（保留这段录音）</button></div>}
     </div>
   )
 }
