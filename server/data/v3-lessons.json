@@ -48,7 +48,7 @@
   },
   {
    "lessonId": "les-listening-v1",
-   "version": 2,
+   "version": 3,
    "title": "声音到讲授逻辑",
    "whyNow": "D1 文字可懂、D2 首听漏关系，或 L1 后仍听不出主张：先抓主张，再辨转折和指代，最后才看校对稿。",
    "strategyId": "sound_segmentation",
@@ -61,11 +61,11 @@
     "segmentation",
     "contrast_relations"
    ],
-   "teachingNote": "音频待制作：当前用文字模拟“首听”，听力证据保持未测（18 §8）。正式版须自然讲者录音、逐字校对、两名讲者平行版本。",
+   "teachingNote": "首听为受控合成音频（synthetic，非真人）：真实播放计受限听力证据，封顶「已练」；自然讲者原声制作中，到位后升级为完整听力证据。",
    "activities": [
     {
      "activityId": "les_l2_museum_map_audio",
-     "version": 1,
+     "version": 2,
      "role": "practice",
      "hintStages": [
       "第一次听只回答：地图失灵了吗，还是假设不完整？",
@@ -92,7 +92,7 @@
   },
   {
    "lessonId": "les-oral-v1",
-   "version": 2,
+   "version": 3,
    "title": "脱稿复述和未知追问",
    "whyNow": "L2 内容能理解，但口述只有关键词或改了逻辑：先给“主张／证据／回应”三框支架，再逐步撤除；提示后的复述不记独立掌握。",
    "strategyId": "oral_retrieval",
@@ -105,11 +105,11 @@
     "retrieval_load",
     "organization"
    ],
-   "teachingNote": "站内录音在 W5 接入：当前以文字版走通组织与追问流程，口语状态保持未测。追问必须未预告；提示后的复述不得记为独立掌握。",
+   "teachingNote": "页内录音已可用（浏览器录音→上传→回放）；口语掌握记录仍待人审复核，机器反馈只是练习性质。追问必须未预告；提示后的复述不得记为独立掌握。",
    "activities": [
     {
      "activityId": "les_l3_oral_recap",
-     "version": 1,
+     "version": 2,
      "role": "practice",
      "hintStages": [
       "提示 1：The team expected …, but …（先说预期，再说实际）。",
@@ -118,7 +118,7 @@
     },
     {
      "activityId": "les_l3_followup",
-     "version": 1,
+     "version": 2,
      "role": "transfer",
      "hintStages": [],
      "unlockAfter": "les_l3_oral_recap"

@@ -766,7 +766,7 @@
   },
   {
    "activityId": "les_l2_museum_map_audio",
-   "version": 1,
+   "version": 2,
    "role": "practice",
    "taskFamilyId": "museum_map_audio_D",
    "objectiveIds": [
@@ -784,7 +784,7 @@
    "servesStrategies": [
     "sound_segmentation"
    ],
-   "prompt": "（合成音频 synthetic：Windows SAPI 合成语音的受控练习音频；正式自然讲者录音仍待制作，见 18 §5。首听不显示脚本。）\n\n点播放听一遍（脚本不出现在页面上），只回答一个问题：地图失灵了吗，还是团队对人们需求的假设不完整？",
+   "prompt": "（受控练习音频：合成语音，非真人讲者。首听不显示脚本；真实播放会计入受限听力记录——封顶「已练」，自然讲者版本到位后才升级为完整听力证据。）\n\n点播放听一遍（脚本不出现在页面上），只回答一个问题：地图失灵了吗，还是团队对人们需求的假设不完整？",
    "hints": [
     "先抓主张：地图有没有坏？",
     "in fact 前后是“预期/实际”两半。"
@@ -947,7 +947,7 @@
   },
   {
    "activityId": "les_l3_oral_recap",
-   "version": 1,
+   "version": 2,
    "role": "practice",
    "taskFamilyId": "museum_oral_B",
    "objectiveIds": [
@@ -963,7 +963,7 @@
    "servesStrategies": [
     "oral_retrieval"
    ],
-   "prompt": "（开发 fixture：正式版为 45–90 秒英文录音；文字版不计口语证据。屏幕只留三个空框：讲者主张／证据或原因／你的回应，不显示原文。）\n\n不看原文，说清地图项目的：预期、实际、团队结论、你的下一步建议。",
+   "prompt": "（脱稿口述：先录音再说——页内录音已可用（浏览器录音→上传→回放）。机器词表反馈只作练习参考；口语掌握记录待人审复核后才成立。）\n\n不看原文，说清地图项目的：预期、实际、团队结论、你的下一步建议。",
    "hints": [
     "The team expected …, but …",
     "可用语块：working as designed ／ our assumption was incomplete ／ ask visitors why"
@@ -1045,7 +1045,7 @@
   },
   {
    "activityId": "les_l3_followup",
-   "version": 1,
+   "version": 2,
    "role": "transfer",
    "taskFamilyId": "unannounced_followup_B",
    "objectiveIds": [
@@ -1056,7 +1056,7 @@
    },
    "responseKind": "text",
    "oralEvidenceDeferred": true,
-   "prompt": "（开发 fixture：正式版为录音后随机抽一个未预告追问；文字版不计口语证据。）\n\n追问：If the map worked, why change the design?（直接回答问题并给至少一个理由；不知道就说明你知道的边界。）",
+   "prompt": "（未预告追问：这一问不提前显示方向，考察的是答所问与范围诚实。机器词表反馈只作练习参考；口语掌握记录待人审复核后才成立。）\n\n追问：If the map worked, why change the design?（直接回答问题并给至少一个理由；不知道就说明你知道的边界。）",
    "hints": [
     "答所问；谨慎表达 We don't know yet 也可以。"
    ],
