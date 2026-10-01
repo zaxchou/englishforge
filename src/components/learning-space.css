@@ -84,3 +84,6 @@ html[data-learning-theme=dark] .learning-mode .sidebar-focus{background:#343047!
 /* ---- 48 号用户反馈：地图目标行名称与标签不粘连 ---- */
 .v4-obj .v4-ver { margin-left: 8px; }
 .v4-obj b { margin-right: 4px; }
+.course-teaching{padding:22px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink);line-height:1.85}.course-teaching h3{margin:8px 0}.course-teaching>small{display:block;margin-top:10px;color:var(--ink-dim)}.course-principle{max-width:780px}.course-demonstration{margin-top:20px}.course-example{padding:16px;background:var(--panel);border:1px solid var(--line)}.course-example p{font:18px/1.8 var(--display);margin:10px 0}.course-example span{display:inline-block;font-size:12px;color:var(--accent);margin-right:12px}.course-demonstration li{margin:10px 0}.course-purpose{color:var(--ink-dim);font-size:14px;line-height:1.8;margin:10px 0 18px}
+.learning-mode .topbar{position:static!important}
+.course-framework{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:16px 0}.course-framework span{font-size:13px;padding:10px;background:var(--panel);border:1px solid var(--line)}.course-framework small{display:block;color:var(--accent);margin-bottom:4px}@media(max-width:600px){.course-framework{grid-template-columns:repeat(2,minmax(0,1fr))}}

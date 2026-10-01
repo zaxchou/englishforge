@@ -1,3 +1,4 @@
+import { CourseTeaching, activityPurpose, type TeachingGuide } from './CourseTeaching'
 import { decodeRecordingWav } from '../learning/recordingWav'
 // curriculum-v4 能力路径（W3 双轨展示，docs/curriculum-v4/15 §9）。
 //
@@ -5,7 +6,7 @@ import { decodeRecordingWav } from '../learning/recordingWav'
 // 页面常驻“旧进度不换算”的说明 —— 两个系统不能给用户互相矛盾的“掌握率”。
 // 口语录音（W5）接入前，口述任务以文字版走通并如实标注“口语证据未测”。
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { goalLabel, learnerToday } from '../learning/learnerView'
+import { goalLabel, learnerToday, cleanReason } from '../learning/learnerView'
 import { clearDraft, draftKey, loadDraft, saveDraft } from '../learning/draftStore'
 import './v4.css'
 import { JourneyHero, JourneyRoute, JourneyAbilities, JourneyTimeline, GrowthWorksPage, type WorksData } from './LearningJourney'
@@ -31,6 +32,7 @@ type LessonPkg = {
   title: string
   whyNow: string
   teachingNote: string | null
+  teachingGuide?: TeachingGuide | null
   devSampleNotice: string | null
   contentReview?: ContentReview | null
   activities: { resume?: { response: { text?: string; answers?: Record<string, string> }; result: AttemptFeedback } | null; nextTake: number; taskId: string; activityVersion: number; activityId: string; role: string; prompt: string; hintStageCount: number; firstHint: string | null; simulatesAudio: boolean; fixtureNotice: string | null; oralTask?: boolean; audio?: AudioInfo | null; slots?: { slotId: string; prompt: string; options: string[] }[] | null; reasonLabel?: string | null; material?: { materialId: string; materialVersion?: number; kind: string; segments: { segmentId: string; title?: string; text: string }[] } | null }[]
@@ -428,6 +430,7 @@ async function changeWaiver(objectiveId:string,skill:string,revoked:boolean) {
           key={lesson.lessonId}
           accountId={accountId}
           pkg={lesson}
+          learningReason={lesson.lessonId === plan?.lesson?.lessonId ? today.reason : lesson.lessonId === plan?.fallback?.lessonId ? cleanReason(plan.fallback.reason) : ''}
           onDone={async () => { await loadPlan() }}
         />
       )}
@@ -644,9 +647,10 @@ function DiagPanel({ accountId, onDone }: { accountId: string; onDone: () => voi
   )
 }
 
-function LessonRunner({ accountId, pkg, onDone }: {
+function LessonRunner({ accountId, pkg, learningReason, onDone }: {
   accountId: string
   pkg: LessonPkg
+  learningReason: string
   onDone: () => void
 }) {
   const [answers, setAnswers] = useState<Record<string, string>>(() => Object.fromEntries(pkg.activities.map(a => [a.activityId, a.resume?.response.text ?? ''])))
@@ -770,9 +774,10 @@ function LessonRunner({ accountId, pkg, onDone }: {
     // AI/词表批改的开放题与口述是练习反馈，不算独立能力证据
     const cond = (a: { activityId: string }) => feedback[a.activityId]?.conditions ?? {}
     const isIndep = (a: { activityId: string }) => { const cc = cond(a); return !!cc.firstExposure && (cc.hintLevel ?? 0) === 0 && !cc.transcriptShown }
-    const once = acts.filter((a) => feedback[a.activityId] && feedback[a.activityId].pass && isIndep(a) && !a.oralTask).length
-    const hinted = acts.filter((a) => feedback[a.activityId] && feedback[a.activityId].pass && !isIndep(a) && !a.oralTask).length
+    const once = acts.filter((a) => feedback[a.activityId] && feedback[a.activityId].pass && isIndep(a) && !a.oralTask && !feedback[a.activityId].practiceOnly).length
+    const hinted = acts.filter((a) => feedback[a.activityId] && feedback[a.activityId].pass && !isIndep(a) && !a.oralTask && !feedback[a.activityId].practiceOnly).length
     const oralPractice = acts.filter((a) => feedback[a.activityId] && a.oralTask).length
+    const expressionPractice = acts.filter((a) => feedback[a.activityId] && !a.oralTask && feedback[a.activityId].practiceOnly).length
     const tricky = acts.filter((a) => feedback[a.activityId] && !feedback[a.activityId].pass).length
     const leveledUp = doneGrowth && levelAtStartRef.current != null && doneGrowth.levelIndex > levelAtStartRef.current
     const nextUp = doneJourney?.upcoming?.[0]
@@ -783,6 +788,7 @@ function LessonRunner({ accountId, pkg, onDone }: {
         <div className="v4-done-summary">
           {once > 0 && <span>✅ {once} 步独立做对</span>}
           {hinted > 0 && <span>💡 {hinted} 步在帮助后做对</span>}
+          {expressionPractice > 0 && <span>✍️ {expressionPractice} 步自己的表达（反馈已记录，待后续验证）</span>}
           {oralPractice > 0 && <span>🎙️ {oralPractice} 步口头练习（只作参考，不算独立证据）</span>}
           {tricky > 0 && <span>📝 {tricky} 步要多练一次（都记下来了，不算你的错）</span>}
         </div>
@@ -804,8 +810,8 @@ function LessonRunner({ accountId, pkg, onDone }: {
     <div className="v4-card">
       <div className="journey-eyebrow">专注训练 / 理解 → 表达 → 迁移</div><h2>{pkgLive.title}</h2>
       <button className="v4-ghost" disabled={refreshing} onClick={()=>{void refreshLesson().catch(()=>{})}}>刷新这一步</button>
-      <p className="v4-why">为什么现在学：{pkgLive.whyNow}</p>
-      {pkgLive.teachingNote && <p className="v4-teach">要点：{pkgLive.teachingNote}</p>}
+      <p className="v4-why">这次的安排：{learningReason || pkgLive.teachingGuide?.outcome || cleanReason(pkgLive.whyNow)}</p>
+      <CourseTeaching key={pkgLive.lessonId} guide={pkgLive.teachingGuide} note={pkgLive.teachingNote} />
       {pkgLive.devSampleNotice && <p className="v4-dev">{pkgLive.devSampleNotice}</p>}
       {/* 38-S3：课内与推荐卡、生成结果页同一份审核事实（缓存恢复后重取课包也带 contentReview） */}
       {pkgLive.contentReview?.preview && <p className="v4-dev">这一课是 AI 现做的：已自动检查，还没有老师确认——有问题直接说。</p>}
@@ -817,6 +823,7 @@ function LessonRunner({ accountId, pkg, onDone }: {
             <b>{act.role === 'transfer' ? '陌生迁移' : act.role === 'practice' ? '练习' : act.role}</b>
             {act.simulatesAudio && !act.audio && <span className="v4-dev">这题用文字代替发音（不算听力成绩）</span>}
           </div>
+          <p className="course-purpose">{activityPurpose(act.role, !!act.audio, !!act.oralTask)}</p>
           <pre className="v4-prompt">{act.prompt}</pre>
           {act.material?.segments?.length ? (
             <div className="v4-material">

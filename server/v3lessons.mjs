@@ -1,3 +1,4 @@
+import { teachingGuide } from './v3teaching.mjs'
 import { issueTask } from './v3tasks.mjs'
 // W3：可学习的纵向课程（docs/curriculum-v4/15 §7 课程包契约、§5 内容状态机）。
 //
@@ -146,6 +147,7 @@ export function serveLesson(accountId, lessonId) {
     title: lesson.title,
     whyNow: lesson.whyNow,
     teachingNote: lesson.teachingNote,
+    teachingGuide: teachingGuide(lesson),
     strategyId: lesson.strategyId,
     objectiveIds: lesson.objectiveIds, // R2 验收用：推荐目标必须 ∈ 这里的可测目标
     difficultyDims: lesson.difficultyDims,
