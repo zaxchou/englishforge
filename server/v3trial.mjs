@@ -170,7 +170,10 @@ export function recordObservation(accountId, { trialId, phase, attemptId, materi
   const exposed = !!priorAudio || priorAttempts.some((p) => p.activity_id === attempt.activity_id) || !!priorSupport || !!priorTasks || !!fpClash
   let counted = !!materialWasNovel
   let exposureNote = null
-  if (mode === 'practice_only') {
+  if (attempt.evaluation_status !== 'evaluated') {
+    counted=false
+    exposureNote='作答尚未判定或存在争议：暂停正式计量，保留原始作品。'
+  } else if (mode === 'practice_only') {
     counted = false
     exposureNote = '注册未绑定版本化材料（practice_only）：观察仅作练习记录，不计入正式比较（R7）'
   } else if (exposed) {
@@ -207,7 +210,9 @@ export function compareTrial(accountId, trialId) {
     return a ? {
       attemptId: a.attempt_id, activityId: a.activity_id, response: JSON.parse(a.response || '{}'),
       conditions: JSON.parse(a.conditions || '{}'), evaluation: JSON.parse(a.evaluation || 'null'),
-      counted: !!o.material_was_novel, support: JSON.parse(o.support_snapshot || '{}'),
+      counted: !!o.material_was_novel && a.evaluation_status === 'evaluated',
+      originallyCounted: !!o.material_was_novel, evaluationStatus:a.evaluation_status,
+      exclusionNote: a.evaluation_status !== 'evaluated' ? '作答存在争议或未判定，当前不计入比较；原观察保留。' : null, support: JSON.parse(o.support_snapshot || '{}'),
     } : null
   }
   const baseline = pick('baseline')

@@ -57,3 +57,36 @@ it('a pending generation response cannot publish against feedback changed while 
   expect(db.getDb().prepare('SELECT output_lesson_id FROM generation_jobs WHERE job_id=?').get(result.jobId).output_lesson_id).toBeNull()
  }finally{if(previous===undefined)delete process.env.ENGLISHFORGE_V4_GENERATION;else process.env.ENGLISHFORGE_V4_GENERATION=previous}
 })
+
+it('future personalized lesson becomes inapplicable after feedback while an active course may finish',async()=>{
+ const id=(await call('/api/accounts',{name:'personalized-next'},'POST')).json.account.id
+ const lessons=await import('./v3lessons.mjs');const c=db.getDb()
+ const original=c.prepare("SELECT * FROM lesson_versions WHERE lesson_id='les-relations-v1' ORDER BY version DESC").get()
+ const copy={...original,lesson_id:'personalized-fixture',account_scope:id}
+ const columns=Object.keys(copy);c.prepare(`INSERT INTO lesson_versions (${columns.join(',')}) VALUES (${columns.map(()=>'?').join(',')})`).run(...Object.values(copy))
+ const snapshot={practiceRevision:0,evidenceVersion:0}
+ c.prepare("INSERT INTO generation_jobs (account_id,job_id,input_spec,contract_version,status,output_lesson_id,created_at) VALUES (?,? ,?,'fixture','succeeded',?,?)").run(id,'personal-job',JSON.stringify({learnerEvidence:snapshot}),copy.lesson_id,Date.now())
+ expect(lessons.lessonApplicable(id,lessons.getLesson(copy.lesson_id))).toBe(true)
+ const attempt=await call(`/api/v1/accounts/${id}/attempts`,{attemptId:'new-feedback',activityId:'diag_d1_read',response:{kind:'text',text:'hello'},conditions:{firstExposure:true,hintLevel:0,transcriptShown:false,playCount:0,lookupUsed:false,responseMode:'typed_summary'}},'POST')
+ expect(attempt.status).toBe(200)
+ expect(lessons.lessonApplicable(id,lessons.getLesson(copy.lesson_id))).toBe(false)
+ expect((await call(`/api/v1/accounts/${id}/lessons/${copy.lesson_id}`)).json.error).toContain('SNAPSHOT_CHANGED')
+ const decision=(await call(`/api/v1/accounts/${id}/plan/recompute`,{requestId:'active-fixture'},'POST')).json.decision
+ c.prepare("UPDATE plan_decisions SET status='served',served_lesson_id=? WHERE account_id=? AND decision_id=?").run(copy.lesson_id,id,decision.decisionId)
+ expect(lessons.lessonApplicable(id,lessons.getLesson(copy.lesson_id))).toBe(true)
+ expect((await call(`/api/v1/accounts/${id}/lessons/${copy.lesson_id}`)).status).toBe(200)
+})
+
+it('a previously stored ready recommendation cannot advertise a withdrawn lesson as playable',async()=>{
+ const id=(await call('/api/accounts',{name:'withdrawn-plan'},'POST')).json.account.id,c=db.getDb()
+ const original=c.prepare("SELECT * FROM lesson_versions WHERE lesson_id='les-relations-v1' ORDER BY version DESC").get()
+ const copy={...original,lesson_id:'withdrawn-fixture',account_scope:id},columns=Object.keys(copy)
+ c.prepare(`INSERT INTO lesson_versions (${columns.join(',')}) VALUES (${columns.map(()=>'?').join(',')})`).run(...Object.values(copy))
+ const decision=(await call(`/api/v1/accounts/${id}/plan/recompute`,{requestId:'before-withdraw'},'POST')).json.decision
+ c.prepare('UPDATE plan_decisions SET lesson_ref=? WHERE account_id=? AND decision_id=?').run(JSON.stringify({lessonId:copy.lesson_id,version:copy.version,status:'published'}),id,decision.decisionId)
+ expect((await call(`/api/v1/accounts/${id}/plan`)).json.decision.lesson.lessonId).toBe(copy.lesson_id)
+ c.prepare("UPDATE lesson_versions SET content_status='withdrawn' WHERE lesson_id=?").run(copy.lesson_id)
+ const after=(await call(`/api/v1/accounts/${id}/plan`)).json.decision.lesson
+ expect(after.lessonId).toBeNull();expect(after.status).toBe('content_pending')
+ expect(c.prepare('SELECT content_status FROM lesson_versions WHERE lesson_id=?').get(copy.lesson_id).content_status).toBe('withdrawn')
+})

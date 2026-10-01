@@ -606,6 +606,11 @@ export function recomputeStates(accountId) {
 
   for (const e of events) {
     const band = e.complexity || 'base'
+    if (e.kind === 'waive_revoked') {
+      for (const prior of acc.values()) if (prior.objectiveId===e.objective_id && prior.skill===e.skill) prior.flags.delete('waived_by_user')
+      baseOf(e.objective_id,e.skill).flags.delete('waived_by_user')
+      continue
+    }
     const s = slot(e.objective_id, e.skill, band) // 真实槽位：事件发生在哪个带就记哪个带
     const key = e.objective_id + '|' + e.skill
     if (e.kind === 'waive') { addFlag(e.objective_id, e.skill, band, 'waived_by_user'); continue }
@@ -707,11 +712,28 @@ export function recomputeStates(accountId) {
 
 // ---------------------------------------------------------------- 免修与争议
 
+function requireWaiverTarget(conn,objectiveId,skill) {
+  const obj=conn.prepare('SELECT skills FROM objective_versions WHERE objective_id=? ORDER BY version DESC LIMIT 1').get(objectiveId)
+  if (!obj || !Object.hasOwn(JSON.parse(obj.skills || '{}'),skill)) throw new ApiError(400,'WAIVER_TARGET_INVALID')
+}
+
+/** Undo self-rated exemption; originals remain in the append-only event ledger. */
+export function revokeWaiver(accountId,{objectiveId,skill,reason}={}) {
+  requireAccount(accountId)
+  const conn=ensureV3Schema();requireWaiverTarget(conn,objectiveId,skill)
+  conn.prepare(`INSERT INTO evidence_events (account_id,evidence_id,attempt_id,objective_id,skill,complexity,kind,condition,pass,basis,created_at)
+    VALUES (?,?,NULL,?,?,'base','waive_revoked','user_waiver',NULL,?,?)`).run(accountId,`ev_unwaive_${Date.now()}_${Math.random().toString(36).slice(2,6)}`,objectiveId,skill,JSON.stringify({reason:String(reason || '').slice(0,500)}),Date.now())
+  recomputeStates(accountId)
+  return {ok:true,note:'已恢复这项目标的训练，原免修记录保留；原能力证据不删除。'}
+}
+
 /** POST /waivers：用户免修 = waived_by_user 标志，状态值不动，永远不会变成 retained */
 export function waive(accountId, { objectiveId, skill, complexity, reason } = {}) {
   requireAccount(accountId)
   if (!objectiveId || !skill) throw new ApiError(400, 'WAVIER_NEEDS_OBJECTIVE_AND_SKILL')
   const conn = ensureV3Schema()
+  requireWaiverTarget(conn,objectiveId,skill)
+  if (complexity && !/^(base|band[1-6])$/.test(complexity)) throw new ApiError(400,'WAIVER_COMPLEXITY_INVALID')
   // 事件带父组复杂度带（审计粒度）；状态聚合槽仍是 'base'（recompute 的聚合口径）
   const bandComplexity = complexity || complexityBandFor(conn, objectiveId)
   complexity = 'base'

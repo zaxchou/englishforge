@@ -11,6 +11,7 @@ import './v4.css'
 type Plan = {
   decisionId: string
   primaryGoal: string | null
+  primarySkill?: string | null
   strategyId: string
   reason: string
   hypotheses: string[]
@@ -61,9 +62,9 @@ const STATE_LABEL: Record<string, string> = {
 const SKILL_LABEL: Record<string, string> = {
   listening: '听', speaking: '说', reading: '读', writing: '写', interaction: '互动',
 }
-// 复杂度带（coverage_groups.complexity_band 1–6）：认→造→辨→说→迁→释 的档位粗名；'base'=跨带聚合
+// 复杂度与技能独立；已知指代任务显示实际负担，其余不猜档位含义。
 const BAND_LABEL: Record<string, string> = {
-  base: '综合', band1: '带1·认识', band2: '带2·造句', band3: '带3·辨析', band4: '带4·口说', band5: '带5·迁移', band6: '带6·解释',
+  base: '综合（跨档）', band1: '复杂度档1', band2: '复杂度档2', band3: '复杂度档3', band4: '复杂度档4', band5: '复杂度档5', band6: '复杂度档6',
 }
 
 export function V4Path({ accountId }: { accountId: string | null }) {
@@ -76,6 +77,7 @@ export function V4Path({ accountId }: { accountId: string | null }) {
   const [planLoading, setPlanLoading] = useState(true)
   const [lesson, setLesson] = useState<LessonPkg | null>(null)
   const [evidence, setEvidence] = useState<Evidence | null>(null)
+  const [waiverBusy,setWaiverBusy] = useState(false)
   const [mapIdx, setMapIdx] = useState<MapIdx | null>(null)
 
   const loadPlan = useCallback(async () => {
@@ -115,19 +117,28 @@ export function V4Path({ accountId }: { accountId: string | null }) {
   }
 
   const today = learnerToday(plan)
+  async function changeWaiver(objectiveId:string,skill:string,revoked:boolean) {
+    if(waiverBusy)return
+    setWaiverBusy(true)
+    try {
+      await api(`/accounts/${accountId}/waivers${revoked?'/revoke':''}`,{objectiveId,skill,reason:revoked?'学习者恢复训练':'学习者自行确认熟悉，免修重复目标'},'POST')
+      await api(`/accounts/${accountId}/plan/recompute`,{requestId:crypto.randomUUID(),triggerEventId:revoked?'userRevokeWaiver':'userWaive'},'POST')
+      await loadPlan();setTab('today')
+    }catch(e){setErr(String(e))}finally{setWaiverBusy(false)}
+  }
 
   return (
     <div className="v4">
       <details className="v4-legacy"><summary>关于学习记录</summary>本页是新版能力路径（curriculum-v4）。旧首页的 XP、题量、箱数只是历史活动记录，<b>不会换算</b>为这里的能力状态。</details>
       <div className="v4-tabs">
-        <button className={tab === 'today' ? 'on' : ''} onClick={() => setTab('today')}>今日学习</button>
-        <button className={tab === 'plan' ? 'on' : ''} onClick={() => setTab('plan')}>推荐详情</button>
-        <button className={tab === 'diag' ? 'on' : ''} onClick={() => setTab('diag')}>入口诊断</button>
-        <button className={tab === 'evidence' ? 'on' : ''} onClick={() => setTab('evidence')}>我的成长</button>
-        <button className={tab === 'map' ? 'on' : ''} onClick={() => setTab('map')}>学习路线</button>
+        <button className={tab === 'today' ? 'on' : ''} disabled={waiverBusy} onClick={() => setTab('today')}>今日学习</button>
+        <button className={tab === 'plan' ? 'on' : ''} disabled={waiverBusy} onClick={() => setTab('plan')}>推荐详情</button>
+        <button className={tab === 'diag' ? 'on' : ''} disabled={waiverBusy} onClick={() => setTab('diag')}>入口诊断</button>
+        <button className={tab === 'evidence' ? 'on' : ''} disabled={waiverBusy} onClick={() => setTab('evidence')}>我的成长</button>
+        <button className={tab === 'map' ? 'on' : ''} disabled={waiverBusy} onClick={() => setTab('map')}>学习路线</button>
         <details className="v4-ops">
           <summary>运营工具</summary>
-          <button className={tab === 'review' ? 'on' : ''} onClick={() => setTab('review')}>审核与试听</button>
+          <button className={tab === 'review' ? 'on' : ''} disabled={waiverBusy} onClick={() => setTab('review')}>审核与试听</button>
         </details>
       </div>
       {err && <div className="v4-err">{err}</div>}
@@ -136,7 +147,7 @@ export function V4Path({ accountId }: { accountId: string | null }) {
         <div className="v4-card v4-today">
           <h2 className="v4-today-head">{today.headline}</h2>
           {today.reason && <p className="v4-why">{today.reason}</p>}
-          <button className="v4-primary v4-today-btn" disabled={today.waiting || planLoading || !!err}
+          <button className="v4-primary v4-today-btn" disabled={waiverBusy || today.waiting || planLoading || !!err}
             onClick={() => {
               if (today.mode === 'find_start') { setTab('diag'); return }
               if (today.lessonId) void openLesson(today.lessonId)
@@ -145,12 +156,13 @@ export function V4Path({ accountId }: { accountId: string | null }) {
             <details className="v4-fold">
               <summary>查看安排依据</summary>
               <p><code>{today.goalId}</code>{today.lessonId ? <> · 课程 <code>{today.lessonId}</code></> : null}</p>
+              {plan?.primarySkill && <><p>如果这项目标的{SKILL_LABEL[plan.primarySkill] ?? plan.primarySkill}训练你已经很熟，可以自主免修。免修不认证掌握，之后能恢复。</p><button className="v4-ghost" disabled={waiverBusy} onClick={()=>{void changeWaiver(today.goalId!,plan.primarySkill!,false)}}>我已熟悉，免修这项目标的{SKILL_LABEL[plan.primarySkill] ?? plan.primarySkill}训练</button></>}
             </details>
           )}
           <div className="v4-today-aux">
-            <button className="v4-ghost" onClick={() => setTab('evidence')}>我的成长</button>
-            <button className="v4-ghost" onClick={() => setTab('map')}>学习路线</button>
-            <button className="v4-ghost" onClick={() => setTab('plan')}>推荐详情</button>
+            <button className="v4-ghost" disabled={waiverBusy} onClick={() => setTab('evidence')}>我的成长</button>
+            <button className="v4-ghost" disabled={waiverBusy} onClick={() => setTab('map')}>学习路线</button>
+            <button className="v4-ghost" disabled={waiverBusy} onClick={() => setTab('plan')}>推荐详情</button>
           </div>
           <p className="v4-dim">旧版刷题练习仍在侧栏「今日练习」，作为历史练习保留，两边分开计量。</p>
         </div>
@@ -174,8 +186,8 @@ export function V4Path({ accountId }: { accountId: string | null }) {
           {evidence?.states.filter(s=>s.complexity==='base' && ['independent','transferred','retained'].includes(s.state) && !s.flags.includes('disputed')).map(s=><p key={s.objectiveId+s.skill}>{goalLabel(s.objectiveId)} · {SKILL_LABEL[s.skill] ?? s.skill}：{STATE_LABEL[s.state] ?? s.state}</p>)}
           <p>下一步：{today.headline.replace('今天这一步：','').replace('接下来该练：','')}</p>
           {today.waiting && <p>{today.reason}</p>}
-          <button className="v4-primary" onClick={()=>setTab('today')}>回到今日学习</button>
-          <details className="v4-fold"><summary>查看各项能力记录</summary>
+          <button className="v4-primary" disabled={waiverBusy} onClick={()=>setTab('today')}>回到今日学习</button>
+          <details className="v4-fold"><summary>查看各项能力记录</summary><p className="v4-dim">免修是你的自主选择，只移出重复目标，不会变成掌握认证；之后可以恢复。</p>
           <p className="v4-dim">带行是每个复杂度档的真实状态（不同档互不覆盖）；「综合」行是跨档保守合并——取最弱一档，易档通过不会替你掩盖嵌套档的不足。</p>
           {!evidence?.states.length && <p className="v4-dim">还没有足够的能力记录。练习反馈会保留，但不会自动变成“掌握”。</p>}
           <div className="v4-states">
@@ -183,9 +195,10 @@ export function V4Path({ accountId }: { accountId: string | null }) {
               <div key={s.objectiveId + s.skill + s.complexity} className="v4-state">
                 <code>{s.objectiveId}</code>
                 <span className="v4-skill">{SKILL_LABEL[s.skill] ?? s.skill}</span>
-                <span className="v4-skill">{BAND_LABEL[s.complexity] ?? '综合'}</span>
+                <span className="v4-skill">{s.objectiveId==='O-K115-02'&&s.complexity==='band2'?'简单指代':s.objectiveId==='O-K115-02'&&s.complexity==='band4'?'嵌套指代':BAND_LABEL[s.complexity] ?? '综合'}</span>
                 <b>{STATE_LABEL[s.state] ?? s.state}</b>
                 {s.flags.map((f) => <em key={f}>{f === 'disputed' ? '争议复核' : f === 'waived_by_user' ? '已免修' : f === 'needs_repair' ? '待修复' : f}</em>)}
+                {s.complexity==='base' && <button className="v4-ghost" disabled={waiverBusy} onClick={()=>{void changeWaiver(s.objectiveId,s.skill,s.flags.includes('waived_by_user'))}}>{s.flags.includes('waived_by_user')?'恢复这项训练':`我已熟悉，免修这项目标的${SKILL_LABEL[s.skill] ?? s.skill}训练`}</button>}
               </div>
             ))}
           </div>

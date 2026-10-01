@@ -7,7 +7,7 @@ import { issueTask, deliverTaskAudio, recordTaskPlay } from './v3tasks.mjs'
 import { ApiError, getAccount } from './db.mjs'
 import { ensureV3Schema, oldRecordMap } from './v3db.mjs'
 import { mapIndex, rowToObjective } from './v3map.mjs'
-import { recordAttempt, evidenceSummary, waive, reportContent, getStoredAttempt } from './v3evidence.mjs'
+import { recordAttempt, evidenceSummary, waive, revokeWaiver, reportContent, getStoredAttempt } from './v3evidence.mjs'
 import { startDiagnostic, getDiagnostic, advanceDiagnostic, expectedActivityFor, latestOpenDiagnostic } from './v3diag.mjs'
 import { getPlan, recomputePlan } from './v3plan.mjs'
 import { serveLesson, revealHint, completeLesson, listLessons, seedLessons, withdrawLesson, publishLesson, signLesson } from './v3lessons.mjs'
@@ -118,6 +118,7 @@ export const V3_ROUTES = [
 
   // 用户免修：waived_by_user 标志，不等于认证（R03）
   ['POST', '/api/v1/accounts/:id/waivers', (ctx) => waive(ctx.params.id, ctx.body ?? {})],
+  ['POST', '/api/v1/accounts/:id/waivers/revoke', (ctx) => revokeWaiver(ctx.params.id,ctx.body ?? {})],
 
   // 内容争议：坏题/坏转写 → 争议+暂停，不降级用户（A6）
   ['POST', '/api/v1/accounts/:id/content-reports', (ctx) => reportContent(ctx.params.id, ctx.body ?? {})],

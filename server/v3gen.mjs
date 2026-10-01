@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url'
 import { ensureV3Schema, getMeta, setMeta } from './v3db.mjs'
 import { ApiError } from './db.mjs'
 import { rowToObjective } from './v3map.mjs'
-import { runQualityGates, lessonForStrategy, lessonForObjective, getLesson } from './v3lessons.mjs'
+import { runQualityGates, lessonForStrategy, lessonForObjective, getLesson, lessonApplicable } from './v3lessons.mjs'
 import { activityById } from './v3evidence.mjs'
 import { decide } from './v3plan.mjs'
 import { chatWithMeta, LlmError } from './llm.mjs'
@@ -413,7 +413,7 @@ export function ensureWindow(accountId, { chat = chatWithMeta } = {}) {
     const cached = conn.prepare("SELECT * FROM lesson_cache WHERE account_id = ? AND objective_id = ? AND status = 'ready'")
       .get(accountId, oid)
     const cachedLesson = cached && getLesson(cached.lesson_id)
-    const cacheUsable = cachedLesson && cachedLesson.contentStatus === 'published'
+    const cacheUsable = cachedLesson && lessonApplicable(accountId,cachedLesson) && cachedLesson.contentStatus === 'published'
       && cachedLesson.version === cached.version && cachedLesson.objectiveIds.includes(oid)
       && (!cachedLesson.accountScope || cachedLesson.accountScope === 'global' || cachedLesson.accountScope === accountId)
       && !conn.prepare("SELECT 1 FROM plan_decisions WHERE account_id = ? AND served_lesson_id = ? AND status = 'completed'").get(accountId, cached.lesson_id)

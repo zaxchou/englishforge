@@ -57,12 +57,13 @@ export default function App() {
   const progressRef = useRef(progress)
   const [notice, setNotice] = useState<LoadNotice>(loaded.notice)
   const [saveErr, setSaveErr] = useState(hadSaveError)
-  const [view, setView] = useState<View>({ name: 'home' })
+  const [view, setView] = useState<View>(() => ({ name: window.location.hash === '#learn' ? 'v4' : 'home' }))
   /** 侧栏里被选中的那一项（首页与内页共用同一条侧栏） */
   const [nav, setNav] = useState<NavTarget>('today')
   const navActive: NavTarget = view.name === 'lesson' ? 'courses' : view.name === 'v4' ? 'v4path' : view.name === 'records' ? nav : 'today'
 
   function handleNav(target: NavTarget) {
+    window.history.replaceState(null,'',target==='v4path'?'#learn':window.location.pathname+window.location.search)
     setNav(target)
     if (target === 'today') {
       setView({ name: 'home' })
@@ -513,7 +514,7 @@ export default function App() {
       )}
       <header className="topbar">
         {view.name !== 'home' && (
-          <button className="brand brand-btn" onClick={() => setView({ name: 'home' })}>← 返回学习空间</button>
+          <button className="brand brand-btn" onClick={() => handleNav('today')}>← 返回学习空间</button>
         )}
         <span className="inner-location">{LOCATION[view.name]}</span>
         <div className="stats">
@@ -644,7 +645,7 @@ export default function App() {
         />
       )}
       <footer className="foot">
-        <span>素材来自张俊杰老师课程逐字稿 · 进度存于浏览器与本地数据库 · </span>
+        <span>{view.name === 'v4' ? '以课程思路组织理解与表达训练 · 补充材料与开发样本见课内说明' : '素材来自张俊杰老师课程逐字稿'} · 进度存于浏览器与本地数据库 · </span>
         <span>按自己的节奏练习</span>
       </footer>
     </div>

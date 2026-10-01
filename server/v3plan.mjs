@@ -9,7 +9,7 @@ import { ensureV3Schema, getMeta, nextCounter } from './v3db.mjs'
 import { requireAccount } from './v3api.mjs'
 import { activityById, loadActivities } from './v3evidence.mjs'
 import { seedMap, rowToObjective } from './v3map.mjs'
-import { getLesson, seedLessons, lessonForStrategy, lessonForObjective } from './v3lessons.mjs'
+import { getLesson, seedLessons, lessonForStrategy, lessonForObjective, lessonApplicable } from './v3lessons.mjs'
 
 const STATE_RANK = { unmeasured: 0, tentative: 1, trained: 2, independent: 3, transferred: 4, retained: 5 }
 const STRATEGY_LESSONS = {
@@ -342,7 +342,11 @@ function decisionView(row) {
   const lesson = JSON.parse(row.lesson_ref || 'null')
   if (lesson?.lessonId) {
     const pkg = getLesson(lesson.lessonId)
-    lesson.resumeAvailable = row.status !== 'completed' && !!pkg?.activities.some(a => ensureV3Schema().prepare('SELECT 1 FROM learner_attempts_v3 WHERE account_id=? AND activity_id=? AND created_at>=? LIMIT 1').get(row.account_id,a.activityId,row.served_at ?? row.created_at))
+    if (!pkg || pkg.contentStatus !== 'published' || pkg.version !== lesson.version || !lessonApplicable(row.account_id,pkg)) {
+      lesson.lessonId=null;lesson.status='content_pending';lesson.resumeAvailable=false
+      lesson.waitNotice='当前材料已经变更或不再适合这次学习安排，请等待新的合格课程。'
+    }
+    lesson.resumeAvailable = !!lesson.lessonId && row.status !== 'completed' && !!pkg?.activities.some(a => ensureV3Schema().prepare('SELECT 1 FROM learner_attempts_v3 WHERE account_id=? AND activity_id=? AND created_at>=? LIMIT 1').get(row.account_id,a.activityId,row.served_at ?? row.created_at))
   }
   return {
     decisionId: row.decision_id,
@@ -351,6 +355,7 @@ function decisionView(row) {
     mapVersion: row.map_version,
     learnerEvidenceVersion: row.evidence_version,
     primaryGoal: row.primary_goal,
+    primarySkill: Object.entries(JSON.parse(ensureV3Schema().prepare('SELECT skills FROM objective_versions WHERE objective_id=? ORDER BY version DESC LIMIT 1').get(row.primary_goal)?.skills || '{}')).find(([,role])=>role==='primary')?.[0] ?? null,
     strategyId: row.strategy_id,
     reason: row.reason,
     hypotheses: JSON.parse(row.hypotheses || '[]'),

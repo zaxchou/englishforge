@@ -32,7 +32,9 @@ try {
  browser=await chromium.launch({headless:true,args:['--use-fake-device-for-media-stream','--use-fake-ui-for-media-stream']})
  const page=await browser.newPage({permissions:['microphone'],viewport:{width:1280,height:900}}),errors=[]
  page.setDefaultTimeout(10000);page.on('pageerror',e=>errors.push(e.message))
- await page.goto(base);await page.getByText('能力路径 · 新版',{exact:true}).click()
+ await page.goto(base);await page.getByRole('button',{name:'学习路径',exact:true}).click()
+ await page.reload();await page.getByText('学习路径 · 今天与下一步',{exact:true}).waitFor()
+ if(!page.url().endsWith('#learn'))throw Error('learning entry lost after reload')
  let completed=0
  for(let course=0;course<4;course++){
   const plan=(await api(`/api/v1/accounts/${id}/plan`)).decision
@@ -73,6 +75,18 @@ try {
  if(completed!==3)throw Error(`expected 3 development samples, got ${completed}`)
  await page.getByRole('button',{name:'我的成长',exact:true}).first().click();await page.getByText('最近完成的训练',{exact:true}).waitFor()
  await page.setViewportSize({width:390,height:844});if(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth))throw Error('mobile overflow')
+ // Self-rated exemption is an explicit user operation, never a mastery certificate.
+ const before=(await api(`/api/v1/accounts/${id}/plan`)).decision
+ await page.getByRole('button',{name:'回到今日学习',exact:true}).click()
+ await page.getByText('查看安排依据',{exact:true}).click()
+ const [waived]=await Promise.all([page.waitForResponse(r=>r.url().endsWith(`/accounts/${id}/waivers`)&&r.request().method()==='POST'),page.getByRole('button',{name:/^我已熟悉，免修这项目标/}).click()])
+ if(waived.status()!==200)throw Error('waiver rejected')
+ await page.getByRole('button',{name:'我的成长',exact:true}).first().click()
+ await page.getByText('查看各项能力记录',{exact:true}).click()
+ const [restored]=await Promise.all([page.waitForResponse(r=>r.url().endsWith('/waivers/revoke')&&r.request().method()==='POST'),page.getByRole('button',{name:'恢复这项训练',exact:true}).click()])
+ if(restored.status()!==200)throw Error('waiver undo rejected')
+ const evidence=await api(`/api/v1/accounts/${id}/evidence`)
+ if(evidence.states.some(s=>s.objectiveId===before.primaryGoal&&s.skill===before.primarySkill&&s.flags.includes('waived_by_user')))throw Error('waiver flag survived undo')
  if(errors.length)throw Error(errors.join(';'))
  console.log('UI_JOURNEY_OK: 3 development lessons, fake microphone, growth, honest exhausted content; no learning-effect claim')
 } finally {

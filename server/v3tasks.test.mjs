@@ -57,10 +57,15 @@ describe('server-issued task and media contracts',()=>{
   const obs=await call(`/api/v1/accounts/${id}/trials/${reg.trialId}/observations`,{phase:'baseline',attemptId:'baseline-take'},'POST')
   c.prepare('UPDATE generated_activities SET definition=?,version=1 WHERE activity_id=?').run(JSON.stringify(acts[0]),acts[0].activityId)
   expect(obs.json.counted).toBe(true)
+  c.prepare("UPDATE learner_attempts_v3 SET evaluation_status='disputed' WHERE account_id=? AND attempt_id=?").run(id,'baseline-take')
+  const comparison=(await call(`/api/v1/accounts/${id}/trials/${reg.trialId}/compare`)).json
+  expect(comparison.baseline.counted).toBe(false);expect(comparison.baseline.originallyCounted).toBe(true)
   const otherReg=(await call(`/api/v1/accounts/${id}/trials`,{skill:'listening',baselineTask:spec(acts[0]),postTask:spec(acts[1])},'POST')).json
   const again=(await call(`/api/v1/accounts/${id}/trials/${otherReg.trialId}/tasks`,{phase:'baseline'},'POST')).json
   await play(id,again.taskId,acts[0]);await call(`/api/v1/accounts/${id}/attempts`,{...attempt,taskId:again.taskId,attemptId:'later'},'POST')
-  expect((await call(`/api/v1/accounts/${id}/trials/${otherReg.trialId}/observations`,{phase:'baseline',attemptId:'later'},'POST')).json.counted).toBe(false)
+  c.prepare("UPDATE learner_attempts_v3 SET evaluation_status='disputed' WHERE account_id=? AND attempt_id=?").run(id,'later')
+  const disputed=await call(`/api/v1/accounts/${id}/trials/${otherReg.trialId}/observations`,{phase:'baseline',attemptId:'later'},'POST')
+  expect(disputed.json.counted).toBe(false);expect(disputed.json.exposureNote).toContain('争议')
   const bad=await call(`/api/v1/accounts/${id}/trials`,{skill:'reading',baselineTask:spec(acts[0]),postTask:spec(acts[1])},'POST')
   expect(bad.status).toBe(400)
  })

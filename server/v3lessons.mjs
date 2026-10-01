@@ -118,6 +118,7 @@ export function serveLesson(accountId, lessonId) {
   if (lesson.accountScope && lesson.accountScope !== 'global' && lesson.accountScope !== accountId) {
     throw new ApiError(404, 'ACTIVITY_NOT_PUBLISHED: ' + lessonId)
   }
+  if (!lessonApplicable(accountId,lesson)) throw new ApiError(409,'LESSON_LEARNING_SNAPSHOT_CHANGED')
   const conn = ensureV3Schema()
   const attempted = new Set(
     conn.prepare('SELECT DISTINCT activity_id FROM learner_attempts_v3 WHERE account_id = ?').all(accountId).map((r) => r.activity_id))
@@ -299,6 +300,19 @@ export function publishLesson(lessonId, { acknowledgeUnreviewed = false, by = 'o
   return { ok: true, lessonId, releaseChannel: channel }
 }
 
+/** Personalized future lessons are selected against their learner snapshot; active lessons can finish. */
+export function lessonApplicable(accountId, lesson) {
+  if (!lesson || !accountId) return false
+  const conn=ensureV3Schema()
+  if (conn.prepare("SELECT 1 FROM plan_decisions WHERE account_id=? AND served_lesson_id=? AND status='served' LIMIT 1").get(accountId,lesson.lessonId)) return true
+  const job=conn.prepare('SELECT account_id,input_spec FROM generation_jobs WHERE output_lesson_id=? ORDER BY created_at DESC LIMIT 1').get(lesson.lessonId)
+  if (!job) return true // curated reusable material, not a personalized generated course
+  if (job.account_id !== accountId) return false
+  const snapshot=JSON.parse(job.input_spec || '{}').learnerEvidence
+  return !!snapshot && snapshot.practiceRevision===conn.prepare('SELECT COUNT(*) AS n FROM learner_attempts_v3 WHERE account_id=?').get(accountId).n
+    && snapshot.evidenceVersion===(conn.prepare("SELECT value FROM v3_counters WHERE account_id=? AND name='evidence'").get(accountId)?.value ?? 0)
+}
+
 /** F3：按主目标找已发布课（排除本账户已完成；返回真实版本）。个人定制内容不跨账户复用 */
 export function lessonForObjective(objectiveId, { excludeCompletedFor = null } = {}) {
   const conn = ensureV3Schema()
@@ -312,6 +326,7 @@ export function lessonForObjective(objectiveId, { excludeCompletedFor = null } =
      ORDER BY (release_channel = 'mainline') DESC, version DESC`).all(scope)
   for (const r of rows) {
     if (!JSON.parse(r.objective_ids || '[]').includes(objectiveId)) continue
+    if (!lessonApplicable(excludeCompletedFor ?? '__no_account__',{lessonId:r.lesson_id})) continue
     if (done.has(r.lesson_id)) continue // F2：已完成课不再当新课推荐；只剩已完成课时诚实返回无内容
     // R2（24 号）：带上课的实际可测目标，调用方校验"推荐目标 ∈ 课的目标"
     return { lessonId: r.lesson_id, version: r.version, devOnly: r.release_channel === 'dev_only',
@@ -346,6 +361,7 @@ export function lessonForStrategy(strategyId, { excludeCompletedFor = null, must
      WHERE content_status = 'published' AND strategy_id = ? AND account_scope IN ('global', ?)
      ORDER BY (release_channel = 'mainline') DESC, version DESC`).all(strategyId, scope)
   for (const r of rows) {
+    if (!lessonApplicable(excludeCompletedFor ?? '__no_account__',{lessonId:r.lesson_id})) continue
     if (done.has(r.lesson_id)) continue // F2：同上
     const objectiveIds = JSON.parse(r.objective_ids || '[]')
     if (mustIncludeObjective && !objectiveIds.includes(mustIncludeObjective)) continue // R2：目标不匹配的课不借

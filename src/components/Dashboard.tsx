@@ -70,7 +70,7 @@ export function Sidebar({ active = 'today', dueCount, account, dbState, onNaviga
     <div className="nav-label">LEARNING SPACE</div><nav aria-label="主导航">
       <button className={active === 'today' ? 'selected' : ''} onClick={() => onNavigate('today')}><NavIcon kind="home" />今日练习</button>
       <button className={active === 'courses' ? 'selected' : ''} onClick={() => onNavigate('courses')}><NavIcon kind="book" />全部课程</button>
-      <button className={active === 'v4path' ? 'selected' : ''} onClick={() => onNavigate('v4path')}><NavIcon kind="chart" />能力路径 · 新版</button>
+      <button className={active === 'v4path' ? 'selected' : ''} onClick={() => onNavigate('v4path')}><NavIcon kind="chart" />学习路径</button>
       <button onClick={onReview}><NavIcon kind="review" />巩固复习{dueCount > 0 && <span className="nav-count">{dueCount}</span>}</button>
       <button className={active === 'history' ? 'selected' : ''} onClick={() => onNavigate('history')}><NavIcon kind="chart" />学习记录</button>
       <button onClick={onReviewContent}><NavIcon kind="check" />题目审核</button>
