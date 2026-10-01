@@ -108,3 +108,42 @@ it('口述作答（转写稿）同样走 AI 批改；诊断题不调用；结论
   const pkg2 = (await call(`/api/v1/accounts/${id}/lessons/les-oral-c1`)).json
   expect(pkg2.activities[0].resume.result.aiReview.verdict).toBe('correct')
 })
+
+it('50 号：生成的开放题可省略关键词锚点（AI 批改为主）——过门、发布、作答走 AI 判定', async () => {
+  const id = await freshAccount('批改-无锚点')
+  const gen = await import('./v3gen.mjs')
+  // 无 relations 的生成包：机器门应放行（50 号），语义审核注入 supported
+  const pkgNoAnchors = {
+    title: '无锚点生成课', whyNow: '按近期反馈安排。', teachingNote: '先看主张再看限制。', explanationKind: 'established',
+    sourceRefs: [{ ref: 'G3', claim: '两段的 but 都对照预期与实际' }],
+    activities: [
+      { taskFamilyId: 'na_a', materialId: 'mat_g3_contrast_texts', segmentIds: ['mat_g3_rehearsal'],
+        referenceAnswer: '团队保留了手势控制，把语音控制推迟到展厅实测之后——限制是先在展厅验证，不是永久放弃。',
+        supportingQuotes: ['We kept the gesture controls, but we delayed voice control until we could test it with visitors in the exhibition hall.'],
+        role: 'practice', prompt: '用你自己的话说：团队保留了什么、推迟了什么、限制是什么？', hints: [] },
+      { taskFamilyId: 'na_b', materialId: 'mat_g3_contrast_texts', segmentIds: ['mat_g3_film'],
+        referenceAnswer: '保留了视觉序列，推迟配音测试——限制只是小房间场景，不是影片不行。',
+        supportingQuotes: ['We kept the visual sequence but postponed the voice-over test.'],
+        role: 'transfer', prompt: '读放映段：保留了什么、推迟了什么？', hints: [] },
+    ],
+  }
+  let calls = 0
+  grader.__setGraderChat(async () => { calls++; return JSON.stringify({ verdict: 'correct', feedback: '意思说到位了。', agreesWithMechanical: true }) })
+  const r = await gen.startGenerationJob(id, { objectiveId: 'O-K184-02', userConfirmed: true, await: true, force: true,
+    semanticJudge: async () => ({ verdict: 'supported', reviewer: 'test-stub', activities: [{ idx: 0, answerability: 'supported', languageFacts: 'supported', objectiveAlignment: 'supported', scoringConsistency: 'supported' }, { idx: 1, answerability: 'supported', languageFacts: 'supported', objectiveAlignment: 'supported', scoringConsistency: 'supported' }] }),
+    chat: async () => JSON.stringify(pkgNoAnchors) })
+  expect(r.status).toBe('succeeded')
+  expect(r.published).toBe(true) // 50 号前：这种包会被 answersConsistent 拒（实测 3/3 生成失败同源）
+  // 作答：机械词表无锚点 → 练习层通过；AI 批改给真实判定
+  const pkg = (await call(`/api/v1/accounts/${id}/lessons/${r.lessonId}`)).json
+  const act = pkg.activities[0]
+  const at = await call(`/api/v1/accounts/${id}/attempts`, {
+    attemptId: `na-${act.activityId}`, taskId: act.taskId, activityId: act.activityId,
+    response: { kind: 'text', text: '他们决定先只用按钮那套，出声的等展览现场人多的时候试过效果再说，并没有要砍掉。' },
+    conditions: { firstExposure: true, hintLevel: 0, transcriptShown: false, playCount: 1, lookupUsed: false, responseMode: 'typed_summary' },
+  }, 'POST')
+  expect(at.json.aiReview.verdict).toBe('correct')
+  expect(at.json.displayPass).toBe(true)
+  expect(calls).toBe(1) // AI 批改真实参与
+  grader.__setGraderChat(null)
+})

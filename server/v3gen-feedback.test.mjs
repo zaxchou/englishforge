@@ -87,6 +87,11 @@ it('a previously stored ready recommendation cannot advertise a withdrawn lesson
  expect((await call(`/api/v1/accounts/${id}/plan`)).json.decision.lesson.lessonId).toBe(copy.lesson_id)
  c.prepare("UPDATE lesson_versions SET content_status='withdrawn' WHERE lesson_id=?").run(copy.lesson_id)
  const after=(await call(`/api/v1/accounts/${id}/plan`)).json.decision.lesson
- expect(after.lessonId).toBeNull();expect(after.status).toBe('content_pending')
+ // 50 号自愈后：撤回的副本绝不再被推荐；若自愈重算找到了同目标的其他已发布课（如原版）也是合法出口
+ expect(after.lessonId).not.toBe(copy.lesson_id)
+ if (after.lessonId) {
+   const st=c.prepare('SELECT content_status FROM lesson_versions WHERE lesson_id=?').get(after.lessonId)
+   expect(st.content_status).toBe('published')
+ } else expect(after.status).toBe('content_pending')
  expect(c.prepare('SELECT content_status FROM lesson_versions WHERE lesson_id=?').get(copy.lesson_id).content_status).toBe('withdrawn')
 })

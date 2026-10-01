@@ -52,7 +52,7 @@ export const GEN_CONTRACT_V1 = {
     '1) 只输出 JSON：{"title","whyNow","teachingNote","explanationKind":"established|new",',
     '   "activities":[{"taskFamilyId","prompt","hints":[],"relations":[{"id","label","anyOf":[],"required"}],"mustNot":[]}],',
     '   "sourceRefs":[{"ref","claim"}]}；不要 markdown 包装。',
-    '2) 每个活动至少 2 个 required 关系，可接受答案用 anyOf 关键词表达（中英文都可）。',
+    '2) relations/anyOf 关键词判定表**可以省略**（省略时由 AI 老师按意思批改，更准确）；如果要给，每个活动至少 2 个 required 关系，且参考答案自身必须能通过这些关键词——拿不准就别给。',
     '3) teachingNote 用白话讲关系（像"做动作的/挨动作的"），**禁止**主格/宾格/物主代词/三单/谓语/从句这类术语。',
     '4) sourceRefs 至少 1 条，形如 {"ref":"代号","claim":"该材料实际依赖的具体语言命题"}；ref 必须是该目标声明过的来源代号，claim 必须写具体命题（≥6 字），不得只报代号。',
     '5) 素材是**虚构教学情境**，不得声称真实项目/讲座；不得与给定"最近用过的家族"重复。',
@@ -109,7 +109,7 @@ export function registerGeneratedActivities(jobId, activities) {
       referenceAnswer: typeof a.referenceAnswer === 'string' ? a.referenceAnswer : null, // 参考答案：复核/对照用，不下发学习者
       supportingQuotes: Array.isArray(a.supportingQuotes) ? a.supportingQuotes : null, // 支撑原句：可追溯出题依据
       conditionsSpec: ['firstExposure', 'hintLevel', 'transcriptShown', 'playCount', 'lookupUsed', 'responseMode'],
-      evaluationContract: { dimensions: a.dimensions ?? a.relations.map((r) => r.label), relations: a.relations, mustNot: a.mustNot ?? [] },
+      evaluationContract: { dimensions: a.dimensions ?? (a.relations ?? []).map((r) => r.label), relations: a.relations ?? [], mustNot: a.mustNot ?? [] },
       complexityBand: a.complexityBand ?? null,
       transcriptShownByDefault: a.transcriptShownByDefault === true,
       oralEvidenceDeferred: a.oralEvidenceDeferred === true,
@@ -164,7 +164,7 @@ async function runSemanticReview({ pkg, ctx, chat, judge }) {
       require(a.prompt, 'prompt', i)
       require(Array.isArray(a.hints), 'hints', i) // 字段必须在（空数组=没有提示可审，合法）
       require(a.referenceAnswer, 'referenceAnswer', i)
-      require(a.relations, 'relations', i)
+      require(a.relations === undefined || Array.isArray(a.relations), 'relations', i) // 50 号：可选（缺省=AI 批改开放题）
       const material = loadMaterials().find((m) => m.materialId === mid)
       const listenWithoutAudit = material && material.kind !== 'read' // 无审核转写/时间片段：可答性不可测
       if (listenWithoutAudit) inputComplete = false // 有 listening 事实的题缺审核输入 → 不得 supported
@@ -222,7 +222,7 @@ export function makeDefaultSemanticJudge(chat) {
       '{"verdict":"supported|unsupported","reasons":"…","activities":[{"idx":0,"answerability":"supported|unsupported","languageFacts":"…","objectiveAlignment":"…","scoringConsistency":"…"}]}',
     ].join(String.fromCharCode(10))
     try {
-      const out = await chat([{ role: 'user', content: prompt }], { maxTokens: 700 })
+      const out = await chat([{ role: 'user', content: prompt }], { maxTokens: 1400 })
       const raw = typeof out === 'string' ? out : out.text
       const parsed = JSON.parse(raw)
       if (parsed?.verdict === 'supported' || parsed?.verdict === 'unsupported') {
@@ -241,12 +241,15 @@ const TERM_BLACKLIST = ['主格', '宾格', '物主代词', '三单', '谓语', 
 
 export function validateGeneratedPackage(pkg, ctx) {
   const gates = {}
+  // 50 号：relations 可选——模型自造关键词锚点经常与参考答案自相矛盾（实测 3/3 生成被语义审核拦）。
+  // 省略锚点的开放题 = 练习层（keywordOnly 不产生掌握事件），批改由 AI 老师担任（46 号）；封闭结构不受影响。
   gates.schemaComplete = !!(pkg && pkg.title && pkg.whyNow && pkg.teachingNote
     && Array.isArray(pkg.activities) && pkg.activities.length >= 2
-    && pkg.activities.every((a) => a.prompt && Array.isArray(a.relations)))
+    && pkg.activities.every((a) => a.prompt && (a.relations === undefined || Array.isArray(a.relations))))
   gates.answersConsistent = gates.schemaComplete && pkg.activities.every((a) =>
-    a.relations.filter((r) => r.required).length >= 1
-    && a.relations.every((r) => r.id && r.label && Array.isArray(r.anyOf) && r.anyOf.length >= 2))
+    !(a.relations ?? []).length
+    || ((a.relations ?? []).filter((r) => r.required).length >= 1
+    && (a.relations ?? []).every((r) => r.id && r.label && Array.isArray(r.anyOf) && r.anyOf.length >= 2)))
   // C4（F8 残留）：命题级来源绑定 —— 只报代号不再算"有来源"。每个 ref 必须：
   // ① 在该目标声明过的来源里（不越出已核范围）；② 账本里该代号本身带具体命题（claim_checked 锚点）；
   // ③ 生成包自带它主张的具体命题（≥6 字符的实质命题，不能是代号复读）。

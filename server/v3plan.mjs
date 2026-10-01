@@ -24,7 +24,7 @@ const STRATEGY_LESSONS = {
 
 export function getPlan(accountId) {
   requireAccount(accountId)
-  const row = ensureV3Schema().prepare(
+  let row = ensureV3Schema().prepare(
     'SELECT * FROM plan_decisions WHERE account_id = ? ORDER BY created_at DESC, decision_id DESC LIMIT 1').get(accountId)
   if (!row) {
     return {
@@ -32,7 +32,16 @@ export function getPlan(accountId) {
       note: '尚无决策：先 POST /diagnostics 做入口诊断（不做诊断不给推荐，不用旧题凑数）',
     }
   }
-  return { decision: decisionView(row) }
+  // 50 号自愈（实测卡点）：决策说"主目标没课"，但那之后可能已有新课上架（策划链/新生成）。
+  // 生成失败等路径不触发重算，旧决策会一直挂着。读时发现这种错位就重算一次
+  // （requestId 确定性 → 幂等，不会反复建决策）。
+  const view = decisionView(row)
+  const stalePending = view.primaryGoal && !view.lesson?.lessonId && !view.fallback
+  if (stalePending && lessonForObjective(view.primaryGoal, { excludeCompletedFor: accountId })) {
+    const healed = computePlan(accountId, { requestId: `plan-self-heal:${row.decision_id}`, triggerEvent: 'plan_self_heal' })
+    return { decision: healed, note: '路线已按最新内容自动刷新' }
+  }
+  return { decision: view }
 }
 
 export function recomputePlan(accountId, { requestId, triggerEvent } = {}) {

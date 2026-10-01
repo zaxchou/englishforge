@@ -124,3 +124,21 @@ it('学习路线接口：完成课时间线有序不重复；当前课带步数�
   expect(g.stats.lessons).toBe(1)
   expect(g.nextHow.length).toBeGreaterThan(4)
 })
+
+it('50 号自愈：旧决策说"主目标没课"但新课已上架 → GET plan 自动重算接上新课；重复读不产生重复决策', async () => {
+  const id = (await call('/api/accounts', { name: '自愈' }, 'POST')).json.account.id
+  await call('/api/v1/map')
+  // 制造一个"content_pending"的旧决策（在 c1 上架前的时间点语义）
+  const c2 = db.getDb()
+  c2.prepare("INSERT INTO plan_decisions (account_id, decision_id, request_id, map_version, evidence_version, snapshot, candidates, primary_goal, strategy_id, reason, hypotheses, uncertain_areas, lesson_ref, served_lesson_id, status, created_at) VALUES (?,?,?,'map-v1',0,'[]','[]','O-K115-03','short_explain','旧决策：无课','','[]','{}',NULL,'ready',?)")
+    .run(id, `pd-stale-${id}`, `stale-${id}`, Date.now() - 100000)
+  // 第一次读：lesson_ref 为空对象（无 lessonId 也无 fallback）→ 触发自愈重算
+  const plan = (await call(`/api/v1/accounts/${id}/plan`)).json.decision
+  // 自愈=按当前状态重新规划（不强制旧目标）；关键是"无课挂起"状态解除、有可学课
+  expect(plan.lesson?.lessonId).toBeTruthy()
+  // 重复读：requestId 幂等，不产生新决策
+  const before = c2.prepare('SELECT COUNT(*) n FROM plan_decisions WHERE account_id = ?').get(id).n
+  await call(`/api/v1/accounts/${id}/plan`)
+  const after = c2.prepare('SELECT COUNT(*) n FROM plan_decisions WHERE account_id = ?').get(id).n
+  expect(after).toBe(before)
+})
