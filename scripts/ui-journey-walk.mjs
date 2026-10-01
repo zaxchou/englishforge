@@ -15,7 +15,7 @@ const regById=aid=>registry.activities.find(x=>x.activityId===aid)
 async function api(path,body){const r=await fetch(base+path,{method:body===undefined?'GET':'POST',headers:{'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});const data=await r.json();if(!r.ok)throw Error(`${r.status} ${path}: ${JSON.stringify(data)}`);return data}
 try {
  const {chromium}=await import(process.env.EF_PLAYWRIGHT_IMPORT || 'playwright')
- server=spawn(process.execPath,[join(repo,'node_modules/vite/bin/vite.js'),'--host','127.0.0.1','--port',String(port),'--strictPort'],{cwd:repo,env:{...process.env,ENGLISHFORGE_DB:dbPath,ENGLISHFORGE_V4_GENERATION:'0',ENGLISHFORGE_TLS_KEY:'',ENGLISHFORGE_TLS_CERT:''},windowsHide:true})
+ server=spawn(process.execPath,[join(repo,'node_modules/vite/bin/vite.js'),'--host','127.0.0.1','--port',String(port),'--strictPort'],{cwd:repo,env:{...process.env,ENGLISHFORGE_DB:dbPath,ENGLISHFORGE_V4_GENERATION:'0',ENGLISHFORGE_V4_AI_GRADER:'0',ENGLISHFORGE_TLS_KEY:'',ENGLISHFORGE_TLS_CERT:''},windowsHide:true})
  server.stdout.on('data',b=>{logs+=b});server.stderr.on('data',b=>{logs+=b})
  let health
  for(let i=0;i<60;i++){if(server.exitCode!==null)throw Error(`server failed ${logs}`);try{health=await api('/api/health');break}catch{await pause(250)}}

@@ -76,7 +76,7 @@ export const V3_ROUTES = [
   }],
 
   // 新尝试：服务端持有答案与角色；重复 attemptId 幂等，同 ID 异正文 409
-  ['POST', '/api/v1/accounts/:id/attempts', (ctx) => {
+  ['POST', '/api/v1/accounts/:id/attempts', async (ctx) => {
     const sessionId = ctx.body?.sessionId
     // F6：诊断会话只接受“当前步骤实际发出的活动”——乱序/跨会话提交在落库前拒绝
     if (sessionId) {
@@ -89,7 +89,7 @@ export const V3_ROUTES = [
         throw new ApiError(400, `DIAGNOSTIC_STEP_MISMATCH: 当前应答 ${expected.step}/${expected.activityId}`)
       }
     }
-    const result = recordAttempt(ctx.params.id, ctx.body ?? {})
+    const result = await recordAttempt(ctx.params.id, ctx.body ?? {})
     // F6：幂等重放不产生第二次推进；未判定/争议不强行分流
     const diag = sessionId && !result.replayed
       ? advanceDiagnostic(ctx.params.id, sessionId, {
@@ -207,7 +207,7 @@ export const V3_ROUTES = [
     const { buf, mime } = readOralAudio(ctx.params.id, ctx.params.mediaId)
     return { audioBase64: buf.toString('base64'), mime } // 中间件是 JSON 形状；真实流式播放走同路径的 raw 分支
   }],
-  ['POST', '/api/v1/accounts/:id/attempts/oral', (ctx) => submitOralAttempt(ctx.params.id, ctx.body ?? {})],
+  ['POST', '/api/v1/accounts/:id/attempts/oral', async (ctx) => await submitOralAttempt(ctx.params.id, ctx.body ?? {})],
   // 40 号表达反馈：学生认为表达语义正确但被词表判据拒收 → 记录申诉（保留争议，不扣能力不认证）
   ['POST', '/api/v1/accounts/:id/attempts/:attemptId/claim', (ctx) => claimExpression(ctx.params.id, ctx.params.attemptId, ctx.body ?? {})],
   ['POST', '/api/v1/accounts/:id/oral/:mediaId/transcript', (ctx) => correctTranscript(

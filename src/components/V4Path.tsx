@@ -24,7 +24,7 @@ type Plan = {
   notChosen: { objectiveId: string; reason: string }[]
   status: string
 }
-type AttemptFeedback = { pass: boolean | null; evaluationStatus: string; practiceOnly?: boolean; studentClaimed?: boolean; dimensions?: { id: string; label: string; hit: boolean; required: boolean }[]; slotResults?: { slotId: string; prompt: string; given: string | null; status: string }[]; mustNotViolations?: string[]; reveal?: { referenceExpression: string; supportingQuotes: string[]; followup: string | null } }
+type AttemptFeedback = { pass: boolean | null; displayPass?: boolean | null; evaluationStatus: string; practiceOnly?: boolean; studentClaimed?: boolean; dimensions?: { id: string; label: string; hit: boolean; required: boolean }[]; slotResults?: { slotId: string; prompt: string; given: string | null; status: string }[]; mustNotViolations?: string[]; aiReview?: { verdict: string; feedback: string; agreesWithMechanical: boolean } | null; reveal?: { referenceExpression: string; supportingQuotes: string[]; followup: string | null } }
 type ContentReview = { preview: boolean; humanSignPending: boolean; semanticVerdict: string | null; pending: string | null }
 type LessonPkg = {
   lessonId: string
@@ -571,7 +571,7 @@ function LessonRunner({ accountId, pkg, onDone }: {
   // D0-1：封闭槽位题的逐槽选择（activityId → slotId → 选项代号）
   const [slotPicks, setSlotPicks] = useState<Record<string, Record<string, string>>>(() => Object.fromEntries(pkg.activities.map(a => [a.activityId, a.resume?.response.answers ?? {}])))
   const [revealed, setRevealed] = useState<Record<string, string[]>>({})
-  const [feedback, setFeedback] = useState<Record<string, { pass: boolean | null; status: string; practiceOnly?: boolean; studentClaimed?: boolean; relations?: { id: string; label: string; hit: boolean; required: boolean }[]; mustNot?: string[]; slotResults?: { slotId: string; prompt: string; given: string | null; status: string }[]; reveal?: AttemptFeedback['reveal'] }>>(() => Object.fromEntries(pkg.activities.filter(a => a.resume).map(a => [a.activityId, { pass: a.resume!.result.pass, status: a.resume!.result.evaluationStatus, practiceOnly: a.resume!.result.practiceOnly, studentClaimed: a.resume!.result.studentClaimed, relations: a.resume!.result.dimensions, slotResults: a.resume!.result.slotResults, reveal: a.resume!.result.reveal }])))
+  const [feedback, setFeedback] = useState<Record<string, { pass: boolean | null; status: string; practiceOnly?: boolean; studentClaimed?: boolean; relations?: { id: string; label: string; hit: boolean; required: boolean }[]; mustNot?: string[]; slotResults?: { slotId: string; prompt: string; given: string | null; status: string }[]; aiReview?: AttemptFeedback['aiReview']; reveal?: AttemptFeedback['reveal'] }>>(() => Object.fromEntries(pkg.activities.filter(a => a.resume).map(a => [a.activityId, { pass: a.resume!.result.displayPass ?? a.resume!.result.pass, status: a.resume!.result.evaluationStatus, practiceOnly: a.resume!.result.practiceOnly, studentClaimed: a.resume!.result.studentClaimed, relations: a.resume!.result.dimensions, slotResults: a.resume!.result.slotResults, aiReview: a.resume!.result.aiReview, reveal: a.resume!.result.reveal }])))
   const [pkgLive, setPkgLive] = useState(pkg)
   const [refreshing, setRefreshing] = useState(false)
   const [err, setErr] = useState('')
@@ -628,7 +628,7 @@ function LessonRunner({ accountId, pkg, onDone }: {
       if (usedTake) setTakes((t) => ({ ...t, [act.activityId]: Math.max(t[act.activityId] ?? 1, Number(usedTake)) }))
       lastAttemptRef.current[act.activityId] = String(r.attemptIdUsed ?? attemptId)
       // 40 号：mustNotViolations 一并带给"词全有但关系错"的区分展示
-      setFeedback((f) => ({ ...f, [act.activityId]: { pass: r.pass, status: r.evaluationStatus, practiceOnly: r.practiceOnly, studentClaimed: r.studentClaimed, relations: r.dimensions, mustNot: r.mustNotViolations, slotResults: r.slotResults, reveal: r.reveal } }))
+      setFeedback((f) => ({ ...f, [act.activityId]: { pass: r.displayPass ?? r.pass, status: r.evaluationStatus, practiceOnly: r.practiceOnly, studentClaimed: r.studentClaimed, relations: r.dimensions, mustNot: r.mustNotViolations, slotResults: r.slotResults, aiReview: r.aiReview ?? null, reveal: r.reveal } }))
       // 门控活动（如未预告追问）在前提活动提交后才出现：重取课包
       const fresh = await api<LessonPkg>(`/accounts/${accountId}/lessons/${pkgLive.lessonId}`)
       if (fresh.activities.length > visibleActs.length) setPkgLive(fresh)
@@ -654,7 +654,7 @@ function LessonRunner({ accountId, pkg, onDone }: {
       const changed = new Set(fresh.activities.filter(a=>{const old=pkgLive.activities.find(o=>o.activityId===a.activityId);return !old || old.activityVersion!==a.activityVersion || old.prompt!==a.prompt}).map(a=>a.activityId))
       setAnswers(old=>Object.fromEntries(fresh.activities.map(a=>[a.activityId,a.resume?.response.text ?? (changed.has(a.activityId)?'':old[a.activityId] ?? '')])))
       setSlotPicks(old=>Object.fromEntries(fresh.activities.map(a=>[a.activityId,a.resume?.response.answers ?? (changed.has(a.activityId)?{}:old[a.activityId] ?? {})])))
-      setFeedback(Object.fromEntries(fresh.activities.filter(a=>a.resume).map(a=>[a.activityId,{pass:a.resume!.result.pass,status:a.resume!.result.evaluationStatus,practiceOnly:a.resume!.result.practiceOnly,studentClaimed:a.resume!.result.studentClaimed,relations:a.resume!.result.dimensions,mustNot:a.resume!.result.mustNotViolations,slotResults:a.resume!.result.slotResults,reveal:a.resume!.result.reveal}])))
+      setFeedback(Object.fromEntries(fresh.activities.filter(a=>a.resume).map(a=>[a.activityId,{pass:a.resume!.result.displayPass ?? a.resume!.result.pass,status:a.resume!.result.evaluationStatus,practiceOnly:a.resume!.result.practiceOnly,studentClaimed:a.resume!.result.studentClaimed,relations:a.resume!.result.dimensions,mustNot:a.resume!.result.mustNotViolations,slotResults:a.resume!.result.slotResults,aiReview:a.resume!.result.aiReview,reveal:a.resume!.result.reveal}])))
       setTakes(Object.fromEntries(fresh.activities.map(a=>[a.activityId,a.nextTake ?? 1])))
       const next=fresh.activities.findIndex(a=>!a.resume);setCurrentIndex(next<0?Math.max(0,fresh.activities.length-1):next)
       setPkgLive(fresh);setErr('')
@@ -762,12 +762,24 @@ function LessonRunner({ accountId, pkg, onDone }: {
                   : answers[act.activityId]?.trim())}
                 onClick={() => submit(act)}>提交</button>
             )}
-            {feedback[act.activityId] && !act.oralTask && (
-              <span className={feedback[act.activityId].pass ? 'v4-ok' : 'v4-no'}>
-                {feedback[act.activityId].status === 'disputed' ? '这题系统拿不准，先不算你的错'
-                  : feedback[act.activityId].pass ? '对了！' : '还差一点——看下面的对照'}
-              </span>
-            )}
+            {(() => {
+              const fb = feedback[act.activityId]
+              if (!fb || act.oralTask) return null
+              return fb.aiReview ? (
+                <span className={
+                  fb.aiReview.verdict === 'correct' ? 'v4-ok'
+                    : fb.aiReview.verdict === 'partial' ? 'v4-advise' : 'v4-no'}>
+                  AI 老师批改：{fb.aiReview.verdict === 'correct' ? '✓ 意思对了'
+                    : fb.aiReview.verdict === 'partial' ? '部分对' : '✗ 还不对'}
+                  {fb.aiReview.feedback && ` —— ${fb.aiReview.feedback}`}
+                </span>
+              ) : (
+                <span className={fb.pass ? 'v4-ok' : 'v4-no'}>
+                  {fb.status === 'disputed' ? '这题系统拿不准，先不算你的错'
+                    : fb.pass ? '对了！' : '还差一点——看下面的对照'}
+                </span>
+              )
+            })()}
             {/* R5（24 号）：错→（看提示）→改答→再试。新一轮=新 take ID，旧作答与反馈保留在服务端 */}
             {feedback[act.activityId] && !act.oralTask && !feedback[act.activityId].pass && (
               <button className="v4-ghost" onClick={() => retry(act)}>再试一次</button>
@@ -777,7 +789,7 @@ function LessonRunner({ accountId, pkg, onDone }: {
             )}
           </div>
           {feedback[act.activityId]?.practiceOnly && (
-            <p className="v4-advise">这是<b>练习参考</b>：帮你对照要点，不算进成绩。真正的成绩来自选择题和老师的确认。</p>
+            <p className="v4-advise">这题由 AI 老师批改，算<b>练习参考</b>，不算进成绩。真正的成绩来自选择题和老师的确认。</p>
           )}
           {feedback[act.activityId]?.slotResults?.length ? (
             <ul className="v4-relations">
@@ -790,7 +802,7 @@ function LessonRunner({ accountId, pkg, onDone }: {
             </ul>
           ) : null}
           {/* 40 号：两类失败分开说——"词全有但关系错"不同于"词没抓到" */}
-          {feedback[act.activityId]?.pass === false && (feedback[act.activityId].mustNot?.length ?? 0) > 0 && (
+          {feedback[act.activityId]?.pass === false && !feedback[act.activityId].aiReview && (feedback[act.activityId].mustNot?.length ?? 0) > 0 && (
             <p className="v4-advise">要点词都在，但意思连得不对：{feedback[act.activityId]!.mustNot!.join('；')}。回到材料再读一遍试试。</p>
           )}
           {/* 40 号表达反馈：语义对但被词表判据拒收 → 学生可记录申诉（保留争议，不扣能力不认证） */}
@@ -812,14 +824,27 @@ function LessonRunner({ accountId, pkg, onDone }: {
           )}
           {feedback[act.activityId]?.relations && (
             act.oralTask ? (
-              <div className="v4-advise">
-                <b>练习参考（机器只对词，你说得对但用词不同也会显示没提到；不算成绩）：</b>
-                <ul>
-                  {feedback[act.activityId].relations!.map((rel) => (
-                    <li key={rel.id}>{rel.hit ? '说到了' : '没说到'}「{rel.label}」{rel.required ? '' : '（加分项）'}</li>
-                  ))}
-                </ul>
-              </div>
+              feedback[act.activityId]?.aiReview ? (
+                <div className="v4-advise">
+                  <b>AI 老师批改（只供练习参考，不算成绩）：</b>
+                  {feedback[act.activityId]!.aiReview!.verdict === 'correct' ? '✓ 意思到了' : feedback[act.activityId]!.aiReview!.verdict === 'partial' ? '部分对' : '✗ 还不对'}
+                  {feedback[act.activityId]!.aiReview!.feedback && ` —— ${feedback[act.activityId]!.aiReview!.feedback}`}
+                  <details style={{ marginTop: 4 }}><summary className="v4-dim">机器词表对照（很死板，仅供对照）</summary>
+                    <ul>{feedback[act.activityId].relations!.map((rel) => (
+                      <li key={rel.id}>{rel.hit ? '说到了' : '没说到'}「{rel.label}」{rel.required ? '' : '（加分项）'}</li>
+                    ))}</ul>
+                  </details>
+                </div>
+              ) : (
+                <div className="v4-advise">
+                  <b>练习参考（机器只对词，你说得对但用词不同也会显示没提到；不算成绩）：</b>
+                  <ul>
+                    {feedback[act.activityId].relations!.map((rel) => (
+                      <li key={rel.id}>{rel.hit ? '说到了' : '没说到'}「{rel.label}」{rel.required ? '' : '（加分项）'}</li>
+                    ))}
+                  </ul>
+                </div>
+              )
             ) : (
               <ul className="v4-relations">
                 {feedback[act.activityId].relations!.map((rel) => (

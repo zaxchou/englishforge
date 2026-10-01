@@ -18,6 +18,7 @@ import { ensureV3Schema, getMeta, setMeta, nextCounter, getCounter } from './v3d
 import { requireAccount } from './v3api.mjs'
 import { audioPublicInfo, audioByMediaId } from './v3audio.mjs'
 import { materialForLearnerFrozen } from './v3registry.mjs'
+import { gradeOpenAnswer } from './v3grader.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const ACT_PATH = resolve(HERE, 'data', 'v3-activities.json')
@@ -305,7 +306,7 @@ function bodyHash(payload) {
  * POST /api/v1/accounts/:id/attempts 的实现。
  * 先落库再评估；返回里只有结论，没有答案 —— holdout 更是只给 pass/fail。
  */
-export function recordAttempt(accountId, payload = {}) {
+export async function recordAttempt(accountId, payload = {}) {
   requireAccount(accountId)
   const conn = ensureV3Schema()
   const attemptId = String(payload.attemptId || '')
@@ -412,6 +413,21 @@ export function recordAttempt(accountId, payload = {}) {
       evaluation = { reason: 'TRANSCRIPT_LOW_CONFIDENCE', evaluator: evaluation?.evaluator ?? null }
     }
   }
+  // 46 号（用户反馈）：机械词表规则只作参考，开放题/口述题由 AI 担任主要批改。
+  // AI 结论随作答原样落库（可追溯、幂等重放不重复调用）；不可用则回落纯机械（aiReview 缺省）。
+  // 判分语义不变：open/oral 仍不写掌握事件；AI 结论只提升**反馈质量**与界面判定（displayPass）。
+  if (evalStatus === 'evaluated' && !evaluation.slots && String(responseText).trim().length >= 2) {
+    try {
+      const mechanical = (evaluation.relations ?? []).length
+        ? { hit: (evaluation.relations ?? []).filter((r) => r.hit).map((r) => r.label),
+            missed: (evaluation.relations ?? []).filter((r) => !r.hit).map((r) => r.label),
+            mustNotViolations: evaluation.mustNotViolations ?? [] }
+        : null
+      const segments = activity.materialSnapshot ?? null
+      const aiReview = await gradeOpenAnswer({ activity, responseText, mechanical, segments: segments ?? [] })
+      if (aiReview) evaluation.aiReview = aiReview
+    } catch { /* AI 批改失败不阻塞作答 */ }
+  }
 
   const ts = Date.now()
   // 31 收口 + 34-F4：**完整定义快照冻结**——重放语义需要的**全部**评估相关字段随作答落库：
@@ -503,6 +519,9 @@ function attemptResult(conn, accountId, row, activity) {
     mustNotViolations: isHoldout ? undefined : evaluation?.mustNotViolations,
     // R3：keyword-only（开放文本词表）——前端要明示"练习反馈，不计入能力记录"
     practiceOnly: evaluation?.keywordOnly === true,
+    // 46 号：AI 批改结论（开放题/口述题的主要判定；机械规则只作参考）
+    aiReview: evaluation?.aiReview ?? null,
+    displayPass: evaluation ? (evaluation.aiReview ? evaluation.aiReview.verdict === 'correct' : evaluation.pass) : null,
     // 40 号：学生表达申诉已记录过 → 前端按钮置灰，不重复记录
     studentClaimed: !!conn.prepare("SELECT 1 FROM evidence_events WHERE account_id = ? AND attempt_id = ? AND kind = 'student_claim' LIMIT 1").get(accountId, row.attempt_id),
     reveal,
@@ -637,7 +656,10 @@ export function complexityBandFor(conn, objectiveId) {
  *  复核结束再更正（dispute_cleared）或撤回（W3+ 的复核结论，追加反向事件）。 */
 export function recomputeStates(accountId) {
   const conn = ensureV3Schema()
-  const events = conn.prepare('SELECT * FROM evidence_events WHERE account_id = ? ORDER BY created_at, evidence_id').all(accountId)
+  // 46 号修复（潜伏 bug 被 async 化的时序变化暴露）：同一毫秒内的 waive/unwaive 事件，
+  // 旧排序用 evidence_id 字母序决胜——'ev_unwaive_*' 恰好排在 'ev_waive_*' 之前，
+  // 撤销先于设置被重放，免修标志复活（间歇复现）。同毫秒按插入顺序（rowid）决胜才是真语义。
+  const events = conn.prepare('SELECT * FROM evidence_events WHERE account_id = ? ORDER BY created_at, rowid').all(accountId)
   // F1 重算：事件只追加不改写；重放按**作答时冻结的定义快照**判模态/带归属（31 收口：
   // 内容修订换版后，历史作答不再读当前定义）。快照缺失的历史行回退当前定义（诚实兼容，
   // 覆盖面见 32 号 D0 报告）。

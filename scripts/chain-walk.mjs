@@ -56,7 +56,7 @@ const DIAG = {
 try {
   const { chromium } = await import(process.env.EF_PLAYWRIGHT_IMPORT || 'playwright')
   server = spawn(process.execPath, [join(repo, 'node_modules/vite/bin/vite.js'), '--host', '127.0.0.1', '--port', String(port), '--strictPort'],
-    { cwd: repo, env: { ...process.env, ENGLISHFORGE_DB: dbPath, ENGLISHFORGE_V4_GENERATION: '0', ENGLISHFORGE_TLS_KEY: '', ENGLISHFORGE_TLS_CERT: '' }, windowsHide: true })
+    { cwd: repo, env: { ...process.env, ENGLISHFORGE_DB: dbPath, ENGLISHFORGE_V4_GENERATION: '0', ENGLISHFORGE_V4_AI_GRADER: '0', ENGLISHFORGE_TLS_KEY: '', ENGLISHFORGE_TLS_CERT: '' }, windowsHide: true })
   server.stdout.on('data', (b) => { logs += b })
   server.stderr.on('data', (b) => { logs += b })
   let health

@@ -199,7 +199,7 @@ export function readOralAudio(accountId, mediaId) {
  * 口语作答：先按 /oral 合同上传音频，再走 attempts（response.kind='audio_ref'）。
  * 机器评估只给练习建议（confidence=low，永不升级口语状态）；转写低置信 → 争议。
  */
-export function submitOralAttempt(accountId, payload = {}) {
+export async function submitOralAttempt(accountId, payload = {}) {
   const conn = ensureV3Schema()
   const mediaId = String(payload.mediaId || '')
   const media = conn.prepare('SELECT * FROM media_assets WHERE media_id = ? AND account_id = ?').get(mediaId, accountId)
@@ -209,7 +209,7 @@ export function submitOralAttempt(accountId, payload = {}) {
   const versions = JSON.parse(media.transcript_versions || '[]')
   const origin = ['asr', 'user_typed'].includes(payload.transcriptOrigin) ? payload.transcriptOrigin : 'user_typed'
 
-  const result = recordAttempt(accountId, {
+  const result = await recordAttempt(accountId, {
     ...payload,
     response: { kind: 'audio_ref', text: transcript, mediaId },
     conditions: { ...(payload.conditions ?? {}), responseMode: 'oral_recording' },
