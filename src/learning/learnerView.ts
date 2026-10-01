@@ -98,7 +98,7 @@ export function learnerToday(plan: { primaryGoal: string | null; reason?: string
     return {
       mode: 'wait',
       headline: `接下来该练：${goal}`,
-      reason: '目前没有现成的后继课程，这里也不会用熟题填补。你可以用 AI 按你最近的练习现场生成（生成后先标内容试验预览：机器门和模型辅助检查通过、专业核验未做），或先免修这项。',
+      reason: '这个目标暂时没有能直接学的课。可以点下面的按钮，让 AI 按你最近的练习现做一课（用真模型，按次收费）；也可以先跳过这项。',
       primaryLabel: '内容准备中…',
       goalId: plan.primaryGoal,
       lessonId: null,

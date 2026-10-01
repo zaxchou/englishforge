@@ -151,8 +151,8 @@ export function serveLesson(accountId, lessonId) {
     difficultyDims: lesson.difficultyDims,
     devSampleNotice: lesson.releaseChannel === 'dev_only'
       ? (contentReview.preview
-        ? '内容试验预览：通过了结构质量门和模型辅助内容检查，还没有专业人工核验——发现哪里讲得不对，直接反馈。'
-        : '开发样本：结构质量门已过、人审未签署；音频课在原声制作前如实显示待制作（18 §8）')
+        ? '这一课是 AI 现做的：已经过自动检查，还没有老师最终确认。发现哪里讲得不对，直接告诉我们。'
+        : '练习版内容：自动检查已通过，还没有老师最终确认。')
       : null,
     contentReview,
     activities: visible.map((ref) => {
@@ -182,7 +182,7 @@ export function serveLesson(accountId, lessonId) {
         conditionsSpec: act.conditionsSpec,
         // 与 publicActivity 同口径：看解析后的 manifest 行，audioRef 悬空（清单缺行）时如实显示 fixture
         fixtureNotice: (act.simulatesAudio || act.oralEvidenceDeferred) && !audio
-          ? '开发 fixture：仅用于验收，正式材料见 18 号文档的发布检查表' : null,
+          ? '这题目前用文字代替发音，是内部练习用的临时版本' : null,
         hintStageCount: stages.length,
         firstHint: stages[0] ?? null,
         gated: !!ref.unlockAfter,

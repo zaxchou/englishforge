@@ -86,10 +86,10 @@ export function advanceDiagnostic(accountId, sessionId, { activityId, pass, eval
   if (evaluationStatus !== 'evaluated') {
     const fresh0 = conn.prepare('SELECT * FROM diagnostic_sessions WHERE account_id = ? AND diagnostic_id = ?').get(accountId, sessionId)
     const why = disputeReason === 'NEGATION_AMBIGUOUS'
-      ? '这条作答机器判不了（出现双重否定类的说法，肯定/否定定不了）。答案不会被打分也不算错——请换一种更直接的说法重新提交本步骤；原作答已进入人工复核队列。'
+      ? '你这句话里有"不是不…"这类双重否定的说法，系统拿不准是肯定还是否定——这题先不算你的错。换个直接一点的说法再提交一次就行。'
       : disputeReason
-        ? `该次作答未判定（${disputeReason}）：本步骤不推进、不降级，可重新提交或稍后人工复核。`
-        : '该次作答有争议/未判定：保留待处理，诊断流程不推进、不降级。可换一种说法重新提交本步骤。'
+        ? '这一步系统暂时没判断出来，先不算你错。换个说法再提交一次，或稍后再来。'
+        : '这一步系统没判断出来，先不算你错。换个说法再提交一次就行。'
     return sessionView(fresh0, { note: why })
   }
   const session = { steps: JSON.parse(row.steps || '[]') }

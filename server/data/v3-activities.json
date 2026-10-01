@@ -200,7 +200,7 @@
    "simulatesAudio": true,
    "audioRef": "aud_d2_library_v1",
    "sourceDoc": "18 §2",
-   "prompt": "（合成音频 synthetic：Windows SAPI 合成语音的受控练习音频；正式自然讲者录音仍待制作，见 18 §2 制作注。首听不显示脚本。）\n\n任务：点播放听一段校园图书馆 AI 工具的介绍（首听无字幕），然后回答：讲者最终的评价是什么？最初为何觉得有用？结论是“不能用 AI 找文章”吗？",
+   "prompt": "（这段声音是电脑合成的，不是真人；真人录音还在准备。先听，文字稿不会显示。）\n\n点播放，听一段关于校园图书馆 AI 工具的介绍，然后回答：讲者最终的评价是什么？最初为何觉得有用？结论是“不能用 AI 找文章”吗？",
    "hints": [
     "先抓主张，再找 but 之后保留了什么限制。"
    ],
@@ -784,7 +784,7 @@
    "servesStrategies": [
     "sound_segmentation"
    ],
-   "prompt": "（受控练习音频：合成语音，非真人讲者。首听不显示脚本；真实播放会计入受限听力记录——封顶「已练」，自然讲者版本到位后才升级为完整听力证据。）\n\n点播放听一遍（脚本不出现在页面上），只回答一个问题：地图失灵了吗，还是团队对人们需求的假设不完整？",
+   "prompt": "（电脑合成的声音，不是真人。先听，文字稿不会显示。）\n\n点播放听一遍，只回答一个问题：地图失灵了吗，还是团队对人们需求的假设不完整？",
    "hints": [
     "先抓主张：地图有没有坏？",
     "in fact 前后是“预期/实际”两半。"
@@ -2820,7 +2820,7 @@
    "servesStrategies": [
     "sound_segmentation"
    ],
-   "prompt": "（受控练习音频：合成语音 synthetic，非真人；单一英文声源，“换声音”待真人录音。首听不显示脚本；点播放，可重复播放。听力记录受限——封顶「已练」，自然讲者版本到位后才升级。）\n\n点播放听一遍学习小组周会的汇报（新情境：复习提醒），然后逐空选择：团队最后的决定是什么？限制的条件是什么？“每天提醒”被说成彻底没用了吗？",
+   "prompt": "（电脑合成的声音，不是真人。先听，文字稿不会显示；可以反复听。）\n\n听一遍学习小组的周会汇报，然后选一选：团队最后怎么决定的？限制条件是什么？有人觉得“每天提醒”彻底没用了吗？",
    "hints": [
     "先抓最后的结论句（So here is our conclusion…）。",
     "注意 but only … 之后的部分：那是使用条件，不是“提醒没用”。"
@@ -2908,7 +2908,7 @@
    "servesStrategies": [
     "sound_segmentation"
    ],
-   "prompt": "（合成音频 + 校对稿：本轮已展示校对稿，表现记入「文字理解」，不升级听力。音频为 synthetic 受控练习音频。）\n\n校对稿：In our study group, we set up daily review reminders in October. The idea was to send a short message every evening at eight. We expected the daily reminders to help everyone keep up with the readings. In fact, after two weeks, most of us ignored the evening messages, and the reminders stopped feeling useful. So here is our conclusion: reminders do help, but only before exam week, when everyone wants a schedule; on normal weeks, we will turn them off and review on our own.\n\n请逐空定位：1) 哪一句说了限制（只在什么时候有用）？2) In fact 分开的是哪两件事？",
+   "prompt": "（这一步给你看文字稿，算阅读练习，不算听力成绩。声音是电脑合成的。）\n\n文字稿：In our study group, we set up daily review reminders in October. The idea was to send a short message every evening at eight. We expected the daily reminders to help everyone keep up with the readings. In fact, after two weeks, most of us ignored the evening messages, and the reminders stopped feeling useful. So here is our conclusion: reminders do help, but only before exam week, when everyone wants a schedule; on normal weeks, we will turn them off and review on our own.\n\n请逐空定位：1) 哪一句说了限制（只在什么时候有用）？2) In fact 分开的是哪两件事？",
    "hints": [
     "限制在最后一句的 but only before exam week。",
     "In fact 前是预期（每天提醒有用），后是实际（两周后大家忽略）。"
@@ -3140,7 +3140,7 @@
     "sound_segmentation",
     "oral_retrieval"
    ],
-   "prompt": "（口头回应：页内录音。机器词表反馈只作练习参考，**口语掌握待人审复核**；转写词错≠你的错。这是听力链的收口——听完之后用自己的话回应。）\n\n如果你是小组一员，你会接受「只在考试周开提醒」吗？脱稿说一两句英语：先给立场（我接受/我不完全接受），再给一个限制条件（只要…／除非…）。",
+   "prompt": "（这一步用麦克风录音，说完系统给你练习提示，只供参考；说什么由你决定。）\n\n如果你是小组一员，你会接受「只在考试周开提醒」吗？脱稿说一两句英语：先给立场（我接受/我不完全接受），再给一个限制条件（只要…／除非…）。",
    "hints": [
     "先说立场，再说条件：I agree … as long as … ／ I'm not sure … unless …",
     "条件要具体：哪一周、哪类课、忙到什么程度。"
@@ -3211,7 +3211,7 @@
    "servesStrategies": [
     "oral_retrieval"
    ],
-   "prompt": "（口头回应：页内录音；机器词表反馈只作练习参考，口语掌握待人审。新情境：你们小组的项目站会要从周三晚改到周六上午。）\n\n脱稿录音，把这件事讲清楚：决定是什么、为什么改、保留什么条件（比如有人来不了怎么办）。不用背句子——把三件事说清楚就行。",
+   "prompt": "（这一步用麦克风录音，系统提示只供参考。场景：你们小组的项目站会要从周三晚改到周六上午。）\n\n脱稿录音，把这件事讲清楚：决定是什么、为什么改、保留什么条件（比如有人来不了怎么办）。不用背句子——把三件事说清楚就行。",
    "hints": [
     "三件事各一句：决定（改到周六上午）→ 原因（…）→ 条件（来不了的人…）。",
     "可用语块：We're moving … to … because … If someone can't come, we will …"
@@ -3303,7 +3303,7 @@
    "servesStrategies": [
     "oral_retrieval"
    ],
-   "prompt": "（口头回应：页内录音；即时追问——听/看完追问后直接回应，不要打草稿。机器反馈只作练习参考。）\n\n队友追问：「小周周六要加班，来不了，那怎么办？」——录音回应：给出安排，并说明这不是取消小周的参与。",
+   "prompt": "（这一步用麦克风录音。这是队友的追问，直接回应，不用打草稿。）\n\n队友追问：「小周周六要加班，来不了，那怎么办？」——录音回应：给出安排，并说明这不是取消小周的参与。",
    "hints": [
     "先接住问题（OK / Good point），再给安排：He can … ／ We will record …",
     "最后补一句这不是取消：He's still in — he just …"

@@ -143,7 +143,7 @@ export function decide(objectives, states, snapshot) {
   const live = []
   for (const obj of objectives) {
     if (isDisputed(obj.objectiveId)) {
-      candidates.push({ objectiveId: obj.objectiveId, reason: '材料争议复核中，先复核不降级（15 §6②）' })
+      candidates.push({ objectiveId: obj.objectiveId, reason: '这项先复核一下，不影响你的记录' })
       continue
     }
     live.push(obj)
@@ -153,11 +153,11 @@ export function decide(objectives, states, snapshot) {
   // 多假设分支也要它的 eligibleRanked，窗口才不会在该分支塌缩成仅主目标（复审 P3）
   const eligible = live.filter((obj) => {
     if (isWaived(obj.objectiveId)) {
-      candidates.push({ objectiveId: obj.objectiveId, reason: 'waived_by_user：同层同质练习移出队列（不批量重刷）；若复杂任务暴露缺口只开局部短修复' })
+      candidates.push({ objectiveId: obj.objectiveId, reason: '你选了跳过这项，就不重复安排了' })
       return false
     }
     if (!prereqsOk(obj)) {
-      candidates.push({ objectiveId: obj.objectiveId, reason: '前置证据未就绪（目标 ID 级前置，不是单元号）' })
+      candidates.push({ objectiveId: obj.objectiveId, reason: '先练好它的基础，这项排后面' })
       return false
     }
     return true
@@ -173,7 +173,7 @@ export function decide(objectives, states, snapshot) {
     if (target && STATE_RANK[stateOf(target.objectiveId).state] < 2) {
       return finalize({
         primaryGoal: target.objectiveId, strategyId: 'discriminate_cause',
-        reason: `同一失败有两种合理解释（${hypotheses.join('、')}），先给最短的区分任务再定路线`,
+        reason: `你的卡点可能有两种（${hypotheses.join('、')}），先用一个小任务分清是哪种。`,
         hypotheses, uncertainAreas: snapshot.diagnostic?.unmeasured ?? [], candidates,
         lessonActivityId: STRATEGY_LESSONS.discriminate_cause, snapshot, live, stateOf,
         accountId: snapshot.accountId, // F2：排除已完成课在这里同样生效（轨迹走查实测漏传导致已完成课被复推）
@@ -202,8 +202,8 @@ export function decide(objectives, states, snapshot) {
     candidates.push({
       objectiveId: o.objectiveId,
       reason: STATE_RANK[st] >= 2
-        ? `${o.objectiveId} 已有 ${st} 级证据，路线不整条回退（14 §三种后继：保留已证实的层）`
-        : `排序未选首：薄弱度 ${STATE_RANK[st]}、解锁 ${unlocks(o.objectiveId)}、近期重复 ${repetition(o)}`,
+        ? `${o.objectiveId} 已经练过一段，不推倒重来`
+        : `${o.objectiveId} 也值得练，但先补更弱的`,
     })
   }
 
@@ -213,7 +213,7 @@ export function decide(objectives, states, snapshot) {
     return {
       primaryGoal: null, strategyId: 'material_review', hypotheses, candidates,
       uncertainAreas: snapshot.diagnostic?.unmeasured ?? ['all_first_path'],
-      reason: '当前候选材料均处争议复核或前置未就绪：不降级用户状态，等复核结束再推荐',
+      reason: '几项内容都在复核或等基础到位，你的记录不受影响，稍后再来。',
       lesson: null, fallback: null, status: 'ready', snapshot, eligibleRanked,
     }
   }
@@ -230,8 +230,8 @@ export function decide(objectives, states, snapshot) {
     lessonActivityId = repairProbe
     // needs_repair 也可能来自未免修目标的连败——文案跟事实一致（复审 P3）
     reason = repair.waived
-      ? `复杂任务失败暴露 ${repairTarget} 的可靠缺口（该目标已被用户斩掉）：只开局部短修复定位，不批量重刷基础`
-      : `复杂任务失败暴露 ${repairTarget} 的可靠缺口（连续两次未过）：只开局部短修复定位，不批量重刷`
+      ? `你跳过的 ${repairTarget} 在难任务里露了短板：先做一小段针对性练习，不整课重刷`
+      : `${repairTarget} 连续两次没过：先做一小段针对性练习，不整课重刷`
   } else if (diagRouteApplicable && diag?.route) {
     // F2：诊断路线只在其目标仍 eligible 且诊断足够新时生效；否则按最新证据选择
     strategyId = diag.strategyId
@@ -240,11 +240,11 @@ export function decide(objectives, states, snapshot) {
   } else if (STATE_RANK[stateOf(primary.objectiveId).state] >= 2) {
     strategyId = 'challenge_first'
     lessonActivityId = STRATEGY_LESSONS.challenge_first
-    reason = `${primary.objectiveId} 已有 trained 证据：挑战先行，证明即跳过基础（15 §6⑦）`
+    reason = `${primary.objectiveId} 已经练过：先上挑战，过了就不重复基础`
   } else {
     strategyId = 'short_explain'
     lessonActivityId = STRATEGY_LESSONS.short_explain
-    reason = `${primary.objectiveId} 证据薄弱（${stateOf(primary.objectiveId).state}）且能打开 ${unlocks(primary.objectiveId)} 条后继：短讲后练`
+    reason = `${primary.objectiveId} 还没练过：先简短讲清楚，再上手练`
   }
 
   // finalGoal 只在**真的走了修复/诊断路线**时被覆盖——修复分支因无可闭合探针让位时，
@@ -286,11 +286,11 @@ function repairProbeFor(repairTarget) {
 
 function strategyReason(diag, stateOf) {
   switch (diag.route) {
-    case 'L1': return `D1 文字关系未过（${diag.hypotheses.join('、') || '关系层缺口'}）：L1 结构对照先行，词不认识先补词义`
-    case 'L2': return '文字能辨认但新音频首听漏结论：L2 声音/语流支线；文字证据保留，不整条回退'
-    case 'L3': return '理解成立但脱稿只出关键词：L3 检索与组织训练，不继续堆选择题（A3）'
-    case 'challenge_first': return '诊断全过：挑战先行，证明即跳过；下一步转入陌生迁移（L4）'
-    default: return `按诊断路线 ${diag.route} 继续`
+    case 'L1': return '读句子有点吃力，先用对比的方式打基础，生词单独补'
+    case 'L2': return '读得懂但第一遍听抓不住重点：加练听力，读的能力保留'
+    case 'L3': return '能听懂但说不完整：练怎么组织语言说出来'
+    case 'challenge_first': return '底子不错：直接上挑战，过了就跳过基础'
+    default: return '按你的起点继续练'
   }
 }
 
@@ -359,7 +359,7 @@ function fallbackLesson(accountId) {
       const cand = getLesson(nid)
       if (usable(cand)) {
         return { lessonId: cand.lessonId, title: cand.title, objectiveIds: cand.objectiveIds ?? [],
-          reason: `你刚完成的《${from.title}》还有一节后继迁移课，趁热在新情境里检验；当前主目标的课还在准备中。完成它之后会重新安排下一步。` }
+          reason: `你刚学完《${from.title}》，这是它的下一节：换个新情境再试一次。你的主课还在准备中，先学这节，学完再安排下一步。` }
       }
     }
   }
@@ -379,16 +379,16 @@ function fallbackLesson(accountId) {
     if (!usable(l)) continue
     if ((l.objectiveIds ?? []).some((oid) => practiced.has(oid))) {
       return { lessonId: l.lessonId, title: l.title, objectiveIds: l.objectiveIds ?? [],
-        reason: `《${l.title}》与你练过的方向相关、还没学过；当前主目标的课还在准备中，可以先练它，完成后再回来定位下一步。它练的不是主目标本身——主目标缺的能力不会被它补上，也不会被它记成掌握。` }
+        reason: `《${l.title}》和你练过的方向有关，还没学过。你的主课还在准备中，可以先学它——它是过渡课，练不到主课要练的东西，也不会算成主课的成绩。` }
     }
   }
   return null
 }
 
 function waitNotice(strategyId) {
-  if (strategyId === 'sound_segmentation') return '听力目标的主课要音频与听校配合：合成音频课已在准备/上线（如实标注 synthetic、听力证据受限），自然讲者版本仍待录制——先用下面的备用任务保持练习节奏，它不会把阅读结果记成听力。'
-  if (strategyId === 'oral_retrieval') return 'L3 口述课需站内录音（W5 接入）：口语证据保持未测，不伪造成功'
-  return '当前可用内容不足：等待经审核的材料，不塞同质题凑数'
+  if (strategyId === 'sound_segmentation') return '听力课在准备中（现在的听力练习用电脑合成音，真人录音还没录好）。可以先练下面的课，它不会算成听力成绩。'
+  if (strategyId === 'oral_retrieval') return '口语课需要用麦克风录音，课件在准备中。先练别的，不会假装你练过口语。'
+  return '这一课还没做好。我们不拿旧题凑数——做好了会第一时间出现在这里。'
 }
 
 function decisionView(row) {

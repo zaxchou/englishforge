@@ -36,7 +36,7 @@ describe('learnerView 行为名称', () => {
     })
     expect(wait.mode).toBe('wait')
     expect(wait.waiting).toBe(true)
-    expect(wait.reason).toContain('现场生成') // 等待态给可动作的出路（一键生成/免修），不再死等
+    expect(wait.reason).toContain('现做一课') // 等待态给可动作的出路（AI 现做/跳过），不再死等
 
     const fresh = learnerToday(null)
     expect(fresh.mode).toBe('find_start')

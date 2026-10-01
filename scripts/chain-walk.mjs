@@ -123,18 +123,18 @@ try {
     if ((await resp).status() !== 200) throw Error(`attempt rejected at ${act.activityId}`)
     await pause(250)
     if (!claimExercised && !act.oralTask && !slots) {
-      const claimBtn = area.getByRole('button', { name: /我认为我的表达意思是对的/ })
+      const claimBtn = area.getByRole('button', { name: /我觉得我说得对/ })
       if (await claimBtn.count()) {
         await claimBtn.click()
-        await page.getByText('已记录你的表达申诉', { exact: false }).waitFor()
+        await page.getByText('已记下', { exact: false }).waitFor()
         claimExercised = true
       }
     }
     if (!revealExercised) {
-      const reveal = page.getByText('看参考表达与原文依据', { exact: false })
+      const reveal = page.getByText('看看参考说法', { exact: false })
       if (await reveal.count()) {
         await reveal.first().click()
-        await page.getByText('参考表达：', { exact: false }).waitFor()
+        await page.getByText('可以这样说：', { exact: false }).waitFor()
         await page.getByText(/开放追问/).first().waitFor()
         revealExercised = true
       }
@@ -150,12 +150,12 @@ try {
       const act = pkg.activities.find((x) => !x.resume)
       if (!act) break
       pkg = await submitCurrent(act, pkg, lessonId)
-      if (pkg.activities.some((x) => !x.resume)) await page.getByRole('button', { name: '看懂了，进入下一步', exact: true }).click()
+      if (pkg.activities.some((x) => !x.resume)) await page.getByRole('button', { name: '下一步', exact: true }).click()
       await pause(200)
     }
     if (pkg.activities.some((x) => !x.resume)) throw Error(`STEP_GUARD_EXHAUSTED at ${lessonId}`)
-    await page.getByRole('button', { name: '完成训练，查看本次反馈', exact: true }).click()
-    await page.getByRole('button', { name: '查看下一步', exact: true }).click()
+    await page.getByRole('button', { name: '完成这一课', exact: true }).click()
+    await page.getByRole('button', { name: '看下一步学什么', exact: true }).click()
     await pause(500)
   }
 
@@ -173,7 +173,7 @@ try {
     if (plan.fallback) {
       fallbackCardSeen = true
       // 备用卡必须真实显示在今日页（40-P1 的真实入口）
-      await page.getByText('可以先练的备用任务', { exact: false }).waitFor()
+      await page.getByText('先练这个也行', { exact: false }).waitFor()
       await page.getByText(plan.fallback.title, { exact: false }).first().waitFor()
       console.log(`第 ${step} 步 · 主目标 ${plan.primaryGoal} 无课 → 备用任务 ${plan.fallback.lessonId}（理由：${String(plan.fallback.reason).slice(0, 36)}…）`)
       await page.getByRole('button', { name: '打开备用任务', exact: true }).click()
@@ -182,7 +182,7 @@ try {
       continue
     }
     // 无课也无备用：诚实空态——生成入口必须可见（不要求真的付费生成）
-    if (!(await page.getByRole('button', { name: /用 AI 生成这一课/ }).count())) {
+    if (!(await page.getByRole('button', { name: /让 AI 现在做一课/ }).count())) {
       throw Error(`第 ${step} 步：无课、无备用、无生成入口（死角）`)
     }
     console.log(`第 ${step} 步 · 主目标 ${plan.primaryGoal} 无课无备用 → 诚实空态（生成入口可见）`)

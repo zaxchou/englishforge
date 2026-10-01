@@ -40,7 +40,7 @@ try {
  let completed=0
  for(let course=0;course<8;course++){
   const plan=(await api(`/api/v1/accounts/${id}/plan`)).decision
-  if(!plan.lesson.lessonId){await page.getByRole('button',{name:/用 AI 生成这一课/}).waitFor();break}
+  if(!plan.lesson.lessonId){await page.getByRole('button',{name:/让 AI 现在做一课/}).waitFor();break}
   await page.getByRole('button',{name:/^(开始训练|继续上一段)$/}).click()
   let pkg=await api(`/api/v1/accounts/${id}/lessons/${plan.lesson.lessonId}`)
   await page.getByRole('heading',{name:pkg.title,exact:true}).waitFor()
@@ -58,8 +58,8 @@ try {
     const c=new DatabaseSync(dbPath);try{c.prepare('UPDATE issued_tasks SET expires_at=0 WHERE task_id=?').run(a.taskId)}finally{c.close()}
     const [expired]=await Promise.all([page.waitForResponse(r=>r.url().includes(`/accounts/${id}/attempts`)&&r.request().method()==='POST'),area.getByRole('button',{name:a.oralTask?'提交口语作答':'提交',exact:true}).click()])
     if(expired.status()!==409)throw Error('expired task accepted')
-    await page.getByRole('button',{name:a.oralTask?'重新获取任务后再试（保留这段录音）':'重新读取当前任务',exact:true}).click()
-    await page.getByRole('button',{name:'重新读取当前任务',exact:true}).waitFor()
+    await page.getByRole('button',{name:a.oralTask?'重新获取任务后再试（保留这段录音）':'刷新这一步',exact:true}).click()
+    await page.getByRole('button',{name:'刷新这一步',exact:true}).waitFor()
     if(!await area.locator('textarea').inputValue())throw Error('task refresh discarded draft')
     if(a.oralTask)await area.getByRole('button',{name:'提交口语作答',exact:true}).waitFor()
     const fresh=await api(`/api/v1/accounts/${id}/lessons/${plan.lesson.lessonId}`)
@@ -70,12 +70,12 @@ try {
    if(saved.status()!==200)throw Error('attempt rejected')
    await area.locator('.v4-relations, .v4-advise').first().waitFor()
    pkg=await api(`/api/v1/accounts/${id}/lessons/${plan.lesson.lessonId}`)
-   if(pkg.activities.some(x=>!x.resume))await page.getByRole('button',{name:'看懂了，进入下一步',exact:true}).click()
+   if(pkg.activities.some(x=>!x.resume))await page.getByRole('button',{name:'下一步',exact:true}).click()
   }
   if(pkg.activities.some(x=>!x.resume))throw Error('LESSON_STEP_GUARD_EXHAUSTED')
-  await page.getByRole('button',{name:'完成训练，查看本次反馈',exact:true}).click()
+  await page.getByRole('button',{name:'完成这一课',exact:true}).click()
   await page.getByRole('heading',{name:pkg.title+' · 已完成',exact:true}).waitFor()
-  await page.getByRole('button',{name:'查看下一步',exact:true}).click();completed++
+  await page.getByRole('button',{name:'看下一步学什么',exact:true}).click();completed++
  }
  if(completed<5)throw Error(`expected at least 5 development samples, got ${completed}`)
  await page.getByRole('button',{name:'我的成长',exact:true}).first().click();await page.getByText('最近完成的训练',{exact:true}).waitFor()
@@ -84,7 +84,7 @@ try {
  const before=(await api(`/api/v1/accounts/${id}/plan`)).decision
  await page.getByRole('button',{name:'回到今日学习',exact:true}).click()
  await page.getByText('查看安排依据',{exact:true}).click()
- const [waived]=await Promise.all([page.waitForResponse(r=>r.url().endsWith(`/accounts/${id}/waivers`)&&r.request().method()==='POST'),page.getByRole('button',{name:/^我已熟悉，免修这项目标/}).click()])
+ const [waived]=await Promise.all([page.waitForResponse(r=>r.url().endsWith(`/accounts/${id}/waivers`)&&r.request().method()==='POST'),page.getByRole('button',{name:/这项我已经会了，跳过/}).click()])
  if(waived.status()!==200)throw Error('waiver rejected')
  await page.getByRole('button',{name:'我的成长',exact:true}).first().click()
  await page.getByText('查看各项能力记录',{exact:true}).click()

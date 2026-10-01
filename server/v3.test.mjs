@@ -370,7 +370,7 @@ describe('W2/T2 三种画像 → 三种后继', () => {
     expect(plan.strategyId).toBe('oral_retrieval')
     expect(plan.lesson.lessonId).toBe('les-oral-v1')
     expect(plan.lesson.devSample).toBe(true)
-    expect(plan.reason).toContain('堆选择题')
+    expect(plan.reason).toContain('说不完整')
     // 口述 fixture 不产生口语状态
     const ev = (await call(`/api/v1/accounts/${id}/evidence?objective=O-K190-01`)).json
     expect(ev.states.filter((s) => s.skill === 'speaking').every((s) => s.state === 'unmeasured')).toBe(true)
@@ -451,7 +451,7 @@ describe('W2/T3 争议与坏材料', () => {
     const plan = (await call(`/api/v1/accounts/${id}/plan/recompute`, { requestId: 'rq-t3-plan' }, 'POST')).json.decision
     const allNotChosen = plan.notChosen.map((n) => n.objectiveId).join(',')
     expect(allNotChosen).toContain('O-K115-02')
-    expect(plan.notChosen.find((n) => n.objectiveId === 'O-K115-02').reason).toContain('争议')
+    expect(plan.notChosen.find((n) => n.objectiveId === 'O-K115-02').reason).toContain('复核')
   })
 
   it('holdout：答案与评分要点永不下发；被报告后隔离，不再计分', async () => {
@@ -500,7 +500,7 @@ describe('W2/T4 斩掉与局部修复', () => {
     expect(w.json.state).not.toBe('retained') // 免修 ≠ 认证
     let plan = (await call(`/api/v1/accounts/${id}/plan/recompute`, { requestId: 'rq-t4-w' }, 'POST')).json.decision
     expect(plan.primaryGoal).not.toBe('O-K115-01')
-    expect(plan.notChosen.find((n) => n.objectiveId === 'O-K115-01').reason).toContain('waived')
+    expect(plan.notChosen.find((n) => n.objectiveId === 'O-K115-01').reason).toContain('跳过')
 
     // 复杂任务失败（film 家族，O-K115-01/03）
     const fail = await call(`/api/v1/accounts/${id}/attempts`, {
@@ -512,7 +512,7 @@ describe('W2/T4 斩掉与局部修复', () => {
     plan = (await call(`/api/v1/accounts/${id}/plan/recompute`, { requestId: 'rq-t4-f' }, 'POST')).json.decision
     expect(plan.primaryGoal).toBe('O-K115-01') // 只针对暴露的缺口
     expect(plan.strategyId).toBe('short_repair')
-    expect(plan.reason).toContain('局部短修复')
+    expect(plan.reason).toContain('针对性练习')
     expect(plan.lesson.activityId).toBe('diag_d1b_contrast') // 定位题，不是成批基础重刷
     // 状态：免修保留 + 需要修复标志，仍不降级为已认证
     const ev = (await call(`/api/v1/accounts/${id}/evidence?objective=O-K115-01`)).json
@@ -556,7 +556,7 @@ describe('W2/附加 幂等与诚实状态', () => {
     // 无诊断时不给推荐（不用旧题凑数）
     const empty = (await call(`/api/v1/accounts/${id}/plan`)).json
     expect(empty.decision).toBeNull()
-    expect(empty.note).toContain('入口诊断')
+    expect(empty.note).toContain('诊断')
 
     // 课程包：published 才可见，无 holdout 答案，带开发样本标记
     const list = (await call('/api/v1/lessons')).json.lessons
@@ -566,7 +566,7 @@ describe('W2/附加 幂等与诚实状态', () => {
     const pkg = (await call(`/api/v1/accounts/${id}/lessons/les-relations-v1`)).json
     expect(pkg.whyNow).toContain('D1')
     expect(pkg.teachingNote).toContain('连接词') // 精华讲解在课包里（15 §7）
-    expect(pkg.devSampleNotice).toContain('人审未签署')
+    expect(pkg.devSampleNotice).toContain('还没有老师最终确认')
     expect(pkg.activities.length).toBe(2)
     expect(JSON.stringify(pkg)).not.toContain('anyOf') // 评分要点不下发
     // 深层提示只在逐层揭示接口出现，不随课包首屏下发（15 §9）
@@ -1479,7 +1479,7 @@ describe('复审回归 F1–F8', () => {
     expect(stuck.evaluationStatus).toBe('disputed')
     expect(stuck.disputedReason).toBe('NEGATION_AMBIGUOUS')
     expect(stuck.diagnostic.step).toBe('D2') // 不推进、不降级
-    expect(stuck.diagnostic.note).toContain('重新提交') // 指引必须到达前端（之前被丢弃）
+    expect(stuck.diagnostic.note).toContain('换个') // 指引必须到达前端（之前被丢弃）
     // 同义改写（"出来非常多的内容"）→ 干净判定，流程正常走到 D2b 对照复核
     const redo = (await call(`/api/v1/accounts/${id}/attempts`, {
       attemptId: 'disp-d2b', taskId: d1b.diagnostic.activity.taskId, sessionId: diag.diagnosticId, activityId: 'diag_d2_listen_sim',

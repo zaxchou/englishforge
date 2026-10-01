@@ -129,11 +129,11 @@ it('B 课可学：新情境（博物馆地图）两步全部可答；与 A 是�
   expect(done.json.ok).toBe(true)
 })
 
-it('审核状态一致性：策划链是开发样本（无模型审核），页面标"开发样本"而不是"内容试验预览"', async () => {
+it('审核状态一致性：策划链是练习版（无模型审核），页面标"练习版"而不是"AI 现做"', async () => {
   const id = await freshAccount('链路-标记')
   const pkg = (await call(`/api/v1/accounts/${id}/lessons/les-claim-limit-c1`)).json
-  expect(pkg.devSampleNotice).toContain('开发样本')
-  expect(pkg.devSampleNotice).not.toContain('内容试验预览')
+  expect(pkg.devSampleNotice).toContain('练习版')
+  expect(pkg.devSampleNotice).not.toContain('AI 现做')
   expect(pkg.contentReview.preview).toBe(false)
   expect(pkg.contentReview.humanSignPending).toBe(true)
 })

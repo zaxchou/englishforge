@@ -63,14 +63,14 @@ async function api<T>(path: string, body?: unknown, method = 'GET'): Promise<T> 
 }
 
 const STATE_LABEL: Record<string, string> = {
-  unmeasured: '未测', tentative: '暂定', trained: '已练', independent: '独立', transferred: '迁移', retained: '保持',
+  unmeasured: '还没练到', tentative: '刚起步', trained: '练过', independent: '能自己做对', transferred: '换个情境也会', retained: '隔一阵还会',
 }
 const SKILL_LABEL: Record<string, string> = {
   listening: '听', speaking: '说', reading: '读', writing: '写', interaction: '互动',
 }
 // 复杂度与技能独立；已知指代任务显示实际负担，其余不猜档位含义。
 const BAND_LABEL: Record<string, string> = {
-  base: '综合（跨档）', band1: '复杂度档1', band2: '复杂度档2', band3: '复杂度档3', band4: '复杂度档4', band5: '复杂度档5', band6: '复杂度档6',
+  base: '全部难度', band1: '难度 1', band2: '难度 2', band3: '难度 3', band4: '难度 4', band5: '难度 5', band6: '难度 6',
 }
 
 export function V4Path({ accountId }: { accountId: string | null }) {
@@ -142,7 +142,7 @@ export function V4Path({ accountId }: { accountId: string | null }) {
     try {
       const r = await api<{ jobId?: string; reused?: boolean; cooledDown?: boolean; note?: string }>(
         `/accounts/${accountId}/generation/start`, { objectiveId: today.goalId, confirmCost: true }, 'POST')
-      if (r.cooledDown) { setGenPhase('failed'); setGenNote(r.note ?? '同目标刚失败过，10 分钟冷却后再试。'); return }
+      if (r.cooledDown) { setGenPhase('failed'); setGenNote(r.note ?? '这一课刚才没做成，过几分钟再试一次就行。'); return }
       const jobId = r.jobId ?? null
       // 轮询任务状态（生成的课约半分钟；最多等 3 分钟）。
       // 38-S3：succeeded ≠ 有课——审核未过（published:false + pending）有明确字段，
@@ -157,26 +157,26 @@ export function V4Path({ accountId }: { accountId: string | null }) {
         }
         if (job.status === 'succeeded' && job.output_lesson_id && job.pending === 'content_semantic_review') {
           setGenPhase('failed')
-          setGenNote('这一课没有通过内容审核（' + (job.semanticVerdict === 'unsupported' ? '审核判定题目和材料对不上' : '审核未完成') + '），没有发布——不会让你学没把握的内容。可以重新生成一次，或先学下面的备用课。')
+          setGenNote('AI 做的这一课没通过检查（' + (job.semanticVerdict === 'unsupported' ? '题目和材料对不上' : '还没查完') + '），所以没给你用——不会让你学讲不通的内容。可以重新做一次，或先学别的。')
           void loadPlan()
           return
         }
         if (job.status === 'succeeded' && job.output_lesson_id && job.pending === 'human_sign') {
           setGenPhase('failed')
-          setGenNote('这一课已生成，正在等人工审核签署；签署前不进入学习主线。可以先学下面的备用课，或稍后再来。')
+          setGenNote('课已做好，等老师确认后就能学。可以先学别的，或稍后再来。')
           void loadPlan()
           return
         }
         if (job.status === 'failed' || job.status === 'rejected' || job.status === 'superseded') {
           setGenPhase('failed')
           setGenNote(job.status === 'superseded'
-            ? '等待期间你的练习记录或内容有了变化，这次生成已作废（没扣这次的学习安排）。可以重新生成，或先学下面的备用课。'
-            : '生成没有通过质量门（' + String(job.reject_reasons ?? job.status).slice(0, 120) + '）。可以重新生成一次，或先学下面的备用课。')
+            ? '等你做题的这几分钟里，学习安排变了，这一课就作废了。可以重新做一次，或先学别的。'
+            : '这一课没做好，先不给你用。可以重新做一次，或先学别的。（原因：' + String(job.reject_reasons ?? job.status).slice(0, 80) + '）')
           void loadPlan()
           return
         }
       }
-      setGenPhase('failed'); setGenNote('生成超时。可稍后再试。')
+      setGenPhase('failed'); setGenNote('等太久了没做成，稍后再试一次。')
     } catch (e) { setGenPhase('failed'); setGenNote(String(e)) }
   }, [accountId, today.goalId, loadPlan])
   
@@ -222,8 +222,8 @@ async function changeWaiver(objectiveId:string,skill:string,revoked:boolean) {
             // 40-P1：主目标没内容时，**备用迁移任务**（与主目标分开、有理由、不用付费/免修）优先给出
             genPhase === 'done' && genLessonId ? (
               <>
-                <button className="v4-primary v4-today-btn" onClick={() => void openLesson(genLessonId)}>开始这一课（内容试验预览）</button>
-                <p className="v4-dim">这一课是按你最近的练习实时生成的<b>内容试验预览</b>：机器质量门和模型辅助内容检查已通过，专业人工核验还没做——可以学，发现讲得不对的地方请直接反馈。</p>
+                <button className="v4-primary v4-today-btn" onClick={() => void openLesson(genLessonId)}>开始这一课（AI 现做）</button>
+                <p className="v4-dim">这一课是 AI 按你最近的练习<b>现做的</b>：已经过自动检查，还没有老师确认。可以学；发现哪里讲得不对，直接告诉我们。</p>
               </>
             ) : genPhase === 'running' ? (
               <button className="v4-primary v4-today-btn" disabled>正在生成这一课…（约半分钟，别关页面）</button>
@@ -231,13 +231,13 @@ async function changeWaiver(objectiveId:string,skill:string,revoked:boolean) {
               <>
                 {plan?.fallback && (
                   <div className="v4-note" style={{ marginBottom: 8 }}>
-                    <b>可以先练的备用任务：</b>{plan.fallback.title}
+                    <b>先练这个也行：</b>{plan.fallback.title}
                     <p style={{ margin: '4px 0' }}>{plan.fallback.reason}</p>
                     {!!plan.fallback.objectiveIds?.length && (
-                      <p style={{ margin: '4px 0' }}>它练的方向：{plan.fallback.objectiveIds.map((oid) => goalLabel(oid)).join('、')}。</p>
+                      <p style={{ margin: '4px 0' }}>练的内容：{plan.fallback.objectiveIds.map((oid) => goalLabel(oid)).join('、')}。</p>
                     )}
                     {(plan.primarySkill === 'listening' || plan.primarySkill === 'speaking') && (
-                      <p style={{ margin: '4px 0 8px' }}>注意：主目标是{SKILL_LABEL[plan.primarySkill]}训练，备用任务不能替代它——它不会把阅读/写作结果记成{SKILL_LABEL[plan.primarySkill]}掌握；{SKILL_LABEL[plan.primarySkill]}主课在准备中（听力课为合成音频，如实标注、证据受限）。</p>
+                      <p style={{ margin: '4px 0 8px' }}>提醒：你现在主要练{SKILL_LABEL[plan.primarySkill]}，这节课练的不是它，也算不进它的成绩；{SKILL_LABEL[plan.primarySkill]}的正课正在准备。</p>
                     )}
                     <button className="v4-primary" disabled={waiverBusy} onClick={() => { if (plan.fallback) void openLesson(plan.fallback.lessonId) }}>打开备用任务</button>
                   </div>
@@ -251,9 +251,9 @@ async function changeWaiver(objectiveId:string,skill:string,revoked:boolean) {
                   </div>
                 )}
                 <button className="v4-primary v4-today-btn" disabled={waiverBusy || planLoading || !!err} onClick={() => { void startGeneration() }}>
-                  用 AI 生成这一课（调用真实模型 · 按次计费 · 先标内容试验预览）
+                  让 AI 现在做一课（用真模型 · 按次收费）
                 </button>
-                <p className="v4-dim">生成后它会出现在这里（先标内容试验预览，模型辅助检查、专业核验未做）；不想用也可以先免修这项。</p>
+                <p className="v4-dim">做完会直接出现在这里；不想用 AI 做，也可以跳过这项。</p>
               </>
             )
           ) : (
@@ -264,14 +264,14 @@ async function changeWaiver(objectiveId:string,skill:string,revoked:boolean) {
               }}>{planLoading ? '正在读取学习安排…' : today.primaryLabel}</button>
           )}
           {plan?.lesson?.fallbackTask && plan.lesson.status === 'published' && (
-            <p className="v4-dim">这是备用迁移任务（主目标的课还在准备中）：{plan.lesson.fallbackReason}</p>
+            <p className="v4-dim">这是安排里的过渡课（你主练的那课还在准备中）：{plan.lesson.fallbackReason}</p>
           )}
           {genNote && <div className="v4-note">{genNote}</div>}
           {today.goalId && (
             <details className="v4-fold">
               <summary>查看安排依据</summary>
               <p><code>{today.goalId}</code>{today.lessonId ? <> · 课程 <code>{today.lessonId}</code></> : null}</p>
-              {plan?.primarySkill && <><p>如果这项目标的{SKILL_LABEL[plan.primarySkill] ?? plan.primarySkill}训练你已经很熟，可以自主免修。免修不认证掌握，之后能恢复。</p><button className="v4-ghost" disabled={waiverBusy} onClick={()=>{void changeWaiver(today.goalId!,plan.primarySkill!,false)}}>我已熟悉，免修这项目标的{SKILL_LABEL[plan.primarySkill] ?? plan.primarySkill}训练</button></>}
+              {plan?.primarySkill && <><p>如果这项你已经很熟，可以跳过，不重复练。跳过不代表已经掌握，想练随时恢复。</p><button className="v4-ghost" disabled={waiverBusy} onClick={()=>{void changeWaiver(today.goalId!,plan.primarySkill!,false)}}>这项我已经会了，跳过</button></>}
             </details>
           )}
           <div className="v4-today-aux">
@@ -297,24 +297,24 @@ async function changeWaiver(objectiveId:string,skill:string,revoked:boolean) {
           {evidence?.completedLessons?.length ? <>
             <p>最近完成的训练</p>
             <ul>{evidence.completedLessons.map(l=><li key={l.lessonId}>{l.title}</li>)}</ul>
-            <p className="v4-dim">完成记录说明你练过这些内容；能否独立使用，还要看下面的能力记录。</p>
+            <p className="v4-dim">这些是你练过的课。练过 ≠ 都会了——具体到什么程度，看下面。</p>
           </> : <p>完成第一段训练后，这里会留下你的学习轨迹。</p>}
           {evidence?.states.filter(s=>s.complexity==='base' && ['independent','transferred','retained'].includes(s.state) && !s.flags.includes('disputed')).map(s=><p key={s.objectiveId+s.skill}>{goalLabel(s.objectiveId)} · {SKILL_LABEL[s.skill] ?? s.skill}：{STATE_LABEL[s.state] ?? s.state}</p>)}
           <p>下一步：{today.headline.replace('今天这一步：','').replace('接下来该练：','')}</p>
           {today.waiting && <p>{today.reason}</p>}
           <button className="v4-primary" disabled={waiverBusy} onClick={()=>setTab('today')}>回到今日学习</button>
-          <details className="v4-fold"><summary>查看各项能力记录</summary><p className="v4-dim">免修是你的自主选择，只移出重复目标，不会变成掌握认证；之后可以恢复。</p>
-          <p className="v4-dim">带行是每个复杂度档的真实状态（不同档互不覆盖）；「综合」行是跨档保守合并——取最弱一档，易档通过不会替你掩盖嵌套档的不足。</p>
-          {!evidence?.states.length && <p className="v4-dim">还没有足够的能力记录。练习反馈会保留，但不会自动变成“掌握”。</p>}
+          <details className="v4-fold"><summary>查看各项能力记录</summary><p className="v4-dim">「跳过」是你自己选的：只是不用重复练这项，不代表已经会了；想练随时恢复。</p>
+          <p className="v4-dim">每一行是一个难度的情况；「全部难度」按最弱的算——简单的过了，也不会替你掩盖难的没过。</p>
+          {!evidence?.states.length && <p className="v4-dim">还没有记录。练过的内容会先记成练习，练到能独立做对才算数。</p>}
           <div className="v4-states">
             {evidence?.states.map((s) => (
               <div key={s.objectiveId + s.skill + s.complexity} className="v4-state">
                 <code>{s.objectiveId}</code>
                 <span className="v4-skill">{SKILL_LABEL[s.skill] ?? s.skill}</span>
-                <span className="v4-skill">{s.objectiveId==='O-K115-02'&&s.complexity==='band2'?'简单指代':s.objectiveId==='O-K115-02'&&s.complexity==='band4'?'嵌套指代':BAND_LABEL[s.complexity] ?? '综合'}</span>
+                <span className="v4-skill">{s.objectiveId==='O-K115-02'&&s.complexity==='band2'?'简单句':s.objectiveId==='O-K115-02'&&s.complexity==='band4'?'复杂句':BAND_LABEL[s.complexity] ?? '全部难度'}</span>
                 <b>{STATE_LABEL[s.state] ?? s.state}</b>
-                {s.flags.map((f) => <em key={f}>{f === 'disputed' ? '争议复核' : f === 'waived_by_user' ? '已免修' : f === 'needs_repair' ? '待修复' : f}</em>)}
-                {s.complexity==='base' && <button className="v4-ghost" disabled={waiverBusy} onClick={()=>{void changeWaiver(s.objectiveId,s.skill,s.flags.includes('waived_by_user'))}}>{s.flags.includes('waived_by_user')?'恢复这项训练':`我已熟悉，免修这项目标的${SKILL_LABEL[s.skill] ?? s.skill}训练`}</button>}
+                {s.flags.map((f) => <em key={f}>{f === 'disputed' ? '有分歧待复核' : f === 'waived_by_user' ? '已跳过' : f === 'needs_repair' ? '需要多练' : f}</em>)}
+                {s.complexity==='base' && <button className="v4-ghost" disabled={waiverBusy} onClick={()=>{void changeWaiver(s.objectiveId,s.skill,s.flags.includes('waived_by_user'))}}>{s.flags.includes('waived_by_user')?'恢复这项训练':`这项我会了，跳过${SKILL_LABEL[s.skill] ?? ''}练习`}</button>}
               </div>
             ))}
           </div>
@@ -327,18 +327,16 @@ async function changeWaiver(objectiveId:string,skill:string,revoked:boolean) {
 
       {tab === 'map' && mapIdx && (
         <div className="v4-card">
-          <div className="journey-eyebrow">完整知识地图 / 个人路径按需展开</div><h2>看清方向，再深入到知识。</h2><JourneyRoute goal={plan?.primaryGoal ?? null} expanded /><p>同一结构逐步深入，并在听说读写中迁移。下列目标说明系统覆盖的内容；内容草案不等于已经能学习的课程。</p><h3>具体能力目标</h3>
+          <div className="journey-eyebrow">完整知识地图 / 个人路径按需展开</div><h2>看清方向，再深入到知识。</h2><JourneyRoute goal={plan?.primaryGoal ?? null} expanded /><p>下列是系统准备覆盖的内容。列出来 ≠ 已经能学——能学的课会出现在「今日学习」。</p><h3>具体能力目标</h3>
           <p>
-            {mapIdx.summary.groups} 个知识组 · {mapIdx.summary.objectives} 条首批原子目标 ·
-            已拆解 {mapIdx.summary.byAtomization.partial_draft ?? 0} 组 / 待拆解 {mapIdx.summary.byAtomization.pending ?? 0} 组 ·
-            全图核验 {mapIdx.summary.coveredClaims} 组（如实为 0：账本≠覆盖证明）
+            共 {mapIdx.summary.groups} 个话题组、{mapIdx.summary.objectives} 个具体目标。课程正在一项项做出来，能学的会出现在「今日学习」。
           </p>
           <div className="v4-objlist">
             {mapIdx.objectives.map((o) => (
               <div key={o.objectiveId} className="v4-obj">
                 <code>{o.objectiveId}</code> <b>{o.name}</b>
-                <span className="v4-ver">{o.verification === 'claim_checked' ? '命题已核' : '设计草案'}</span>
-                {o.flags.includes('needs_audio') && <span className="v4-ver">待音频</span>}
+                <span className="v4-ver">{o.verification === 'claim_checked' ? '已核实' : '准备中'}</span>
+                {o.flags.includes('needs_audio') && <span className="v4-ver">等录音</span>}
                 <p>{o.behavior}</p>
               </div>
             ))}
@@ -378,10 +376,10 @@ function PlanPanel({ plan, noPlan, stock, onDiagnostic, onOpenLesson }: {
   // 31 第三批：补课管线状态诚实显示——区分可学/待人审/失败冷却/未开启，不冒充"制作中"
   const stockLine = stock && (stock.ready > 0 || stock.pendingReview > 0 || stock.failedCooldown > 0 || stock.disabled)
     ? [
-      stock.disabled ? '按需生成未开启' : null,
-      stock.ready > 0 ? `可学储备 ${stock.ready} 段` : null,
-      stock.pendingReview > 0 ? `待人工审核 ${stock.pendingReview} 段` : null,
-      stock.failedCooldown > 0 ? `近期生成失败（冷却中）${stock.failedCooldown} 次` : null,
+      stock.disabled ? 'AI 现做功能未开启' : null,
+      stock.ready > 0 ? `现成可学 ${stock.ready} 课` : null,
+      stock.pendingReview > 0 ? `等人确认 ${stock.pendingReview} 课` : null,
+      stock.failedCooldown > 0 ? `刚做过 1 次没成功，稍等几分钟` : null,
     ].filter(Boolean).join(' · ')
     : null
   return (
@@ -394,12 +392,12 @@ function PlanPanel({ plan, noPlan, stock, onDiagnostic, onOpenLesson }: {
           <button className="v4-primary" onClick={() => onOpenLesson(plan.lesson.lessonId!)}>打开课程</button>
         )}
         {plan.lesson.status === 'fixture_dev_only' && (
-          <span className="v4-wait">⏳ 该策略还没有课程包（只有验收用活动）；正式材料在 W3 材料清单内</span>
+          <span className="v4-wait">⏳ 这一课还在准备中，做好了会出现在「今日学习」</span>
         )}
         {plan.lesson.status === 'content_pending' && <span className="v4-wait">⏳ {plan.lesson.waitNotice}</span>}
-        {plan.lesson.devSample && <span className="v4-dev">{plan.lesson.contentPreview ? '内容试验预览 · 模型辅助检查已过 · 专业核验未做' : '开发样本 · 人审未签署'}</span>}
+        {plan.lesson.devSample && <span className="v4-dev">{plan.lesson.contentPreview ? 'AI 现做 · 已自动检查 · 老师还没确认' : '练习版 · 老师还没确认'}</span>}
       </div>
-      {stockLine && <p className="v4-dim">课程供给：{stockLine}。</p>}
+      {stockLine && <p className="v4-dim">AI 补课：{stockLine}。</p>}
       {!!plan.hypotheses.length && <p><b>根因假设：</b>{plan.hypotheses.join('、')}</p>}
       {!!plan.uncertainAreas.length && <p><b>未测区域：</b>{plan.uncertainAreas.join('、')}</p>}
       <details>
@@ -447,7 +445,7 @@ function LessonAudio({ info, taskId, activityId, accountId, onPlay }: { info: Au
     <div className="v4-audio">
       <audio controls src={url} onPlay={onFirstPlay} />
       <span className="v4-dim">
-        合成音频（synthetic · 受控练习）· {info.speakerLabel} · 约 {Math.round(info.durationMs / 1000)} 秒。自然讲者原声制作中。听力题需先播放再作答。
+        电脑合成的发音（不是真人）· 约 {Math.round(info.durationMs / 1000)} 秒。真人录音正在准备。听力题要先播放再作答。
       </span>
     </div>
   )
@@ -524,9 +522,9 @@ function DiagPanel({ accountId, onDone }: { accountId: string; onDone: () => voi
   if (!diag) {
     return (
       <div className="v4-card">
-        <h3>入口诊断</h3>
-        <p>约 5–10 分钟：文字关系 →（按需）对照定位 → 声音理解 → 口述。D2 声音步骤是合成语音（synthetic，受控练习音频），播放只记录输入交互，关键词反馈不认证听力理解；自然讲者原声制作中。此处口述用文字定位，真实口语能力尚未确认。</p>
-        <button className="v4-primary" onClick={start}>开始诊断</button>
+        <h3>起点测试</h3>
+        <p>大约 5–10 分钟，几道小题看看你现在到哪一步：读句子 → 听一段话 → 说一段话。说明两点：听的是电脑合成音（不是真人，正式录音在准备）；说的一段先用打字代替，口语暂时不打分。做完只定起点，不给你贴等级。</p>
+        <button className="v4-primary" onClick={start}>开始测试</button>
         {err && <div className="v4-err">{err}</div>}
       </div>
     )
@@ -534,17 +532,17 @@ function DiagPanel({ accountId, onDone }: { accountId: string; onDone: () => voi
   if (diag.status === 'completed' && diag.tentative) {
     return (
       <div className="v4-card">
-        <h3>诊断完成 · 暂定路线 {diag.tentative.route}</h3>
-        <p><b>强项：</b>{diag.tentative.strongPoints.join('；') || '—'}</p>
-        <p><b>根因假设：</b>{diag.tentative.hypotheses.join('、') || '—'}</p>
-        <p><b>未测区域：</b>{diag.tentative.unmeasured.join('、')}</p>
+        <h3>测试完成 · 你的起点</h3>
+        <p><b>还不错的地方：</b>{diag.tentative.strongPoints.join('；') || '—'}</p>
+        <p><b>可能卡住的地方：</b>{diag.tentative.hypotheses.join('、') || '—'}</p>
+        <p><b>还没看到的：</b>{diag.tentative.unmeasured.join('、')}</p>
         <p className="v4-dim">{diag.tentative.stopReason}</p>
       </div>
     )
   }
   return (
     <div className="v4-card">
-      <h3>入口诊断 · {diag.step}</h3>
+      <h3>起点测试 · {diag.step}</h3>
       {note && <div className="v4-note">{note}</div>}
       <pre className="v4-prompt">{diag.activity?.prompt}</pre>
       {diag.activity?.audio && (
@@ -553,12 +551,12 @@ function DiagPanel({ accountId, onDone }: { accountId: string; onDone: () => voi
       )}
       {hintShown && diag.activity?.hints?.[0] && <p className="v4-hint">提示：{diag.activity.hints[0]}</p>}
       {!hintShown && !!diag.activity?.hints?.length && (
-        <button className="v4-ghost" onClick={() => setHintShown(true)}>看提示（将记为支持）</button>
+        <button className="v4-ghost" onClick={() => setHintShown(true)}>看个提示</button>
       )}
       <textarea value={text} onChange={(e) => setText(e.target.value)} rows={4}
         placeholder="用自己的话回答（中英文都可以）" />
-      <button className="v4-primary" disabled={busy || !text.trim()} onClick={submit}>{note ? '重新提交这一步' : '提交这一步'}</button>
-      <button className="v4-ghost" disabled={busy} onClick={start}>放弃本次，重新开始</button>
+      <button className="v4-primary" disabled={busy || !text.trim()} onClick={submit}>{note ? '换说法再提交' : '提交'}</button>
+      <button className="v4-ghost" disabled={busy} onClick={start}>重新开始</button>
       {err && <div className="v4-err">{err}</div>}
     </div>
   )
@@ -675,28 +673,28 @@ function LessonRunner({ accountId, pkg, onDone }: {
     return (
       <div className="v4-card">
         <h3>{pkgLive.title} · 已完成</h3>
-        <p>这一课的练习已记录。完成练习不等于掌握，开放表达仍需进一步反馈。</p>
-        <p>下一步会参考本次表现重新安排；你可以继续，也可以结束今天的学习。</p>
-        <button className="v4-primary" onClick={onDone}>查看下一步</button>
+        <p>这一课练完了！练过不等于完全掌握——你的表现都记下来了，后面会安排复习。</p>
+        <p>接下来学什么，会根据这一课的表现来安排。可以继续，也可以明天再来。</p>
+        <button className="v4-primary" onClick={onDone}>看下一步学什么</button>
       </div>
     )
   }
   return (
     <div className="v4-card">
       <div className="journey-eyebrow">专注训练 / 理解 → 表达 → 迁移</div><h2>{pkgLive.title}</h2>
-      <button className="v4-ghost" disabled={refreshing} onClick={()=>{void refreshLesson().catch(()=>{})}}>重新读取当前任务</button>
+      <button className="v4-ghost" disabled={refreshing} onClick={()=>{void refreshLesson().catch(()=>{})}}>刷新这一步</button>
       <p className="v4-why">为什么现在学：{pkgLive.whyNow}</p>
       {pkgLive.teachingNote && <p className="v4-teach">要点：{pkgLive.teachingNote}</p>}
       {pkgLive.devSampleNotice && <p className="v4-dev">{pkgLive.devSampleNotice}</p>}
       {/* 38-S3：课内与推荐卡、生成结果页同一份审核事实（缓存恢复后重取课包也带 contentReview） */}
-      {pkgLive.contentReview?.preview && <p className="v4-dev">内容试验预览：题目与讲法经过了机器质量门和模型辅助内容检查；专业人工核验还没做。</p>}
-      {pkgLive.contentReview?.pending === 'content_semantic_review' && <p className="v4-dev">这节课的内容审核还没有完成，暂时不能继续——回到上一页可以重新生成或换备用课。</p>}
-      <div className="journey-task-progress" aria-label={`当前第 ${currentIndex + 1} 步，共 ${visibleActs.length} 步`}><span>当前第 {currentIndex + 1} 步，共 {visibleActs.length} 步</span><div>{visibleActs.map((a, i) => <i key={a.activityId} className={i === currentIndex ? 'current' : i < currentIndex ? 'visited' : ''} />)}</div><small>看懂反馈后再进入下一步；经过的步骤不代表能力认证。</small></div>
+      {pkgLive.contentReview?.preview && <p className="v4-dev">这一课是 AI 现做的：已自动检查，还没有老师确认——有问题直接说。</p>}
+      {pkgLive.contentReview?.pending === 'content_semantic_review' && <p className="v4-dev">这节课还没检查完，暂时不能继续。回上一页可以重新做一课，或先学别的。</p>}
+      <div className="journey-task-progress" aria-label={`当前第 ${currentIndex + 1} 步，共 ${visibleActs.length} 步`}><span>当前第 {currentIndex + 1} 步，共 {visibleActs.length} 步</span><div>{visibleActs.map((a, i) => <i key={a.activityId} className={i === currentIndex ? 'current' : i < currentIndex ? 'visited' : ''} />)}</div><small>看完这步的讲解再进下一步。走过 ≠ 掌握，别担心。</small></div>
       {visibleActs.slice(currentIndex, currentIndex + 1).map((act) => (
         <div key={act.activityId + act.activityVersion + act.prompt} className="v4-act">
           <div className="v4-act-head">
             <b>{act.role === 'transfer' ? '陌生迁移' : act.role === 'practice' ? '练习' : act.role}</b>
-            {act.simulatesAudio && !act.audio && <span className="v4-dev">文字模拟音频 · 听力证据未测</span>}
+            {act.simulatesAudio && !act.audio && <span className="v4-dev">这题用文字代替发音（不算听力成绩）</span>}
           </div>
           <pre className="v4-prompt">{act.prompt}</pre>
           {act.material?.segments?.length ? (
@@ -718,7 +716,7 @@ function LessonRunner({ accountId, pkg, onDone }: {
           ))}
           {(revealed[act.activityId]?.length ?? 0) < act.hintStageCount && (
             <button className="v4-ghost" onClick={() => reveal(act)}>
-              看提示（记为支持，{revealed[act.activityId]?.length ?? 0}/{act.hintStageCount}）
+              看个提示（{revealed[act.activityId]?.length ?? 0}/{act.hintStageCount}）
             </button>
           )}
           {act.oralTask
@@ -766,59 +764,59 @@ function LessonRunner({ accountId, pkg, onDone }: {
             )}
             {feedback[act.activityId] && !act.oralTask && (
               <span className={feedback[act.activityId].pass ? 'v4-ok' : 'v4-no'}>
-                {feedback[act.activityId].status === 'disputed' ? '已标争议，不扣能力'
-                  : feedback[act.activityId].pass ? '关系抓到了' : '还有关系没抓到——按下方逐项看'}
+                {feedback[act.activityId].status === 'disputed' ? '这题系统拿不准，先不算你的错'
+                  : feedback[act.activityId].pass ? '对了！' : '还差一点——看下面的对照'}
               </span>
             )}
             {/* R5（24 号）：错→（看提示）→改答→再试。新一轮=新 take ID，旧作答与反馈保留在服务端 */}
             {feedback[act.activityId] && !act.oralTask && !feedback[act.activityId].pass && (
-              <button className="v4-ghost" onClick={() => retry(act)}>再试一次（新的一轮）</button>
+              <button className="v4-ghost" onClick={() => retry(act)}>再试一次</button>
             )}
             {feedback[act.activityId]?.status === 'disputed' && act.oralTask && (
-              <span className="v4-advise">转写置信度低：已标争议，不影响你的能力记录；可纠正转写后供复核。</span>
+              <span className="v4-advise">你说的话系统没太听清，先不算你的错；可以把文字改一改再提交。</span>
             )}
           </div>
           {feedback[act.activityId]?.practiceOnly && (
-            <p className="v4-advise">这是机器词表检查的<b>练习反馈</b>——帮你对照关系，不计入能力记录；能力证据来自封闭题与真人复核。</p>
+            <p className="v4-advise">这是<b>练习参考</b>：帮你对照要点，不算进成绩。真正的成绩来自选择题和老师的确认。</p>
           )}
           {feedback[act.activityId]?.slotResults?.length ? (
             <ul className="v4-relations">
               {feedback[act.activityId].slotResults!.map((s) => (
                 <li key={s.slotId} className={s.status === 'correct' ? 'v4-ok' : 'v4-no'}>
                   {s.status === 'correct' ? '✓' : '✗'} {s.prompt}
-                  {s.status !== 'correct' && `（${s.status === 'missing' ? '这空没选' : s.status === 'multiple' ? '选了多个' : s.status === 'invalid' ? '选了无效选项' : '选错了'}）`}
+                  {s.status !== 'correct' && `（${s.status === 'missing' ? '这个空没选' : s.status === 'multiple' ? '选了好几个' : s.status === 'invalid' ? '这个选项不对' : '选错了'}）`}
                 </li>
               ))}
             </ul>
           ) : null}
           {/* 40 号：两类失败分开说——"词全有但关系错"不同于"词没抓到" */}
           {feedback[act.activityId]?.pass === false && (feedback[act.activityId].mustNot?.length ?? 0) > 0 && (
-            <p className="v4-advise">词都出现了，但关系判断错了：{feedback[act.activityId]!.mustNot!.join('；')}——回到材料里再看一眼对照和限制。</p>
+            <p className="v4-advise">要点词都在，但意思连得不对：{feedback[act.activityId]!.mustNot!.join('；')}。回到材料再读一遍试试。</p>
           )}
           {/* 40 号表达反馈：语义对但被词表判据拒收 → 学生可记录申诉（保留争议，不扣能力不认证） */}
           {feedback[act.activityId]?.status === 'evaluated' && feedback[act.activityId].pass === false && feedback[act.activityId].practiceOnly && !feedback[act.activityId].studentClaimed && (
-            <button className="v4-ghost" onClick={() => claimExpression(act)}>我认为我的表达意思是对的（记录争议，不影响能力记录）</button>
+            <button className="v4-ghost" onClick={() => claimExpression(act)}>我觉得我说得对（记下来，先不算错）</button>
           )}
           {feedback[act.activityId]?.studentClaimed && (
-            <p className="v4-advise">已记录你的表达申诉：这条作答会以"语义对、词表未命中"保留在记录里，供复核参考；它不认证自由表达。</p>
+            <p className="v4-advise">已记下：这句先不算错，之后一起复核。</p>
           )}
           {/* 40 号：提交后揭晓——参考表达 + 原文依据 + 不能照抄的开放追问 */}
           {feedback[act.activityId]?.reveal && (
             <details className="v4-fold">
-              <summary>看参考表达与原文依据（自己再试一轮之后看，收获更大）</summary>
-              <p><b>参考表达：</b>{feedback[act.activityId]!.reveal!.referenceExpression}</p>
-              {feedback[act.activityId]!.reveal!.supportingQuotes.map((q, i) => <p key={i} className="v4-dim">原文依据：{q}</p>)}
-              <p className="v4-dim">参考是"一种好的说法"，不是唯一答案；和它同义的说法也应该算对——如果你的表达是对的但没被算对，用上面的申诉按钮记录，它会被保留并供复核。</p>
+              <summary>看看参考说法（建议自己先再试一次再看）</summary>
+              <p><b>可以这样说：</b>{feedback[act.activityId]!.reveal!.referenceExpression}</p>
+              {feedback[act.activityId]!.reveal!.supportingQuotes.map((q, i) => <p key={i} className="v4-dim">原文里是这么说的：{q}</p>)}
+              <p className="v4-dim">参考只是一种说法，不是唯一答案。如果你说的意思一样却没算对，点上面的「我觉得我说得对」记下来。</p>
               {feedback[act.activityId]!.reveal!.followup && <FollowupBox accountKey={accountId} actId={act.activityId} prompt={feedback[act.activityId]!.reveal!.followup!} />}
             </details>
           )}
           {feedback[act.activityId]?.relations && (
             act.oralTask ? (
               <div className="v4-advise">
-                <b>练习建议（机器词表检查，低置信，不用于口语认证；转写词错≠你的错）：</b>
+                <b>练习参考（机器只对词，你说得对但用词不同也会显示没提到；不算成绩）：</b>
                 <ul>
                   {feedback[act.activityId].relations!.map((rel) => (
-                    <li key={rel.id}>{rel.hit ? '转写里涉及' : '转写里没提到'}「{rel.label}」{rel.required ? '' : '（加分项）'}</li>
+                    <li key={rel.id}>{rel.hit ? '说到了' : '没说到'}「{rel.label}」{rel.required ? '' : '（加分项）'}</li>
                   ))}
                 </ul>
               </div>
@@ -836,8 +834,8 @@ function LessonRunner({ accountId, pkg, onDone }: {
       ))}
       <div className="v4-act-foot">
         {currentIndex > 0 && <button className="v4-ghost" onClick={() => setCurrentIndex(i => i - 1)}>回看上一步</button>}
-        {currentIndex < visibleActs.length - 1 && <button className="v4-primary" disabled={refreshing || !feedback[visibleActs[currentIndex]?.activityId]} onClick={() => setCurrentIndex(i => i + 1)}>看懂了，进入下一步</button>}
-        {currentIndex === visibleActs.length - 1 && <button className="v4-primary" disabled={refreshing || !allDone} onClick={complete}>完成训练，查看本次反馈</button>}
+        {currentIndex < visibleActs.length - 1 && <button className="v4-primary" disabled={refreshing || !feedback[visibleActs[currentIndex]?.activityId]} onClick={() => setCurrentIndex(i => i + 1)}>下一步</button>}
+        {currentIndex === visibleActs.length - 1 && <button className="v4-primary" disabled={refreshing || !allDone} onClick={complete}>完成这一课</button>}
       </div>
       {err && <div className="v4-err">{err}</div>}
     </div>
@@ -914,7 +912,7 @@ function OralRecorder({ accountId, taskId, activityId, onSubmitted, onRefreshTas
         } catch {
           setBlob(raw)
           setAudioUrl(URL.createObjectURL(raw))
-          setErr('这段录音暂未能解码成标准音频，可保留为草稿；请重录或用文字练习，暂不认证口语能力。')
+          setErr('这段录音暂时存不上，可以先留个草稿；重录一遍，或先用文字练习（口语成绩不受影响）。')
         } finally { setBusy(false) }
       }
       recRef.current = rec
@@ -952,7 +950,7 @@ function OralRecorder({ accountId, taskId, activityId, onSubmitted, onRefreshTas
       } catch { setAsrSupported(false) }
     } catch (e) {
       setMicDenied(true)
-      setErr('麦克风不可用：' + (e as Error).message + '——用下方文字练习代替（口语证据保持未测，不算你的错）')
+      setErr('麦克风用不了：' + (e as Error).message + '——先用下面的文字练习，口语不算你没练。')
     }
   }
 
@@ -1092,7 +1090,7 @@ function AuditAudio({ asset }: { asset: AudioAsset }) {
     <div className="v4-card" style={{ marginBottom: 12 }}>
       <h3 style={{ margin: '4px 0' }}>{asset.title} <span className="v4-dim">· {Math.round(asset.durationMs / 1000)} 秒</span></h3>
       <p className="v4-dim">
-        {asset.sourceType === 'synthetic' ? `合成音频（synthetic）· ${asset.speakerLabel ?? ''}` : `真实外部素材 · ${asset.author ?? ''}`}
+        {asset.sourceType === 'synthetic' ? `电脑合成音 · ${asset.speakerLabel ?? ''}` : `真实素材 · ${asset.author ?? ''}`}
         {' · '}{asset.license}
       </p>
       {err && <p className="v4-err">加载失败：{err}</p>}

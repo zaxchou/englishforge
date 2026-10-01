@@ -213,7 +213,7 @@ it('F3-场景③+F4：已开始课用冻结正文完成；素材改版不改写�
     .run(r.lessonId, plan.decisionId)
   const served = (await call(`/api/v1/accounts/${id}/lessons/${r.lessonId}`)).json
   expect(served.contentReview.preview).toBe(true) // 38-S3：内容试验预览标记
-  expect(served.devSampleNotice).toContain('内容试验预览')
+  expect(served.devSampleNotice).toContain('AI 现做')
   const act = served.activities[0]
   expect(act.material.segments[0].text).toContain('voice prototype')
   // 学习者真实作答（封闭槽位从注册表取 accept；开放题给含锚点的回答）

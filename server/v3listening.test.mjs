@@ -81,7 +81,7 @@ it('听力链：无播放拒绝作答；真实播放后可答；校对稿步骤�
 
   // ② 校对稿步骤：封闭定位题 → 记 reading（不冒充听力；synthetic cap 只作用于 listening）
   const l1b = pkg.activities[1]
-  expect(l1b.prompt).toContain('校对稿')
+  expect(l1b.prompt).toContain('文字稿')
   const ok2 = await slotAnswer(id, l1b)
   expect(ok2.status).toBe(200)
   expect(ok2.json.pass).toBe(true)
