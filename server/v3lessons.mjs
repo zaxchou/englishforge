@@ -295,7 +295,7 @@ export function withdrawLesson(lessonId, reason, confirm) {
   return { ok: true, lessonId, affectedRecheckEvents: n }
 }
 
-function completedLessonIds(conn, accountId) {
+export function completedLessonIds(conn, accountId) {
   if (!accountId) return new Set()
   return new Set(
     conn.prepare("SELECT DISTINCT served_lesson_id FROM plan_decisions WHERE account_id = ? AND status = 'completed' AND served_lesson_id IS NOT NULL")

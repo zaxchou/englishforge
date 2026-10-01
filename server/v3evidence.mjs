@@ -480,6 +480,13 @@ export function getStoredAttempt(accountId, attemptId, payload = null) {
 function attemptResult(conn, accountId, row, activity) {
   const evaluation = JSON.parse(row.evaluation || 'null')
   const isHoldout = activity?.role === 'holdout'
+  // 40 号：提交后揭晓——参考表达（自然英文例）、原文依据句、开放追问。只在**作答之后**下发
+  //（交卷前不下发防抄）；holdout 永不揭晓。开放题的"词表拒收但有参考"正是表达反馈的恢复面。
+  const reveal = !isHoldout && activity?.referenceAnswer ? {
+    referenceExpression: activity.referenceAnswer,
+    supportingQuotes: Array.isArray(activity.supportingQuotes) ? activity.supportingQuotes : [],
+    followup: activity.revealFollowup ?? null,
+  } : undefined
   return {
     attemptId: row.attempt_id,
     saved: true,
@@ -496,11 +503,43 @@ function attemptResult(conn, accountId, row, activity) {
     mustNotViolations: isHoldout ? undefined : evaluation?.mustNotViolations,
     // R3：keyword-only（开放文本词表）——前端要明示"练习反馈，不计入能力记录"
     practiceOnly: evaluation?.keywordOnly === true,
+    // 40 号：学生表达申诉已记录过 → 前端按钮置灰，不重复记录
+    studentClaimed: !!conn.prepare("SELECT 1 FROM evidence_events WHERE account_id = ? AND attempt_id = ? AND kind = 'student_claim' LIMIT 1").get(accountId, row.attempt_id),
+    reveal,
     evidenceEventIds: conn.prepare('SELECT evidence_id FROM evidence_events WHERE account_id = ? AND attempt_id = ?')
       .all(accountId, row.attempt_id).map((r) => r.evidence_id),
     nextAction: row.evaluation_status === 'disputed' ? 'review_transcript'
       : row.evaluation_status === 'pending' ? 'wait' : 'continue',
   }
+}
+
+/** 40 号表达反馈：学生认为自己的表达语义正确但被词表判据拒收 → 记录申诉。
+ * 只适用于 keyword 练习层的开放题失败（closed/holdout 不适用）；**保留争议不扣能力、
+ * 不计掌握**（事件 kind=student_claim 在状态回放中是显式 no-op），供真人复核与试学分析。 */
+export function claimExpression(accountId, attemptId, { note } = {}) {
+  requireAccount(accountId)
+  const conn = ensureV3Schema()
+  const row = conn.prepare('SELECT * FROM learner_attempts_v3 WHERE account_id = ? AND attempt_id = ?').get(accountId, attemptId)
+  if (!row) throw new ApiError(404, 'ATTEMPT_NOT_FOUND')
+  const evaluation = JSON.parse(row.evaluation || 'null')
+  if (row.evaluation_status !== 'evaluated' || evaluation?.pass !== false || evaluation?.keywordOnly !== true) {
+    throw new ApiError(409, 'CLAIM_NOT_APPLICABLE: 表达申诉只适用于被词表判据拒收的开放练习题')
+  }
+  const existing = conn.prepare("SELECT evidence_id FROM evidence_events WHERE account_id = ? AND attempt_id = ? AND kind = 'student_claim' LIMIT 1").get(accountId, attemptId)
+  if (existing) return { attemptId, claimed: true, alreadyClaimed: true, evidenceId: existing.evidence_id }
+  const activity = activityById(row.activity_id)
+  const ins = conn.prepare(
+    `INSERT INTO evidence_events (account_id, evidence_id, attempt_id, objective_id, skill, complexity,
+       kind, condition, pass, basis, created_at) VALUES (?,?,?,?,?,?,'student_claim','expression_claim',NULL,?,?)`)
+  const now = Date.now()
+  let n = 0
+  for (const oid of JSON.parse(row.objective_ids || '[]')) {
+    ins.run(accountId, `ev_claim_${attemptId}_${oid}`, attemptId, oid,
+      activity?.skillByObjective?.[oid] ?? 'reading', 'base',
+      JSON.stringify({ reason: 'STUDENT_EXPRESSION_CLAIM', practiceOnly: true, note: String(note || '').slice(0, 300) }), now)
+    n++
+  }
+  return { attemptId, claimed: true, alreadyClaimed: false, evidenceEvents: n }
 }
 
 function appendObservedEvents(conn, accountId, attemptRow, activity, conditions) {
@@ -644,6 +683,8 @@ export function recomputeStates(accountId) {
       baseOf(e.objective_id,e.skill).flags.delete('waived_by_user')
       continue
     }
+    // 40 号：student_claim（表达申诉）等非判分事件是显式 no-op——不得借 slot() 造出"未测"空状态行
+    if (e.kind !== 'observed' && e.kind !== 'dispute' && e.kind !== 'dispute_cleared' && e.kind !== 'repair' && e.kind !== 'waive') continue
     const s = slot(e.objective_id, e.skill, band) // 真实槽位：事件发生在哪个带就记哪个带
     const key = e.objective_id + '|' + e.skill
     if (e.kind === 'waive') { addFlag(e.objective_id, e.skill, band, 'waived_by_user'); continue }

@@ -9,7 +9,7 @@ import { ensureV3Schema, getMeta, nextCounter } from './v3db.mjs'
 import { requireAccount } from './v3api.mjs'
 import { activityById, loadActivities } from './v3evidence.mjs'
 import { seedMap, rowToObjective } from './v3map.mjs'
-import { getLesson, seedLessons, lessonForStrategy, lessonForObjective, lessonApplicable } from './v3lessons.mjs'
+import { getLesson, seedLessons, lessonForStrategy, lessonForObjective, lessonApplicable, completedLessonIds } from './v3lessons.mjs'
 
 const STATE_RANK = { unmeasured: 0, tentative: 1, trained: 2, independent: 3, transferred: 4, retained: 5 }
 const STRATEGY_LESSONS = {
@@ -65,7 +65,8 @@ export function computePlan(accountId, { requestId, triggerEvent } = {}) {
     accountId, decisionId, requestId ?? null, triggerEvent ?? null, snapshot.mapVersion, snapshot.evidenceVersion,
     JSON.stringify(snapshot), JSON.stringify(decision.candidates), decision.primaryGoal, decision.strategyId,
     decision.reason, JSON.stringify(decision.hypotheses), JSON.stringify(decision.uncertainAreas),
-    JSON.stringify(decision.lesson), decision.lesson?.lessonId ?? null, decision.status, Date.now(),
+    // 40-P1：lesson 与 fallback 一起留档（备用选择与主目标分开存储）；decisionView 对旧形状诚实兼容
+    JSON.stringify({ lesson: decision.lesson, fallback: decision.fallback ?? null }), decision.lesson?.lessonId ?? null, decision.status, Date.now(),
   )
   const row = conn.prepare('SELECT * FROM plan_decisions WHERE account_id = ? AND decision_id = ?').get(accountId, decisionId)
   return decisionView(row)
@@ -322,17 +323,66 @@ function finalize({ primaryGoal, strategyId, reason, hypotheses, candidates, les
   } else {
     lesson = { lessonId: null, activityId: null, status: 'content_pending', waitNotice: waitNotice(strategyId) }
   }
+  // 40-P1：主目标没有现成内容时，给**与主目标分开**的备用迁移任务（不重复已完成、
+  // 不要求付费生成或免修就能继续学），并解释为什么现在练它；完成后由完成重算重新定位。
+  const fallback = pkg || lesson.lessonId ? null : fallbackLesson(accountId)
   return {
     primaryGoal, strategyId, reason,
     hypotheses,
     uncertainAreas,
     candidates,
     lesson,
-    fallback: null,
+    fallback,
     status: 'ready',
     eligibleRankedCandidates: eligibleRanked ?? [],
     snapshotVersion: snapshot.evidenceVersion,
   }
+}
+
+/** 40-P1 备用任务选择（与 primaryGoal 分开存储）：
+ * ① 最近完成课的 nextCandidates 里仍可学的（链的自然延续——"趁热检验新情境"）；
+ * ② 账户练过的方向上、未完成的可学课。
+ * 两级都找不到才返回 null（那时今日卡只剩生成/免修出路，如实显示）。
+ * 过滤与主推荐同口径：published、未完成、lessonApplicable、有可测目标。 */
+function fallbackLesson(accountId) {
+  if (!accountId) return null
+  const conn = ensureV3Schema()
+  const done = completedLessonIds(conn, accountId)
+  const usable = (l) => l && l.contentStatus === 'published' && !done.has(l.lessonId)
+    && lessonApplicable(accountId, l) && (l.objectiveIds ?? []).length > 0
+  // ① 链的自然延续：最近完成课声明的后继
+  const recentDone = conn.prepare(
+    "SELECT served_lesson_id FROM plan_decisions WHERE account_id = ? AND status = 'completed' AND served_lesson_id IS NOT NULL ORDER BY created_at DESC LIMIT 3").all(accountId)
+  for (const r of recentDone) {
+    const from = getLesson(r.served_lesson_id)
+    for (const nid of from?.nextCandidates ?? []) {
+      const cand = getLesson(nid)
+      if (usable(cand)) {
+        return { lessonId: cand.lessonId, title: cand.title,
+          reason: `你刚完成的《${from.title}》还有一节后继迁移课，趁热在新情境里检验；当前主目标的课还在准备中。完成它之后会重新安排下一步。` }
+      }
+    }
+  }
+  // ② 练过的方向上、还没学过的课。"练过的方向"= 状态行 ∪ **全部完成课所测的目标**
+  //（开放练习题只给练习反馈不写状态行；完成课集合不看"最近 3 个"——否则第 4 课完成后
+  // 最早那节课的目标会被挤出集合，链的后继被误判为"无关方向"）
+  const practiced = new Set(conn.prepare('SELECT DISTINCT objective_id FROM learner_states WHERE account_id = ?').all(accountId).map((r) => r.objective_id))
+  const allDone = conn.prepare("SELECT served_lesson_id FROM plan_decisions WHERE account_id = ? AND status = 'completed' AND served_lesson_id IS NOT NULL").all(accountId)
+  for (const r of allDone) {
+    const l = getLesson(r.served_lesson_id)
+    for (const oid of l?.objectiveIds ?? []) practiced.add(oid)
+  }
+  const rows = conn.prepare(
+    "SELECT lesson_id FROM lesson_versions WHERE content_status = 'published' AND account_scope IN ('global', ?) ORDER BY rowid DESC").all(accountId)
+  for (const r of rows) {
+    const l = getLesson(r.lesson_id)
+    if (!usable(l)) continue
+    if ((l.objectiveIds ?? []).some((oid) => practiced.has(oid))) {
+      return { lessonId: l.lessonId, title: l.title,
+        reason: `《${l.title}》与你练过的方向相关、还没学过；当前主目标的课还在准备中，可以先练它，完成后再回来定位下一步。` }
+    }
+  }
+  return null
 }
 
 function waitNotice(strategyId) {
@@ -342,7 +392,10 @@ function waitNotice(strategyId) {
 }
 
 function decisionView(row) {
-  const lesson = JSON.parse(row.lesson_ref || 'null')
+  // 40-P1：lesson_ref 新形状 = {lesson, fallback}（旧形状直接是 lesson 对象——诚实兼容）
+  const ref = JSON.parse(row.lesson_ref || 'null')
+  let lesson = ref?.lesson ?? ref ?? null
+  let fallback = (lesson?.lessonId ? null : ref?.fallback ?? null) // 主课在，就不摆备用
   if (lesson?.lessonId) {
     const pkg = getLesson(lesson.lessonId)
     if (!pkg || pkg.contentStatus !== 'published' || pkg.version !== lesson.version || !lessonApplicable(row.account_id,pkg)) {
@@ -352,6 +405,19 @@ function decisionView(row) {
     // 38-S3：恢复的推荐卡与新鲜推荐同口径显示内容试验预览
     lesson.contentPreview = pkg?.qualityGates?.contentPreview === true
     lesson.resumeAvailable = !!lesson.lessonId && row.status !== 'completed' && !!pkg?.activities.some(a => ensureV3Schema().prepare('SELECT 1 FROM learner_attempts_v3 WHERE account_id=? AND activity_id=? AND created_at>=? LIMIT 1').get(row.account_id,a.activityId,row.served_at ?? row.created_at))
+  } else if (fallback && row.served_lesson_id === fallback.lessonId && row.status !== 'completed') {
+    // 学习者已打开备用任务（取课把它记为本次 served 课）：把它作为当前可学课呈现，续作/完成走正常流程
+    const fbPkg = getLesson(fallback.lessonId)
+    if (fbPkg && fbPkg.contentStatus === 'published' && lessonApplicable(row.account_id, fbPkg)) {
+      lesson = {
+        lessonId: fallback.lessonId, version: fbPkg.version, activityId: null, role: null,
+        status: 'published', devSample: fbPkg.releaseChannel === 'dev_only',
+        contentPreview: fbPkg.qualityGates?.contentPreview === true,
+        fallbackTask: true, fallbackReason: fallback.reason,
+      }
+      lesson.resumeAvailable = !!fbPkg.activities.some(a => ensureV3Schema().prepare('SELECT 1 FROM learner_attempts_v3 WHERE account_id=? AND activity_id=? AND created_at>=? LIMIT 1').get(row.account_id,a.activity_id,row.served_at ?? row.created_at))
+      fallback = null
+    } else fallback = null
   }
   return {
     decisionId: row.decision_id,
@@ -366,6 +432,7 @@ function decisionView(row) {
     hypotheses: JSON.parse(row.hypotheses || '[]'),
     uncertainAreas: JSON.parse(row.uncertain_areas || '[]'),
     lesson,
+    fallback,
     notChosen: JSON.parse(row.candidates || '[]'),
     status: row.status,
     createdAt: row.created_at,

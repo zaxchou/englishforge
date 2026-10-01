@@ -171,7 +171,7 @@
   },
   {
    "lessonId": "les-claim-limit-c2",
-   "version": 1,
+   "version": 2,
    "title": "新情境检验：博物馆地图的结论",
    "whyNow": "你已经分得清主张、对照和限制了。换一段新材料和任务，检验你能不能在新情境里用同一套判断。",
    "teachingNote": "还是那三步：先找主张，再看 but 之后修正了什么，最后问一句“范围被收窄了吗”。修正的对象不同（地图 vs 预期），结论完全不同。",
@@ -185,7 +185,7 @@
    "activities": [
     {
      "activityId": "g4c_claim_limit_slots",
-     "version": 1,
+     "version": 2,
      "role": "practice",
      "hintStages": [
       "先找主张：地图到底有没有出故障？",
@@ -194,7 +194,7 @@
     },
     {
      "activityId": "g4c_recap_write",
-     "version": 1,
+     "version": 2,
      "role": "transfer",
      "hintStages": [
       "第一句给主张：地图正常工作（没坏）。",
@@ -210,11 +210,11 @@
     }
    ],
    "holdoutRef": null,
-   "chainNote": "38 号链第 2 节：完成 les-claim-limit-c1 后的连续推进；开发样本，专业核验未做"
+   "chainNote": "40 号：v2=活动补揭晓追问（revealFollowup）；判题合同未变"
   },
   {
    "lessonId": "les-claim-limit-c1",
-   "version": 1,
+   "version": 2,
    "title": "主张、对照和限制：分清再复述",
    "whyNow": "你在关系句上已经有了基础。这一课把“主张—对照—让步—限制”分清楚，再用新材料走一遍完整流程：读→答→说→写→换情境判断。",
    "teachingNote": "限制要靠句子里实际的收窄内容判断（先…再…／只在…／推迟到…），不能靠 but/although 的位置或标点猜；有的句子只是对照两个事实，如实说“没有划范围”也是对的。",
@@ -228,7 +228,7 @@
    "activities": [
     {
      "activityId": "g3c_principle_pick",
-     "version": 1,
+     "version": 2,
      "role": "practice",
      "hintStages": [
       "回想：对照＝预期和实际不一样；限制＝真的把范围收窄了。看选项里哪个在说“范围”，哪个只是在说“不一样”。",
@@ -237,7 +237,7 @@
     },
     {
      "activityId": "g3c_rehearsal_locate",
-     "version": 1,
+     "version": 2,
      "role": "practice",
      "hintStages": [
       "“kept”后面跟的是留下来的；delay／postpone 后面是往后推的。",
@@ -246,7 +246,7 @@
     },
     {
      "activityId": "g3c_paraphrase_recover",
-     "version": 1,
+     "version": 2,
      "role": "practice",
      "hintStages": [
       "先把两件事分开：留下来的（手势）和往后推的（语音），各说半句。",
@@ -256,7 +256,7 @@
     },
     {
      "activityId": "g3c_write_limit",
-     "version": 1,
+     "version": 2,
      "role": "practice",
      "hintStages": [
       "原因在人数：记录里写了语音在什么场合失灵、当时发生了什么。",
@@ -265,7 +265,7 @@
     },
     {
      "activityId": "g3c_film_transfer",
-     "version": 1,
+     "version": 2,
      "role": "transfer",
      "hintStages": [
       "第一句：小房间 vs 大厅——这是预期和实际的不同，没有收窄任何方案的范围。",
@@ -283,7 +283,57 @@
     }
    ],
    "holdoutRef": null,
-   "chainNote": "38 号链第 1 节：短讲→输入→挑战恢复→输出→迁移的完整后继链；开发样本，专业核验未做"
+   "chainNote": "40 号：v2=短讲校订（具体句子讲/不写普遍定义/“再决定”推断分开）+全链揭晓追问；槽位判据未变"
+  },
+  {
+   "lessonId": "les-modifier-m1",
+   "version": 1,
+   "title": "谁在修饰谁：限定和补充",
+   "whyNow": "你开始读更长的句子了。这一课给你一个可操作的判断方法——“去掉试试”——再用真实句子走一遍：讲→判断→迁移。",
+   "teachingNote": "判断“谁在修饰谁”就问一件事：这部分去掉之后，所指对象变不变？变＝限定（回答“哪个”）；不变＝补充（多给一条信息）。不背位置口诀。",
+   "strategyId": "short_explain",
+   "objectiveIds": [
+    "O-K115-01"
+   ],
+   "difficultyDims": [],
+   "activities": [
+    {
+     "activityId": "m1_teach_pick",
+     "version": 1,
+     "role": "practice",
+     "hintStages": [
+      "先做“去掉试试”：B 句去掉 which 部分，指的还是同一台传感器吗？",
+      "A 的 that 部分在几台传感器里挑出“在室内测过的那台”——它在回答“哪一台”。"
+     ]
+    },
+    {
+     "activityId": "m1_projector_locate",
+     "version": 1,
+     "role": "practice",
+     "hintStages": [
+      "A 的 which 部分去掉试试：指的还是那台投影仪吗？",
+      "B 的 which 离得很远——问自己：坏掉的是设备，还是“在展览中停摆”这件事？"
+     ]
+    },
+    {
+     "activityId": "m1_transfer_write",
+     "version": 1,
+     "role": "transfer",
+     "hintStages": [
+      "去掉 who 部分试试：句子说的还是“那位助手”吗？",
+      "限定回答“哪一位”；补充只是多给一条信息（几月来的）。这句话里说话人心里已经确定是哪位助手了吗？"
+     ]
+    }
+   ],
+   "nextCandidates": [],
+   "sourceRefs": [
+    {
+     "ref": "G1",
+     "claim": "限定（无逗号 that）回答“哪一台”；补充（逗号 which）去掉不改所指——以“去掉试试”为判据"
+    }
+   ],
+   "holdoutRef": null,
+   "chainNote": "40 号：O-K115-01 前沿目标课——真实推荐会落到这里的缺口，先补上让连续路径真连续"
   }
  ]
 }

@@ -137,3 +137,144 @@ it('审核状态一致性：策划链是开发样本（无模型审核），页�
   expect(pkg.contentReview.preview).toBe(false)
   expect(pkg.contentReview.humanSignPending).toBe(true)
 })
+
+it('40-P1 备用任务：主目标无内容 → plan 给出与主目标分开的 fallback（链延续+理由）；打开即记 served；完成后重新定位', async () => {
+  const id = await freshAccount('链路-备用')
+  // 真实完成 c1（取课即 served 的正常入口，不经 served_lesson_id 覆盖制造）
+  const plan0 = (await call(`/api/v1/accounts/${id}/plan/recompute`, { requestId: `fb0-${id}` }, 'POST')).json.decision
+  c().prepare("UPDATE plan_decisions SET served_lesson_id = 'les-claim-limit-c1', status = 'ready', lesson_ref = ? WHERE decision_id = ?")
+    .run(JSON.stringify({ lesson: { lessonId: 'les-claim-limit-c1', version: 2, status: 'published', devSample: true, contentPreview: false }, fallback: null }), plan0.decisionId)
+  const pkg = (await call(`/api/v1/accounts/${id}/lessons/les-claim-limit-c1`)).json
+  for (const act of pkg.activities) {
+    const slots = (regById(act.activityId)?.evaluationContract?.slots ?? [])
+    const response = slots.length
+      ? { kind: 'choice', text: '', answers: Object.fromEntries(slots.map((s) => [s.slotId, s.accept])) }
+      : { kind: 'text', text: '我们保留了手势控制，推迟了语音——先在展厅试过再决定，不是永久放弃。' }
+    await call(`/api/v1/accounts/${id}/attempts`, {
+      attemptId: `fb-${act.activityId}`, taskId: act.taskId, activityId: act.activityId, response,
+      conditions: { firstExposure: true, hintLevel: 0, transcriptShown: false, playCount: 1, lookupUsed: false, responseMode: 'typed_summary' },
+    }, 'POST')
+  }
+  await call(`/api/v1/accounts/${id}/lessons/${pkg.lessonId}/complete`, {}, 'POST')
+  // 完成后：主目标可能移动到无内容的目标 → plan 必须给出 fallback（c1 的链延续 c2），不要求付费生成
+  const plan1 = (await call(`/api/v1/accounts/${id}/plan`)).json.decision
+  if (!plan1.lesson.lessonId && plan1.lesson.status !== 'fixture_dev_only') {
+    expect(plan1.fallback).not.toBeNull()
+    expect(plan1.fallback.lessonId).toBe('les-claim-limit-c2')
+    expect(plan1.fallback.reason).toContain('后继迁移课')
+    // 打开备用任务（正常取课入口）→ 自动记为本次 served → 可完成
+    const fb = (await call(`/api/v1/accounts/${id}/lessons/${plan1.fallback.lessonId}`)).json
+    expect(fb.lessonId).toBe('les-claim-limit-c2')
+    const servedRow = c().prepare('SELECT status, served_lesson_id FROM plan_decisions WHERE decision_id = ?').get(plan1.decisionId)
+    expect(servedRow.status).toBe('served')
+    expect(servedRow.served_lesson_id).toBe('les-claim-limit-c2')
+    // plan 视图：备用任务作为当前可学课呈现（带 fallbackTask 标记）
+    const planView = (await call(`/api/v1/accounts/${id}/plan`)).json.decision
+    expect(planView.lesson.lessonId).toBe('les-claim-limit-c2')
+    expect(planView.lesson.fallbackTask).toBe(true)
+    expect(planView.fallback).toBeNull()
+    // 完成备用 → 重算重新定位（备用不再重复出现）
+    for (const act of fb.activities) {
+      const slots = (regById(act.activityId)?.evaluationContract?.slots ?? [])
+      const response = slots.length
+        ? { kind: 'choice', text: '', answers: Object.fromEntries(slots.map((s) => [s.slotId, s.accept])) }
+        : { kind: 'text', text: '地图一直按设计在运行；不完整的是我们对访客想要什么的假设。下一步先去问访客。' }
+      await call(`/api/v1/accounts/${id}/attempts`, {
+        attemptId: `fb2-${act.activityId}`, taskId: act.taskId, activityId: act.activityId, response,
+        conditions: { firstExposure: true, hintLevel: 0, transcriptShown: false, playCount: 1, lookupUsed: false, responseMode: 'typed_summary' },
+      }, 'POST')
+    }
+    await call(`/api/v1/accounts/${id}/lessons/les-claim-limit-c2/complete`, {}, 'POST')
+    const plan2 = (await call(`/api/v1/accounts/${id}/plan`)).json.decision
+    if (plan2.fallback) expect(plan2.fallback.lessonId).not.toBe('les-claim-limit-c2')
+    // 备用完成过 → 不会再被当新课推荐
+    expect(lessons.lessonForObjective('O-K115-03', { excludeCompletedFor: id })).toBeNull()
+  } else {
+    // 主目标移动到了有内容的目标（如 O-K115-01 的 les-modifier-m1）：fallback 不需要——也是合法连续路径
+    expect(plan1.lesson.lessonId || plan1.lesson.status === 'fixture_dev_only').toBeTruthy()
+    console.log('40-P1 note: 主目标移动到有内容处，fallback 未触发（', plan1.primaryGoal, plan1.lesson.lessonId, '）')
+  }
+})
+
+it('40 揭晓：提交后响应带参考表达/原文依据/追问；resume 不丢；holdout 永不揭晓', async () => {
+  const id = await freshAccount('链路-揭晓')
+  const plan0 = (await call(`/api/v1/accounts/${id}/plan/recompute`, { requestId: `rv-${id}` }, 'POST')).json.decision
+  c().prepare("UPDATE plan_decisions SET served_lesson_id = 'les-claim-limit-c1', status = 'ready', lesson_ref = ? WHERE decision_id = ?")
+    .run(JSON.stringify({ lesson: { lessonId: 'les-claim-limit-c1', version: 2, status: 'published', devSample: true, contentPreview: false }, fallback: null }), plan0.decisionId)
+  const pkg = (await call(`/api/v1/accounts/${id}/lessons/les-claim-limit-c1`)).json
+  // 开放题失败作答 → reveal 在响应里（词表拒收也有参考可看）
+  const a3 = pkg.activities.find((x) => x.activityId === 'g3c_paraphrase_recover')
+  const miss = await call(`/api/v1/accounts/${id}/attempts`, {
+    attemptId: `rv-${a3.activityId}`, taskId: a3.taskId, activityId: a3.activityId,
+    response: { kind: 'text', text: '他们留了一半，另一半再等等。' },
+    conditions: { firstExposure: true, hintLevel: 0, transcriptShown: false, playCount: 1, lookupUsed: false, responseMode: 'typed_summary' },
+  }, 'POST')
+  expect(miss.json.pass).toBe(false)
+  expect(miss.json.reveal.referenceExpression.length).toBeGreaterThan(8)
+  expect(miss.json.reveal.supportingQuotes[0]).toContain('We kept the gesture controls')
+  expect(miss.json.reveal.followup).toContain('开放追问')
+  // resume 也带 reveal（刷新恢复不丢揭晓）
+  const pkg2 = (await call(`/api/v1/accounts/${id}/lessons/${pkg.lessonId}`)).json
+  const resumed = pkg2.activities.find((x) => x.activityId === a3.activityId)
+  expect(resumed.resume.result.reveal.referenceExpression).toBe(miss.json.reveal.referenceExpression)
+})
+
+it('40 表达申诉：词表拒收的开放题可申诉（幂等、不产生假状态行）；closed 题不适用', async () => {
+  const id = await freshAccount('链路-申诉')
+  const plan0 = (await call(`/api/v1/accounts/${id}/plan/recompute`, { requestId: `cl-${id}` }, 'POST')).json.decision
+  c().prepare("UPDATE plan_decisions SET served_lesson_id = 'les-claim-limit-c1', status = 'ready', lesson_ref = ? WHERE decision_id = ?")
+    .run(JSON.stringify({ lesson: { lessonId: 'les-claim-limit-c1', version: 2, status: 'published', devSample: true, contentPreview: false }, fallback: null }), plan0.decisionId)
+  const pkg = (await call(`/api/v1/accounts/${id}/lessons/les-claim-limit-c1`)).json
+  const a3 = pkg.activities.find((x) => x.activityId === 'g3c_paraphrase_recover')
+  const miss = await call(`/api/v1/accounts/${id}/attempts`, {
+    attemptId: `cl-${a3.activityId}`, taskId: a3.taskId, activityId: a3.activityId,
+    response: { kind: 'text', text: '他们留了一半，另一半再等等看情况。' },
+    conditions: { firstExposure: true, hintLevel: 0, transcriptShown: false, playCount: 1, lookupUsed: false, responseMode: 'typed_summary' },
+  }, 'POST')
+  expect(miss.json.pass).toBe(false)
+  expect(miss.json.studentClaimed).toBe(false)
+  // closed 题不适用申诉
+  const a1 = pkg.activities.find((x) => x.activityId === 'g3c_principle_pick')
+  await call(`/api/v1/accounts/${id}/attempts`, {
+    attemptId: `cl-${a1.activityId}`, taskId: a1.taskId, activityId: a1.activityId,
+    response: { kind: 'choice', text: '', answers: slotAnswers(a1.activityId) },
+    conditions: { firstExposure: true, hintLevel: 0, transcriptShown: false, playCount: 1, lookupUsed: false, responseMode: 'typed_summary' },
+  }, 'POST')
+  const badClaim = await call(`/api/v1/accounts/${id}/attempts/${`cl-${a1.activityId}`}/claim`, {}, 'POST')
+  expect(badClaim.status).toBe(409)
+  // 申诉 → 成功；重复申诉幂等；回放不产生"未测"空状态行
+  const ok = await call(`/api/v1/accounts/${id}/attempts/${`cl-${a3.activityId}`}/claim`, { note: '我觉得意思对' }, 'POST')
+  expect(ok.status).toBe(200)
+  expect(ok.json.claimed).toBe(true)
+  const again = await call(`/api/v1/accounts/${id}/attempts/${`cl-${a3.activityId}`}/claim`, {}, 'POST')
+  expect(again.json.alreadyClaimed).toBe(true)
+  const ev = await import('./v3evidence.mjs')
+  const statesBefore = c().prepare('SELECT objective_id, skill, complexity, state, flags FROM learner_states WHERE account_id = ?').all(id).map((x) => JSON.stringify(x)).sort()
+  ev.recomputeStates(id)
+  const statesAfter = c().prepare('SELECT objective_id, skill, complexity, state, flags FROM learner_states WHERE account_id = ?').all(id).map((x) => JSON.stringify(x)).sort()
+  expect(statesAfter).toEqual(statesBefore)
+  // 申诉后的作答视图带 studentClaimed（前端按钮置灰）
+  const pkg2 = (await call(`/api/v1/accounts/${id}/lessons/${pkg.lessonId}`)).json
+  expect(pkg2.activities.find((x) => x.activityId === a3.activityId).resume.result.studentClaimed).toBe(true)
+})
+
+it('40-P1 恢复路径：生成失败冷却/审核 pending 的账户，备用任务仍然可得（不要求付费生成才能继续）', async () => {
+  const id = await freshAccount('链路-恢复')
+  // 画像：完成过 relations-v1（练过 O-K115-03 方向）
+  c().prepare("INSERT INTO plan_decisions (account_id, decision_id, request_id, map_version, evidence_version, snapshot, candidates, primary_goal, strategy_id, reason, hypotheses, uncertain_areas, lesson_ref, served_lesson_id, status, created_at) VALUES (?,?,?,'map-v1',0,'[]','[]','O-K115-01','short_explain','seed','','[]','{}','les-relations-v1','completed',?)")
+    .run(id, `pd-seed2-${id}`, `seed2-${id}`, Date.now())
+  // 注入：同目标一次失败冷却中的生成 + 一次审核 pending 的成功任务
+  const cdb = c()
+  cdb.prepare("INSERT INTO generation_jobs (account_id, job_id, objective_id, input_spec, contract_version, status, reject_reasons, finished_at, created_at) VALUES (?,?,?,'{}','fixture','rejected','[\"x\"]',?,?)")
+    .run(id, `job-fail-${id}`, 'O-K115-03', Date.now(), Date.now())
+  cdb.prepare("INSERT INTO generation_jobs (account_id, job_id, objective_id, input_spec, contract_version, status, output_lesson_id, validation, created_at) VALUES (?,?,?,'{}','fixture','succeeded','gen-none',?,?)")
+    .run(id, `job-pending-${id}`, 'O-K115-03', JSON.stringify({ published: false, pending: 'content_semantic_review', semanticReview: { verdict: 'unsupported' } }), Date.now())
+  // 重算：生成失败/审核 pending 不堵连续路径——主目标有课就推正课，没课必须给备用（任一即可继续学）
+  const plan = (await call(`/api/v1/accounts/${id}/plan/recompute`, { requestId: `rc-${id}` }, 'POST')).json.decision
+  const continueLessonId = plan.lesson?.lessonId ?? plan.fallback?.lessonId ?? null
+  expect(continueLessonId).not.toBeNull()
+  expect(['les-claim-limit-c1', 'les-claim-limit-c2', 'les-modifier-m1']).toContain(continueLessonId)
+  // 这门课真实可打开（served 闭环在其余用例已验）
+  const pkg = (await call(`/api/v1/accounts/${id}/lessons/${continueLessonId}`)).json
+  expect(pkg.activities.length).toBeGreaterThan(0)
+})

@@ -1726,7 +1726,7 @@
   },
   {
    "activityId": "g3c_principle_pick",
-   "version": 1,
+   "version": 2,
    "role": "practice",
    "taskFamilyId": "claim_limit_principle_g3c",
    "objectiveIds": [
@@ -1740,7 +1740,7 @@
     "shorten_and_recap",
     "relation_map"
    ],
-   "prompt": "先分清四件事，再用自己的话复述（本课 30 秒短讲）：\n· 主张：说话人想让你记住的那件事，比如“我们保留了手势控制”。\n· 对照：事情和预期不一样，比如“原以为安静的房间里好用，人多就失灵了”。对照只是在说预期和实际不同，不等于给方案划范围。\n· 让步：先承认对方说的有道理（“你说得对，地图确实没坏”），再往下说自己的话。让步也不是认输，更不等于收窄。\n· 限制：真的把范围收窄的条件，比如“只在展厅先试，试完再决定”。判断限制要靠句子里实际的收窄内容（先…再…／只在…／推迟到…），不能靠 but/although 出现没出现或标点位置猜。\n关键：but/although 后面不一定是限制——有的句子只是对照两个事实，没有收窄任何范围；这时如实说“这句话没有划范围／信息不足”，也是正确回答。\n\n读这句：The map was working as designed, but our assumption about what visitors wanted was incomplete.\n逐空选择（全对才算过）。",
+   "prompt": "先看这份记录里的真实句子，再分清四件事（本课 30 秒短讲）：\n· 主张：说话人最想让你记住的那句话。排练记录里最要紧的一句是“我们保留了手势控制”。\n· 对照：在这份记录里，对照说的是“安静的工作室里好用”和“人多的时候失灵”——预期和实际在这两个场景下不一样。它说的是这两个场景的差异；不要把它推广成“只要是对照就是在划范围”。\n· 让步：像“你说得对，地图确实没坏”——说话人先接受对方这一句，再说自己的话。让步接受的是那一句，不是什么都接受，也不等于收窄范围。\n· 限制：这份记录里的限制写得很具体——“语音控制被推迟，直到能在展厅、有真实访客的场景下测过”。判断限制要看句子里实际收窄的内容（只在…／推迟到…）。注意：推迟到“测过为止”是原文写的；“测完之后一定会再决定／再采用”是推断，原文没有这么写——复述时别把推断说成原文。\n· 关键：but/although 后面不一定是限制——有的句子只是对照两个事实，没有收窄任何范围；这时如实说“这句话没有划范围／信息不足”，也是正确回答。\n\n例句：The map was working as designed, but our assumption about what visitors wanted was incomplete.\n逐空选择（全对才算过）。",
    "hints": [
     "回想：对照＝预期和实际不一样；限制＝真的把范围收窄了。看选项里哪个在说“范围”，哪个只是在说“不一样”。",
     "“地图坏了／要暂停”都是正文没有的结论；but 之后说的是团队自己的预期不完整——这是对主张的修正，不是划范围。"
@@ -1789,11 +1789,12 @@
     "unmeasuredObjectives": []
    },
    "complexityBand": 4,
-   "certification": "closed"
+   "certification": "closed",
+   "revealFollowup": "开放追问（不能照抄）：如果有人断言“but 后面就一定是限制”，你会用这两份记录里的哪两个具体句子回应他？用你自己的话写下来（中英文都行）。写在下面框里，会保存在本机，作为下次学习的引子。"
   },
   {
    "activityId": "g3c_rehearsal_locate",
-   "version": 1,
+   "version": 2,
    "role": "practice",
    "taskFamilyId": "rehearsal_claim_limit_g3c",
    "objectiveIds": [
@@ -1944,11 +1945,12 @@
     "unmeasuredObjectives": []
    },
    "complexityBand": 4,
-   "certification": "closed"
+   "certification": "closed",
+   "revealFollowup": "开放追问：用 we kept … but we delayed … 这个句子架子，装上你自己生活里的一件事（不是这份记录的内容），写一句英语。"
   },
   {
    "activityId": "g3c_paraphrase_recover",
-   "version": 1,
+   "version": 2,
    "role": "practice",
    "taskFamilyId": "rehearsal_paraphrase_g3c",
    "objectiveIds": [
@@ -2061,11 +2063,12 @@
      }
     ]
    },
-   "complexityBand": 4
+   "complexityBand": 4,
+   "revealFollowup": "开放追问：说一件你自己推迟过的事——推迟了什么、条件是什么、它不是什么。中英文都行。"
   },
   {
    "activityId": "g3c_write_limit",
-   "version": 1,
+   "version": 2,
    "role": "practice",
    "taskFamilyId": "rehearsal_write_g3c",
    "objectiveIds": [
@@ -2178,11 +2181,12 @@
      }
     ]
    },
-   "complexityBand": 4
+   "complexityBand": 4,
+   "revealFollowup": "开放追问：把你的小写作压缩成一句英语（一句话版），仍要说清“先测再定，不是语音不行”。"
   },
   {
    "activityId": "g3c_film_transfer",
-   "version": 1,
+   "version": 2,
    "role": "transfer",
    "taskFamilyId": "film_judge_g3c",
    "objectiveIds": [
@@ -2305,11 +2309,12 @@
     "unmeasuredObjectives": []
    },
    "complexityBand": 4,
-   "certification": "closed"
+   "certification": "closed",
+   "revealFollowup": "开放追问：仿照“kept … but postponed …”的结构，给你熟悉的场景（课程／社团／项目）写一句英语。"
   },
   {
    "activityId": "g4c_claim_limit_slots",
-   "version": 1,
+   "version": 2,
    "role": "practice",
    "taskFamilyId": "museum_claim_limit_g4c",
    "objectiveIds": [
@@ -2427,11 +2432,12 @@
     "unmeasuredObjectives": []
    },
    "complexityBand": 4,
-   "certification": "closed"
+   "certification": "closed",
+   "revealFollowup": "开放追问：如果有人读完博物馆地图段说“所以地图失败了”，你会怎么纠正他？写一两句。"
   },
   {
    "activityId": "g4c_recap_write",
-   "version": 1,
+   "version": 2,
    "role": "transfer",
    "taskFamilyId": "museum_recap_write_g4c",
    "objectiveIds": [
@@ -2539,7 +2545,261 @@
      }
     ]
    },
-   "complexityBand": 4
+   "complexityBand": 4,
+   "revealFollowup": "开放追问：把你的复述缩成一句英语，主张和修正都要在那一句话里。"
+  },
+  {
+   "activityId": "m1_teach_pick",
+   "version": 1,
+   "role": "practice",
+   "taskFamilyId": "modifier_teach_m1",
+   "objectiveIds": [
+    "O-K115-01"
+   ],
+   "skillByObjective": {
+    "O-K115-01": "reading"
+   },
+   "responseKind": "text",
+   "servesStrategies": [
+    "short_explain",
+    "relation_map"
+   ],
+   "prompt": "读这一对句子（本课 30 秒短讲）：\nA. The sensor that was tested indoors works well.\nB. The sensor, which was tested indoors, works well.\n两句说的都是同一台传感器。差别在带不带逗号：A 没有逗号——that 部分**回答“哪一台”**（在几台里锁定“在室内测过的那台”）；B 有逗号——which 部分**补一句这台传感器的信息**（去掉它，句子指的还是同一台）。\n判断“谁在修饰谁”就问一件事：这部分去掉之后，所指对象变不变？变＝它在限定（回答“哪个”）；不变＝它在补充（多给一条信息）。\n逐空选择（全对才算过）。",
+   "hints": [
+    "先做“去掉试试”：B 句去掉 which 部分，指的还是同一台传感器吗？",
+    "A 的 that 部分在几台传感器里挑出“在室内测过的那台”——它在回答“哪一台”。"
+   ],
+   "conditionsSpec": [
+    "firstExposure",
+    "hintLevel",
+    "transcriptShown",
+    "playCount",
+    "lookupUsed",
+    "responseMode"
+   ],
+   "evaluationContract": {
+    "dimensions": [
+     "限定与补充的分辨"
+    ],
+    "slots": [
+     {
+      "slotId": "a_role",
+      "prompt": "A 句的 that 部分（无逗号）在做什么？",
+      "options": [
+       "回答“哪一台”（限定）",
+       "补充信息（去掉后所指不变）",
+       "说明结果"
+      ],
+      "accept": "回答“哪一台”（限定）",
+      "objectiveIds": [
+       "O-K115-01"
+      ]
+     },
+     {
+      "slotId": "b_role",
+      "prompt": "B 句的 which 部分（有逗号）在做什么？",
+      "options": [
+       "回答“哪一台”（限定）",
+       "补充信息（去掉后所指不变）",
+       "表示转折"
+      ],
+      "accept": "补充信息（去掉后所指不变）",
+      "objectiveIds": [
+       "O-K115-01"
+      ]
+     }
+    ],
+    "mustNotNegationGuard": true,
+    "unmeasuredObjectives": []
+   },
+   "complexityBand": 2,
+   "certification": "closed",
+   "revealFollowup": "开放追问：找一个你熟悉的产品，分别用“带 that 的限定句”和“带逗号 which 的补充句”各写一句英语。"
+  },
+  {
+   "activityId": "m1_projector_locate",
+   "version": 1,
+   "role": "practice",
+   "taskFamilyId": "modifier_locate_m1",
+   "objectiveIds": [
+    "O-K115-01"
+   ],
+   "skillByObjective": {
+    "O-K115-01": "reading"
+   },
+   "responseKind": "text",
+   "servesStrategies": [
+    "short_explain"
+   ],
+   "materialId": "mat_g1_relation_pairs",
+   "segmentIds": [
+    "mat_g1_projector"
+   ],
+   "referenceAnswer": "A 句的 which 部分是补充（从媒体实验室借来的——去掉不影响所指）；B 句的 which 部分指“展览中坏掉”这件事，并在说明后果。",
+   "supportingQuotes": [
+    "A. The projector, which we borrowed from the media lab, stopped working during the exhibition.",
+    "B. The projector stopped working during the exhibition, which meant that we had to change the installation."
+   ],
+   "prompt": "读右边投影仪两句，逐空判断；理由栏用一句话说出你的判断过程。",
+   "hints": [
+    "A 的 which 部分去掉试试：指的还是那台投影仪吗？",
+    "B 的 which 离得很远——问自己：坏掉的是设备，还是“在展览中停摆”这件事？"
+   ],
+   "conditionsSpec": [
+    "firstExposure",
+    "hintLevel",
+    "transcriptShown",
+    "playCount",
+    "lookupUsed",
+    "responseMode"
+   ],
+   "evaluationContract": {
+    "dimensions": [
+     "补充句",
+     "指代对象",
+     "理由"
+    ],
+    "slots": [
+     {
+      "slotId": "a_which",
+      "prompt": "A 句的 which 部分（逗号）去掉后，所指的投影仪变吗？",
+      "options": [
+       "不变——它在补充从哪借的",
+       "变——它在挑哪一台"
+      ],
+      "accept": "不变——它在补充从哪借的",
+      "objectiveIds": [
+       "O-K115-01"
+      ]
+     },
+     {
+      "slotId": "b_which",
+      "prompt": "B 句的 which 部分指的是什么？",
+      "options": [
+       "投影仪这台设备",
+       "“在展览中停摆”这件事",
+       "媒体实验室"
+      ],
+      "accept": "“在展览中停摆”这件事",
+      "objectiveIds": [
+       "O-K115-01"
+      ]
+     }
+    ],
+    "reason": {
+     "relations": [
+      {
+       "id": "r_method",
+       "label": "说清判断方法（去掉试试／所指变不变）",
+       "anyOf": [
+        "去掉",
+        "所指",
+        "变",
+        "限定",
+        "补充"
+       ],
+       "required": false,
+       "objectiveIds": [
+        "O-K115-01"
+       ]
+      }
+     ],
+     "mustNot": [
+      {
+       "label": "把位置/标点当机械规则",
+       "anyOf": [
+        "有逗号就",
+        "没逗号就",
+        "一定是限定",
+        "一定是补充"
+       ]
+      }
+     ]
+    },
+    "mustNotNegationGuard": true,
+    "unmeasuredObjectives": []
+   },
+   "complexityBand": 3,
+   "certification": "closed",
+   "revealFollowup": "开放追问：用你自己的话解释 B 句的 which 为什么指事情不指设备——别背定义，讲你怎么判断的。"
+  },
+  {
+   "activityId": "m1_transfer_write",
+   "version": 1,
+   "role": "transfer",
+   "taskFamilyId": "modifier_transfer_m1",
+   "objectiveIds": [
+    "O-K115-01"
+   ],
+   "skillByObjective": {
+    "O-K115-01": "reading"
+   },
+   "responseKind": "text",
+   "servesStrategies": [
+    "relation_map",
+    "short_explain"
+   ],
+   "prompt": "新句子（迁移）：Our assistant, who joined in May, already runs the Tuesday stand-up.\n\n用一两句中文或英文说明：who 部分是限定还是补充？你是怎么判断的？（讲你的判断过程，别背定义，也别照抄例句。）",
+   "hints": [
+    "去掉 who 部分试试：句子说的还是“那位助手”吗？",
+    "限定回答“哪一位”；补充只是多给一条信息（几月来的）。这句话里说话人心里已经确定是哪位助手了吗？"
+   ],
+   "conditionsSpec": [
+    "firstExposure",
+    "hintLevel",
+    "transcriptShown",
+    "playCount",
+    "lookupUsed",
+    "responseMode"
+   ],
+   "evaluationContract": {
+    "dimensions": [
+     "判断方法",
+     "结论"
+    ],
+    "relations": [
+     {
+      "id": "method",
+      "label": "讲出判断方法（去掉试试／所指变不变）",
+      "anyOf": [
+       "去掉",
+       "所指",
+       "不变",
+       "变"
+      ],
+      "required": true,
+      "objectiveIds": [
+       "O-K115-01"
+      ]
+     },
+     {
+      "id": "verdict",
+      "label": "给出结论（补充信息）",
+      "anyOf": [
+       "补充",
+       "不变",
+       "已经确定",
+       "额外"
+      ],
+      "required": true,
+      "objectiveIds": [
+       "O-K115-01"
+      ]
+     }
+    ],
+    "mustNot": [
+     {
+      "label": "把标点当机械规则",
+      "anyOf": [
+       "有逗号就",
+       "一定是限定",
+       "一定是补充"
+      ]
+     }
+    ]
+   },
+   "complexityBand": 4,
+   "revealFollowup": "开放追问：把这句改成限定版——比如团队有多位助手、这句要锁定“五月来的那位”。写出来对比。"
   }
  ]
 }

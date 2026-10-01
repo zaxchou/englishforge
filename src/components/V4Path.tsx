@@ -17,11 +17,12 @@ type Plan = {
   reason: string
   hypotheses: string[]
   uncertainAreas: string[]
-  lesson: { lessonId: string | null; activityId: string | null; status: string; waitNotice?: string; devSample?: boolean; contentPreview?: boolean; resumeAvailable?: boolean }
+  lesson: { lessonId: string | null; activityId: string | null; status: string; waitNotice?: string; devSample?: boolean; contentPreview?: boolean; fallbackTask?: boolean; fallbackReason?: string; resumeAvailable?: boolean }
+  fallback: { lessonId: string; title: string; reason: string } | null
   notChosen: { objectiveId: string; reason: string }[]
   status: string
 }
-type AttemptFeedback = { pass: boolean | null; evaluationStatus: string; practiceOnly?: boolean; dimensions?: { id: string; label: string; hit: boolean; required: boolean }[]; slotResults?: { slotId: string; prompt: string; given: string | null; status: string }[] }
+type AttemptFeedback = { pass: boolean | null; evaluationStatus: string; practiceOnly?: boolean; studentClaimed?: boolean; dimensions?: { id: string; label: string; hit: boolean; required: boolean }[]; slotResults?: { slotId: string; prompt: string; given: string | null; status: string }[]; mustNotViolations?: string[]; reveal?: { referenceExpression: string; supportingQuotes: string[]; followup: string | null } }
 type ContentReview = { preview: boolean; humanSignPending: boolean; semanticVerdict: string | null; pending: string | null }
 type LessonPkg = {
   lessonId: string
@@ -209,7 +210,8 @@ async function changeWaiver(objectiveId:string,skill:string,revoked:boolean) {
           {today.reason && <p className="v4-why">{today.reason}</p>}
           {today.mode === 'wait' ? (
             // 等待态 = 可动作：一键按需生成（用户点按钮即明示计费确认），不再是死按钮。
-            // 38-S3：完成/失败都给一致的审核状态与恢复路径——失败可重新生成或转备用课
+            // 38-S3：完成/失败都给一致的审核状态与恢复路径——失败可重新生成或转备用课。
+            // 40-P1：主目标没内容时，**备用迁移任务**（与主目标分开、有理由、不用付费/免修）优先给出
             genPhase === 'done' && genLessonId ? (
               <>
                 <button className="v4-primary v4-today-btn" onClick={() => void openLesson(genLessonId)}>开始这一课（内容试验预览）</button>
@@ -219,6 +221,13 @@ async function changeWaiver(objectiveId:string,skill:string,revoked:boolean) {
               <button className="v4-primary v4-today-btn" disabled>正在生成这一课…（约半分钟，别关页面）</button>
             ) : (
               <>
+                {plan?.fallback && (
+                  <div className="v4-note" style={{ marginBottom: 8 }}>
+                    <b>可以先练的备用任务：</b>{plan.fallback.title}
+                    <p style={{ margin: '4px 0 8px' }}>{plan.fallback.reason}</p>
+                    <button className="v4-primary" disabled={waiverBusy} onClick={() => { if (plan.fallback) void openLesson(plan.fallback.lessonId) }}>打开备用任务</button>
+                  </div>
+                )}
                 {genPhase === 'failed' && (
                   <div className="v4-today-aux" style={{ marginBottom: 8 }}>
                     <button className="v4-ghost" disabled={waiverBusy} onClick={() => { setGenPhase('idle'); void startGeneration() }}>重新生成一次</button>
@@ -239,6 +248,9 @@ async function changeWaiver(objectiveId:string,skill:string,revoked:boolean) {
                 if (today.mode === 'find_start') { setTab('diag'); return }
                 if (today.lessonId) void openLesson(today.lessonId)
               }}>{planLoading ? '正在读取学习安排…' : today.primaryLabel}</button>
+          )}
+          {plan?.lesson?.fallbackTask && plan.lesson.status === 'published' && (
+            <p className="v4-dim">这是备用迁移任务（主目标的课还在准备中）：{plan.lesson.fallbackReason}</p>
           )}
           {genNote && <div className="v4-note">{genNote}</div>}
           {today.goalId && (
@@ -546,12 +558,13 @@ function LessonRunner({ accountId, pkg, onDone }: {
   // D0-1：封闭槽位题的逐槽选择（activityId → slotId → 选项代号）
   const [slotPicks, setSlotPicks] = useState<Record<string, Record<string, string>>>(() => Object.fromEntries(pkg.activities.map(a => [a.activityId, a.resume?.response.answers ?? {}])))
   const [revealed, setRevealed] = useState<Record<string, string[]>>({})
-  const [feedback, setFeedback] = useState<Record<string, { pass: boolean | null; status: string; practiceOnly?: boolean; relations?: { id: string; label: string; hit: boolean; required: boolean }[]; slotResults?: { slotId: string; prompt: string; given: string | null; status: string }[] }>>(() => Object.fromEntries(pkg.activities.filter(a => a.resume).map(a => [a.activityId, {pass:a.resume!.result.pass,status:a.resume!.result.evaluationStatus,practiceOnly:a.resume!.result.practiceOnly,relations:a.resume!.result.dimensions,slotResults:a.resume!.result.slotResults}])))
+  const [feedback, setFeedback] = useState<Record<string, { pass: boolean | null; status: string; practiceOnly?: boolean; studentClaimed?: boolean; relations?: { id: string; label: string; hit: boolean; required: boolean }[]; mustNot?: string[]; slotResults?: { slotId: string; prompt: string; given: string | null; status: string }[]; reveal?: AttemptFeedback['reveal'] }>>(() => Object.fromEntries(pkg.activities.filter(a => a.resume).map(a => [a.activityId, { pass: a.resume!.result.pass, status: a.resume!.result.evaluationStatus, practiceOnly: a.resume!.result.practiceOnly, studentClaimed: a.resume!.result.studentClaimed, relations: a.resume!.result.dimensions, slotResults: a.resume!.result.slotResults, reveal: a.resume!.result.reveal }])))
   const [pkgLive, setPkgLive] = useState(pkg)
   const [refreshing, setRefreshing] = useState(false)
   const [err, setErr] = useState('')
   const [done, setDone] = useState(false)
   const playsRef = useRef<Record<string, number>>({}) // 音频播放次数：提交时计 playCount，不再写死 1
+  const lastAttemptRef = useRef<Record<string, string>>({}) // 每活动最近一次作答的 attemptId（表达申诉用）
   // R5（24 号）：每活动第几轮作答。首轮 attemptId 稳定（网络重试同 ID 不重复入库）；
   // 看到反馈后点「再试一次」→ take+1 → 新 attemptId（学生再次作答=新 take，不撞 409）
   const [takes, setTakes] = useState<Record<string, number>>(() => Object.fromEntries(pkg.activities.map(a => [a.activityId, a.nextTake ?? 1])))
@@ -586,7 +599,7 @@ function LessonRunner({ accountId, pkg, onDone }: {
       ? { kind: 'choice', text: answers[act.activityId] ?? '', answers: slotPicks[act.activityId] ?? {} }
       : { kind: 'text', text: answers[act.activityId] ?? '' }
     try {
-      const r = await api<{ pass: boolean | null; evaluationStatus: string; practiceOnly?: boolean; attemptIdUsed?: string; dimensions?: { id: string; label: string; hit: boolean; required: boolean }[]; slotResults?: { slotId: string; prompt: string; given: string | null; status: string }[] }>(`/accounts/${accountId}/attempts`, {
+      const r = await api<AttemptFeedback & { attemptIdUsed?: string }>(`/accounts/${accountId}/attempts`, {
         attemptId,
         taskId: act.taskId,
         activityId: act.activityId,
@@ -600,10 +613,24 @@ function LessonRunner({ accountId, pkg, onDone }: {
       // 把实际轮次记回来，下次「再试一次」从它继续，不再撞 ID
       const usedTake = String(r.attemptIdUsed ?? '').match(/-t(\d+)$/)?.[1]
       if (usedTake) setTakes((t) => ({ ...t, [act.activityId]: Math.max(t[act.activityId] ?? 1, Number(usedTake)) }))
-      setFeedback((f) => ({ ...f, [act.activityId]: { pass: r.pass, status: r.evaluationStatus, practiceOnly: r.practiceOnly, relations: r.dimensions, slotResults: r.slotResults } }))
+      lastAttemptRef.current[act.activityId] = String(r.attemptIdUsed ?? attemptId)
+      // 40 号：mustNotViolations 一并带给"词全有但关系错"的区分展示
+      setFeedback((f) => ({ ...f, [act.activityId]: { pass: r.pass, status: r.evaluationStatus, practiceOnly: r.practiceOnly, studentClaimed: r.studentClaimed, relations: r.dimensions, mustNot: r.mustNotViolations, slotResults: r.slotResults, reveal: r.reveal } }))
       // 门控活动（如未预告追问）在前提活动提交后才出现：重取课包
       const fresh = await api<LessonPkg>(`/accounts/${accountId}/lessons/${pkgLive.lessonId}`)
       if (fresh.activities.length > visibleActs.length) setPkgLive(fresh)
+    } catch (e) { setErr(String(e)) }
+  }
+
+  /** 40 号表达反馈：学生认为表达语义正确但被词表判据拒收 → 记录申诉（保留争议，不扣能力不认证） */
+  async function claimExpression(act: LessonPkg['activities'][number]) {
+    const fb = feedback[act.activityId]
+    const attemptId = lastAttemptRef.current[act.activityId]
+    if (!fb || fb.studentClaimed || !attemptId) return
+    setErr('')
+    try {
+      await api(`/accounts/${accountId}/attempts/${encodeURIComponent(attemptId)}/claim`, { note: '我认为我的表达意思是对的' }, 'POST')
+      setFeedback((f) => ({ ...f, [act.activityId]: { ...fb, studentClaimed: true } }))
     } catch (e) { setErr(String(e)) }
   }
 
@@ -614,7 +641,7 @@ function LessonRunner({ accountId, pkg, onDone }: {
       const changed = new Set(fresh.activities.filter(a=>{const old=pkgLive.activities.find(o=>o.activityId===a.activityId);return !old || old.activityVersion!==a.activityVersion || old.prompt!==a.prompt}).map(a=>a.activityId))
       setAnswers(old=>Object.fromEntries(fresh.activities.map(a=>[a.activityId,a.resume?.response.text ?? (changed.has(a.activityId)?'':old[a.activityId] ?? '')])))
       setSlotPicks(old=>Object.fromEntries(fresh.activities.map(a=>[a.activityId,a.resume?.response.answers ?? (changed.has(a.activityId)?{}:old[a.activityId] ?? {})])))
-      setFeedback(Object.fromEntries(fresh.activities.filter(a=>a.resume).map(a=>[a.activityId,{pass:a.resume!.result.pass,status:a.resume!.result.evaluationStatus,practiceOnly:a.resume!.result.practiceOnly,relations:a.resume!.result.dimensions,slotResults:a.resume!.result.slotResults}])))
+      setFeedback(Object.fromEntries(fresh.activities.filter(a=>a.resume).map(a=>[a.activityId,{pass:a.resume!.result.pass,status:a.resume!.result.evaluationStatus,practiceOnly:a.resume!.result.practiceOnly,studentClaimed:a.resume!.result.studentClaimed,relations:a.resume!.result.dimensions,mustNot:a.resume!.result.mustNotViolations,slotResults:a.resume!.result.slotResults,reveal:a.resume!.result.reveal}])))
       setTakes(Object.fromEntries(fresh.activities.map(a=>[a.activityId,a.nextTake ?? 1])))
       const next=fresh.activities.findIndex(a=>!a.resume);setCurrentIndex(next<0?Math.max(0,fresh.activities.length-1):next)
       setPkgLive(fresh);setErr('')
@@ -749,6 +776,27 @@ function LessonRunner({ accountId, pkg, onDone }: {
               ))}
             </ul>
           ) : null}
+          {/* 40 号：两类失败分开说——"词全有但关系错"不同于"词没抓到" */}
+          {feedback[act.activityId]?.pass === false && (feedback[act.activityId].mustNot?.length ?? 0) > 0 && (
+            <p className="v4-advise">词都出现了，但关系判断错了：{feedback[act.activityId]!.mustNot!.join('；')}——回到材料里再看一眼对照和限制。</p>
+          )}
+          {/* 40 号表达反馈：语义对但被词表判据拒收 → 学生可记录申诉（保留争议，不扣能力不认证） */}
+          {feedback[act.activityId]?.status === 'evaluated' && feedback[act.activityId].pass === false && feedback[act.activityId].practiceOnly && !feedback[act.activityId].studentClaimed && (
+            <button className="v4-ghost" onClick={() => claimExpression(act)}>我认为我的表达意思是对的（记录争议，不影响能力记录）</button>
+          )}
+          {feedback[act.activityId]?.studentClaimed && (
+            <p className="v4-advise">已记录你的表达申诉：这条作答会以"语义对、词表未命中"保留在记录里，供复核参考；它不认证自由表达。</p>
+          )}
+          {/* 40 号：提交后揭晓——参考表达 + 原文依据 + 不能照抄的开放追问 */}
+          {feedback[act.activityId]?.reveal && (
+            <details className="v4-fold">
+              <summary>看参考表达与原文依据（自己再试一轮之后看，收获更大）</summary>
+              <p><b>参考表达：</b>{feedback[act.activityId]!.reveal!.referenceExpression}</p>
+              {feedback[act.activityId]!.reveal!.supportingQuotes.map((q, i) => <p key={i} className="v4-dim">原文依据：{q}</p>)}
+              <p className="v4-dim">参考是"一种好的说法"，不是唯一答案；和它同义的说法也应该算对——如果你的表达是对的但没被算对，用上面的申诉按钮记录，它会被保留并供复核。</p>
+              {feedback[act.activityId]!.reveal!.followup && <FollowupBox accountKey={accountId} actId={act.activityId} prompt={feedback[act.activityId]!.reveal!.followup!} />}
+            </details>
+          )}
           {feedback[act.activityId]?.relations && (
             act.oralTask ? (
               <div className="v4-advise">
@@ -973,6 +1021,22 @@ function OralRecorder({ accountId, taskId, activityId, onSubmitted, onRefreshTas
       {mediaId && !deleted && <button className="v4-ghost" onClick={remove}>删除这段录音</button>}
       {deleted && <span className="v4-dim">录音已删除（数据库与文件一并移除）</span>}
       {err && <div className="v4-err">{err}<button className="v4-ghost" disabled={busy || recording} onClick={async()=>{try{await onRefreshTask();setErr('')}catch(e){setErr(String(e))}}}>重新获取任务后再试（保留这段录音）</button></div>}
+    </div>
+  )
+}
+
+/** 40 号：揭晓后的开放追问——回答保存在本机（localStorage），作为下次学习的引子，不产生假证据 */
+function FollowupBox({ accountKey, actId, prompt }: { accountKey: string; actId: string; prompt: string }) {
+  const key = `v4-followup:${accountKey}:${actId}`
+  const [text, setText] = useState(() => localStorage.getItem(key) ?? '')
+  const [savedAt, setSavedAt] = useState<number>(() => Number(localStorage.getItem(key + ':at') ?? 0))
+  return (
+    <div style={{ marginTop: 6 }}>
+      <p style={{ margin: '4px 0' }}><b>{prompt}</b></p>
+      <textarea value={text} rows={3} style={{ width: '100%' }}
+        placeholder="写在这里（只保存在本机浏览器）"
+        onChange={(e) => { setText(e.target.value); localStorage.setItem(key, e.target.value); const t = Date.now(); localStorage.setItem(key + ':at', String(t)); setSavedAt(t) }} />
+      {savedAt > 0 && <p className="v4-dim">已保存在本机（{new Date(savedAt).toLocaleString()}）；不参与判分，也不会上传。</p>}
     </div>
   )
 }

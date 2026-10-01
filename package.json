@@ -11,7 +11,8 @@
     "preview": "vite preview",
     "walk:trajectory": "node scripts/trajectory-walk.mjs",
     "walk:ui": "node scripts/ui-journey-walk.mjs",
-    "walk:chain": "node scripts/chain-walk.mjs"
+    "walk:chain": "node scripts/chain-walk.mjs",
+    "trial-report": "node scripts/trial-report.mjs"
   },
   "dependencies": {
     "react": "^19.2.8",

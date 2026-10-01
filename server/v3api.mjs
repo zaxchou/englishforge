@@ -7,7 +7,7 @@ import { issueTask, deliverTaskAudio, recordTaskPlay } from './v3tasks.mjs'
 import { ApiError, getAccount } from './db.mjs'
 import { ensureV3Schema, oldRecordMap } from './v3db.mjs'
 import { mapIndex, rowToObjective } from './v3map.mjs'
-import { recordAttempt, evidenceSummary, waive, revokeWaiver, reportContent, getStoredAttempt } from './v3evidence.mjs'
+import { recordAttempt, evidenceSummary, waive, revokeWaiver, reportContent, getStoredAttempt, claimExpression } from './v3evidence.mjs'
 import { startDiagnostic, getDiagnostic, advanceDiagnostic, expectedActivityFor, latestOpenDiagnostic } from './v3diag.mjs'
 import { getPlan, recomputePlan } from './v3plan.mjs'
 import { serveLesson, revealHint, completeLesson, listLessons, seedLessons, withdrawLesson, publishLesson, signLesson } from './v3lessons.mjs'
@@ -133,10 +133,20 @@ export const V3_ROUTES = [
   }],
   ['GET', '/api/v1/accounts/:id/lessons/:lessonId', (ctx) => {
     const pkg = serveLesson(ctx.params.id, ctx.params.lessonId)
-    // 取课即把指向它的 ready 计划置为 served（15 §5：candidate→ready→served→completed）
-    ensureV3Schema().prepare(
+    // 取课即把指向它的 ready 计划置为 served（15 §5：candidate→ready→served→completed）。
+    // 40-P1：主课没内容时学习者打开的是**备用任务**——把它记为本次 served 课，
+    // 否则备用课永远过不了 completeLesson 的 served 校验（只能学不能完成 = 假入口）
+    const conn = ensureV3Schema()
+    const served = conn.prepare(
       "UPDATE plan_decisions SET status = 'served', served_at = ? WHERE account_id = ? AND status = 'ready' AND served_lesson_id = ?")
       .run(Date.now(), ctx.params.id, ctx.params.lessonId)
+    if (served.changes === 0) {
+      conn.prepare(
+        `UPDATE plan_decisions SET status = 'served', served_at = ?, served_lesson_id = ?
+         WHERE account_id = ? AND status = 'ready' AND served_lesson_id IS NULL
+           AND json_extract(lesson_ref, '$.fallback.lessonId') = ?`)
+        .run(Date.now(), ctx.params.lessonId, ctx.params.id, ctx.params.lessonId)
+    }
     return pkg
   }],
   ['POST', '/api/v1/accounts/:id/lessons/:lessonId/hints', (ctx) => revealHint(
@@ -198,6 +208,8 @@ export const V3_ROUTES = [
     return { audioBase64: buf.toString('base64'), mime } // 中间件是 JSON 形状；真实流式播放走同路径的 raw 分支
   }],
   ['POST', '/api/v1/accounts/:id/attempts/oral', (ctx) => submitOralAttempt(ctx.params.id, ctx.body ?? {})],
+  // 40 号表达反馈：学生认为表达语义正确但被词表判据拒收 → 记录申诉（保留争议，不扣能力不认证）
+  ['POST', '/api/v1/accounts/:id/attempts/:attemptId/claim', (ctx) => claimExpression(ctx.params.id, ctx.params.attemptId, ctx.body ?? {})],
   ['POST', '/api/v1/accounts/:id/oral/:mediaId/transcript', (ctx) => correctTranscript(
     ctx.params.id, ctx.params.mediaId, body_str(ctx, 'text'), { origin: body_str(ctx, 'origin') || 'user_corrected' })],
   ['POST', '/api/v1/accounts/:id/oral-reviews', (ctx) => signOralReview(ctx.params.id, ctx.body ?? {})],
