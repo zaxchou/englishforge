@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url'
 import { ensureV3Schema, getMeta, setMeta } from './v3db.mjs'
 import { ApiError } from './db.mjs'
 import { rowToObjective } from './v3map.mjs'
-import { runQualityGates, lessonForStrategy, lessonForObjective } from './v3lessons.mjs'
+import { runQualityGates, lessonForStrategy, lessonForObjective, getLesson } from './v3lessons.mjs'
 import { activityById } from './v3evidence.mjs'
 import { decide } from './v3plan.mjs'
 import { chatWithMeta, LlmError } from './llm.mjs'
@@ -67,6 +67,25 @@ const MAX_RETRIES = 2 // 首次 + 2 次重试
 const WINDOW_LESSONS = 2
 const WINDOW_CANDIDATES = 4
 
+/** 教学控制约束。词表反馈可选补练方向，不能确定语言根因或上调能力带。 */
+export function teachingAdaptation(feedback = [], { states = [], band = 1 } = {}) {
+  const validBand = Number.isFinite(band) && band >= 1 ? Math.floor(band) : 1
+  const misses = new Map()
+  for (const sample of feedback) for (const d of sample.dimensions ?? []) {
+    if (d.required && d.hit === false) misses.set(d.id, { id:d.id, label:d.label, count:(misses.get(d.id)?.count ?? 0)+1 })
+  }
+  const recurring = [...misses.values()].filter(d=>d.count >= 2).sort((a,b)=>b.count-a.count).slice(0,3)
+  const supported = feedback.some(f=>Number(f.conditions?.hintLevel)>0 || f.conditions?.transcriptShown || f.conditions?.lookupUsed)
+  const independentlyConfirmed = states.some(s=>['independent','transferred','retained'].includes(s.state))
+  const mode = recurring.length ? 'focused_probe' : supported ? 'fade_support' : feedback.length ? 'new_context_probe' : 'find_start'
+  return { mode, focusDimensions:recurring, evidenceLimit:'教学假设，不是确定根因或能力认证',
+    targetBand:validBand, maxBand:validBand + (independentlyConfirmed && !supported && !recurring.length ? 1 : 0),
+    instruction: mode==='focused_probe' ? '用不同材料区分反复漏掉的关系，先给短讲和可撤除提示，不复读旧句。'
+      : mode==='fade_support' ? '保留相同目标与复杂度，用新材料逐步撤掉提示或文字稿，再观察是否能独立完成。'
+      : mode==='new_context_probe' ? '用新的实用情境检验能否迁移；只有关键词反馈时不要直接跳过本目标或自动升难度。'
+      : '先给一个有挑战但有边界的短任务，获取反馈后再补讲；不要预判个人短板。' }
+}
+
 // ---------------------------------------------------------------- 活动：生成题的存取（与静态注册表同形）
 
 function getGeneratedActivity(id) {
@@ -88,6 +107,9 @@ export function registerGeneratedActivities(jobId, activities) {
       responseKind: 'text', prompt: a.prompt, hints: a.hints ?? [],
       conditionsSpec: ['firstExposure', 'hintLevel', 'transcriptShown', 'playCount', 'lookupUsed', 'responseMode'],
       evaluationContract: { dimensions: a.dimensions ?? a.relations.map((r) => r.label), relations: a.relations, mustNot: a.mustNot ?? [] },
+      complexityBand: a.complexityBand ?? null,
+      transcriptShownByDefault: a.transcriptShownByDefault === true,
+      oralEvidenceDeferred: a.oralEvidenceDeferred === true,
       generated: true,
     }
     ins.run(activityId, 1, jobId, JSON.stringify(def), now)
@@ -153,9 +175,10 @@ export function startGenerationJob(accountId, { objectiveId, strategyId, chat = 
     throw new ApiError(409, 'GENERATION_DISABLED: 设 ENGLISHFORGE_V4_GENERATION=1 显式开启按需生成（防误计费）')
   }
   const conn = ensureV3Schema()
-  const dup = conn.prepare("SELECT job_id FROM generation_jobs WHERE account_id = ? AND objective_id = ? AND status IN ('queued','running')")
+  const dup = conn.prepare("SELECT job_id,input_spec FROM generation_jobs WHERE account_id = ? AND objective_id = ? AND status IN ('queued','running')")
     .get(accountId, objectiveId)
-  if (dup) return { jobId: dup.job_id, reused: true }
+  if (dup && generationSnapshotCurrent(conn, accountId, JSON.parse(dup.input_spec).learnerEvidence)) return { jobId: dup.job_id, reused: true }
+  if (dup) conn.prepare("UPDATE generation_jobs SET status='superseded',reject_reasons=?,finished_at=? WHERE job_id=?").run(JSON.stringify(['LEARNING_FEEDBACK_CHANGED']),Date.now(),dup.job_id)
   // 重试耗尽后的冷却：§7「仍失败则撤出候选」——冷却期内窗口槽位如实显示，不再自动起新 job；
   // force=true 是操作者的显式重试，不受冷却限制
   const recentFail = conn.prepare(
@@ -173,6 +196,16 @@ export function startGenerationJob(accountId, { objectiveId, strategyId, chat = 
   const failSamples = conn.prepare(
     `SELECT task_family_id, response FROM learner_attempts_v3
      WHERE account_id = ? AND json_extract(evaluation, '$.pass') = 0 ORDER BY created_at DESC LIMIT 3`).all(accountId)
+  // 教学适配读取练习细节；这些记录不等同于能力认证或已确定根因。
+  const feedbackRows = conn.prepare(`SELECT activity_id, task_family_id, objective_ids, conditions, evaluation, evaluation_status, created_at
+    FROM learner_attempts_v3 WHERE account_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 20`).all(accountId)
+    .filter(r => JSON.parse(r.objective_ids || '[]').includes(objectiveId)).slice(0, 6)
+  const recentPracticeFeedback = feedbackRows.map(r => {
+    const e = JSON.parse(r.evaluation || '{}'), c = JSON.parse(r.conditions || '{}')
+    return { activityId:r.activity_id, taskFamilyId:r.task_family_id, createdAt:r.created_at,
+      evaluationStatus:r.evaluation_status, practiceOnly:e.keywordOnly === true, pass:e.pass ?? null,
+      conditions:c, dimensions:(e.relations ?? []).map(d=>({id:d.id,label:d.label,hit:d.hit,required:d.required})) }
+  })
   const lastDiag = conn.prepare("SELECT tentative FROM diagnostic_sessions WHERE account_id = ? AND status = 'completed' ORDER BY updated_at DESC LIMIT 1").get(accountId)
   const evRow = conn.prepare('SELECT value FROM v3_counters WHERE account_id = ? AND name = ?').get(accountId, 'evidence')
   conn.prepare(
@@ -183,6 +216,8 @@ export function startGenerationJob(accountId, { objectiveId, strategyId, chat = 
       objective: rowToObjective(obj), contract: GEN_CONTRACT_V1.version,
       learnerEvidence: {
         evidenceVersion: evRow?.value ?? 0,
+        practiceRevision: conn.prepare('SELECT COUNT(*) AS n FROM learner_attempts_v3 WHERE account_id = ?').get(accountId).n,
+        recentPracticeFeedback,
         states: states.map((x) => ({ skill: x.skill, complexity: x.complexity, state: x.state, flags: JSON.parse(x.flags || '[]') })),
         rootHypotheses: lastDiag?.tentative ? (JSON.parse(lastDiag.tentative).hypotheses ?? []) : [],
         recentFailSamples: failSamples.map((r) => ({ taskFamilyId: r.task_family_id, text: String(r.response || '').slice(0, 200) })),
@@ -221,6 +256,7 @@ async function runJob(jobId, { chat = chatWithMeta } = {}) {
     // F8：术语门带感知——band≤3 基础组禁术语；band≥5 高级组允许精确术语
     band: Number(groupRow?.band ?? 1),
     learnerEvidence,
+    adaptation: teachingAdaptation(learnerEvidence.recentPracticeFeedback, {states:learnerEvidence.states,band:Number(groupRow?.band ?? 1)}),
     // 声音/口述目标的文本课不能记听力/口语证据（15 §5 技能不互升）——这类目标强制人审
     audioOralDependent: primarySkill(objective) !== 'reading' && primarySkill(objective) !== 'writing'
       || (Array.isArray(objective.flags) ? objective.flags : JSON.parse(objective.flags || '[]')).includes('needs_audio'),
@@ -247,6 +283,8 @@ async function runJob(jobId, { chat = chatWithMeta } = {}) {
           .join('\n') || '',
         // 术语规则与质量门一致：复杂度 <5 禁语法术语；≥5 允许精确术语（但"从句"仍要用白话解释到位）
         ctx.band >= 5 ? '允许精确语法术语，但术语旁必须跟白话解释。' : '禁止任何语法术语，全部用白话描述。',
+        `本课教学调整约束（必须落实在任务和提示，不只改标题；复杂度不得越过 maxBand）：${JSON.stringify(ctx.adaptation)}`,
+        ctx.learnerEvidence.recentPracticeFeedback?.length ? `本目标近期练习反馈（关键词反馈只用于教学假设，不能视为能力认证；结合支持条件选择下一步）：${JSON.stringify(ctx.learnerEvidence.recentPracticeFeedback)}` : '',
         ctx.learnerEvidence.states?.length ? `学习者当前状态：${JSON.stringify(ctx.learnerEvidence.states)}` : '',
         ctx.learnerEvidence.rootHypotheses?.length ? `根因假设：${ctx.learnerEvidence.rootHypotheses.join('、')}` : '',
         ctx.learnerEvidence.recentFailSamples?.length ? `最近错误样本（据此选难度与策略，不得复读原句）：${JSON.stringify(ctx.learnerEvidence.recentFailSamples).slice(0, 500)}` : '',
@@ -263,6 +301,12 @@ async function runJob(jobId, { chat = chatWithMeta } = {}) {
         conn.prepare("UPDATE generation_jobs SET status = 'failed', cost_tokens = ?, reject_reasons = ?, latency_ms = ?, finished_at = ? WHERE job_id = ?")
           .run(totalTokens, JSON.stringify(['模型服务失败: ' + String(e.message).slice(0, 120)]), Date.now() - started, Date.now(), jobId)
         return { jobId, status: 'failed' }
+      }
+      // 模型响应等待期间可能已产生新反馈；旧快照不能发布为当前个体课程。
+      if (job().status === 'superseded' || !generationSnapshotCurrent(conn,job().account_id,learnerEvidence)) {
+        conn.prepare("UPDATE generation_jobs SET status='superseded',cost_tokens=?,reject_reasons=?,latency_ms=?,finished_at=? WHERE job_id=?")
+          .run(totalTokens,JSON.stringify(['LEARNING_FEEDBACK_CHANGED']),Date.now()-started,Date.now(),jobId)
+        return {jobId,status:'superseded',published:false,reasons:['LEARNING_FEEDBACK_CHANGED']}
       }
       let pkg
       try {
@@ -283,7 +327,7 @@ async function runJob(jobId, { chat = chatWithMeta } = {}) {
       const activityIds = registerGeneratedActivities(jobId, pkg.activities.map((a) => ({
         ...a, objectiveIds: [objective.objectiveId],
         skillByObjective: { [objective.objectiveId]: primarySkill(objective) },
-        role: 'practice',
+        role: 'practice', complexityBand: ctx.band,
         // 听力目标：默认视为已看稿 → 证据记 reading 不记 listening；口述目标：口语证据 W5 前不升
         ...(primarySkill(objective) === 'listening' ? { transcriptShownByDefault: true } : {}),
         ...(audioOral && primarySkill(objective) !== 'listening' ? { oralEvidenceDeferred: true } : {}),
@@ -355,6 +399,7 @@ function primarySkill(objRow) {
  */
 export function ensureWindow(accountId, { chat = chatWithMeta } = {}) {
   const conn = ensureV3Schema()
+  reestimateWindow(accountId, 'window_read')
   const objectives = conn.prepare("SELECT * FROM objective_versions WHERE status != 'retired' ORDER BY objective_id").all().map(rowToObjective)
   const snapshot = buildLiteSnapshot(conn, accountId)
   const decision = decide(objectives, readStates(conn, accountId), snapshot)
@@ -367,7 +412,13 @@ export function ensureWindow(accountId, { chat = chatWithMeta } = {}) {
     const wantLesson = slot < WINDOW_LESSONS
     const cached = conn.prepare("SELECT * FROM lesson_cache WHERE account_id = ? AND objective_id = ? AND status = 'ready'")
       .get(accountId, oid)
-    if (cached) {
+    const cachedLesson = cached && getLesson(cached.lesson_id)
+    const cacheUsable = cachedLesson && cachedLesson.contentStatus === 'published'
+      && cachedLesson.version === cached.version && cachedLesson.objectiveIds.includes(oid)
+      && (!cachedLesson.accountScope || cachedLesson.accountScope === 'global' || cachedLesson.accountScope === accountId)
+      && !conn.prepare("SELECT 1 FROM plan_decisions WHERE account_id = ? AND served_lesson_id = ? AND status = 'completed'").get(accountId, cached.lesson_id)
+    if (cached && !cacheUsable) conn.prepare("UPDATE lesson_cache SET status = 'invalidated', invalidated_reason = 'lesson_unavailable_or_changed' WHERE account_id = ? AND objective_id = ? AND lesson_id = ? AND status = 'ready'").run(accountId, oid, cached.lesson_id)
+    if (cacheUsable) {
       slots.push({ slot, objectiveId: oid, lessonId: cached.lesson_id, status: 'ready', kind: wantLesson ? 'lesson' : 'candidate' })
       return
     }
@@ -420,15 +471,25 @@ function buildLiteSnapshot(conn, accountId) {
   }
 }
 
+function generationSnapshotCurrent(conn, accountId, snapshot) {
+  return snapshot && snapshot.evidenceVersion === evVersion(conn,accountId)
+    && snapshot.practiceRevision === conn.prepare('SELECT COUNT(*) AS n FROM learner_attempts_v3 WHERE account_id=?').get(accountId).n
+}
+
 function evVersion(conn, accountId) {
   const row = conn.prepare('SELECT value FROM v3_counters WHERE account_id = ? AND name = ?').get(accountId, 'evidence')
   return row ? row.value : 0
 }
 
 export function cacheLesson(accountId, objectiveId, lessonId, version, slot) {
-  ensureV3Schema().prepare(
-    `INSERT OR IGNORE INTO lesson_cache (account_id, objective_id, lesson_id, version, slot, status, created_at)
-     VALUES (?,?,?,?,?,'ready',?)`).run(accountId, objectiveId, lessonId, version, slot, Date.now())
+  const conn = ensureV3Schema()
+  const revision = conn.prepare('SELECT COUNT(*) AS n FROM learner_attempts_v3 WHERE account_id=?').get(accountId).n
+  conn.prepare(`INSERT INTO lesson_cache (account_id, objective_id, lesson_id, version, slot, status, created_at, practice_revision)
+    VALUES (?,?,?,?,?,'ready',?,?)
+    ON CONFLICT(account_id,objective_id,lesson_id) DO UPDATE SET version=excluded.version,slot=excluded.slot,
+      status='ready',created_at=excluded.created_at,practice_revision=excluded.practice_revision,invalidated_reason=NULL
+    WHERE lesson_cache.status != 'ready' OR lesson_cache.version != excluded.version`)
+    .run(accountId, objectiveId, lessonId, version, slot, Date.now(), revision)
 }
 
 /**
@@ -438,19 +499,22 @@ export function cacheLesson(accountId, objectiveId, lessonId, version, slot) {
 export function reestimateWindow(accountId, trigger = 'manual') {
   const conn = ensureV3Schema()
   const currentVersion = evVersion(conn, accountId)
-  const rows = conn.prepare("SELECT rowid, objective_id, lesson_id, slot, created_at FROM lesson_cache WHERE account_id = ? AND status = 'ready'").all(accountId)
+  const rows = conn.prepare("SELECT rowid, objective_id, lesson_id, slot, created_at, practice_revision FROM lesson_cache WHERE account_id = ? AND status = 'ready'").all(accountId)
   let invalidated = 0
   for (const r of rows) {
     // 缓存建立后若证据前进（任何新尝试/事件），旧缓存课必须重估（可保留也可作废；v1 从严：一律作废重算）
     const eventsAfter = conn.prepare('SELECT COUNT(*) AS n FROM evidence_events WHERE account_id = ? AND created_at > ?')
       .get(accountId, r.created_at).n
-    if (eventsAfter > 0) {
+    const practiceAfter = r.practice_revision == null
+      ? conn.prepare('SELECT COUNT(*) AS n FROM learner_attempts_v3 WHERE account_id = ? AND created_at > ?').get(accountId, r.created_at).n
+      : Math.max(0,conn.prepare('SELECT COUNT(*) AS n FROM learner_attempts_v3 WHERE account_id = ?').get(accountId).n - r.practice_revision)
+    if (eventsAfter > 0 || practiceAfter > 0) {
       conn.prepare("UPDATE lesson_cache SET status = 'invalidated', invalidated_reason = ? WHERE rowid = ?")
-        .run(`evidence_changed:${currentVersion}:trigger=${trigger}`, r.rowid)
+        .run(`learning_feedback_changed:evidence=${currentVersion}:practice=${practiceAfter}:trigger=${trigger}`, r.rowid)
       invalidated++
     }
   }
-  const v = (getMeta(accountId, 'window_version') ?? 0) + 1
+  const v = (getMeta(accountId, 'window_version') ?? 0) + (invalidated > 0 ? 1 : 0)
   setMeta(accountId, 'window_version', v)
   return { windowVersion: v, invalidated, currentVersion }
 }
@@ -469,6 +533,7 @@ export function generationMetrics(accountId) {
   const running = conn.prepare(`SELECT job_id, objective_id, status FROM generation_jobs WHERE account_id = ? AND status IN ('queued','running')`).all(accountId)
   return {
     jobs, succeeded: ok, rejected, failed,
+    superseded: one("SELECT COUNT(*) AS n FROM generation_jobs WHERE account_id=? AND status='superseded'",accountId).n,
     rejectionRate: jobs ? +(rejected / jobs).toFixed(2) : 0,
     avgLatencyMs: Math.round(lat.v ?? 0),
     totalCostTokens: lat.t ?? 0,

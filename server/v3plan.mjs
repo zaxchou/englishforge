@@ -8,8 +8,8 @@ import { ApiError } from './db.mjs'
 import { ensureV3Schema, getMeta, nextCounter } from './v3db.mjs'
 import { requireAccount } from './v3api.mjs'
 import { activityById, loadActivities } from './v3evidence.mjs'
-import { rowToObjective } from './v3map.mjs'
-import { lessonForStrategy, lessonForObjective } from './v3lessons.mjs'
+import { seedMap, rowToObjective } from './v3map.mjs'
+import { getLesson, seedLessons, lessonForStrategy, lessonForObjective } from './v3lessons.mjs'
 
 const STATE_RANK = { unmeasured: 0, tentative: 1, trained: 2, independent: 3, transferred: 4, retained: 5 }
 const STRATEGY_LESSONS = {
@@ -42,6 +42,8 @@ export function recomputePlan(accountId, { requestId, triggerEvent } = {}) {
 /** 每节后即重算。requestId 幂等；同账户决策天然串行（node:sqlite 同步执行） */
 export function computePlan(accountId, { requestId, triggerEvent } = {}) {
   requireAccount(accountId)
+  seedMap()
+  seedLessons()
   const conn = ensureV3Schema()
   if (requestId) {
     const prev = conn.prepare('SELECT * FROM plan_decisions WHERE account_id = ? AND request_id = ?').get(accountId, requestId)
@@ -337,6 +339,11 @@ function waitNotice(strategyId) {
 }
 
 function decisionView(row) {
+  const lesson = JSON.parse(row.lesson_ref || 'null')
+  if (lesson?.lessonId) {
+    const pkg = getLesson(lesson.lessonId)
+    lesson.resumeAvailable = row.status !== 'completed' && !!pkg?.activities.some(a => ensureV3Schema().prepare('SELECT 1 FROM learner_attempts_v3 WHERE account_id=? AND activity_id=? AND created_at>=? LIMIT 1').get(row.account_id,a.activityId,row.served_at ?? row.created_at))
+  }
   return {
     decisionId: row.decision_id,
     requestId: row.request_id,
@@ -348,7 +355,7 @@ function decisionView(row) {
     reason: row.reason,
     hypotheses: JSON.parse(row.hypotheses || '[]'),
     uncertainAreas: JSON.parse(row.uncertain_areas || '[]'),
-    lesson: JSON.parse(row.lesson_ref || 'null'),
+    lesson,
     notChosen: JSON.parse(row.candidates || '[]'),
     status: row.status,
     createdAt: row.created_at,

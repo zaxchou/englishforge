@@ -1,3 +1,4 @@
+import { issueTask, taskForRecordedAttempt } from './v3tasks.mjs'
 // W6：本人试学工具包（docs/curriculum-v4/13 §9 A10/T9、15 §10 T9、00 §4 P6）。
 //
 // 核心纪律：**先预注册，后施测**——基线/后测任务与评分维度在试学前冻结（13 §9：
@@ -8,7 +9,7 @@ import { randomBytes } from 'node:crypto'
 import { ApiError } from './db.mjs'
 import { ensureV3Schema } from './v3db.mjs'
 import { requireAccount } from './v3api.mjs'
-import { activityById } from './v3evidence.mjs'
+import { publicActivity, activityById } from './v3evidence.mjs'
 import { activityFingerprint } from './v3gen.mjs'
 
 // 试学注册表：trial_registrations（先于任何基线作答创建，注册后不可改任务定义）
@@ -74,6 +75,30 @@ export function registerTrial(accountId, { label, skill, baselineTask, postTask,
   }
 }
 
+/** Formal issuance freezes the exposure cutoff before any current-task playback. */
+export function issueTrialTask(accountId, trialId, phase) {
+  requireAccount(accountId)
+  if (!['baseline','post','delay'].includes(phase)) throw new ApiError(400,'TRIAL_PHASE_INVALID')
+  const c = ensureTrialSchema(ensureV3Schema())
+  const reg = c.prepare('SELECT * FROM trial_registrations WHERE account_id=? AND trial_id=?').get(accountId,trialId)
+  if (!reg) throw new ApiError(404,'TRIAL_NOT_FOUND')
+  const task = JSON.parse(reg[phase === 'baseline' ? 'baseline_task' : phase === 'post' ? 'post_task' : 'delay_task'] || 'null')
+  const act = task && activityById(task.activityId)
+  if (!act || act.version !== task.materialVersion || act.taskFamilyId !== task.taskFamilyId) throw new ApiError(400,'TRIAL_MATERIAL_INVALID')
+  const skills = new Set(Object.values(act.skillByObjective ?? {}))
+  if (!skills.has(reg.skill) || (task.skill && task.skill !== reg.skill)) throw new ApiError(400,'TRIAL_SKILL_MISMATCH')
+  if (task.passRule !== 'all_slots' || !act.evaluationContract?.slots?.length || !Number.isFinite(act.complexityBand) || !act.evaluationContract || JSON.stringify(task.dimensions) !== JSON.stringify(act.evaluationContract.dimensions)) throw new ApiError(400,'TRIAL_RUBRIC_REQUIRED')
+  const others = ['baseline_task','post_task','delay_task'].map(k=>JSON.parse(reg[k] || 'null')).filter(Boolean)
+  if (others.some(t => JSON.stringify(t.dimensions) !== JSON.stringify(task.dimensions) || t.passRule !== task.passRule || activityById(t.activityId)?.complexityBand !== act.complexityBand || !Object.values(activityById(t.activityId)?.skillByObjective ?? {}).includes(reg.skill))) throw new ApiError(400,'TRIAL_TASKS_NOT_COMPARABLE')
+  const need = phase === 'post' ? 'baseline' : phase === 'delay' ? 'post' : null
+  if (need && !c.prepare('SELECT 1 FROM trial_observations WHERE account_id=? AND trial_id=? AND phase=?').get(accountId,trialId,need)) throw new ApiError(400,'TRIAL_PHASE_ORDER')
+  if (c.prepare('SELECT 1 FROM trial_observations WHERE account_id=? AND trial_id=? AND phase=?').get(accountId,trialId,phase)) throw new ApiError(409,'TRIAL_PHASE_ALREADY_RECORDED')
+  const issued = issueTask(accountId,act.activityId,'',{trialId,phase})
+  const activity = publicActivity(act)
+  activity.hints = [] // formal input does not reveal support or scoring anchors
+  return { ...issued, activity, phase }
+}
+
 /** 记录观察：绑定 attempt（陌生材料才计入对比；support 快照用于同条件判定） */
 export function recordObservation(accountId, { trialId, phase, attemptId, materialWasNovel = true, support = {} } = {}) {
   requireAccount(accountId)
@@ -111,7 +136,8 @@ export function recordObservation(accountId, { trialId, phase, attemptId, materi
   // C3（F7 残留）：材料版本绑定——预注册了 activityId / materialVersion 时逐一核对，
   // 防止"同名材料换版本"或"错材料"混进正式比较。版本以作答落库时的 activity_version
   // 为准（复审 P3：静态活动日后升版不该 retroactively 改判旧作答），缺失回落当前定义
-  const actDef = activityById(attempt.activity_id)
+  const issued = attempt.issued_task_id ? taskForRecordedAttempt(accountId,attempt) : null
+  const actDef = issued?.definition ?? activityById(attempt.activity_id)
   const attemptVersion = attempt.activity_version ?? actDef?.version ?? 1
   if (task.activityId && attempt.activity_id !== task.activityId) {
     throw new ApiError(400, 'TRIAL_MATERIAL_MISMATCH: 该 attempt 不是预注册的材料')
@@ -126,18 +152,22 @@ export function recordObservation(accountId, { trialId, phase, attemptId, materi
   // R7：曝光核对=服务端全部记录的并集，覆盖自报——
   // ① 同活动既往作答；② 取过题/播过/看过提示（support 事件，"看了没答"也算曝光）；
   // ③ 内容指纹与既往作答材料相同（同稿改名现形）
+  const validIssuance = issued?.trial_id === trialId && issued?.trial_phase === phase
+  const cutoff = validIssuance ? issued.issued_at : attempt.created_at
   const priorAttempts = conn.prepare(
     'SELECT activity_id FROM learner_attempts_v3 WHERE account_id = ? AND attempt_id <> ? AND created_at <= ?')
-    .all(accountId, attemptId, attempt.created_at)
+    .all(accountId, attemptId, cutoff)
   const priorSupport = conn.prepare(
-    "SELECT 1 AS x FROM activity_support_events WHERE account_id = ? AND activity_id = ? LIMIT 1")
-    .get(accountId, attempt.activity_id)
+    "SELECT 1 AS x FROM activity_support_events WHERE account_id = ? AND activity_id = ? AND created_at <= ? LIMIT 1")
+    .get(accountId, attempt.activity_id, cutoff)
+  const priorTasks = conn.prepare("SELECT 1 FROM issued_tasks WHERE account_id=? AND activity_id=? AND task_id<>? AND issued_at<=? LIMIT 1").get(accountId,attempt.activity_id,issued?.task_id ?? '',cutoff)
   const thisFp = actDef ? activityFingerprint(actDef) : null
   const fpClash = thisFp && priorAttempts.some((p) => {
     const other = activityById(p.activity_id)
     return other && activityFingerprint(other) === thisFp && p.activity_id !== attempt.activity_id
   })
-  const exposed = priorAttempts.some((p) => p.activity_id === attempt.activity_id) || !!priorSupport || !!fpClash
+  const priorAudio = actDef?.audioRef && conn.prepare('SELECT 1 FROM task_media_deliveries d JOIN issued_tasks t ON t.task_id=d.task_id WHERE t.account_id=? AND d.media_id=? AND t.task_id<>? AND d.delivered_at<=? LIMIT 1').get(accountId,actDef.audioRef,issued?.task_id ?? '',cutoff)
+  const exposed = !!priorAudio || priorAttempts.some((p) => p.activity_id === attempt.activity_id) || !!priorSupport || !!priorTasks || !!fpClash
   let counted = !!materialWasNovel
   let exposureNote = null
   if (mode === 'practice_only') {
@@ -145,16 +175,19 @@ export function recordObservation(accountId, { trialId, phase, attemptId, materi
     exposureNote = '注册未绑定版本化材料（practice_only）：观察仅作练习记录，不计入正式比较（R7）'
   } else if (exposed) {
     counted = false
-    exposureNote = `服务端记录显示该材料已曝光（${priorAttempts.some((p) => p.activity_id === attempt.activity_id) ? '已作答过' : priorSupport ? '已取题/播放/看提示' : '与既往材料内容指纹相同'}）：不计入正式比较（覆盖自报）`
+    exposureNote = `服务端记录显示该材料已曝光（${priorAttempts.some((p) => p.activity_id === attempt.activity_id) ? '已作答过' : priorSupport || priorTasks || priorAudio ? '已领取/分发/播放/看提示' : '与既往材料内容指纹相同'}）：不计入正式比较（覆盖自报）`
   } else if (actDef && actDef.holdout !== true) {
     // 已公开注册表材料不能当本人留出——正式留出必须从未公开的 holdout 池来（R7/21 §6.4）
     counted = false
     exposureNote = '该材料在公开注册表中（18/21 样例已对本人可见）：正式留出须用未公开 holdout 材料，不计入正式比较'
+  } else if (!validIssuance) {
+    counted = false
+    exposureNote = '正式测量需要本阶段发卷任务；旧直接提交仅保存为练习记录'
   }
   conn.prepare(
     `INSERT INTO trial_observations (account_id, trial_id, phase, attempt_id, material_was_novel, support_snapshot, created_at)
      VALUES (?,?,?,?,?,?,?)`,
-  ).run(accountId, trialId, phase, attemptId, counted ? 1 : 0, JSON.stringify({ ...support, serverExposureNote: exposureNote, mode }), Date.now())
+  ).run(accountId, trialId, phase, attemptId, counted ? 1 : 0, JSON.stringify({ ...support, effectiveConditions: JSON.parse(attempt.conditions || '{}'), issuedTaskId: issued?.task_id ?? null, serverExposureNote: exposureNote, mode }), Date.now())
   return { ok: true, trialId, phase, counted, exposureNote }
 }
 

@@ -3,7 +3,7 @@
 // 为什么不进 media_assets：那张表 account_id NOT NULL REFERENCES accounts——课程音频是
 // 公共受控内容，不属任何账户（'__global__' 行会撞 FK，见 W5 的教训）。清单
 // server/data/audio-manifest.json 在 git 里版本化；WAV 在 server/assets/audio/ 随包分发；
-// 分发前必过 sha256 完整性校验（进程内缓存结果，坏文件一次发现永不再发）。
+// 每次分发必过 sha256 完整性校验；文件修复后可重试，不永久缓存错误。
 //
 // 诚实边界：synthetic 标注必须一路带到前端（不得冒充真实 podcast）；转写不随音频下发
 // （首听隐藏脚本），只在 transcriptShownByDefault 的活动里出现。
@@ -17,7 +17,6 @@ const HERE = dirname(fileURLToPath(import.meta.url))
 const ASSET_DIR = resolve(HERE, 'assets', 'audio')
 
 let manifestCache = null
-const verified = new Map() // mediaId -> true | Error
 
 export function loadAudioManifest() {
   if (!manifestCache) manifestCache = JSON.parse(readFileSync(join(HERE, 'data', 'audio-manifest.json'), 'utf8'))
@@ -47,22 +46,17 @@ export function verifyAudioEntry(entry, buf) {
 export function readLessonAudio(mediaId) {
   const entry = audioByMediaId(mediaId)
   if (!entry) throw new ApiError(404, 'MEDIA_NOT_FOUND: ' + mediaId)
-  const cached = verified.get(mediaId)
-  if (cached instanceof Error) throw cached
   const path = join(ASSET_DIR, entry.file ?? `${mediaId}.wav`)
   if (!existsSync(path)) {
     const err = new ApiError(404, 'MEDIA_FILE_MISSING: ' + mediaId)
-    verified.set(mediaId, err)
     throw err
   }
   const buf = readFileSync(path)
   const verdict = verifyAudioEntry(entry, buf)
   if (verdict !== 'ok') {
     const err = new ApiError(409, 'MEDIA_INTEGRITY_' + verdict.toUpperCase() + ': ' + mediaId)
-    verified.set(mediaId, err)
     throw err
   }
-  verified.set(mediaId, true)
   return { entry, buf, mime: entry.mime ?? 'audio/wav' }
 }
 

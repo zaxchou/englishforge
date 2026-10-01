@@ -1,3 +1,5 @@
+import { seedMap } from './v3map.mjs'
+import { issueTask } from './v3tasks.mjs'
 // W2：入口诊断（docs/curriculum-v4/14 题序 + 15 §6 诊断停止）。
 //
 // 流程（W2 fixture 版）：D1 文字关系 →（错则）D1b 熟词对照定位 → D2 声音（fixture 模拟）
@@ -20,6 +22,7 @@ const STEP_FLOW = {
 /** POST /diagnostics：requestId 幂等开一场入口诊断，返回当前步骤与学习者可见的活动 */
 export function startDiagnostic(accountId, { requestId, note } = {}) {
   requireAccount(accountId)
+  seedMap()
   const conn = ensureV3Schema()
   if (requestId) {
     const prev = conn.prepare('SELECT * FROM diagnostic_sessions WHERE account_id = ? AND request_id = ?').get(accountId, requestId)
@@ -158,7 +161,7 @@ function sessionView(row, extra = {}) {
     status: row.status,
     steps: steps.map((s) => ({ step: s.step, activityId: s.activityId, pass: s.pass, evaluationStatus: s.evaluationStatus })),
     step: nextStepName,
-    activity: nextStepName ? publicActivity(activityById(STEP_FLOW[nextStepName].activityId)) : null,
+    activity: nextStepName ? { ...publicActivity(activityById(STEP_FLOW[nextStepName].activityId)), taskId: issueTask(row.account_id, STEP_FLOW[nextStepName].activityId, row.diagnostic_id).taskId } : null,
     measured: [...new Set(steps.filter((s) => s.pass).map((s) => s.step))],
     unmeasured: row.status === 'completed'
       ? (JSON.parse(row.tentative || '{}').unmeasured ?? [])

@@ -28,6 +28,10 @@ export function goalLabel(id: string | null | undefined): string {
 /** 把推荐理由里的后台术语换成可读说法（28 §4.B：根因代码/内部名进可选详情）。
  * 未列出的目标 ID 与策略 ID 原样保留但加上折叠提示——宁可少说，不猜。 */
 const TERM_LABELS: Array<[RegExp, string]> = [
+  [/\brelation_modifier_or_retention\b/g, '修饰关系或信息保持'],
+  [/\bsound_segmentation_or_realtime\b/g, '声音分段或实时理解'],
+  [/\bcontrast_or_lexicon\b/g, '对照关系或词义'],
+  [/\bstructure_or_lexicon_also_in_audio\b/g, '声音中的结构或词义'],
   [/\bunmeasured\b/g, '还没测到'],
   [/\btentative\b/g, '初步确认'],
   [/\btrained\b/g, '已经练过'],
@@ -48,7 +52,7 @@ export function cleanReason(reason: string | null | undefined): string {
     out = out.replaceAll(id, label)
   }
   for (const [re, label] of TERM_LABELS) out = out.replace(re, label)
-  return out
+  return out.replace(/O-[A-Za-z0-9-]+/g, '相关能力').replace(/且能打开 \d+ 条后继/g, '，为后续练习打基础')
 }
 
 /** 今日入口形状（28 §4.A：唯一主按钮，回答"练什么/点哪里/为什么"）。
@@ -72,7 +76,7 @@ export interface LearnerToday {
 }
 
 /** plan.lesson.status：published=可学；其他（content_pending 等）=等待，不冒充可学 */
-export function learnerToday(plan: { primaryGoal: string | null; reason?: string; lesson?: { lessonId: string | null; status: string } | null } | null | undefined): LearnerToday {
+export function learnerToday(plan: { primaryGoal: string | null; reason?: string; lesson?: { lessonId: string | null; status: string; resumeAvailable?: boolean } | null } | null | undefined): LearnerToday {
   if (!plan) {
     return { mode: 'find_start', headline: '先用几分钟找到起点', reason: '', primaryLabel: '开始入口诊断', goalId: null, lessonId: null, waiting: false }
   }
@@ -83,18 +87,18 @@ export function learnerToday(plan: { primaryGoal: string | null; reason?: string
       mode: 'continue',
       headline: `今天这一步：${goal}`,
       reason: cleanReason(plan.reason),
-      primaryLabel: '继续上一段',
+      primaryLabel: plan.lesson?.resumeAvailable ? '继续上一段' : '开始训练',
       goalId: plan.primaryGoal,
       lessonId: plan.lesson!.lessonId,
       waiting: false,
     }
   }
-  if (plan.lesson?.lessonId) {
+  if (!plan.primaryGoal || (plan.lesson && plan.lesson.status !== 'published')) {
     // 有目标但该内容还不能学：诚实等待，不预写、不凑数
     return {
       mode: 'wait',
       headline: `接下来该练：${goal}`,
-      reason: '这一课还在制作中——做好了会出现在这里。现在可以先看看下面的辅助入口。',
+      reason: '目前没有可用的后继课程。内容补齐并通过审核后才能继续；这里不会用熟题填补空缺。',
       primaryLabel: '内容准备中…',
       goalId: plan.primaryGoal,
       lessonId: null,

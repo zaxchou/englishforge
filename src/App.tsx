@@ -39,7 +39,7 @@ const LOCATION: Record<View['name'], string> = {
   result: '本轮学习记录',
   review: '内容审核 · 逐题核对',
   records: '回顾 · 课程与记录',
-  v4: '能力路径 · 诊断 / 推荐 / 证据',
+  v4: '学习路径 · 今天与下一步',
 }
 
 type View =

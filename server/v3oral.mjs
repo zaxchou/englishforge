@@ -28,12 +28,22 @@ const ALLOWED_MIME = ['audio/webm', 'audio/ogg', 'audio/wav', 'audio/mp4', 'audi
 
 // ---------------------------------------------------------------- 上传意图 → 一次性票据
 
-export function createOralIntent(accountId, { activityId, mime, bytes, durationMs } = {}) {
+export function createOralIntent(accountId, { activityId, mime, bytes, durationMs, requestId } = {}) {
   requireAccount(accountId)
   if (!ALLOWED_MIME.includes(mime)) throw new ApiError(400, 'MEDIA_TYPE_REJECTED: ' + mime)
   if (!Number.isFinite(bytes) || bytes <= 0 || bytes > LIMITS.maxBytes) throw new ApiError(400, 'MEDIA_TOO_LARGE')
   if (Number.isFinite(durationMs) && durationMs > LIMITS.maxDurationMs) throw new ApiError(400, 'MEDIA_TOO_LONG')
   const conn = ensureV3Schema()
+  ensureV3Columns(conn,'media_assets',[['request_id','TEXT'],['activity_id','TEXT']])
+  if (requestId != null && (typeof requestId !== 'string' || !requestId || requestId.length > 128)) throw new ApiError(400,'ORAL_REQUEST_ID_INVALID')
+  if (requestId) {
+    const prior=conn.prepare('SELECT * FROM media_assets WHERE account_id=? AND request_id=?').get(accountId,requestId)
+    if (prior) {
+      if (prior.activity_id !== activityId || prior.mime !== mime || prior.bytes !== bytes) throw new ApiError(409,'ORAL_INTENT_REPLAY_MISMATCH')
+      if (!prior.storage_path && Date.now()-prior.created_at>10*60*1000) throw new ApiError(409,'ORAL_INTENT_EXPIRED')
+      return {mediaId:prior.media_id,uploadUrl:`/api/v1/accounts/${accountId}/oral/${prior.media_id}`,token:prior.upload_token,uploaded:!!prior.storage_path,limits:LIMITS}
+    }
+  }
   const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0)
   const today = conn.prepare('SELECT COUNT(*) AS n FROM media_assets WHERE account_id = ? AND created_at >= ?')
     .get(accountId, dayStart.getTime()).n
@@ -41,9 +51,9 @@ export function createOralIntent(accountId, { activityId, mime, bytes, durationM
   const mediaId = `m_${Date.now().toString(36)}_${randomBytes(3).toString('hex')}`
   const token = 'up_' + randomBytes(16).toString('hex')
   conn.prepare(
-    `INSERT INTO media_assets (media_id, account_id, kind, mime, bytes, duration_ms, upload_token, created_at)
-     VALUES (?,?,?,?,?,?,?,?)`,
-  ).run(mediaId, accountId, 'oral_recording', mime, bytes, durationMs ?? null, token, Date.now())
+    `INSERT INTO media_assets (media_id, account_id, kind, mime, bytes, duration_ms, upload_token, created_at, request_id, activity_id)
+     VALUES (?,?,?,?,?,?,?,?,?,?)`,
+  ).run(mediaId, accountId, 'oral_recording', mime, bytes, durationMs ?? null, token, Date.now(), requestId ?? null, activityId ?? null)
   return { mediaId, uploadUrl: `/api/v1/accounts/${accountId}/oral/${mediaId}`, token, expiresInMs: 10 * 60 * 1000, limits: LIMITS }
 }
 
@@ -61,24 +71,25 @@ export function inspectAudioBytes(buf) {
   const isMp3 = head.toString('ascii', 0, 3) === 'ID3' || (head[0] === 0xff && (head[1] & 0xe0) === 0xe0)
   if (isWav) {
     try {
-      let off = 12
-      let fmt = null
-      let dataBytes = 0
+      if (buf.length < 44 || buf.readUInt32LE(4) + 8 !== buf.length) return { playable: false, durationMs: null, formatNote: 'wav_truncated_riff' }
+      let off = 12, fmt = null, dataBytes = 0
       while (off + 8 <= buf.length) {
-        const id = buf.toString('ascii', off, off + 4)
-        const size = buf.readUInt32LE(off + 4)
-        if (id === 'fmt ') fmt = { ch: buf.readUInt16LE(off + 10), rate: buf.readUInt32LE(off + 12), bits: buf.readUInt16LE(off + 22) }
-        else if (id === 'data') { dataBytes = size; break }
+        const id = buf.toString('ascii', off, off + 4), size = buf.readUInt32LE(off + 4)
+        if (off + 8 + size + (size % 2) > buf.length) return { playable: false, durationMs: null, formatNote: 'wav_truncated_chunk' }
+        if (id === 'fmt ') {
+          if (size < 16) return { playable: false, durationMs: null, formatNote: 'wav_invalid_fmt' }
+          fmt = { codec: buf.readUInt16LE(off+8), ch: buf.readUInt16LE(off+10), rate: buf.readUInt32LE(off+12), byteRate:buf.readUInt32LE(off+16), align:buf.readUInt16LE(off+20), bits:buf.readUInt16LE(off+22) }
+        } else if (id === 'data') dataBytes += size
         off += 8 + size + (size % 2)
       }
-      if (!fmt || !fmt.rate || !dataBytes) return { playable: false, durationMs: null, formatNote: 'wav_bad_header' }
+      if (off !== buf.length || !fmt || !dataBytes || fmt.codec !== 1 || fmt.ch < 1 || fmt.ch > 8 || fmt.rate < 8000 || fmt.rate > 192000 || ![8,16,24,32].includes(fmt.bits) || fmt.align !== fmt.ch * fmt.bits / 8 || fmt.byteRate !== fmt.rate * fmt.align || dataBytes % fmt.align) return { playable: false, durationMs: null, formatNote: 'wav_bad_header' }
       return { playable: true, durationMs: Math.round(dataBytes / (fmt.rate * fmt.ch * fmt.bits / 8) * 1000), formatNote: 'wav' }
     } catch { return { playable: false, durationMs: null, formatNote: 'wav_parse_error' } }
   }
   if (isWebm) {
     const duration = parseWebmDuration(buf)
     if (duration && Number.isFinite(duration) && duration > 300) {
-      return { playable: true, durationMs: Math.round(duration), formatNote: 'webm' }
+      return { playable: false, durationMs: Math.round(duration), formatNote: 'webm_decode_required' }
     }
     return { playable: false, durationMs: null, formatNote: 'webm_duration_unreadable' }
   }
@@ -88,21 +99,40 @@ export function inspectAudioBytes(buf) {
   return { playable: false, durationMs: null, formatNote: 'unknown_format' }
 }
 
-/** 最小 EBML Duration 解析：找 Duration 元素（0x4489），float32/64，单位 ns（TimecodeScale 默认 1e9） */
+/** Bounded EBML metadata traversal; duration alone never proves audio decodes. */
 function parseWebmDuration(buf) {
-  for (let i = 0; i < buf.length - 12; i++) {
-    if (buf[i] === 0x44 && buf[i + 1] === 0x89) {
-      const sizeByte = buf[i + 2]
-      const sizeLen = 8 - Math.clz32(sizeByte)
-      const size = sizeByte & (0xff >> sizeLen)
-      if ((size === 4 || size === 8) && i + 2 + sizeLen + size <= buf.length) {
-        const dv = new DataView(buf.buffer, buf.byteOffset + i + 2 + sizeLen, size)
-        const ns = size === 4 ? dv.getFloat32(0) : dv.getFloat64(0)
-        if (Number.isFinite(ns) && ns > 0) return ns / 1e6 // ns → ms
-      }
-    }
+  const vint = (at, id = false) => {
+    if (at >= buf.length || !buf[at]) return null
+    let len=1, mask=128
+    while (!(buf[at] & mask) && len <= 8) { len++; mask >>= 1 }
+    if (len > (id ? 4 : 8) || at+len > buf.length) return null
+    let n=BigInt(id ? buf[at] : buf[at] & (mask-1))
+    for (let i=1;i<len;i++) n=(n<<8n)|BigInt(buf[at+i])
+    const unknown=!id && n === (1n<<BigInt(7*len))-1n
+    if (n>BigInt(Number.MAX_SAFE_INTEGER) && !unknown) return null
+    return {len,n:Number(n),unknown}
   }
-  return null
+  let duration=null, scale=1000000
+  const walk=(start,end,depth=0)=>{
+    if (depth>3) return false
+    let at=start
+    while(at<end) {
+      const id=vint(at,true);if(!id)return false
+      const size=vint(at+id.len);if(!size)return false
+      const data=at+id.len+size.len,next=size.unknown ? end : data+size.n
+      if(next>end || next<=at)return false
+      if(id.n===0x18538067 || id.n===0x1549a966) {if(!walk(data,next,depth+1))return false}
+      else if(id.n===0x2ad7b1 && size.n>=1 && size.n<=8) {
+        let n=0;for(let i=data;i<next;i++)n=n*256+buf[i]
+        if(!Number.isSafeInteger(n) || n<=0)return false
+        scale=n
+      } else if(id.n===0x4489 && [4,8].includes(size.n)) duration=size.n===4 ? buf.readFloatBE(data) : buf.readDoubleBE(data)
+      at=next
+    }
+    return at===end
+  }
+  if(!walk(0,buf.length) || !Number.isFinite(duration) || duration<=0)return null
+  return duration*scale/1000000
 }
 
 /** PUT 录音字节：一次性票据（10 分钟过期）；落盘仓库外 + 校验和 + **格式/真实时长探测**（R8）。
@@ -178,15 +208,16 @@ export function submitOralAttempt(accountId, payload = {}) {
   // 转写版本 0 = ASR 原稿；用户修改另起新版本，原版保留
   const versions = JSON.parse(media.transcript_versions || '[]')
   const origin = ['asr', 'user_typed'].includes(payload.transcriptOrigin) ? payload.transcriptOrigin : 'user_typed'
-  versions.push({ text: transcript, origin, at: Date.now() })
-  conn.prepare('UPDATE media_assets SET transcript_versions = ?, attempt_id = COALESCE(attempt_id, ?) WHERE media_id = ?')
-    .run(JSON.stringify(versions), payload.attemptId ?? null, mediaId)
 
   const result = recordAttempt(accountId, {
     ...payload,
     response: { kind: 'audio_ref', text: transcript, mediaId },
     conditions: { ...(payload.conditions ?? {}), responseMode: 'oral_recording' },
   })
+  if (!result.replayed) {
+    versions.push({text:transcript,origin,at:Date.now()})
+    conn.prepare('UPDATE media_assets SET transcript_versions=?,attempt_id=COALESCE(attempt_id,?) WHERE media_id=?').run(JSON.stringify(versions),result.attemptIdUsed ?? payload.attemptId ?? null,mediaId)
+  }
   // 低置信转写：证据层已标争议；机器建议照给，但明确"不用于认证"
   return {
     ...result,

@@ -24,17 +24,19 @@ describe('learnerView 行为名称', () => {
       lesson: { lessonId: 'les-relations-v1', status: 'published' },
     })
     expect(cont.mode).toBe('continue')
-    expect(cont.primaryLabel).toBe('继续上一段')
+    expect(cont.primaryLabel).toBe('开始训练')
     expect(cont.headline).toContain('今天这一步')
     expect(cont.reason).not.toContain('O-K115-01')
     expect(cont.waiting).toBe(false)
 
+    expect(learnerToday({ primaryGoal: 'O-K115-01', lesson: {lessonId: 'les-relations-v1',status:'published',resumeAvailable:true} }).primaryLabel).toBe('继续上一段')
+
     const wait = learnerToday({
-      primaryGoal: 'O-K007-02', reason: '', lesson: { lessonId: 'les-x', status: 'content_pending' },
+      primaryGoal: 'O-K007-02', reason: '', lesson: { lessonId: null, status: 'content_pending' },
     })
     expect(wait.mode).toBe('wait')
     expect(wait.waiting).toBe(true)
-    expect(wait.reason).toContain('制作中')
+    expect(wait.reason).toContain('没有可用的后继课程')
 
     const fresh = learnerToday(null)
     expect(fresh.mode).toBe('find_start')

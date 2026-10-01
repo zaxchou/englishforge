@@ -1,10 +1,11 @@
+import { decodeRecordingWav } from '../learning/recordingWav'
 // curriculum-v4 能力路径（W3 双轨展示，docs/curriculum-v4/15 §9）。
 //
 // 与旧首页的双轨纪律：这里是新域（目标/证据/计划），旧 XP/题量/箱数**不进**本页，
 // 页面常驻“旧进度不换算”的说明 —— 两个系统不能给用户互相矛盾的“掌握率”。
 // 口语录音（W5）接入前，口述任务以文字版走通并如实标注“口语证据未测”。
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { learnerToday } from '../learning/learnerView'
+import { goalLabel, learnerToday } from '../learning/learnerView'
 import './v4.css'
 
 type Plan = {
@@ -14,21 +15,23 @@ type Plan = {
   reason: string
   hypotheses: string[]
   uncertainAreas: string[]
-  lesson: { lessonId: string | null; activityId: string | null; status: string; waitNotice?: string; devSample?: boolean }
+  lesson: { lessonId: string | null; activityId: string | null; status: string; waitNotice?: string; devSample?: boolean; resumeAvailable?: boolean }
   notChosen: { objectiveId: string; reason: string }[]
   status: string
 }
+type AttemptFeedback = { pass: boolean | null; evaluationStatus: string; practiceOnly?: boolean; dimensions?: { id: string; label: string; hit: boolean; required: boolean }[]; slotResults?: { slotId: string; prompt: string; given: string | null; status: string }[] }
 type LessonPkg = {
   lessonId: string
   title: string
   whyNow: string
   teachingNote: string | null
   devSampleNotice: string | null
-  activities: { activityId: string; role: string; prompt: string; hintStageCount: number; firstHint: string | null; simulatesAudio: boolean; fixtureNotice: string | null; oralTask?: boolean; audio?: AudioInfo | null; slots?: { slotId: string; prompt: string; options: string[] }[] | null; reasonLabel?: string | null }[]
+  activities: { resume?: { response: { text?: string; answers?: Record<string, string> }; result: AttemptFeedback } | null; nextTake: number; taskId: string; activityId: string; role: string; prompt: string; hintStageCount: number; firstHint: string | null; simulatesAudio: boolean; fixtureNotice: string | null; oralTask?: boolean; audio?: AudioInfo | null; slots?: { slotId: string; prompt: string; options: string[] }[] | null; reasonLabel?: string | null }[]
   nextCandidates: string[]
   holdout: { lessonId: string; answersIncluded: boolean } | null
 }
 type Evidence = {
+  completedLessons?: {lessonId:string;title:string}[]
   states: { objectiveId: string; skill: string; complexity: string; state: string; flags: string[] }[]
   disputedAttempts: { attempt_id: string }[]
   note: string
@@ -70,18 +73,21 @@ export function V4Path({ accountId }: { accountId: string | null }) {
   const [err, setErr] = useState('')
   const [plan, setPlan] = useState<Plan | null>(null)
   const [noPlan, setNoPlan] = useState(false)
+  const [planLoading, setPlanLoading] = useState(true)
   const [lesson, setLesson] = useState<LessonPkg | null>(null)
   const [evidence, setEvidence] = useState<Evidence | null>(null)
   const [mapIdx, setMapIdx] = useState<MapIdx | null>(null)
 
   const loadPlan = useCallback(async () => {
     if (!accountId) return
+    setPlanLoading(true)
     try {
       const r = await api<{ decision: Plan | null }>(`/accounts/${accountId}/plan`)
       setPlan(r.decision)
       setNoPlan(!r.decision)
+      setEvidence(null)
       setLesson(null)
-    } catch (e) { setErr(String(e)) }
+    } catch (e) { setErr(String(e)) } finally { setPlanLoading(false) }
   }, [accountId])
 
   useEffect(() => { void loadPlan() }, [loadPlan])
@@ -95,10 +101,6 @@ export function V4Path({ accountId }: { accountId: string | null }) {
     }
   }, [tab, accountId, evidence, mapIdx])
 
-  if (!accountId) {
-    return <div className="v4"><div className="v4-empty">正在连接数据库……连接后这里显示你的能力路径。</div></div>
-  }
-
   // ---------- 诊断流程（会话状态在 DiagPanel 内部管理） ----------
 
   /** 打开课程（今日入口与推荐详情共用） */
@@ -108,11 +110,15 @@ export function V4Path({ accountId }: { accountId: string | null }) {
     } catch (e) { setErr(String(e)) }
   }, [accountId])
 
+  if (!accountId) {
+    return <div className="v4"><div className="v4-empty">正在连接数据库……连接后这里显示你的能力路径。</div></div>
+  }
+
   const today = learnerToday(plan)
 
   return (
     <div className="v4">
-      <div className="v4-legacy">双轨说明：本页是新版能力路径（curriculum-v4）。旧首页的 XP、题量、箱数只是历史活动记录，<b>不会换算</b>为这里的能力状态。</div>
+      <details className="v4-legacy"><summary>关于学习记录</summary>本页是新版能力路径（curriculum-v4）。旧首页的 XP、题量、箱数只是历史活动记录，<b>不会换算</b>为这里的能力状态。</details>
       <div className="v4-tabs">
         <button className={tab === 'today' ? 'on' : ''} onClick={() => setTab('today')}>今日学习</button>
         <button className={tab === 'plan' ? 'on' : ''} onClick={() => setTab('plan')}>推荐详情</button>
@@ -126,19 +132,18 @@ export function V4Path({ accountId }: { accountId: string | null }) {
       </div>
       {err && <div className="v4-err">{err}</div>}
 
-      {tab === 'today' && (
+      {tab === 'today' && !lesson && (
         <div className="v4-card v4-today">
-          <div className="v4-dev">原型薄片（28 号 §6.1）· 开发模式：今日入口已可用，课后反馈与成长页的自然语言版在后续阶段</div>
           <h2 className="v4-today-head">{today.headline}</h2>
           {today.reason && <p className="v4-why">{today.reason}</p>}
-          <button className="v4-primary v4-today-btn" disabled={today.waiting}
+          <button className="v4-primary v4-today-btn" disabled={today.waiting || planLoading || !!err}
             onClick={() => {
               if (today.mode === 'find_start') { setTab('diag'); return }
               if (today.lessonId) void openLesson(today.lessonId)
-            }}>{today.primaryLabel}</button>
+            }}>{planLoading ? '正在读取学习安排…' : today.primaryLabel}</button>
           {today.goalId && (
             <details className="v4-fold">
-              <summary>这条安排的详细依据（后台视角）</summary>
+              <summary>查看安排依据</summary>
               <p><code>{today.goalId}</code>{today.lessonId ? <> · 课程 <code>{today.lessonId}</code></> : null}</p>
             </details>
           )}
@@ -156,13 +161,23 @@ export function V4Path({ accountId }: { accountId: string | null }) {
           onOpenLesson={(lessonId) => void openLesson(lessonId)} />
       )}
 
-      {tab === 'diag' && <DiagPanel key={accountId} accountId={accountId} onDone={async () => { await loadPlan(); setTab('plan') }} />}
+      {tab === 'diag' && <DiagPanel key={accountId} accountId={accountId} onDone={async () => { await loadPlan(); setTab('today') }} />}
 
       {tab === 'evidence' && (
         <div className="v4-card">
-          <h3>四技能证据（按目标 × 技能 × 复杂度带）</h3>
+          <h3>我的成长</h3>
+          {evidence?.completedLessons?.length ? <>
+            <p>最近完成的训练</p>
+            <ul>{evidence.completedLessons.map(l=><li key={l.lessonId}>{l.title}</li>)}</ul>
+            <p className="v4-dim">完成记录说明你练过这些内容；能否独立使用，还要看下面的能力记录。</p>
+          </> : <p>完成第一段训练后，这里会留下你的学习轨迹。</p>}
+          {evidence?.states.filter(s=>s.complexity==='base' && ['independent','transferred','retained'].includes(s.state) && !s.flags.includes('disputed')).map(s=><p key={s.objectiveId+s.skill}>{goalLabel(s.objectiveId)} · {SKILL_LABEL[s.skill] ?? s.skill}：{STATE_LABEL[s.state] ?? s.state}</p>)}
+          <p>下一步：{today.headline.replace('今天这一步：','').replace('接下来该练：','')}</p>
+          {today.waiting && <p>{today.reason}</p>}
+          <button className="v4-primary" onClick={()=>setTab('today')}>回到今日学习</button>
+          <details className="v4-fold"><summary>查看各项能力记录</summary>
           <p className="v4-dim">带行是每个复杂度档的真实状态（不同档互不覆盖）；「综合」行是跨档保守合并——取最弱一档，易档通过不会替你掩盖嵌套档的不足。</p>
-          {!evidence?.states.length && <p className="v4-dim">还没有证据——先做入口诊断，状态会随练习逐格点亮。</p>}
+          {!evidence?.states.length && <p className="v4-dim">还没有足够的能力记录。练习反馈会保留，但不会自动变成“掌握”。</p>}
           <div className="v4-states">
             {evidence?.states.map((s) => (
               <div key={s.objectiveId + s.skill + s.complexity} className="v4-state">
@@ -175,6 +190,7 @@ export function V4Path({ accountId }: { accountId: string | null }) {
             ))}
           </div>
           {evidence && <p className="v4-dim">{evidence.note}</p>}
+          </details>
         </div>
       )}
 
@@ -256,21 +272,22 @@ function PlanPanel({ plan, noPlan, onDiagnostic, onOpenLesson }: {
 
 type AudioInfo = { mediaId: string; synthetic: boolean; speakerLabel: string; durationMs: number; licenseNote: string }
 
-type DiagState = { diagnosticId: string; status: string; step: string | null; note?: string | null; activity: { activityId: string; prompt: string; hints: string[]; audio?: AudioInfo | null } | null; tentative: { strongPoints: string[]; hypotheses: string[]; unmeasured: string[]; route: string; stopReason: string } | null }
+type DiagState = { diagnosticId: string; status: string; step: string | null; note?: string | null; activity: { taskId: string; activityId: string; prompt: string; hints: string[]; audio?: AudioInfo | null } | null; tentative: { strongPoints: string[]; hypotheses: string[]; unmeasured: string[]; route: string; stopReason: string } | null }
 
 /** 课程音频播放器（21 §6.1/6.2 + 24 号 R4）：base64 → blob URL；synthetic 标注必须可见；
  * 首次播放 POST /support/play 落**服务端**播放事件（听力证据的前提，客户端自报不算）；
  * onPlay 每次播放上报，提交时计 playCount。 */
-function LessonAudio({ info, activityId, accountId, onPlay }: { info: AudioInfo; activityId?: string; accountId?: string; onPlay?: () => void }) {
+function LessonAudio({ info, taskId, activityId, accountId, onPlay }: { info: AudioInfo; taskId?: string; activityId?: string; accountId?: string; onPlay?: () => void }) {
   const [url, setUrl] = useState<string | null>(null)
   const [err, setErr] = useState('')
-  const playReported = useRef(false)
+  const deliveryRef = useRef<string | null>(null)
   useEffect(() => {
     let revoke: string | null = null
     let alive = true
     ;(async () => {
       try {
-        const r = await api<{ audioBase64: string; mime: string }>(`/media/${info.mediaId}`)
+        const r = await api<{ audioBase64: string; mime: string; deliveryId?: string }>(taskId && accountId ? `/accounts/${accountId}/tasks/${taskId}/media/${info.mediaId}` : `/media/${info.mediaId}`)
+        deliveryRef.current = r.deliveryId ?? null
         const bytes = Uint8Array.from(atob(r.audioBase64), (c) => c.charCodeAt(0))
         revoke = URL.createObjectURL(new Blob([bytes], { type: r.mime }))
         if (alive) setUrl(revoke)
@@ -278,12 +295,11 @@ function LessonAudio({ info, activityId, accountId, onPlay }: { info: AudioInfo;
       } catch (e) { if (alive) setErr(String(e)) }
     })()
     return () => { alive = false; if (revoke) URL.revokeObjectURL(revoke) }
-  }, [info.mediaId])
+  }, [info.mediaId, taskId, accountId])
   async function onFirstPlay() {
     onPlay?.()
-    if (playReported.current || !accountId || !activityId) return
-    playReported.current = true
-    try { await api(`/accounts/${accountId}/support/play`, { activityId, mediaId: info.mediaId }, 'POST') } catch { /* 播放事件失败在提交时会得到明确报错 */ }
+    if (!accountId || !activityId || !taskId || !deliveryRef.current) return
+    try { await api(`/accounts/${accountId}/support/play`, { taskId, deliveryId: deliveryRef.current, eventId: crypto.randomUUID(), activityId, mediaId: info.mediaId }, 'POST') } catch (e) { setErr('播放记录未保存，请重新打开任务后重试：' + String(e)) }
   }
   if (err) return <p className="v4-dev">音频加载失败：{err}</p>
   if (!url) return <p className="v4-dim">音频加载中…</p>
@@ -333,6 +349,7 @@ function DiagPanel({ accountId, onDone }: { accountId: string; onDone: () => voi
     try {
       const r = await api<{ diagnostic: DiagState }>(`/accounts/${accountId}/attempts`, {
         attemptId: `diag-${diag.diagnosticId}-${diag.step}-${Date.now()}`,
+        taskId: diag.activity.taskId,
         sessionId: diag.diagnosticId,
         activityId: diag.activity.activityId,
         response: { kind: 'text', text },
@@ -368,7 +385,7 @@ function DiagPanel({ accountId, onDone }: { accountId: string; onDone: () => voi
     return (
       <div className="v4-card">
         <h3>入口诊断</h3>
-        <p>约 5–10 分钟：文字关系 →（按需）对照定位 → 声音理解 → 口述。D2 声音步骤是合成语音（synthetic，受控练习音频），听力证据按真实播放计并标注 synthetic；自然讲者原声制作中。口述步骤为文字版（录音在 W5 接入）。</p>
+        <p>约 5–10 分钟：文字关系 →（按需）对照定位 → 声音理解 → 口述。D2 声音步骤是合成语音（synthetic，受控练习音频），播放只记录输入交互，关键词反馈不认证听力理解；自然讲者原声制作中。此处口述用文字定位，真实口语能力尚未确认。</p>
         <button className="v4-primary" onClick={start}>开始诊断</button>
         {err && <div className="v4-err">{err}</div>}
       </div>
@@ -391,7 +408,7 @@ function DiagPanel({ accountId, onDone }: { accountId: string; onDone: () => voi
       {note && <div className="v4-note">{note}</div>}
       <pre className="v4-prompt">{diag.activity?.prompt}</pre>
       {diag.activity?.audio && (
-        <LessonAudio info={diag.activity.audio} activityId={diag.activity.activityId} accountId={accountId}
+        <LessonAudio taskId={diag.activity.taskId} info={diag.activity.audio} activityId={diag.activity.activityId} accountId={accountId}
           onPlay={() => { playsRef.current += 1 }} />
       )}
       {hintShown && diag.activity?.hints?.[0] && <p className="v4-hint">提示：{diag.activity.hints[0]}</p>}
@@ -412,19 +429,21 @@ function LessonRunner({ accountId, pkg, onDone }: {
   pkg: LessonPkg
   onDone: () => void
 }) {
-  const [answers, setAnswers] = useState<Record<string, string>>({})
+  const [answers, setAnswers] = useState<Record<string, string>>(() => Object.fromEntries(pkg.activities.map(a => [a.activityId, a.resume?.response.text ?? ''])))
   // D0-1：封闭槽位题的逐槽选择（activityId → slotId → 选项代号）
-  const [slotPicks, setSlotPicks] = useState<Record<string, Record<string, string>>>({})
+  const [slotPicks, setSlotPicks] = useState<Record<string, Record<string, string>>>(() => Object.fromEntries(pkg.activities.map(a => [a.activityId, a.resume?.response.answers ?? {}])))
   const [revealed, setRevealed] = useState<Record<string, string[]>>({})
-  const [feedback, setFeedback] = useState<Record<string, { pass: boolean | null; status: string; practiceOnly?: boolean; relations?: { id: string; label: string; hit: boolean; required: boolean }[]; slotResults?: { slotId: string; prompt: string; given: string | null; status: string }[] }>>({})
+  const [feedback, setFeedback] = useState<Record<string, { pass: boolean | null; status: string; practiceOnly?: boolean; relations?: { id: string; label: string; hit: boolean; required: boolean }[]; slotResults?: { slotId: string; prompt: string; given: string | null; status: string }[] }>>(() => Object.fromEntries(pkg.activities.filter(a => a.resume).map(a => [a.activityId, {pass:a.resume!.result.pass,status:a.resume!.result.evaluationStatus,practiceOnly:a.resume!.result.practiceOnly,relations:a.resume!.result.dimensions,slotResults:a.resume!.result.slotResults}])))
   const [pkgLive, setPkgLive] = useState(pkg)
+  const [refreshing, setRefreshing] = useState(false)
   const [err, setErr] = useState('')
   const [done, setDone] = useState(false)
   const playsRef = useRef<Record<string, number>>({}) // 音频播放次数：提交时计 playCount，不再写死 1
   // R5（24 号）：每活动第几轮作答。首轮 attemptId 稳定（网络重试同 ID 不重复入库）；
   // 看到反馈后点「再试一次」→ take+1 → 新 attemptId（学生再次作答=新 take，不撞 409）
-  const [takes, setTakes] = useState<Record<string, number>>({})
+  const [takes, setTakes] = useState<Record<string, number>>(() => Object.fromEntries(pkg.activities.map(a => [a.activityId, a.nextTake ?? 1])))
 
+  const [currentIndex, setCurrentIndex] = useState(() => { const i = pkg.activities.findIndex(a => !a.resume); return i < 0 ? Math.max(0, pkg.activities.length - 1) : i })
   const visibleActs = pkgLive.activities
   const allDone = visibleActs.every((a) => feedback[a.activityId])
 
@@ -447,15 +466,16 @@ function LessonRunner({ accountId, pkg, onDone }: {
   async function submit(act: LessonPkg['activities'][number]) {
     setErr('')
     const take = takes[act.activityId] ?? 1
-    const attemptId = take === 1 ? `les-${pkgLive.lessonId}-${act.activityId}` : `les-${pkgLive.lessonId}-${act.activityId}-t${take}`
+    const attemptId = take === 1 ? `les-${act.taskId}-${act.activityId}` : `les-${act.taskId}-${act.activityId}-t${take}`
     // D0-1：封闭槽位题提交结构化 answers；开放题提交自由文本
     const isSlots = !!act.slots?.length
     const response = isSlots
       ? { kind: 'choice', text: answers[act.activityId] ?? '', answers: slotPicks[act.activityId] ?? {} }
       : { kind: 'text', text: answers[act.activityId] ?? '' }
     try {
-      const r = await api<{ pass: boolean | null; evaluationStatus: string; practiceOnly?: boolean; attemptIdUsed?: string; dimensions?: { relations?: { id: string; label: string; hit: boolean; required: boolean }[] }; slotResults?: { slotId: string; prompt: string; given: string | null; status: string }[] }>(`/accounts/${accountId}/attempts`, {
+      const r = await api<{ pass: boolean | null; evaluationStatus: string; practiceOnly?: boolean; attemptIdUsed?: string; dimensions?: { id: string; label: string; hit: boolean; required: boolean }[]; slotResults?: { slotId: string; prompt: string; given: string | null; status: string }[] }>(`/accounts/${accountId}/attempts`, {
         attemptId,
+        taskId: act.taskId,
         activityId: act.activityId,
         response,
         conditions: {
@@ -467,7 +487,7 @@ function LessonRunner({ accountId, pkg, onDone }: {
       // 把实际轮次记回来，下次「再试一次」从它继续，不再撞 ID
       const usedTake = String(r.attemptIdUsed ?? '').match(/-t(\d+)$/)?.[1]
       if (usedTake) setTakes((t) => ({ ...t, [act.activityId]: Math.max(t[act.activityId] ?? 1, Number(usedTake)) }))
-      setFeedback((f) => ({ ...f, [act.activityId]: { pass: r.pass, status: r.evaluationStatus, practiceOnly: r.practiceOnly, relations: r.dimensions?.relations, slotResults: r.slotResults } }))
+      setFeedback((f) => ({ ...f, [act.activityId]: { pass: r.pass, status: r.evaluationStatus, practiceOnly: r.practiceOnly, relations: r.dimensions, slotResults: r.slotResults } }))
       // 门控活动（如未预告追问）在前提活动提交后才出现：重取课包
       const fresh = await api<LessonPkg>(`/accounts/${accountId}/lessons/${pkgLive.lessonId}`)
       if (fresh.activities.length > visibleActs.length) setPkgLive(fresh)
@@ -479,7 +499,6 @@ function LessonRunner({ accountId, pkg, onDone }: {
     try {
       await api(`/accounts/${accountId}/lessons/${pkgLive.lessonId}/complete`, {}, 'POST')
       setDone(true)
-      onDone()
     } catch (e) { setErr(String(e)) }
   }
 
@@ -487,7 +506,9 @@ function LessonRunner({ accountId, pkg, onDone }: {
     return (
       <div className="v4-card">
         <h3>{pkgLive.title} · 已完成</h3>
-        <p>推荐已按新证据重算——回到「当前推荐」看下一步。</p>
+        <p>这一课的练习已记录。完成练习不等于掌握，开放表达仍需进一步反馈。</p>
+        <p>下一步会参考本次表现重新安排；你可以继续，也可以结束今天的学习。</p>
+        <button className="v4-primary" onClick={onDone}>查看下一步</button>
       </div>
     )
   }
@@ -497,7 +518,8 @@ function LessonRunner({ accountId, pkg, onDone }: {
       <p className="v4-why">为什么现在学：{pkgLive.whyNow}</p>
       {pkgLive.teachingNote && <p className="v4-teach">要点：{pkgLive.teachingNote}</p>}
       {pkgLive.devSampleNotice && <p className="v4-dev">{pkgLive.devSampleNotice}</p>}
-      {visibleActs.map((act) => (
+      <p className="v4-dim">当前第 {currentIndex + 1} 步，共 {visibleActs.length} 步。看懂反馈后再进入下一步。</p>
+      {visibleActs.slice(currentIndex, currentIndex + 1).map((act) => (
         <div key={act.activityId} className="v4-act">
           <div className="v4-act-head">
             <b>{act.role === 'transfer' ? '陌生迁移' : act.role === 'practice' ? '练习' : act.role}</b>
@@ -505,7 +527,7 @@ function LessonRunner({ accountId, pkg, onDone }: {
           </div>
           <pre className="v4-prompt">{act.prompt}</pre>
           {act.audio && (
-            <LessonAudio info={act.audio} activityId={act.activityId} accountId={accountId}
+            <LessonAudio taskId={act.taskId} info={act.audio} activityId={act.activityId} accountId={accountId}
               onPlay={() => { playsRef.current[act.activityId] = (playsRef.current[act.activityId] ?? 0) + 1 }} />
           )}
           {(revealed[act.activityId] ?? []).map((h, i) => (
@@ -517,7 +539,12 @@ function LessonRunner({ accountId, pkg, onDone }: {
             </button>
           )}
           {act.oralTask
-            ? <OralRecorder accountId={accountId} activityId={act.activityId} onSubmitted={(fb) => setFeedback((f) => ({ ...f, [act.activityId]: fb }))} />
+            ? <OralRecorder taskId={act.taskId} accountId={accountId} activityId={act.activityId} onSubmitted={async (fb) => {
+                setRefreshing(true)
+                setFeedback((f) => ({ ...f, [act.activityId]: fb }))
+                try { setPkgLive(await api<LessonPkg>(`/accounts/${accountId}/lessons/${pkgLive.lessonId}`)) }
+                catch (e) { setErr(String(e)) } finally { setRefreshing(false) }
+              }} />
             : act.slots?.length ? (
                 // D0-1：封闭槽位题——逐空按钮选择；正确答案不下发到前端，对错由服务端判
                 <div className="v4-slots">
@@ -603,14 +630,19 @@ function LessonRunner({ accountId, pkg, onDone }: {
           )}
         </div>
       ))}
-      <button className="v4-primary" disabled={!allDone} onClick={complete}>完成这一课（重算推荐）</button>
+      <div className="v4-act-foot">
+        {currentIndex > 0 && <button className="v4-ghost" onClick={() => setCurrentIndex(i => i - 1)}>回看上一步</button>}
+        {currentIndex < visibleActs.length - 1 && <button className="v4-primary" disabled={refreshing || !feedback[visibleActs[currentIndex]?.activityId]} onClick={() => setCurrentIndex(i => i + 1)}>看懂了，进入下一步</button>}
+        {currentIndex === visibleActs.length - 1 && <button className="v4-primary" disabled={refreshing || !allDone} onClick={complete}>完成训练，查看本次反馈</button>}
+      </div>
       {err && <div className="v4-err">{err}</div>}
     </div>
   )
 }
 
 /** 口语任务：浏览器录音（用户点按钮才录）→ 回放 → 提交 → 机器建议 + 可纠转写（15 §9 录音页） */
-function OralRecorder({ accountId, activityId, onSubmitted }: {
+function OralRecorder({ accountId, taskId, activityId, onSubmitted }: {
+  taskId: string
   accountId: string
   activityId: string
   onSubmitted: (fb: { pass: boolean | null; status: string; relations?: { id: string; label: string; hit: boolean; required: boolean }[] }) => void
@@ -619,6 +651,9 @@ function OralRecorder({ accountId, activityId, onSubmitted }: {
   const [audioUrl, setAudioUrl] = useState('')
   const [blob, setBlob] = useState<Blob | null>(null)
   const [transcript, setTranscript] = useState('')
+  const [transcriptOrigin, setTranscriptOrigin] = useState<'asr' | 'user_typed'>('user_typed')
+  const submissionRef = useRef<string | null>(null)
+  const uploadRequestRef = useRef<string | null>(null)
   const [asrSupported, setAsrSupported] = useState(true)
   const [mediaId, setMediaId] = useState('')
   const [corrected, setCorrected] = useState(false)
@@ -628,6 +663,14 @@ function OralRecorder({ accountId, activityId, onSubmitted }: {
   const [busy, setBusy] = useState(false)
   const recRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<Blob[]>([])
+  const asrRef = useRef<{ stop: () => void; abort?: () => void } | null>(null)
+  useEffect(() => () => {
+    asrRef.current?.abort?.()
+    const rec = recRef.current
+    if (rec?.state === 'recording') rec.stop()
+    rec?.stream.getTracks().forEach(t => t.stop())
+  }, [])
+  useEffect(() => () => { if (audioUrl) URL.revokeObjectURL(audioUrl) }, [audioUrl])
   const recStartRef = useRef<number>(0) // R8：真实录音时长（上传时随 take 报告，不再传 0）
 
   async function start() {
@@ -635,13 +678,22 @@ function OralRecorder({ accountId, activityId, onSubmitted }: {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       chunksRef.current = []
+      uploadRequestRef.current = null; submissionRef.current = null
       const rec = new MediaRecorder(stream)
       rec.ondataavailable = (e) => chunksRef.current.push(e.data)
-      rec.onstop = () => {
-        const b = new Blob(chunksRef.current, { type: 'audio/webm' })
-        setBlob(b)
-        setAudioUrl(URL.createObjectURL(b))
+      rec.onstop = async () => {
         stream.getTracks().forEach((t) => t.stop())
+        const raw = new Blob(chunksRef.current, { type: rec.mimeType || 'audio/webm' })
+        setBusy(true)
+        try {
+          const wav = await decodeRecordingWav(raw)
+          setBlob(wav)
+          setAudioUrl(URL.createObjectURL(wav))
+        } catch {
+          setBlob(raw)
+          setAudioUrl(URL.createObjectURL(raw))
+          setErr('这段录音暂未能解码成标准音频，可保留为草稿；请重录或用文字练习，暂不认证口语能力。')
+        } finally { setBusy(false) }
       }
       recRef.current = rec
       recStartRef.current = Date.now()
@@ -653,6 +705,8 @@ function OralRecorder({ accountId, activityId, onSubmitted }: {
           onresult: (e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void
           onerror: (e: { error: string }) => void
           start: () => void
+          stop: () => void
+          abort?: () => void
         } }
         const SR = w.SpeechRecognition
         if (SR) {
@@ -664,11 +718,13 @@ function OralRecorder({ accountId, activityId, onSubmitted }: {
             let text = ''
             for (let i = 0; i < e.results.length; i++) text += e.results[i][0].transcript + ' '
             setTranscript(text.trim())
+            setTranscriptOrigin('asr')
           }
           asr.onerror = (e) => {
             // no-speech/网络/超时都不是用户的错：如实标注 ASR 不可用，转写可手打
             if (e.error !== 'no-speech') setAsrSupported(false)
           }
+          asrRef.current = asr
           asr.start()
         } else setAsrSupported(false)
       } catch { setAsrSupported(false) }
@@ -678,32 +734,42 @@ function OralRecorder({ accountId, activityId, onSubmitted }: {
     }
   }
 
-  function stop() { recRef.current?.stop(); setRecording(false) }
+  function stop() { asrRef.current?.stop(); recRef.current?.stop(); setRecording(false) }
 
   async function submit() {
-    if (!blob) return
+    if (!blob && !(micDenied && transcript.trim())) return
     setBusy(true)
     setErr('')
     try {
-      const intent = await api<{ mediaId: string; uploadUrl: string; token: string }>('/accounts/' + accountId + '/oral/intent', {
-        activityId, mime: blob.type || 'audio/webm', bytes: blob.size, durationMs: recStartRef.current ? Date.now() - recStartRef.current : 0,
+      if (!blob) {
+        submissionRef.current ??= `oral-text-${crypto.randomUUID()}`
+        const r = await api<AttemptFeedback>(`/accounts/${accountId}/attempts`, { attemptId: submissionRef.current, taskId, activityId, response:{kind:'text',text:transcript},conditions:{firstExposure:true,hintLevel:0,transcriptShown:false,playCount:0,lookupUsed:false,responseMode:'typed_summary'} }, 'POST')
+        onSubmitted({pass:r.pass,status:r.evaluationStatus,relations:r.dimensions})
+        return
+      }
+      uploadRequestRef.current ??= `upload-${crypto.randomUUID()}`
+      submissionRef.current ??= `oral-${crypto.randomUUID()}`
+      const intent = await api<{ mediaId: string; uploadUrl: string; token: string; uploaded?: boolean }>('/accounts/' + accountId + '/oral/intent', {
+        requestId: uploadRequestRef.current, activityId, mime: blob.type || 'audio/webm', bytes: blob.size, durationMs: recStartRef.current ? Date.now() - recStartRef.current : 0,
       }, 'POST')
+      if (!intent.uploaded) {
       const put = await fetch(intent.uploadUrl + '?token=' + encodeURIComponent(intent.token), { method: 'PUT', body: blob })
       if (!put.ok) throw new Error('上传失败 ' + put.status)
-      const r = await api<{ pass: boolean | null; evaluationStatus: string; dimensions?: { relations?: { id: string; label: string; hit: boolean; required: boolean }[] }; mediaId: string }>(
+      }
+      const r = await api<{ pass: boolean | null; evaluationStatus: string; dimensions?: { id: string; label: string; hit: boolean; required: boolean }[]; mediaId: string }>(
         '/accounts/' + accountId + '/attempts/oral', {
-        attemptId: `oral-${activityId}-${Date.now()}`, mediaId: intent.mediaId, activityId,
-        transcript, transcriptOrigin: 'asr',
+        attemptId: submissionRef.current, taskId, mediaId: intent.mediaId, activityId,
+        transcript, transcriptOrigin,
         conditions: { firstExposure: true, hintLevel: 0, lookupUsed: false, responseMode: 'oral_recording' },
       }, 'POST')
       setMediaId(r.mediaId)
-      onSubmitted({ pass: r.pass, status: r.evaluationStatus, relations: r.dimensions?.relations })
+      onSubmitted({ pass: r.pass, status: r.evaluationStatus, relations: r.dimensions })
     } catch (e) { setErr(String(e)) } finally { setBusy(false) }
   }
 
   function retake() {
     // F5 验收：支持重新录一遍——新 take/新 attempt ID，旧作答保留
-    setBlob(null); setAudioUrl(''); setTranscript(''); setMediaId(''); setCorrected(false)
+    setBlob(null); setAudioUrl(''); setTranscript(''); setTranscriptOrigin('user_typed'); submissionRef.current = null; setMediaId(''); setCorrected(false); uploadRequestRef.current = null
   }
 
   async function correct() {
@@ -731,14 +797,11 @@ function OralRecorder({ accountId, activityId, onSubmitted }: {
           {recording ? '⏹ 停止录音' : '🎙️ 开始录音（默认不录，点击才开始）'}
         </button>
       )}
-      {micDenied && (
-        <textarea value={transcript} rows={3} onChange={(e) => setTranscript(e.target.value)}
-          placeholder="麦克风不可用：把要说的内容打字写下来（文字练习，口语证据保持未测）" />
-      )}
+      {micDenied && <p className="v4-dim">你可以先保存文字练习，口语能力仍为未测。</p>}
       {audioUrl && <audio controls src={audioUrl} />}
-      <textarea value={transcript} rows={2} onChange={(e) => setTranscript(e.target.value)}
+      <textarea value={transcript} rows={2} onChange={(e) => { asrRef.current?.abort?.(); setTranscriptOrigin('user_typed'); setTranscript(e.target.value); submissionRef.current = null }}
         placeholder={asrSupported ? '语音转写（可手动纠正后再提交）' : '浏览器不支持语音识别：请打字写下你说的内容'} />
-      <button className="v4-primary" disabled={!blob || busy} onClick={submit}>提交口语作答</button>
+      <button className="v4-primary" disabled={busy || (!blob && !(micDenied && transcript.trim()))} onClick={submit}>{blob ? '提交口语作答' : '保存文字练习（口语未测）'}</button>
       {mediaId && !corrected && (
         <button className="v4-ghost" onClick={correct}>转写有误？纠正并保留原版</button>
       )}

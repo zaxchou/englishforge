@@ -53,9 +53,16 @@ function failAnswerFor(act) {
   return '他们做了一个展览。（角色反了）'
 }
 
+async function playIssuedActivity(id, act) {
+  const r = await call(`/api/v1/accounts/${id}/tasks/${act.taskId}/media/${act.audio.mediaId}`)
+  if (r.status !== 200) throw new Error(JSON.stringify(r.json))
+  const played = await call(`/api/v1/accounts/${id}/support/play`, {taskId:act.taskId,deliveryId:r.json.deliveryId,eventId:crypto.randomUUID(),activityId:act.activityId,mediaId:act.audio.mediaId}, 'POST')
+  if (played.status !== 200) throw new Error(JSON.stringify(played.json))
+}
+
 const id = (await call('/api/accounts', { name: 'walk-匿名' }, 'POST')).json.account.id
 await call('/api/v1/map')
-say(`# 匿名 5 课连续轨迹（账户 ${id.slice(0, 8)}…，临时库）\n`)
+say(`# 匿名可用课程连续轨迹（最多 5 课）（账户 ${id.slice(0, 8)}…，临时库）\n`)
 
 // ---- 入口诊断：D1 关系误判（弱画像）→ 修复路线；D2 合成音频通过；D3 通过 ----
 const dres = await call(`/api/v1/accounts/${id}/diagnostics`, { requestId: 'walk-diag' }, 'POST')
@@ -67,13 +74,14 @@ const diagScript = {
   D2b: '最终评价：可以帮我们找论文，但必须自己读来源核查；摘要漏掉了原论文的重要限制。',
   D3: '我们从 AI 助手学到：它能帮我们找到值得读的论文，但摘要可能漏掉原文的重要限制，所以使用前必须自己读。我的项目里我会用它找材料，但会自己核查来源。',
 }
-while (cur && cur.status === 'open' && cur.activity) {
+let diagnosticGuard = 0
+while (cur && cur.status === 'open' && cur.activity && diagnosticGuard++ < 8) {
   // R4：听力活动必须先有服务端播放事件
   if (cur.activity.audio) {
-    await call(`/api/v1/accounts/${id}/support/play`, { activityId: cur.activity.activityId, mediaId: cur.activity.audio.mediaId }, 'POST')
+    await playIssuedActivity(id, cur.activity)
   }
   const r = await call(`/api/v1/accounts/${id}/attempts`, {
-    attemptId: `wd-${cur.step}`, sessionId: cur.diagnosticId, activityId: cur.activity.activityId,
+    attemptId: `wd-${cur.step}`, taskId: cur.activity.taskId, sessionId: cur.diagnosticId, activityId: cur.activity.activityId,
     response: { kind: 'text', text: diagScript[cur.step] ?? '' },
     conditions: { firstExposure: true, hintLevel: 0, transcriptShown: cur.step === 'D2b', playCount: 2, lookupUsed: false, responseMode: 'typed_summary' },
   }, 'POST')
@@ -115,8 +123,7 @@ for (let step = 1; step <= 9 && completed < 5; step++) {
         seen.add(act.activityId)
         // R4：听力活动先落服务端播放事件（作答门）
         if (act.audio) {
-          const pl = await call(`/api/v1/accounts/${id}/support/play`, { activityId: act.activityId, mediaId: act.audio.mediaId }, 'POST')
-          if (pl.status !== 200) { say(`! 播放事件失败：${JSON.stringify(pl.json).slice(0, 120)}`); process.exit(1) }
+          await playIssuedActivity(id, act)
         }
         // 混合三类作答：第 1 课第 1 题先误判（失败→换答案重试=新 attemptId）；
         // 第 2 课第 1 题提示后成功；其余独立通过
@@ -125,7 +132,7 @@ for (let step = 1; step <= 9 && completed < 5; step++) {
         if (isRetakeDemo) {
           const fa = failAnswerFor(act)
           const bad = await call(`/api/v1/accounts/${id}/attempts`, {
-            attemptId: `w-${pkg.lessonId}-${act.activityId}-r1`, activityId: act.activityId,
+            attemptId: `w-${pkg.lessonId}-${act.activityId}-r1`, taskId: act.taskId, activityId: act.activityId,
             response: typeof fa === 'object' ? { kind: 'choice', text: fa.text, answers: fa.answers } : { kind: 'text', text: fa },
             conditions: { firstExposure: true, hintLevel: 0, transcriptShown: false, playCount: 1, lookupUsed: false, responseMode: 'typed_summary' },
           }, 'POST')
@@ -137,7 +144,7 @@ for (let step = 1; step <= 9 && completed < 5; step++) {
         }
         const pa = passAnswerFor(act)
         const r = await call(`/api/v1/accounts/${id}/attempts`, {
-          attemptId: `w-${pkg.lessonId}-${act.activityId}${isRetakeDemo ? '-r2' : ''}`, activityId: act.activityId,
+          attemptId: `w-${pkg.lessonId}-${act.activityId}${isRetakeDemo ? '-r2' : ''}`, taskId: act.taskId, activityId: act.activityId,
           response: typeof pa === 'object' ? { kind: 'choice', text: pa.text, answers: pa.answers } : { kind: 'text', text: pa },
           conditions: {
             firstExposure: !isRetakeDemo, hintLevel: isHintDemo ? 1 : 0,
@@ -169,7 +176,7 @@ for (let step = 1; step <= 9 && completed < 5; step++) {
     continue
   } else {
     say(`   无可用课程（${plan.strategyId}）：${JSON.stringify(plan.lesson ?? {}).slice(0, 160)}`)
-    say(`   → 诚实缺内容态：${plan.primaryGoal} 无已发布课（生成被模型余额 402 阻塞 / 需音频制作），不推原课不凑数。轨迹在此收束。`)
+    say(`   → 诚实缺内容态：${plan.primaryGoal} 无已发布课（当前尚无合格的后继课包），不推原课不凑数。轨迹在此收束。`)
     break
   }
   // 中途免修演示（第 2 课后）：把口语目标挂起，观察 notChosen 理由

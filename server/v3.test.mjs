@@ -275,6 +275,16 @@ const ANSWERS = {
   fail_d3: 'AI papers useful.',
 }
 
+async function playTask(accountId, activity) {
+  const audio = await call(`/api/v1/accounts/${accountId}/tasks/${activity.taskId}/media/${activity.audio.mediaId}`)
+  expect(audio.status).toBe(200)
+  const played = await call(`/api/v1/accounts/${accountId}/support/play`, {
+    taskId:activity.taskId, deliveryId:audio.json.deliveryId,eventId:`play-${Date.now()}-${Math.random()}`,
+    activityId:activity.activityId,mediaId:activity.audio.mediaId,
+  },'POST')
+  expect(played.status).toBe(200)
+}
+
 async function runDiagnostic(accountId, script, requestId) {
   let cur = (await call(`/api/v1/accounts/${accountId}/diagnostics`, { requestId }, 'POST')).json
   const responses = []
@@ -282,12 +292,11 @@ async function runDiagnostic(accountId, script, requestId) {
   while (cur.status === 'open' && cur.activity && guard++ < 8) {
     // R4：听力活动必须先有服务端播放事件（媒体从清单按活动取）
     if (cur.activity.audio) {
-      await call(`/api/v1/accounts/${accountId}/support/play`, {
-        activityId: cur.activity.activityId, mediaId: cur.activity.audio.mediaId,
-      }, 'POST')
+      await playTask(accountId, cur.activity)
     }
     const r = await call(`/api/v1/accounts/${accountId}/attempts`, {
       attemptId: `${requestId}-${cur.step}`,
+      taskId: cur.activity.taskId,
       sessionId: cur.diagnosticId,
       activityId: cur.activity.activityId,
       response: { kind: 'text', text: script[cur.step] ?? '' },
@@ -313,10 +322,10 @@ describe('W2/T2 三种画像 → 三种后继', () => {
     const plan = (await call(`/api/v1/accounts/${id}/plan`)).json.decision
     // 21 §6.1 新语义：D2 带合成音频 → O-K184-02 听力证据真实成立 → O-K184-03 前置满足 → 挑战先行。
     // O-K115-01/02 仍是 unmeasured（D1 没问 which），留在候选里不丢（F4：未问的目标没有成绩）
-    expect(plan.primaryGoal).toBe('O-K184-03')
-    expect(plan.strategyId).toBe('challenge_first')
-    expect(plan.reason).toContain('挑战先行')
-    expect(plan.lesson.lessonId).toBeNull() // O-K184-03 暂无已发布课：无内容时诚实说明，不默默推原课
+    expect(plan.primaryGoal).toBe('O-K115-01') // 未测关键词理解不再满足挑战前置
+    expect(plan.strategyId).toBe('short_explain')
+    expect(plan.reason).toBeTruthy()
+    expect(plan.lesson.lessonId).toBe('les-relations-v1') // 有证据的近期可学前置，不凭词袋跳关
     // 逐目标结果：D1 不给 O-K115-01/02 搭车认证（unmeasured）
     const d1 = (await call(`/api/v1/accounts/${id}/evidence?objective=O-K115-02`)).json
     expect(d1.states.length).toBe(0) // 未问的目标没有成绩
@@ -586,9 +595,10 @@ describe('W2/附加 幂等与诚实状态', () => {
     let plan = (await call(`/api/v1/accounts/${id}/plan`)).json.decision
     expect(plan.status).toBe('served')
     // R4：听力作答前先落服务端播放事件
-    await call(`/api/v1/accounts/${id}/support/play`, { activityId: 'les_l2_museum_map_audio', mediaId: 'aud_l2_museum_v1' }, 'POST')
+    const issuedL2 = (await call(`/api/v1/accounts/${id}/lessons/les-listening-v1`)).json.activities.find(a => a.activityId === 'les_l2_museum_map_audio')
+    await playTask(id, issuedL2)
     await call(`/api/v1/accounts/${id}/attempts`, {
-      attemptId: 'l2-1', activityId: 'les_l2_museum_map_audio',
+      attemptId: 'l2-1', taskId: issuedL2.taskId, activityId: 'les_l2_museum_map_audio',
       response: { kind: 'text', text: '地图按设计正常工作，不完整的是对访客需求的假设；有访客以为里面有意思才走向拥挤的房间。' },
       conditions: { firstExposure: true, hintLevel: 0, transcriptShown: false, playCount: 1, responseMode: 'typed_summary' },
     }, 'POST')
@@ -699,6 +709,8 @@ describe('W4/T5+T6 按需生成供给', () => {
     const id = await mkAccount('W4-T5')
     await call('/api/v1/map') // 自给自足：不依赖其它测试先播种账本
     const gen = await import('./v3gen.mjs')
+    const prior = await call(`/api/v1/accounts/${id}/attempts`, { attemptId:'t5-seen', activityId:'diag_d1_read', response:{kind:'text',text:'test'}, conditions:{firstExposure:true,hintLevel:0,transcriptShown:false,playCount:0,lookupUsed:false,responseMode:'typed_summary'} }, 'POST')
+    expect(prior.status).toBe(200)
     const bad = [
       ['schema 缺字段', { title: '', whyNow: '', teachingNote: '', activities: [], sourceRefs: [] }],
       ['无来源', { ...goodPkg, sourceRefs: [] }],
@@ -802,7 +814,7 @@ describe('W4/T5+T6 按需生成供给', () => {
     const w = (await call(`/api/v1/accounts/${id}/window`)).json
     expect(w.slots.some((s) => s.status === 'ready')).toBe(true)
     // 学一点新东西（证据前进）→ 重估 → 缓存作废 + 原因。
-    // R3 后用封闭题（ct03）产生真实证据事件；开放题纯练习不写事件、也不该作废缓存（计划没变）
+    // R3 后用封闭题（ct03）产生真实证据事件；开放题纯练习不写认证事件，但同样需要用于后续教学重估
     await call(`/api/v1/accounts/${id}/attempts`, {
       attemptId: 't6-extra', activityId: 'ct03_semantics_guard',
       response: { kind: 'choice', text: '因为多人同时说话时原型在展厅表现不好，他们并未完全放弃语音。', answers: { decision: 'A' } },
@@ -813,7 +825,7 @@ describe('W4/T5+T6 按需生成供给', () => {
     const { getDb } = await import('./db.mjs')
     const conn = (await import('./v3db.mjs')).ensureV3Schema(getDb())
     const inv = conn.prepare("SELECT invalidated_reason FROM lesson_cache WHERE account_id = ? AND status = 'invalidated'").all(id)
-    expect(inv[0].invalidated_reason).toContain('evidence_changed')
+    expect(inv[0].invalidated_reason).toContain('learning_feedback_changed')
     // 模型失败：job failed + 诚实状态；计划层回退到已审核替代（种子课）不循环熟题
     const gen = await import('./v3gen.mjs')
     const boom = await gen.startGenerationJob(id, { objectiveId: 'O-K115-03', chat: async () => { throw new Error('provider down') }, await: true })
@@ -1242,13 +1254,13 @@ describe('复审回归 F1–F8', () => {
       conditions: { firstExposure: true, hintLevel: 0, transcriptShown: false, playCount: 0, lookupUsed: false, responseMode: 'typed_summary' },
     }, 'POST')
     expect(noPlay.status).toBe(400)
-    expect(noPlay.json.error).toContain('LISTENING_PLAYBACK_REQUIRED')
+    expect(noPlay.json.error).toContain('ISSUED_TASK_REQUIRED')
     // 诊断 D2 带合成音频：先播放（服务端事件）→ 听力证据成立（封顶 trained），事件标注真实音源
     await runDiagnostic(id, { D1: ANSWERS.rich_d1, D2: ANSWERS.pass_d2, D3: ANSWERS.pass_d3 }, 'rq-f1')
     ev = (await call(`/api/v1/accounts/${id}/evidence?objective=O-K184-01`)).json
-    expect(ev.states.some((st) => st.skill === 'listening' && ['trained', 'tentative'].includes(st.state))).toBe(true)
+    expect(ev.states.some((st) => st.skill === 'listening' && ['trained', 'tentative'].includes(st.state))).toBe(false)
     const syntheticEv = ev.recentEvents.find((e) => e.basis?.audio === 'synthetic' && e.basis?.playbackVerified)
-    expect(syntheticEv).toBeTruthy()
+    expect(syntheticEv).toBeUndefined() // keyword-only audio is practice, not comprehension evidence
     // F5 交叉：文字作答声明 oral_recording 但没带录音 → 拒绝
     expect((await call(`/api/v1/accounts/${id}/attempts`, {
       attemptId: 'f1-oral-nomedia', activityId: 'les_l3_oral_recap',
@@ -1384,6 +1396,9 @@ describe('复审回归 F1–F8', () => {
     }, 'POST')
     expect(replay.json.replayed).toBe(true)
     expect(replay.json.diagnostic.step).toBe('D2') // 没有第二次推进
+    const forged = await call(`/api/v1/accounts/${id}/attempts`, {attemptId:'f6-d1',sessionId:diag.diagnosticId,activityId:'diag_d1_read',response:{kind:'text',text:'different'},conditions:{firstExposure:true,hintLevel:0,lookupUsed:false,responseMode:'typed_summary'}},'POST')
+    expect(forged.status).toBe(409)
+    expect(forged.json.error).toContain('ATTEMPT_REPLAY_MISMATCH')
   })
 
   it('诊断 disputed 不静默卡死：note 带可执行指引、disputedReason 暴露；换自然说法后可判定（2026-09-30 实测事故）', async () => {
@@ -1395,10 +1410,10 @@ describe('复审回归 F1–F8', () => {
     const d1b = (await call(`/api/v1/accounts/${id}/attempts`, { attemptId: 'disp-d1b', sessionId: diag.diagnosticId, activityId: 'diag_d1b_contrast', response: { kind: 'text', text: ANSWERS.pass_d1b }, conditions: cond }, 'POST')).json
     expect(d1b.diagnostic.step).toBe('D2')
     // R4：听力作答前先落服务端播放事件
-    await call(`/api/v1/accounts/${id}/support/play`, { activityId: 'diag_d2_listen_sim', mediaId: 'aud_d2_library_v1' }, 'POST')
+    await playTask(id, d1b.diagnostic.activity)
     // 学习者原话（当天实测卡死）："并不是说不能用 AI 找文章"——双重否定让 use_case 的唯一锚点极性定不了
     const stuck = (await call(`/api/v1/accounts/${id}/attempts`, {
-      attemptId: 'disp-d2a', sessionId: diag.diagnosticId, activityId: 'diag_d2_listen_sim',
+      attemptId: 'disp-d2a', taskId: d1b.diagnostic.activity.taskId, sessionId: diag.diagnosticId, activityId: 'diag_d2_listen_sim',
       response: { kind: 'text', text: '最终的评价是：使用 AI 做搜索时，最后还是需要自己人工去 check source。并不是说不能用 AI 找文章，而是需要做很强的人工检测和审核。' },
       conditions: cond,
     }, 'POST')).json
@@ -1408,7 +1423,7 @@ describe('复审回归 F1–F8', () => {
     expect(stuck.diagnostic.note).toContain('重新提交') // 指引必须到达前端（之前被丢弃）
     // 同义改写（"出来非常多的内容"）→ 干净判定，流程正常走到 D2b 对照复核
     const redo = (await call(`/api/v1/accounts/${id}/attempts`, {
-      attemptId: 'disp-d2b', sessionId: diag.diagnosticId, activityId: 'diag_d2_listen_sim',
+      attemptId: 'disp-d2b', taskId: d1b.diagnostic.activity.taskId, sessionId: diag.diagnosticId, activityId: 'diag_d2_listen_sim',
       response: { kind: 'text', text: '一开始输入 topic 会出来非常多的内容，但后来发现里面的 source 很多是不正确的，或者是编造的；所以最后还是要自己人工去 check source。' },
       conditions: cond,
     }, 'POST')).json
@@ -1425,6 +1440,9 @@ describe('复审回归 F1–F8', () => {
     const s2 = (await call(`/api/v1/accounts/${id}/diagnostics`, { requestId: 'rq-res2' }, 'POST')).json
     expect((await call(`/api/v1/accounts/${id}/diagnostics/latest`)).json.diagnostic.diagnosticId).toBe(s2.diagnosticId)
     expect((await call(`/api/v1/accounts/${id}/diagnostics/${s1.diagnosticId}`)).json.status).toBe('abandoned')
+    const abandoned = await call(`/api/v1/accounts/${id}/attempts`,{attemptId:'abandoned-new',sessionId:s1.diagnosticId,activityId:s1.activity.activityId,response:{kind:'text',text:'test'},conditions:{firstExposure:true,hintLevel:0,lookupUsed:false,responseMode:'typed_summary'}},'POST')
+    expect(abandoned.status).toBe(400)
+    expect(abandoned.json.error).toContain('DIAGNOSTIC_SESSION_NOT_OPEN')
     // requestId 幂等重放：同 requestId 再开返回原会话，不新开一场
     expect((await call(`/api/v1/accounts/${id}/diagnostics`, { requestId: 'rq-res2' }, 'POST')).json.diagnosticId).toBe(s2.diagnosticId)
     // 做完一场：latest 回空，下次进页面回到开始态
@@ -1432,9 +1450,9 @@ describe('复审回归 F1–F8', () => {
     let cur = s2
     const script = { D1: ANSWERS.rich_d1, D2: ANSWERS.pass_d2, D2b: ANSWERS.pass_d2, D3: ANSWERS.pass_d3 }
     for (let i = 0; cur.status === 'open' && cur.activity && i < 6; i++) {
-      if (cur.activity.audio) await call(`/api/v1/accounts/${id}/support/play`, { activityId: cur.activity.activityId, mediaId: 'aud_d2_library_v1' }, 'POST')
+      if (cur.activity.audio) await playTask(id, cur.activity)
       cur = (await call(`/api/v1/accounts/${id}/attempts`, {
-        attemptId: `res-${cur.step}`, sessionId: cur.diagnosticId, activityId: cur.activity.activityId,
+        attemptId: `res-${cur.step}`, taskId: cur.activity.taskId, sessionId: cur.diagnosticId, activityId: cur.activity.activityId,
         response: { kind: 'text', text: script[cur.step] }, conditions: cond,
       }, 'POST')).json.diagnostic
     }
@@ -1514,9 +1532,10 @@ describe('复审回归 F1–F8', () => {
     await runDiagnostic(id, { D1: ANSWERS.rich_d1, D2: ANSWERS.fail_d2, D2b: ANSWERS.pass_d2, D3: ANSWERS.pass_d3 }, 'rq-f2')
     await call(`/api/v1/accounts/${id}/lessons/les-listening-v1`)
     // R4：听力活动先落播放事件
-    await call(`/api/v1/accounts/${id}/support/play`, { activityId: 'les_l2_museum_map_audio', mediaId: 'aud_l2_museum_v1' }, 'POST')
+    const issuedL2 = (await call(`/api/v1/accounts/${id}/lessons/les-listening-v1`)).json.activities.find(a => a.activityId === 'les_l2_museum_map_audio')
+    await playTask(id, issuedL2)
     await call(`/api/v1/accounts/${id}/attempts`, {
-      attemptId: 'f2-l2a', activityId: 'les_l2_museum_map_audio',
+      attemptId: 'f2-l2a', taskId: issuedL2.taskId, activityId: 'les_l2_museum_map_audio',
       response: { kind: 'text', text: '地图按设计正常工作，不完整的是对访客需求的假设；有访客以为里面有意思才走向拥挤的房间。' },
       conditions: { firstExposure: true, hintLevel: 0, transcriptShown: false, playCount: 1, lookupUsed: false, responseMode: 'typed_summary' },
     }, 'POST')

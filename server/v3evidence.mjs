@@ -1,3 +1,4 @@
+import { taskForAttempt, taskPlayCount } from './v3tasks.mjs'
 // W2：学习证据合同（docs/curriculum-v4/15 §4–§5、13 §14）。
 //
 // 核心不变量：
@@ -286,7 +287,7 @@ function disputedActivities(accountId) {
 
 function bodyHash(payload) {
   return createHash('sha256').update(JSON.stringify({
-    a: payload.activityId, r: payload.response ?? null, c: payload.conditions ?? null,
+    task: payload.taskId ?? null, session: payload.sessionId ?? null, a: payload.activityId, r: payload.response ?? null, c: payload.conditions ?? null,
   })).digest('hex')
 }
 
@@ -312,9 +313,13 @@ export function recordAttempt(accountId, payload = {}) {
   // 幂等：同 ID 同正文 → 原样返回首次结果；同 ID 异正文 → **自动分配下一轮 take 落新行**
   //（R5 补丁：学生在课程里答错后刷新页面，客户端 take 计数会归零，再次提交带着同一首轮 ID
   // 但内容不同——老的 409 会把学生永久卡住。每次作答都落新行、历史不覆盖；响应带 attemptIdUsed）
+  const issuedTask = payload.taskId ? taskForAttempt(accountId, payload.taskId, activity.activityId) : null
+  if (issuedTask && issuedTask.session_id !== String(payload.sessionId || '')) throw new ApiError(400, 'ISSUED_TASK_SESSION_MISMATCH')
   const hash = bodyHash(payload)
   const prev = conn.prepare('SELECT * FROM learner_attempts_v3 WHERE account_id = ? AND attempt_id = ?').get(accountId, attemptId)
   let effectiveAttemptId = attemptId
+  if (prev && payload.taskId && prev.issued_task_id !== payload.taskId) throw new ApiError(409,'ATTEMPT_TASK_MISMATCH')
+  if (prev && payload.taskId && prev.body_hash !== hash) throw new ApiError(409,'NEW_TAKE_ID_REQUIRED')
   if (prev) {
     if (prev.body_hash === hash) {
       // F6：幂等重放返回首次结果且标记 replayed —— 调用方不得再次推进诊断/流程
@@ -363,10 +368,10 @@ export function recordAttempt(accountId, payload = {}) {
   // 听过。UI 点播放会 POST /support/play 落事件；没有播放记录的提交直接拒绝（不给练习分）
   const listensByEar = activity.audioRef
     && Object.values(activity.skillByObjective ?? {}).some((s) => s === 'listening')
+  if (listensByEar && !issuedTask) throw new ApiError(400, 'ISSUED_TASK_REQUIRED: 听力作答请重新打开任务')
   if (listensByEar) {
-    const played = conn.prepare("SELECT 1 FROM activity_support_events WHERE account_id = ? AND activity_id = ? AND kind = 'play' LIMIT 1")
-      .get(accountId, activity.activityId)
-    if (!played) {
+    effectiveConditions.playCount = taskPlayCount(payload.taskId)
+    if (effectiveConditions.playCount < 1) {
       throw new ApiError(400, 'LISTENING_PLAYBACK_REQUIRED: 先播放音频再作答（未播放不产生听力证据）')
     }
   }
@@ -416,6 +421,7 @@ export function recordAttempt(accountId, payload = {}) {
     evalStatus === 'disputed' ? (evaluation?.reason ?? 'DISPUTED') : null, hash, ts,
   )
 
+  if (payload.taskId) conn.prepare('UPDATE learner_attempts_v3 SET issued_task_id=? WHERE account_id=? AND attempt_id=?').run(payload.taskId,accountId,effectiveAttemptId)
   const attemptRow = conn.prepare('SELECT * FROM learner_attempts_v3 WHERE account_id = ? AND attempt_id = ?').get(accountId, effectiveAttemptId)
 
   if (evalStatus === 'disputed' && evaluation?.reason === 'TRANSCRIPT_LOW_CONFIDENCE') {
@@ -439,10 +445,11 @@ export function recordAttempt(accountId, payload = {}) {
 }
 
 /** F6：幂等重放——attemptId 已存在时返回首次结果（不推进任何流程） */
-export function getStoredAttempt(accountId, attemptId) {
+export function getStoredAttempt(accountId, attemptId, payload = null) {
   const conn = ensureV3Schema()
   const row = conn.prepare('SELECT * FROM learner_attempts_v3 WHERE account_id = ? AND attempt_id = ?').get(accountId, attemptId)
   if (!row) return null
+  if (payload && row.body_hash !== bodyHash(payload)) throw new ApiError(409, 'ATTEMPT_REPLAY_MISMATCH')
   return { ...attemptResult(conn, accountId, row, activityById(row.activity_id)), replayed: true }
 }
 
@@ -474,17 +481,14 @@ function attemptResult(conn, accountId, row, activity) {
 
 function appendObservedEvents(conn, accountId, attemptRow, activity, conditions) {
   const evaluation = JSON.parse(attemptRow.evaluation || '{}')
-  // R3/R4（24 号）的分工：
-  // · 读/写开放文本（keyword）→ 纯练习反馈，不写事件（bag/同义反转判不了关系）；
-  // · 听力 + audioRef + **服务端播放记录** → 写"受限定"证据（modality 已被播放事件验证），
-  //   事件带 keywordContentCheck 标记，回放时状态封顶 trained（词表内容检查升不了 independent）。
+  // Keyword checks record practice feedback only, regardless of input modality.
   const audioSource = activity.audioRef
     ? (audioByMediaId(activity.audioRef)?.sourceType ?? 'audio_ref')
     : null
   const playCount = Number(conditions.playCount ?? 0)
   const listensByEar = Object.values(activity.skillByObjective ?? {}).some((s) => s === 'listening')
   const listeningWithAudio = !!audioSource && listensByEar
-  const keywordPracticeOnly = evaluation.keywordOnly && !listeningWithAudio
+  const keywordPracticeOnly = evaluation.keywordOnly === true
   if (keywordPracticeOnly) {
     // R3：开放文本词表=练习反馈，不写 observed 事件。但**免修目标又失败**的 repair 信号
     // 仍要写——那是策略信号（换路），不是掌握证据（24 号 T4 语义在这条路上必须存活）
@@ -610,6 +614,7 @@ export function recomputeStates(accountId) {
     if (e.kind === 'repair') { s.lastRepairAt = Math.max(s.lastRepairAt, e.created_at); continue } // 是否仍需修复在回放末尾判
     if (e.kind !== 'observed') continue
     const basis = JSON.parse(e.basis || '{}')
+    if (basis.keywordContentCheck === true) continue // historical keyword listening is participation, never comprehension certification
     // F1 重算：**无音频**的文字模拟历史 listening 事件 → reading 槽位；带 audioRef 的保持 listening
     let skill = e.skill
     const actDef = activityOf(e.attempt_id)
@@ -679,15 +684,25 @@ export function recomputeStates(accountId) {
      VALUES (?,?,?,?,?,?,?,?)
      ON CONFLICT(account_id, objective_id, skill, complexity) DO UPDATE SET
        state=excluded.state, flags=excluded.flags, evidence_version=excluded.evidence_version, updated_at=excluded.updated_at`)
-  const version = nextCounter(accountId, 'evidence')
-  for (const s of acc.values()) {
-    up.run(accountId, s.objectiveId, s.skill, s.band, s.state, JSON.stringify([...s.flags]), version, Date.now())
+  // learner_states 是派生表。仅 upsert 会留下已失去依据的旧 base 正分。
+  // 原始作答/事件不删；同一 savepoint 内重建当前账户的派生行。
+  conn.exec('SAVEPOINT v3_state_rebuild')
+  try {
+    const version = nextCounter(accountId, 'evidence')
+    conn.prepare('DELETE FROM learner_states WHERE account_id=?').run(accountId)
+    for (const s of acc.values()) {
+      up.run(accountId, s.objectiveId, s.skill, s.band, s.state, JSON.stringify([...s.flags]), version, Date.now())
+    }
+    for (const b of baseAcc.values()) {
+      up.run(accountId, b.objectiveId, b.skill, 'base', b.state, JSON.stringify([...b.flags]), version, Date.now())
+    }
+    conn.exec('RELEASE v3_state_rebuild')
+    return { evidenceVersion: version, states: acc.size + baseAcc.size }
+  } catch (e) {
+    conn.exec('ROLLBACK TO v3_state_rebuild')
+    conn.exec('RELEASE v3_state_rebuild')
+    throw e
   }
-  for (const b of baseAcc.values()) {
-    // base 行不再来自事件回放，而是跨带聚合——名称保留 'base' 供决策层稳定读取
-    up.run(accountId, b.objectiveId, b.skill, 'base', b.state, JSON.stringify([...b.flags]), version, Date.now())
-  }
-  return { evidenceVersion: version, states: acc.size + baseAcc.size }
 }
 
 // ---------------------------------------------------------------- 免修与争议
@@ -776,6 +791,10 @@ export function evidenceSummary(accountId, { objective, skill } = {}) {
   if (skill) states = states.filter((s) => s.skill === skill)
   const events = conn.prepare('SELECT evidence_id, attempt_id, objective_id, skill, kind, condition, pass, basis, created_at FROM evidence_events WHERE account_id = ? ORDER BY created_at').all(accountId)
   return {
+    completedLessons: conn.prepare(`SELECT DISTINCT p.served_lesson_id AS lessonId,
+      (SELECT title FROM lesson_versions l WHERE l.lesson_id=p.served_lesson_id ORDER BY version DESC LIMIT 1) AS title
+      FROM plan_decisions p WHERE p.account_id=? AND p.status='completed' AND p.served_lesson_id IS NOT NULL
+      ORDER BY p.created_at DESC LIMIT 6`).all(accountId),
     evidenceVersion: getCounter(accountId, 'evidence'),
     states: states.map((s) => ({
       objectiveId: s.objective_id, skill: s.skill, complexity: s.complexity, state: s.state,

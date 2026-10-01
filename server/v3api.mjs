@@ -1,3 +1,4 @@
+import { issueTask, deliverTaskAudio, recordTaskPlay } from './v3tasks.mjs'
 // /api/v1 新域路由（curriculum-v4 实施合同 15 §8）。
 //
 // 与旧 /api/accounts/:id/sync 完全并行：旧契约一个字都不动，新域新表新语义。
@@ -13,7 +14,7 @@ import { serveLesson, revealHint, completeLesson, listLessons, seedLessons, with
 import { ensureWindow, reestimateWindow, generationMetrics, listJobs, startGenerationJob } from './v3gen.mjs'
 import { createOralIntent, storeOralAudio, readOralAudio, deleteOralAudio, submitOralAttempt, correctTranscript, signOralReview, mediaUsableForCertification } from './v3oral.mjs'
 import { readLessonAudio, loadAudioManifest, audioForActivity } from './v3audio.mjs'
-import { registerTrial, recordObservation, compareTrial, listTrials } from './v3trial.mjs'
+import { issueTrialTask, registerTrial, recordObservation, compareTrial, listTrials } from './v3trial.mjs'
 
 export const V3_ROUTES = [
   ['GET', '/api/v1/health', () => {
@@ -56,16 +57,35 @@ export const V3_ROUTES = [
   ['GET', '/api/v1/accounts/:id/diagnostics/latest', (ctx) => ({ diagnostic: latestOpenDiagnostic(ctx.params.id) })],
   ['GET', '/api/v1/accounts/:id/diagnostics/:diagnosticId', (ctx) => getDiagnostic(ctx.params.id, ctx.params.diagnosticId)],
 
+  ['POST', '/api/v1/accounts/:id/tasks', (ctx) => {
+    requireAccount(ctx.params.id)
+    const { lessonId, sessionId, activityId } = ctx.body ?? {}
+    let lessonContext = null
+    if (lessonId) {
+      const pkg = serveLesson(ctx.params.id, lessonId)
+      if (!pkg.activities.some(a => a.activityId === activityId)) throw new ApiError(400,'TASK_NOT_VISIBLE')
+      lessonContext = pkg
+    } else if (sessionId) {
+      if (expectedActivityFor(ctx.params.id,sessionId)?.activityId !== activityId) throw new ApiError(400,'DIAGNOSTIC_STEP_MISMATCH')
+    } else throw new ApiError(400,'TASK_CONTEXT_REQUIRED')
+    return issueTask(ctx.params.id,activityId,sessionId ?? '',null,lessonContext)
+  }],
+  ['GET', '/api/v1/accounts/:id/tasks/:taskId/media/:mediaId', (ctx) => {
+    requireAccount(ctx.params.id)
+    return deliverTaskAudio(ctx.params.id,ctx.params.taskId,ctx.params.mediaId)
+  }],
+
   // 新尝试：服务端持有答案与角色；重复 attemptId 幂等，同 ID 异正文 409
   ['POST', '/api/v1/accounts/:id/attempts', (ctx) => {
     const sessionId = ctx.body?.sessionId
     // F6：诊断会话只接受“当前步骤实际发出的活动”——乱序/跨会话提交在落库前拒绝
     if (sessionId) {
       const expected = expectedActivityFor(ctx.params.id, sessionId)
-      if (expected && expected.activityId !== ctx.body?.activityId) {
+      if (!expected || expected.activityId !== ctx.body?.activityId) {
         // F6：步骤不匹配但 attemptId 已存在 → 是重放，返回首次结果（不推进）
-        const stored = getStoredAttempt(ctx.params.id, String(ctx.body?.attemptId || ''))
+        const stored = getStoredAttempt(ctx.params.id, String(ctx.body?.attemptId || ''), ctx.body)
         if (stored) return { ...stored, diagnostic: getDiagnostic(ctx.params.id, sessionId) }
+        if (!expected) throw new ApiError(400, 'DIAGNOSTIC_SESSION_NOT_OPEN')
         throw new ApiError(400, `DIAGNOSTIC_STEP_MISMATCH: 当前应答 ${expected.step}/${expected.activityId}`)
       }
     }
@@ -124,14 +144,7 @@ export const V3_ROUTES = [
   // 客户端自报 playCount 只能作参考，正分证据的门槛是这里的落库事件
   ['POST', '/api/v1/accounts/:id/support/play', (ctx) => {
     requireAccount(ctx.params.id)
-    const activityId = body_str(ctx, 'activityId')
-    const mediaId = body_str(ctx, 'mediaId')
-    const entry = audioForActivity(activityId)
-    if (!entry || entry.mediaId !== mediaId) throw new ApiError(400, 'MEDIA_ACTIVITY_MISMATCH: 该音频不属于这个活动')
-    ensureV3Schema().prepare(
-      'INSERT OR IGNORE INTO activity_support_events (account_id, activity_id, kind, level, created_at) VALUES (?,?,?,?,?)')
-      .run(ctx.params.id, activityId, 'play', 1, Date.now())
-    return { ok: true, activityId, mediaId }
+    return recordTaskPlay(ctx.params.id, ctx.body ?? {})
   }],
   ['POST', '/api/v1/accounts/:id/lessons/:lessonId/complete', (ctx) => {
     const done = completeLesson(ctx.params.id, ctx.params.lessonId)
@@ -168,6 +181,7 @@ export const V3_ROUTES = [
   // 只有 oral_reviews 人审签署才能升级口语状态。
   ['POST', '/api/v1/accounts/:id/oral/intent', (ctx) => createOralIntent(ctx.params.id, {
     activityId: body_str(ctx, 'activityId'),
+    requestId: ctx.body?.requestId,
     mime: body_str(ctx, 'mime'),
     bytes: num(ctx.body?.bytes, 0),
     durationMs: num(ctx.body?.durationMs, 0) || null,
@@ -214,6 +228,7 @@ export const V3_ROUTES = [
   // W6：本人试学工具包（先预注册后施测；机制不做效果宣称）
   ['GET', '/api/v1/accounts/:id/trials', (ctx) => { requireAccount(ctx.params.id); return { trials: listTrials(ctx.params.id) } }],
   ['POST', '/api/v1/accounts/:id/trials', (ctx) => registerTrial(ctx.params.id, ctx.body ?? {})],
+  ['POST', '/api/v1/accounts/:id/trials/:trialId/tasks', (ctx) => issueTrialTask(ctx.params.id,ctx.params.trialId,body_str(ctx,'phase'))],
   ['POST', '/api/v1/accounts/:id/trials/:trialId/observations', (ctx) => recordObservation(ctx.params.id, {
     trialId: ctx.params.trialId, phase: body_str(ctx, 'phase'), attemptId: body_str(ctx, 'attemptId'),
     materialWasNovel: ctx.body?.materialWasNovel !== false, support: ctx.body?.support ?? {},

@@ -1,3 +1,4 @@
+import { issueTask } from './v3tasks.mjs'
 // W3：可学习的纵向课程（docs/curriculum-v4/15 §7 课程包契约、§5 内容状态机）。
 //
 // 不变量：
@@ -13,7 +14,7 @@ import { fileURLToPath } from 'node:url'
 import { ApiError } from './db.mjs'
 import { ensureV3Schema } from './v3db.mjs'
 import { requireAccount } from './v3api.mjs'
-import { activityById, publicActivity } from './v3evidence.mjs'
+import { getStoredAttempt, activityById, publicActivity } from './v3evidence.mjs'
 import { audioPublicInfo } from './v3audio.mjs'
 import { seedMap } from './v3map.mjs'
 
@@ -120,10 +121,14 @@ export function serveLesson(accountId, lessonId) {
   const conn = ensureV3Schema()
   const attempted = new Set(
     conn.prepare('SELECT DISTINCT activity_id FROM learner_attempts_v3 WHERE account_id = ?').all(accountId).map((r) => r.activity_id))
-  const visible = lesson.activities.filter((ref) => !ref.unlockAfter || attempted.has(ref.unlockAfter))
+  const plan = conn.prepare('SELECT decision_id,created_at,served_at FROM plan_decisions WHERE account_id=? AND served_lesson_id=? ORDER BY created_at DESC LIMIT 1').get(accountId,lessonId)
+  const resumeSince = plan ? (plan.served_at ?? plan.created_at) : Date.now()
+  const currentAttempted = new Set(conn.prepare('SELECT DISTINCT activity_id FROM learner_attempts_v3 WHERE account_id=? AND created_at>=?').all(accountId,resumeSince).map(a=>a.activity_id))
+  const visible = lesson.activities.filter((ref) => !ref.unlockAfter || currentAttempted.has(ref.unlockAfter))
   return {
     lessonId: lesson.lessonId,
     version: lesson.version,
+    sessionKey: plan?.decision_id ?? '',
     title: lesson.title,
     whyNow: lesson.whyNow,
     teachingNote: lesson.teachingNote,
@@ -137,11 +142,14 @@ export function serveLesson(accountId, lessonId) {
       const act = activityById(ref.activityId)
       const stages = ref.hintStages ?? act?.hints ?? []
       const audio = audioPublicInfo(act)
+      const last = conn.prepare('SELECT attempt_id,response FROM learner_attempts_v3 WHERE account_id=? AND activity_id=? AND activity_version=? AND created_at>=? ORDER BY created_at DESC,rowid DESC LIMIT 1').get(accountId,act.activityId,act.version,resumeSince)
       // D0-1：封闭槽位题只下发槽位结构（slotId/题干/合法选项），accept 绝不下发
       const slots = Array.isArray(act?.evaluationContract?.slots)
         ? act.evaluationContract.slots.map((s) => ({ slotId: s.slotId, prompt: s.prompt, options: s.options }))
         : null
       return {
+        ...issueTask(accountId, act.activityId, '', null, { ...lesson, sessionKey: plan?.decision_id ?? '' }),
+        resume: last ? { response: JSON.parse(last.response), result: getStoredAttempt(accountId,last.attempt_id) } : null,
         activityId: act.activityId,
         version: act.version,
         role: ref.role ?? act.role,
@@ -215,11 +223,12 @@ export function completeLesson(accountId, lessonId) {
   const attempted = new Set(
     conn.prepare('SELECT DISTINCT activity_id FROM learner_attempts_v3 WHERE account_id = ? AND created_at >= ?')
       .all(accountId, servedAt).map((r) => r.activity_id))
+  const attemptVersions = new Map(conn.prepare('SELECT activity_id, activity_version FROM learner_attempts_v3 WHERE account_id = ? AND created_at >= ? ORDER BY created_at, rowid').all(accountId,servedAt).map(r=>[r.activity_id,r.activity_version]))
   const versionMismatch = lesson.activities
     .filter((ref) => attempted.has(ref.activityId))
     .filter((ref) => {
       const act = activityById(ref.activityId)
-      return act && act.version !== ref.version
+      return act && (act.version !== ref.version || attemptVersions.get(ref.activityId) !== act.version)
     })
     .map((ref) => ref.activityId)
   const missing = lesson.activities.filter((ref) => !attempted.has(ref.activityId)).map((ref) => ref.activityId)
