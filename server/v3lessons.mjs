@@ -17,7 +17,7 @@ import { requireAccount } from './v3api.mjs'
 import { getStoredAttempt, activityById, publicActivity } from './v3evidence.mjs'
 import { audioPublicInfo } from './v3audio.mjs'
 import { seedMap } from './v3map.mjs'
-import { contentSignature, materialForLearner } from './v3registry.mjs'
+import { contentSignature, materialForLearnerFrozen } from './v3registry.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const LESSON_SEED = resolve(HERE, 'data', 'v3-lessons.json')
@@ -127,6 +127,18 @@ export function serveLesson(accountId, lessonId) {
   const resumeSince = plan ? (plan.served_at ?? plan.created_at) : Date.now()
   const currentAttempted = new Set(conn.prepare('SELECT DISTINCT activity_id FROM learner_attempts_v3 WHERE account_id=? AND created_at>=?').all(accountId,resumeSince).map(a=>a.activity_id))
   const visible = lesson.activities.filter((ref) => !ref.unlockAfter || currentAttempted.has(ref.unlockAfter))
+  // 38-S3：内容审核/预览状态——课程响应带上与推荐、生成结果页**同一份事实**：
+  // contentPreview=true（机器门+模型辅助审核通过、专业核验未完成的内容试验预览）
+  // / humanSignPending（签署挂账）/ semanticReview 结论（供恢复页解释"为什么没课"）。
+  const jobRow = conn.prepare('SELECT validation FROM generation_jobs WHERE output_lesson_id = ? ORDER BY created_at DESC LIMIT 1').get(lessonId)
+  let jobValidation = null
+  try { jobValidation = jobRow ? JSON.parse(jobRow.validation || 'null') : null } catch { jobValidation = null }
+  const contentReview = {
+    preview: lesson.qualityGates?.contentPreview === true,
+    humanSignPending: lesson.humanReview !== 'signed',
+    semanticVerdict: jobValidation?.semanticReview?.verdict ?? null,
+    pending: jobValidation?.pending ?? null,
+  }
   return {
     lessonId: lesson.lessonId,
     version: lesson.version,
@@ -138,8 +150,11 @@ export function serveLesson(accountId, lessonId) {
     objectiveIds: lesson.objectiveIds, // R2 验收用：推荐目标必须 ∈ 这里的可测目标
     difficultyDims: lesson.difficultyDims,
     devSampleNotice: lesson.releaseChannel === 'dev_only'
-      ? '开发样本：结构质量门已过、人审未签署；音频课在原声制作前如实显示待制作（18 §8）'
+      ? (contentReview.preview
+        ? '内容试验预览：通过了结构质量门和模型辅助内容检查，还没有专业人工核验——发现哪里讲得不对，直接反馈。'
+        : '开发样本：结构质量门已过、人审未签署；音频课在原声制作前如实显示待制作（18 §8）')
       : null,
+    contentReview,
     activities: visible.map((ref) => {
       const act = activityById(ref.activityId)
       const stages = ref.hintStages ?? act?.hints ?? []
@@ -159,7 +174,9 @@ export function serveLesson(accountId, lessonId) {
         simulatesAudio: !!act.simulatesAudio,
         oralTask: !!act.oralEvidenceDeferred,
         slots,
-        material: materialForLearner(String(act?.materialId ?? ''), act?.segmentIds ?? null), // 与 publicActivity 同口径：只下发本题声明的段
+        // 34-F3：已发行课优先用**发行时冻结的段原文**；无快照（种子课/旧活动）回退实时读取；
+        // listen 不发正文的硬规则在 registry 内统一执行
+        material: materialForLearnerFrozen(act),
         reasonLabel: act?.evaluationContract?.reason?.label ?? null,
         audio, // synthetic 合成音频；转写不在这（首听隐藏），l2b 的校对稿在题面里
         conditionsSpec: act.conditionsSpec,

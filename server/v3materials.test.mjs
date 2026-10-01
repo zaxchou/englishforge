@@ -16,6 +16,15 @@ beforeAll(async () => {
   reg = await import('./v3registry.mjs')
 })
 afterAll(() => { delete process.env.ENGLISHFORGE_V4_GENERATION; db.closeDb(); rmSync(dir, { recursive: true, force: true }) })
+// 38-S1：审核桩必须按新合同输出逐题四维度（与默认模型审核同构；缺维度会被强制降级 pending）
+const judgeOK = async (input) => ({
+  verdict: 'supported', reviewer: 'test-stub',
+  activities: (input.activities ?? []).map((a) => ({
+    idx: a.idx, answerability: 'supported', languageFacts: 'supported',
+    objectiveAlignment: 'supported', scoringConsistency: 'supported',
+  })),
+})
+
 const call = (pathname, body, method = 'GET') => api({ pathname, body, method, query: new URLSearchParams() })
 
 const goodPkg = (materialId = 'mat_g3_contrast_texts', tag = 'm') => ({
@@ -112,7 +121,7 @@ it('userConfirmed：全局开关关闭时，单次明确确认可生成；未确
     // 即使 normally 需要人审（explanationKind new）→ 用户确认的样本也以 dev_only 发布可学，签审挂账
     const needsSignPkg = { ...goodPkg('mat_g3_contrast_texts', 'uc2'), explanationKind: 'new' }
     const r2 = await gen.startGenerationJob(id, { objectiveId: 'O-K184-02', userConfirmed: true, await: true, force: true,
-      semanticJudge: async () => ({ verdict: 'supported', reviewer: 'test-stub' }), chat: async () => JSON.stringify(needsSignPkg) })
+      semanticJudge: judgeOK, chat: async () => JSON.stringify(needsSignPkg) })
     expect(r2.status).toBe('succeeded')
     expect(r2.published).toBe(true)
     expect(r2.devSample).toBe(true)
@@ -141,8 +150,10 @@ it('素材正文全链路：注册保留 materialId；serve 下发 read 类正�
   expect(pub.material?.segments?.length).toBe(1) // 只下发 segmentIds 声明的那段
   expect(pub.material.segments[0].segmentId).toBe('mat_g3_rehearsal')
   expect(pub.material.segments[0].text).toContain('voice prototype')
-  // 未声明段的旧活动回退整素材（诚实兼容）
-  expect(ev.publicActivity({ ...stored, segmentIds: null }).material?.segments?.length).toBe(2)
+  // 34-F3：已发行活动带**发行时冻结的快照**——即使 segmentIds 缺失也只发冻结的那段（冻结优先）
+  expect(ev.publicActivity({ ...stored, segmentIds: null }).material?.segments?.length).toBe(1)
+  // 无快照的旧活动（诚实兼容）：segmentIds 缺失 → 回退整素材
+  expect(ev.publicActivity({ ...stored, materialSnapshot: undefined, segmentIds: null }).material?.segments?.length).toBe(2)
   // listen 类不下发正文（音频即素材，首听无脚本）
   expect(ev.publicActivity({ ...stored, materialId: 'aud_l2_museum_v1' }).material).toBeNull()
   // serveLesson 同口径（用诊断里的听力活动验证：有 audioRef 无 materialId → material null）

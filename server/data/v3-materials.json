@@ -74,7 +74,7 @@
   },
   {
    "materialId": "mat_g4_discourse_markers",
-   "materialVersion": 2,
+   "materialVersion": 3,
    "sourceRef": "G4",
    "kind": "read",
    "status": "audited",
@@ -86,7 +86,8 @@
    },
    "objectiveIds": [
     "O-K184-01",
-    "O-K184-02"
+    "O-K184-02",
+    "O-K115-03"
    ],
    "licenseStatus": "confirmed",
    "note": "话语标记组织的短篇（G4 命题覆盖；机器整理+自校订，零真人核验）",
@@ -97,7 +98,10 @@
      "title": "博物馆地图",
      "text": "We made a map that tells visitors which rooms in the museum are busy. We expected people to choose a quieter route. In fact, some visitors walked toward the crowded rooms because they thought something interesting was happening there. The map was working as designed, but our assumption about what visitors wanted was incomplete."
     }
-   ]
+   ],
+   "bindingNotes": {
+    "O-K115-03": "阅读补练（38 号链第 2 课）：博物馆地图段能支持“主张 vs 对预期的修正”的具体问题（主张=地图按设计工作；修正=访客偏好假设不完整）；不用于听力/口语认证。"
+   }
   },
   {
    "materialId": "aud_d2_library_v1",

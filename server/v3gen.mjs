@@ -20,7 +20,7 @@ import { rowToObjective } from './v3map.mjs'
 import { runQualityGates, lessonForStrategy, lessonForObjective, getLesson, lessonApplicable } from './v3lessons.mjs'
 import { activityById } from './v3evidence.mjs'
 import { decide } from './v3plan.mjs'
-import { sourceLedger, loadMaterials, materialUsableFor, materialsForPrompt, contentSignature, segmentText } from './v3registry.mjs'
+import { sourceLedger, loadMaterials, materialUsableFor, materialsForPrompt, contentSignature, segmentText, materialSnapshot, CONTENT_CONTRACTS } from './v3registry.mjs'
 import { chatWithMeta, LlmError } from './llm.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -103,6 +103,9 @@ export function registerGeneratedActivities(jobId, activities) {
       responseKind: 'text', prompt: a.prompt, hints: a.hints ?? [],
       materialId: a.materialId ?? null, // 素材绑定必须落库，否则下发端无从取正文（实测丢失事故）
       segmentIds: Array.isArray(a.segmentIds) ? a.segmentIds : null, // 34-F1：本题依据的段（下发只给这些段）
+      // 34-F3：发行即冻结——所引段原文随活动定义落库。之后素材文件改动不改写已发行课的
+      // 下发正文（已开始课用冻结版本完成），未开始课由内容签名失效兜住
+      materialSnapshot: materialSnapshot(String(a.materialId ?? ''), Array.isArray(a.segmentIds) ? a.segmentIds : null),
       referenceAnswer: typeof a.referenceAnswer === 'string' ? a.referenceAnswer : null, // 参考答案：复核/对照用，不下发学习者
       supportingQuotes: Array.isArray(a.supportingQuotes) ? a.supportingQuotes : null, // 支撑原句：可追溯出题依据
       conditionsSpec: ['firstExposure', 'hintLevel', 'transcriptShown', 'playCount', 'lookupUsed', 'responseMode'],
@@ -118,45 +121,112 @@ export function registerGeneratedActivities(jobId, activities) {
   return ids
 }
 
-/** 36-R1：语义审核执行器。judge 缺省 = 模型复核（makeDefaultSemanticJudge(chat)）；
- * 收集每题实际引用的段正文作为审核输入；异常一律降级 pending（不发布）。 */
+/** 38-S1：语义审核执行器。审核输入**完整覆盖**它声称要兜底的内容：
+ * 精华讲解（teachingNote）、每题全部提示（hints）、评分合同（relations/mustNot 全文）、
+ * 参考答案、支撑句、所引段正文、目标行为/边界、判题规则与正/误样例说明。
+ * 机器强制的部分（不靠模型自觉）：
+ *  · 必审字段缺失 → 即使注入的 judge 自报 supported 也**强制降级 pending**（缺依据不得背书）；
+ *  · judge 输出缺任一活动的任一必审维度 → pending；
+ *  · listen 类素材无审核转写 → 可答性维度 unmeasurable → pending（38 边界：空输入证明不了听力一致）。
+ * 同时返回 reviewHash（审核对象的 sha256）：发布前最终核对用它确认"审核背书的对象=要发布的对象"。 */
+const REVIEW_DIMENSIONS = ['answerability', 'languageFacts', 'objectiveAlignment', 'scoringConsistency']
+
 async function runSemanticReview({ pkg, ctx, chat, judge }) {
   try {
     const segs = []
     const acts = []
-    for (const a of pkg.activities ?? []) {
-      const mid = String(a.materialId ?? '')
-      const texts = (Array.isArray(a.segmentIds) ? a.segmentIds : []).map((sid) => segmentText(mid, String(sid))).filter(Boolean)
-      if (texts.length) segs.push({ materialId: mid, segmentIds: a.segmentIds, texts })
-      acts.push({ prompt: a.prompt, referenceAnswer: a.referenceAnswer, supportingQuotes: a.supportingQuotes })
+    let inputComplete = true
+    const missing = []
+    const require = (v, field, ai) => {
+      if (v === undefined || v === null || v === '' || (Array.isArray(v) && !v.length)) {
+        inputComplete = false
+        missing.push(ai ? `${field}@${ai}` : field)
+      }
     }
+    // 目标行为/边界：审核者必须知道"这题该测什么、不该测什么"才能判目标对齐
+    const objective = { objectiveId: ctx.objectiveId, behavior: ctx.objectiveBehavior ?? null, boundary: ctx.objectiveBoundary ?? null }
+    require(ctx.objectiveBehavior, 'objective.behavior')
+    require(ctx.objectiveBoundary, 'objective.boundary')
+    require(pkg.teachingNote, 'teachingNote')
+    for (const [i, a] of (pkg.activities ?? []).entries()) {
+      const mid = String(a.materialId ?? '')
+      const texts = (Array.isArray(a.segmentIds) ? a.segmentIds : []).map((sid) => segmentText(mid, String(sid)))
+      if (texts.length) segs.push({ materialId: mid, segmentIds: a.segmentIds, texts })
+      // 评分合同的机器事实：锚点匹配 + 否定语境扫描 + mustNot 守卫 —— 审核者据此判"评分一致性"
+      const scoringRule = {
+        mechanism: '锚点词表匹配（否定语境感知：否定出现不算命中；mustNot 至少一次非否定出现才算违规）',
+        acceptAnchors: (a.relations ?? []).map((r) => ({ id: r.id, label: r.label, anyOf: r.anyOf, required: !!r.required, polarity: r.polarity ?? null })),
+        rejectAnchors: a.mustNot ?? [],
+        referenceAnswerMustPass: true,
+        correctParaphraseExample: '与参考答案同义、含任一接受锚点的说法必须通过',
+        wrongExample: '把限定条件说成普遍事实、或与正文矛盾的说法必须不通过',
+      }
+      require(a.prompt, 'prompt', i)
+      require(Array.isArray(a.hints), 'hints', i) // 字段必须在（空数组=没有提示可审，合法）
+      require(a.referenceAnswer, 'referenceAnswer', i)
+      require(a.relations, 'relations', i)
+      const material = loadMaterials().find((m) => m.materialId === mid)
+      const listenWithoutAudit = material && material.kind !== 'read' // 无审核转写/时间片段：可答性不可测
+      if (listenWithoutAudit) inputComplete = false // 有 listening 事实的题缺审核输入 → 不得 supported
+      acts.push({
+        idx: i, taskFamilyId: a.taskFamilyId ?? null, prompt: a.prompt, hints: a.hints ?? [],
+        referenceAnswer: a.referenceAnswer ?? null, supportingQuotes: a.supportingQuotes ?? null,
+        relations: a.relations ?? [], mustNot: a.mustNot ?? [], scoringRule,
+        answerabilityMeasurable: !listenWithoutAudit,
+      })
+    }
+    const input = { reviewContract: CONTENT_CONTRACTS.semanticReview, objective, teachingNote: pkg.teachingNote ?? null, segments: segs, activities: acts }
+    const reviewHash = createHash('sha256').update(JSON.stringify(input)).digest('hex').slice(0, 16)
     const fn = judge ?? makeDefaultSemanticJudge(chat)
-    const r = await fn({ segments: segs, activities: acts, objectiveId: ctx.objectiveId })
+    const r = await fn(input)
     const verdict = r?.verdict === 'supported' || r?.verdict === 'unsupported' ? r.verdict : 'pending'
-    return { verdict, reviewer: r?.reviewer ?? 'none', reasons: String(r?.reasons ?? ''), contentSignature: contentSignature() }
+    // 机器复核 judge 的结构化输出：逐题四维度齐全才算 supported；缺维度=必要维度 pending
+    let dimensionsComplete = verdict === 'supported'
+    if (verdict === 'supported') {
+      const byIdx = new Map((Array.isArray(r?.activities) ? r.activities : []).map((x) => [Number(x?.idx ?? x?.index), x]))
+      for (const [i, a] of acts.entries()) {
+        const row = byIdx.get(i)
+        if (!acts[i].answerabilityMeasurable || !row || REVIEW_DIMENSIONS.some((d) => row[d] !== 'supported')) {
+          dimensionsComplete = false
+          missing.push(`dimension@${i}`)
+        }
+      }
+    }
+    const effective = verdict === 'supported' && !(inputComplete && dimensionsComplete) ? 'pending' : verdict
+    // 口径：unsupported 是**更严**的结论，保留原样（缺维度只影响"升到 supported"的资格）；
+    // supported 必须输入完整 + 逐题四维度齐全，否则降级 pending（38-S1：缺依据不得背书）。
+    return {
+      verdict: effective, judgeVerdict: verdict, reviewer: r?.reviewer ?? 'none', reasons: String(r?.reasons ?? ''),
+      inputComplete, missing: [...new Set(missing)].slice(0, 12), reviewHash, contentSignature: contentSignature(),
+    }
   } catch (e) {
     return { verdict: 'pending', reviewer: 'semantic-review-error', reasons: String(e?.message ?? e).slice(0, 160), contentSignature: contentSignature() }
   }
 }
 
-/** 36-R1：内容语义审核（模型复核可辅助，不冒充真人核验）。
- * 审核对象绑定内容签名；输入=所引段正文 + 每题（问题/参考答案/支撑句），
- * 输出 verdict: supported | unsupported | pending。注入式（测试用 stub）；
- * 默认实现走同一 chat 做模型复核，输出不可解析 → pending（宁可不发布）。 */
+/** 36-R1→38-S1：内容语义审核（模型复核可辅助，不冒充真人核验）。
+ * 输入=runSemanticReview 组装的完整审核对象（目标边界/短讲/全部提示/评分合同/段正文/参考答案）；
+ * 输出必须**逐题给出四个维度**结论（可答性/语言事实与解释/目标对齐/评分一致性）——
+ * 只报总体结论=审核不完整，由 runSemanticReview 强制降级 pending。
+ * 输出不可解析 → pending（宁可不发布）。 */
 export function makeDefaultSemanticJudge(chat) {
-  return async ({ segments, activities }) => {
+  return async (input) => {
     const prompt = [
-      '你是内容审核员。判断下面的每一道题是否"问的是材料里实际存在的信息，且参考答案与材料一致"。',
-      '材料段：' + JSON.stringify(segments),
-      '题目：' + JSON.stringify(activities),
-      '规则：只要有一题问到材料里不存在的信息、或参考答案与材料矛盾、或支撑句与问题无关 → verdict=unsupported 并给出 reasons；全部成立才 verdict=supported。只输出 JSON：{"verdict":"supported|unsupported","reasons":"…"}',
+      '你是课程内容审核员。对下面每一道题**分别**判断四个维度：',
+      '1) answerability 可答性：问题（含每条提示引导的方向）是否只问材料段里实际存在的信息？参考答案是否与材料一致？',
+      '2) languageFacts 语言事实与解释：短讲和提示有没有教错误的语言规则（如把标点/位置当判断规则、把对照说成必然限制）？',
+      '3) objectiveAlignment 目标对齐：题目是否测目标边界内的能力，有没有混入别的目标的题型？',
+      '4) scoringConsistency 评分一致性：按给出的评分规则，参考答案自己能通过吗？与参考答案同义的说法会被误拒吗？与正文矛盾的说法会被误收吗？',
+      '审核对象：' + JSON.stringify(input),
+      '规则：任何一题的任何一维度不成立 → 该维度写 "unsupported" 并在 reasons 说明；全部成立才 verdict=supported。只输出 JSON：',
+      '{"verdict":"supported|unsupported","reasons":"…","activities":[{"idx":0,"answerability":"supported|unsupported","languageFacts":"…","objectiveAlignment":"…","scoringConsistency":"…"}]}',
     ].join(String.fromCharCode(10))
     try {
-      const out = await chat([{ role: 'user', content: prompt }], { maxTokens: 300 })
+      const out = await chat([{ role: 'user', content: prompt }], { maxTokens: 700 })
       const raw = typeof out === 'string' ? out : out.text
       const parsed = JSON.parse(raw)
       if (parsed?.verdict === 'supported' || parsed?.verdict === 'unsupported') {
-        return { verdict: parsed.verdict, reviewer: 'model-assist', reasons: String(parsed.reasons ?? '') }
+        return { verdict: parsed.verdict, reviewer: 'model-assist', reasons: String(parsed.reasons ?? ''), activities: Array.isArray(parsed.activities) ? parsed.activities : [] }
       }
       return { verdict: 'pending', reviewer: 'model-assist', reasons: '审核输出不可解析' }
     } catch (e) {
@@ -355,6 +425,9 @@ async function runJob(jobId, { chat = chatWithMeta, semanticJudge = null } = {})
     audioOralDependent: primarySkill(objective) !== 'reading' && primarySkill(objective) !== 'writing'
       || (Array.isArray(objective.flags) ? objective.flags : JSON.parse(objective.flags || '[]')).includes('needs_audio'),
     objectiveId: objective.objectiveId,
+    // 38-S1：审核者要判"目标对齐"，必须拿到目标行为与边界（不是只有 ID）
+    objectiveBehavior: objective.behavior ?? null,
+    objectiveBoundary: objective.boundary ?? null,
   }
 
   let lastReasons = []
@@ -470,18 +543,33 @@ async function runJob(jobId, { chat = chatWithMeta, semanticJudge = null } = {})
       // human_review=pending + dev_only + 抽检标记，通过 sampling 队列待人工抽样（见 validation.samplingQueued）。
       const needsSign = objective.verification !== 'claim_checked' || pkg.explanationKind === 'new' || audioOral
       // 36-R1：**内容语义审核**——机器门全绿不够（无关真实引用可绕过 quoteIntegrity）。
-      // 审核对象绑定内容签名；结论记录进 validation。verdict：
-      //   supported   = 审核认为每题都能由所引段支撑
+      // 审核对象绑定内容签名+审核对象哈希；结论记录进 validation。verdict：
+      //   supported   = 完整审核输入 + 逐题四维度全部成立
       //   unsupported = 审核判定存在无依据问题/答案 → 不发布
-      //   pending     = 无审核/审核失败 → 不发布（宁可不学，不给错误教材）
+      //   pending     = 输入缺依据/维度不全/无审核/审核失败 → 不发布（宁可不学，不给错误教材）
       const review = await runSemanticReview({ pkg, ctx, chat, judge: semanticJudge })
+      // 38-S2：**审核返回后的发布前最终核对**——审核模型等待期间，学习证据可能前进、任务可能被
+      // superseded、内容依赖可能变化。旧课程不得借迟到的好评发布。三项全过才进入发布：
+      //   ① 任务状态仍 running（外部 supersede 不被覆盖——下面的写全部带 WHERE status='running'）
+      //   ② 学习证据快照仍当前（审核期间的新作答 ⇒ 不发布）
+      //   ③ 内容签名仍一致（审核期间素材/合同/来源变化 ⇒ 旧审核不给新内容背书）
+      const finalCheckOk = job().status === 'running'
+        && generationSnapshotCurrent(conn, job().account_id, learnerEvidence, storedSig)
+        && review.contentSignature === contentSignature()
+      if (!finalCheckOk) {
+        // 带状态条件写：只有仍 running 的行才标记 superseded；已被外部 supersede 的行保持原状（可追溯）
+        const r = conn.prepare("UPDATE generation_jobs SET status='superseded',cost_tokens=?,reject_reasons=?,latency_ms=?,finished_at=? WHERE job_id=? AND status='running'")
+          .run(totalTokens, JSON.stringify(['INVALIDATED_DURING_REVIEW']), Date.now() - started, Date.now(), jobId)
+        if (r.changes === 0) return { jobId, status: 'superseded', published: false, reasons: ['SUPERSEDED_DURING_REVIEW'] }
+        return { jobId, status: 'superseded', published: false, reasons: ['INVALIDATED_DURING_REVIEW'] }
+      }
       if (review.verdict !== 'supported') {
-        conn.prepare("UPDATE generation_jobs SET status = 'succeeded', cost_tokens = ?, output_lesson_id = ?, output_version = 1, validation = ?, latency_ms = ?, finished_at = ? WHERE job_id = ?")
+        conn.prepare("UPDATE generation_jobs SET status = 'succeeded', cost_tokens = ?, output_lesson_id = ?, output_version = 1, validation = ?, latency_ms = ?, finished_at = ? WHERE job_id = ? AND status = 'running'")
           .run(totalTokens, lessonId, JSON.stringify({ gates: lg, published: false, pending: 'content_semantic_review', semanticReview: review, samplingQueued: true }), Date.now() - started, Date.now(), jobId)
         return { jobId, status: 'succeeded', lessonId, published: false, pending: 'content_semantic_review', reasons: review.reasons ? [review.reasons] : [] }
       }
       if (needsSign && !spec.userConfirmed) {
-        conn.prepare("UPDATE generation_jobs SET status = 'succeeded', cost_tokens = ?, output_lesson_id = ?, output_version = 1, validation = ?, latency_ms = ?, finished_at = ? WHERE job_id = ?")
+        conn.prepare("UPDATE generation_jobs SET status = 'succeeded', cost_tokens = ?, output_lesson_id = ?, output_version = 1, validation = ?, latency_ms = ?, finished_at = ? WHERE job_id = ? AND status = 'running'")
           .run(totalTokens, lessonId, JSON.stringify({ gates: lg, published: false, pending: 'human_sign', semanticReview: review, samplingQueued: true }), Date.now() - started, Date.now(), jobId)
         return { jobId, status: 'succeeded', lessonId, published: false }
       }
@@ -489,7 +577,10 @@ async function runJob(jobId, { chat = chatWithMeta, semanticJudge = null } = {})
       // 签审要求不消失（pending human_sign 照记），签署后升 mainline
       const { publishLesson } = await import('./v3lessons.mjs')
       publishLesson(lessonId, { acknowledgeUnreviewed: true, by: 'generator:' + (spec.userConfirmed ? 'userConfirmed:' : '') + jobId })
-      conn.prepare("UPDATE generation_jobs SET status = 'succeeded', cost_tokens = ?, output_lesson_id = ?, output_version = 1, validation = ?, latency_ms = ?, finished_at = ? WHERE job_id = ?")
+      // 38-S3：内容试验预览标记写进课包质量门记录——课程/推荐/恢复三处 UI 都从这里读同一事实
+      conn.prepare('UPDATE lesson_versions SET quality_gates = ? WHERE lesson_id = ?')
+        .run(JSON.stringify({ ...lg, contentPreview: true, humanSignPending: true }), lessonId)
+      conn.prepare("UPDATE generation_jobs SET status = 'succeeded', cost_tokens = ?, output_lesson_id = ?, output_version = 1, validation = ?, latency_ms = ?, finished_at = ? WHERE job_id = ? AND status = 'running'")
         .run(totalTokens, lessonId, JSON.stringify({ gates: lg, published: true, channel: 'dev_only', contentPreview: true, pending: needsSign ? 'human_sign' : null, semanticReview: review, samplingQueued: true, explanationKindSelfReported: !spec.userConfirmed }), Date.now() - started, Date.now(), jobId)
       return { jobId, status: 'succeeded', lessonId, published: true, devSample: true, contentPreview: true }
     } catch (e) {
@@ -698,7 +789,13 @@ export function generationStock(accountId) {
 }
 
 export function listJobs(accountId, limit = 20) {
+  // 38-S3：validation 解析出 published/pending/semanticVerdict——前端恢复页不用再解析 JSON 串，
+  // "succeeded 但没课"（审核未过）有明确字段可判，不再当成成功却无课
   return ensureV3Schema().prepare('SELECT job_id, objective_id, strategy_id, status, attempts, output_lesson_id, validation, reject_reasons, latency_ms, cost_tokens, created_at, finished_at FROM generation_jobs WHERE account_id = ? ORDER BY created_at DESC LIMIT ?')
-    .all(accountId, limit)
+    .all(accountId, limit).map((j) => {
+      let v = null
+      try { v = JSON.parse(j.validation || 'null') } catch { v = null }
+      return { ...j, published: v?.published ?? null, pending: v?.pending ?? null, semanticVerdict: v?.semanticReview?.verdict ?? null }
+    })
 }
 

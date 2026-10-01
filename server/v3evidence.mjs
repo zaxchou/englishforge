@@ -17,7 +17,7 @@ import { ApiError, getDb } from './db.mjs'
 import { ensureV3Schema, getMeta, setMeta, nextCounter, getCounter } from './v3db.mjs'
 import { requireAccount } from './v3api.mjs'
 import { audioPublicInfo, audioByMediaId } from './v3audio.mjs'
-import { materialForLearner } from './v3registry.mjs'
+import { materialForLearnerFrozen } from './v3registry.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const ACT_PATH = resolve(HERE, 'data', 'v3-activities.json')
@@ -36,6 +36,12 @@ export function activityById(id) {
   } catch { return null }
 }
 
+/** 34-F3：学习者可见正文优先取**发行时冻结的段原文**——素材文件后来改动不改写已发行课的
+ * 下发内容；listen 素材永不发正文的硬规则在 registry.materialForLearnerFrozen 内统一执行。 */
+function frozenMaterialFor(a) {
+  return materialForLearnerFrozen(a)
+}
+
 /** 学习者可见的活动视图：没有评估合同、没有答案、没有关系清单 */
 export function publicActivity(a) {
   if (!a) return null
@@ -50,7 +56,7 @@ export function publicActivity(a) {
     simulatesAudio: !!a.simulatesAudio, conditionsSpec: a.conditionsSpec,
     oralTask: !!a.oralEvidenceDeferred,
     slots,
-    material: materialForLearner(String(a.materialId ?? ''), a.segmentIds ?? null), // read 类只下发本题声明的段（34-F1）
+    material: frozenMaterialFor(a), // read 类只下发本题声明的段（34-F1）；已发行课用冻结正文（34-F3）
     reasonLabel: a.evaluationContract?.reason?.label ?? null,
     audio, // synthetic 合成音频（21 §6.2）：mediaId/声源标注/时长；无音频时为 null
     fixtureNotice: audio ? null
@@ -144,7 +150,9 @@ export function evaluateAttempt(activity, response) {
   // 不能因为选择对就把争议理由也认证掉。文本反匹配（在句子里搜代号）彻底废弃。
   if (c.slots) {
     const answers = (response && typeof response === 'object' && !Array.isArray(response)) ? response.answers : null
-    const code = (v) => (typeof v === 'string' ? norm(v).replace(/[^a-z0-9]/g, '') : null)
+    // 38 链实测缺陷修复：归一保留 CJK——纯中文选项此前全部塌缩成空串，
+    // 任意中文选择都会与空 accept 相等判"正确"（静默放水）。ASCII 代号（DEVICE/EVENT）行为不变。
+    const code = (v) => (typeof v === 'string' ? norm(v).replace(/[^a-z0-9\u4e00-\u9fff]/g, '') : null)
     const slotResults = c.slots.map((s) => {
       const given = answers ? answers[s.slotId] : undefined
       const g = Array.isArray(given) ? null : code(given)
@@ -406,11 +414,19 @@ export function recordAttempt(accountId, payload = {}) {
   }
 
   const ts = Date.now()
-  // 31 收口：**定义快照冻结**——重放语义需要的评估相关字段随作答落库；
-  // 之后活动内容修订（换版）不改写历史作答的模态/带归属，旧事件重放按冻结版本判（可追溯）。
+  // 31 收口 + 34-F4：**完整定义快照冻结**——重放语义需要的**全部**评估相关字段随作答落库：
+  // 模态/带归属（31）+ 题面原文、评分合同全文、目标/技能/家族/角色/版本（34-F4）。
+  // 之后活动内容修订（换版）不改写历史作答的判定依据，读取历史/重算/复核都按冻结版本
+  // （recomputeStates 的 activityOf 已读此快照）；旧无快照行回退当前定义（诚实兼容，见 32 号报告）。
   const activitySnapshot = JSON.stringify({
     simulatesAudio: !!activity.simulatesAudio, audioRef: activity.audioRef ?? null,
     complexityBand: activity.complexityBand ?? null, skillByObjective: activity.skillByObjective ?? {},
+    prompt: activity.prompt ?? null, // 34-F4：题面原文入档（换版后历史作答对应哪道题可追溯）
+    evaluationContract: activity.evaluationContract ?? null, // 评分合同全文（判分规则冻结）
+    taskFamilyId: activity.taskFamilyId ?? null, role: activity.role ?? null,
+    objectiveIds: activity.objectiveIds ?? [], activityVersion: activity.version ?? null,
+    materialId: activity.materialId ?? null, segmentIds: activity.segmentIds ?? null,
+    materialSnapshot: activity.materialSnapshot ?? null, // 34-F3：正文冻结版本（已开始课不受素材改版影响）
   })
   conn.prepare(
     `INSERT INTO learner_attempts_v3 (account_id, attempt_id, session_id, activity_id, activity_version,

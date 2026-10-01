@@ -15,6 +15,15 @@ beforeAll(async () => {
   gen = await import('./v3gen.mjs')
 })
 afterAll(() => { db.closeDb(); rmSync(dir, { recursive: true, force: true }) })
+// 38-S1：审核桩必须按新合同输出逐题四维度（与默认模型审核同构；缺维度会被强制降级 pending）
+const judgeOK = async (input) => ({
+  verdict: 'supported', reviewer: 'test-stub',
+  activities: (input.activities ?? []).map((a) => ({
+    idx: a.idx, answerability: 'supported', languageFacts: 'supported',
+    objectiveAlignment: 'supported', scoringConsistency: 'supported',
+  })),
+})
+
 const call = (pathname, body, method = 'GET') => api({ pathname, body, method, query: new URLSearchParams() })
 
 beforeAll(() => { process.env.ENGLISHFORGE_V4_GENERATION = '1' }) // 注入假模型，无真实调用；开关防误计费的统一判定照常生效
@@ -34,7 +43,7 @@ const goodPkg = (tag, band) => ({
 
 const captureJob = async (id, captured) => gen.startGenerationJob(id, {
   objectiveId: 'O-K184-02', await: true, force: true,
-  semanticJudge: async () => ({ verdict: 'supported', reviewer: 'test-stub' }),
+  semanticJudge: judgeOK,
   chat: async (msgs) => { captured.push(msgs[0].content); return JSON.stringify(goodPkg(id.slice(-4), 2)) },
 })
 
@@ -86,7 +95,7 @@ it('难度上限是机器门：band 超 maxBand 的生成输出被拒（关键�
   // 先取一次合规包，从提示里读出该画像的 maxBand
   const job = await gen.startGenerationJob(id, {
     objectiveId: 'O-K184-02', await: true, force: true,
-    semanticJudge: async () => ({ verdict: 'supported', reviewer: 'test-stub' }), chat: async (msgs) => { captured.push(msgs[0].content); return JSON.stringify(goodPkg('d1', 2)) },
+    semanticJudge: judgeOK, chat: async (msgs) => { captured.push(msgs[0].content); return JSON.stringify(goodPkg('d1', 2)) },
   })
   expect(job.status).toBe('succeeded')
   const maxBand = Number((captured[0].match(/"maxBand":(\d+)/) ?? [])[1])
@@ -94,14 +103,14 @@ it('难度上限是机器门：band 超 maxBand 的生成输出被拒（关键�
   // 越上限输出（band = maxBand+3）→ 质量门拒绝，理由点名 bandWithinMax（难度上限机器门）
   const over = await gen.startGenerationJob(id, {
     objectiveId: 'O-K184-02', await: true, force: true,
-    semanticJudge: async () => ({ verdict: 'supported', reviewer: 'test-stub' }), chat: async () => JSON.stringify(goodPkg('d2', maxBand + 3)),
+    semanticJudge: judgeOK, chat: async () => JSON.stringify(goodPkg('d2', maxBand + 3)),
   })
   expect(over.status).toBe('rejected')
   expect((over.reasons ?? []).join(';')).toContain('bandWithinMax')
   // 合规带（≤ maxBand）显式 force 重试可发布
   const ok = await gen.startGenerationJob(id, {
     objectiveId: 'O-K184-02', await: true, force: true,
-    semanticJudge: async () => ({ verdict: 'supported', reviewer: 'test-stub' }), chat: async () => JSON.stringify(goodPkg('d3', maxBand)),
+    semanticJudge: judgeOK, chat: async () => JSON.stringify(goodPkg('d3', maxBand)),
   })
   expect(ok.status).toBe('succeeded')
 })

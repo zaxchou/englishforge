@@ -306,6 +306,7 @@ function finalize({ primaryGoal, strategyId, reason, hypotheses, candidates, les
   // 诚实的状态三分：有课包→published（devSample 按 release channel）；主目标匹配的 fixture 活动→fixture_dev_only；都没有→content_pending
   let lesson
   if (pkg) {
+    const full = pkg.lessonId ? getLesson(pkg.lessonId) : null
     lesson = {
       lessonId: pkg.lessonId,
       version: pkg.version, // R2 后仍要给前端真实版本（23 轨迹曾显示 vnull）
@@ -313,6 +314,8 @@ function finalize({ primaryGoal, strategyId, reason, hypotheses, candidates, les
       role: activity && probeFits ? activity.role : null,
       status: 'published',
       devSample: !!pkg.devOnly, // dev_only 通道=开发样本；人审签署的 mainline 课不再标“未签署”
+      // 38-S3：内容试验预览与推荐卡同源（quality_gates.contentPreview，生成发布时写入）
+      contentPreview: full?.qualityGates?.contentPreview === true,
     }
   } else if (activity && probeFits) {
     lesson = { lessonId: null, activityId: activity.activityId, version: activity.version, role: activity.role, status: 'fixture_dev_only' }
@@ -346,6 +349,8 @@ function decisionView(row) {
       lesson.lessonId=null;lesson.status='content_pending';lesson.resumeAvailable=false
       lesson.waitNotice='当前材料已经变更或不再适合这次学习安排，请等待新的合格课程。'
     }
+    // 38-S3：恢复的推荐卡与新鲜推荐同口径显示内容试验预览
+    lesson.contentPreview = pkg?.qualityGates?.contentPreview === true
     lesson.resumeAvailable = !!lesson.lessonId && row.status !== 'completed' && !!pkg?.activities.some(a => ensureV3Schema().prepare('SELECT 1 FROM learner_attempts_v3 WHERE account_id=? AND activity_id=? AND created_at>=? LIMIT 1').get(row.account_id,a.activityId,row.served_at ?? row.created_at))
   }
   return {

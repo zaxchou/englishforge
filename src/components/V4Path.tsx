@@ -17,17 +17,19 @@ type Plan = {
   reason: string
   hypotheses: string[]
   uncertainAreas: string[]
-  lesson: { lessonId: string | null; activityId: string | null; status: string; waitNotice?: string; devSample?: boolean; resumeAvailable?: boolean }
+  lesson: { lessonId: string | null; activityId: string | null; status: string; waitNotice?: string; devSample?: boolean; contentPreview?: boolean; resumeAvailable?: boolean }
   notChosen: { objectiveId: string; reason: string }[]
   status: string
 }
 type AttemptFeedback = { pass: boolean | null; evaluationStatus: string; practiceOnly?: boolean; dimensions?: { id: string; label: string; hit: boolean; required: boolean }[]; slotResults?: { slotId: string; prompt: string; given: string | null; status: string }[] }
+type ContentReview = { preview: boolean; humanSignPending: boolean; semanticVerdict: string | null; pending: string | null }
 type LessonPkg = {
   lessonId: string
   title: string
   whyNow: string
   teachingNote: string | null
   devSampleNotice: string | null
+  contentReview?: ContentReview | null
   activities: { resume?: { response: { text?: string; answers?: Record<string, string> }; result: AttemptFeedback } | null; nextTake: number; taskId: string; activityVersion: number; activityId: string; role: string; prompt: string; hintStageCount: number; firstHint: string | null; simulatesAudio: boolean; fixtureNotice: string | null; oralTask?: boolean; audio?: AudioInfo | null; slots?: { slotId: string; prompt: string; options: string[] }[] | null; reasonLabel?: string | null; material?: { materialId: string; materialVersion?: number; kind: string; segments: { segmentId: string; title?: string; text: string }[] } | null }[]
   nextCandidates: string[]
   holdout: { lessonId: string; answersIncluded: boolean } | null
@@ -135,24 +137,41 @@ export function V4Path({ accountId }: { accountId: string | null }) {
         `/accounts/${accountId}/generation/start`, { objectiveId: today.goalId, confirmCost: true }, 'POST')
       if (r.cooledDown) { setGenPhase('failed'); setGenNote(r.note ?? '同目标刚失败过，10 分钟冷却后再试。'); return }
       const jobId = r.jobId ?? null
-      // 轮询任务状态（生成的课约半分钟；最多等 3 分钟）
+      // 轮询任务状态（生成的课约半分钟；最多等 3 分钟）。
+      // 38-S3：succeeded ≠ 有课——审核未过（published:false + pending）有明确字段，
+      // 给恢复路径，不再让"成功却无课"卡住学习者
       for (let i = 0; i < 60; i++) {
         await new Promise((res) => setTimeout(res, 3000))
-        const d = await api<{ jobs: { job_id: string; status: string; output_lesson_id: string | null; reject_reasons: string | null }[] }>(`/accounts/${accountId}/generation`)
+        const d = await api<{ jobs: { job_id: string; status: string; output_lesson_id: string | null; published?: boolean | null; pending?: string | null; semanticVerdict?: string | null; reject_reasons: string | null }[] }>(`/accounts/${accountId}/generation`)
         const job = d.jobs.find((j) => j.job_id === jobId)
         if (!job) continue
-        if (job.status === 'succeeded' && job.output_lesson_id) {
+        if (job.status === 'succeeded' && job.output_lesson_id && job.published) {
           setGenLessonId(job.output_lesson_id); setGenPhase('done'); return
+        }
+        if (job.status === 'succeeded' && job.output_lesson_id && job.pending === 'content_semantic_review') {
+          setGenPhase('failed')
+          setGenNote('这一课没有通过内容审核（' + (job.semanticVerdict === 'unsupported' ? '审核判定题目和材料对不上' : '审核未完成') + '），没有发布——不会让你学没把握的内容。可以重新生成一次，或先学下面的备用课。')
+          void loadPlan()
+          return
+        }
+        if (job.status === 'succeeded' && job.output_lesson_id && job.pending === 'human_sign') {
+          setGenPhase('failed')
+          setGenNote('这一课已生成，正在等人工审核签署；签署前不进入学习主线。可以先学下面的备用课，或稍后再来。')
+          void loadPlan()
+          return
         }
         if (job.status === 'failed' || job.status === 'rejected' || job.status === 'superseded') {
           setGenPhase('failed')
-          setGenNote('生成没有通过质量门（' + String(job.reject_reasons ?? job.status).slice(0, 120) + '）。可以先免修这项，或稍后再试。')
+          setGenNote(job.status === 'superseded'
+            ? '等待期间你的练习记录或内容有了变化，这次生成已作废（没扣这次的学习安排）。可以重新生成，或先学下面的备用课。'
+            : '生成没有通过质量门（' + String(job.reject_reasons ?? job.status).slice(0, 120) + '）。可以重新生成一次，或先学下面的备用课。')
+          void loadPlan()
           return
         }
       }
       setGenPhase('failed'); setGenNote('生成超时。可稍后再试。')
     } catch (e) { setGenPhase('failed'); setGenNote(String(e)) }
-  }, [accountId, today.goalId])
+  }, [accountId, today.goalId, loadPlan])
   
   if (!accountId) {
     return <div className="v4"><div className="v4-empty">正在连接数据库……连接后这里显示你的能力路径。</div></div>
@@ -189,20 +208,29 @@ async function changeWaiver(objectiveId:string,skill:string,revoked:boolean) {
           <h2 className="v4-today-head">{today.headline}</h2>
           {today.reason && <p className="v4-why">{today.reason}</p>}
           {today.mode === 'wait' ? (
-            // 等待态 = 可动作：一键按需生成（用户点按钮即明示计费确认），不再是死按钮
+            // 等待态 = 可动作：一键按需生成（用户点按钮即明示计费确认），不再是死按钮。
+            // 38-S3：完成/失败都给一致的审核状态与恢复路径——失败可重新生成或转备用课
             genPhase === 'done' && genLessonId ? (
               <>
-                <button className="v4-primary v4-today-btn" onClick={() => void openLesson(genLessonId)}>开始这一课（开发样本 · 未签署）</button>
-                <p className="v4-dim">这一课是按你最近的练习实时生成的<b>开发样本</b>：可以学；通过人工审核后才算正式内容。</p>
+                <button className="v4-primary v4-today-btn" onClick={() => void openLesson(genLessonId)}>开始这一课（内容试验预览）</button>
+                <p className="v4-dim">这一课是按你最近的练习实时生成的<b>内容试验预览</b>：机器质量门和模型辅助内容检查已通过，专业人工核验还没做——可以学，发现讲得不对的地方请直接反馈。</p>
               </>
             ) : genPhase === 'running' ? (
               <button className="v4-primary v4-today-btn" disabled>正在生成这一课…（约半分钟，别关页面）</button>
             ) : (
               <>
+                {genPhase === 'failed' && (
+                  <div className="v4-today-aux" style={{ marginBottom: 8 }}>
+                    <button className="v4-ghost" disabled={waiverBusy} onClick={() => { setGenPhase('idle'); void startGeneration() }}>重新生成一次</button>
+                    {plan?.lesson?.lessonId && plan.lesson.status === 'published' && (
+                      <button className="v4-ghost" disabled={waiverBusy} onClick={() => { if (plan.lesson?.lessonId) void openLesson(plan.lesson.lessonId) }}>先学备用课</button>
+                    )}
+                  </div>
+                )}
                 <button className="v4-primary v4-today-btn" disabled={waiverBusy || planLoading || !!err} onClick={() => { void startGeneration() }}>
-                  用 AI 生成这一课（调用真实模型 · 按次计费 · 先标开发样本）
+                  用 AI 生成这一课（调用真实模型 · 按次计费 · 先标内容试验预览）
                 </button>
-                <p className="v4-dim">生成后它会出现在这里并进入人工审核队列；不想用也可以先免修这项。</p>
+                <p className="v4-dim">生成后它会出现在这里（先标内容试验预览，模型辅助检查、专业核验未做）；不想用也可以先免修这项。</p>
               </>
             )
           ) : (
@@ -342,7 +370,7 @@ function PlanPanel({ plan, noPlan, stock, onDiagnostic, onOpenLesson }: {
           <span className="v4-wait">⏳ 该策略还没有课程包（只有验收用活动）；正式材料在 W3 材料清单内</span>
         )}
         {plan.lesson.status === 'content_pending' && <span className="v4-wait">⏳ {plan.lesson.waitNotice}</span>}
-        {plan.lesson.devSample && <span className="v4-dev">开发样本 · 人审未签署</span>}
+        {plan.lesson.devSample && <span className="v4-dev">{plan.lesson.contentPreview ? '内容试验预览 · 模型辅助检查已过 · 专业核验未做' : '开发样本 · 人审未签署'}</span>}
       </div>
       {stockLine && <p className="v4-dim">课程供给：{stockLine}。</p>}
       {!!plan.hypotheses.length && <p><b>根因假设：</b>{plan.hypotheses.join('、')}</p>}
@@ -618,6 +646,9 @@ function LessonRunner({ accountId, pkg, onDone }: {
       <p className="v4-why">为什么现在学：{pkgLive.whyNow}</p>
       {pkgLive.teachingNote && <p className="v4-teach">要点：{pkgLive.teachingNote}</p>}
       {pkgLive.devSampleNotice && <p className="v4-dev">{pkgLive.devSampleNotice}</p>}
+      {/* 38-S3：课内与推荐卡、生成结果页同一份审核事实（缓存恢复后重取课包也带 contentReview） */}
+      {pkgLive.contentReview?.preview && <p className="v4-dev">内容试验预览：题目与讲法经过了机器质量门和模型辅助内容检查；专业人工核验还没做。</p>}
+      {pkgLive.contentReview?.pending === 'content_semantic_review' && <p className="v4-dev">这节课的内容审核还没有完成，暂时不能继续——回到上一页可以重新生成或换备用课。</p>}
       <p className="v4-dim">当前第 {currentIndex + 1} 步，共 {visibleActs.length} 步。看懂反馈后再进入下一步。</p>
       {visibleActs.slice(currentIndex, currentIndex + 1).map((act) => (
         <div key={act.activityId + act.activityVersion + act.prompt} className="v4-act">

@@ -38,7 +38,7 @@ try {
  let completed=0
  for(let course=0;course<4;course++){
   const plan=(await api(`/api/v1/accounts/${id}/plan`)).decision
-  if(!plan.lesson.lessonId){await page.getByRole('button',{name:'内容准备中…',exact:true}).waitFor();break}
+  if(!plan.lesson.lessonId){await page.getByRole('button',{name:/用 AI 生成这一课/}).waitFor();break}
   await page.getByRole('button',{name:/^(开始训练|继续上一段)$/}).click()
   let pkg=await api(`/api/v1/accounts/${id}/lessons/${plan.lesson.lessonId}`)
   await page.getByRole('heading',{name:pkg.title,exact:true}).waitFor()
