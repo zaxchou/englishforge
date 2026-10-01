@@ -682,16 +682,28 @@ describe('W2/附加 幂等与诚实状态', () => {
 describe('W4/T5+T6 按需生成供给', () => {
   beforeAll(() => { process.env.ENGLISHFORGE_V4_GENERATION = '1' })
   afterAll(() => { delete process.env.ENGLISHFORGE_V4_GENERATION })
+
+  // 34-F1 夹具：给活动补段绑定/参考答案/逐字支撑句（可答性门要求）
+  const SEG_QUOTES = {
+    mat_g3_rehearsal: { q: 'We kept the gesture controls, but we delayed voice control until we could test it with visitors in the exhibition hall.', a: '团队保留了手势控制，但把语音控制推迟到展厅实测之后——限制是先在展厅验证，不是永久放弃。' },
+    mat_g3_film: { q: 'We kept the visual sequence but postponed the voice-over test.', a: '保留了视觉序列，推迟配音测试——限制只是小房间场景，不是影片不行。' },
+    mat_g1_projector: { q: 'The projector, which we borrowed from the media lab, stopped working during the exhibition.', a: 'A 句的 which 限定修饰投影仪（借来的那台）；B 句的 which 补充后果（不得不改布置）。' },
+    mat_g1_sensor: { q: 'The sensor, which was tested indoors, works well.', a: '加逗号版补充"在室内测过"这个信息；无逗号版限定是哪一颗传感器。' },
+  }
+  function bind(activities, seg) {
+    const { q, a } = SEG_QUOTES[seg]
+    return activities.map((x) => ({ ...x, segmentIds: [seg], referenceAnswer: a, supportingQuotes: [q] }))
+  }
   const goodPkg = {
     title: '把转折接回主张', whyNow: 'D2 首听漏结论：先抓 but 之前的主张，再看它对照什么。',
     teachingNote: '说话人先说一件事看起来不错，再用 but 换到另一面：but 前是他承认的，but 后才是他真正要说的。',
     explanationKind: 'established',
-    activities: [
-      { taskFamilyId: 'gen_contrast_a', materialId: 'mat_g3_contrast_texts', prompt: '听：The app looked perfect in the demo, but it crashed every hour at school. 问：说话人真正强调什么？', hints: ['but 之后是重点'],
-        relations: [{ id: 'demo', label: 'demo 里看起来完美', anyOf: ['demo', '演示', '看起来'], required: true }, { id: 'crash', label: '学校里每小时崩', anyOf: ['crash', '崩', 'school', '学校'], required: true }] },
-      { taskFamilyId: 'gen_contrast_b', materialId: 'mat_g3_contrast_texts', prompt: 'Our first test worked well, but real users stopped at step three. 问：两半分别是什么？', hints: [],
-        relations: [{ id: 'test', label: '首测顺利', anyOf: ['test', '测试', 'worked'], required: true }, { id: 'step3', label: '真实用户停在第三步', anyOf: ['step', '第三', 'users'], required: true }] },
-    ],
+    activities: bind([
+      { taskFamilyId: 'gen_contrast_a', materialId: 'mat_g3_contrast_texts', prompt: '读排练记录：团队保留了什么、推迟了什么、限制是什么？', hints: ['限制是推迟的依据，不是永久放弃'],
+        relations: [{ id: 'kept', label: '保留手势', anyOf: ['kept', '保留'], required: true }, { id: 'delay', label: '推迟语音', anyOf: ['delay', '推迟'], required: true }] },
+      { taskFamilyId: 'gen_contrast_b', materialId: 'mat_g3_contrast_texts', prompt: '读放映与配音段：保留了什么、推迟了什么？', hints: [],
+        relations: [{ id: 'kept', label: '保留视觉', anyOf: ['kept', '保留', 'visual'], required: true }, { id: 'post', label: '推迟配音', anyOf: ['postponed', '推迟'], required: true }] },
+    ], 'mat_g3_rehearsal'),
     sourceRefs: [{ ref: 'G3', claim: 'but 表示对照' }],
   }
   // C4：来源命题按目标声明选——账本里每个代号都有已核命题；夹具照抄账本主张
@@ -702,7 +714,18 @@ describe('W4/T5+T6 按需生成供给', () => {
     C1: '互动、澄清、转述、音系维度可用于设计真实任务',
     T: 'C15 提供“声音—结构—简化”的解释入口',
   }
-  const pkgFor = (refs) => ({ ...goodPkg, sourceRefs: refs.map((ref) => ({ ref, claim: ledgerClaims[ref.split(':')[0]] })) })
+  // 34-F5：素材按目标适配——G1（限定/补充）绑 mat_g1，其余（对照）绑 mat_g3；段/答案/支撑句随之切换
+  const pkgFor = (refs) => {
+    const base = refs.includes('G1')
+      ? { ...goodPkg, activities: bind([
+        { taskFamilyId: 'gen_g1_a', materialId: 'mat_g1_relation_pairs', prompt: '读传感器对照句：哪一句的修饰在缩小范围，哪一句在补充信息？', hints: ['看去掉修饰后句意是否改变'],
+          relations: [{ id: 'restrict', label: '缩小范围', anyOf: ['缩小', '范围', 'restrict'], required: true }, { id: 'add', label: '补充信息', anyOf: ['补充', 'add'], required: true }] },
+        { taskFamilyId: 'gen_g1_b', materialId: 'mat_g1_relation_pairs', prompt: '读投影仪两句：A、B 各自的 which 部分在做什么？', hints: [],
+          relations: [{ id: 'specify', label: '指明对象', anyOf: ['borrowed', '指明', '指代'], required: true }, { id: 'result', label: '解释后果', anyOf: ['meant', '后果'], required: true }] },
+      ], 'mat_g1_projector') }
+      : goodPkg
+    return { ...base, sourceRefs: refs.map((ref) => ({ ref, claim: ledgerClaims[ref.split(':')[0]] })) }
+  }
   const fakeChat = (payload) => async () => JSON.stringify(typeof payload === 'function' ? payload() : payload)
 
   it('T5：空字段/无来源/术语解析/家族重复/截断 —— 全部拒收且留原因；好输出经全门发布（dev_only）', async () => {
@@ -731,6 +754,7 @@ describe('W4/T5+T6 按需生成供给', () => {
     expect(trunc.status).toBe('rejected')
     // 好输出：阅读目标（claim_checked）→ 自动发布（dev_only 通道）；来源按目标声明带命题（C4）
     const okJob = await gen.startGenerationJob(id, { objectiveId: 'O-K115-01', strategyId: 'short_explain', chat: fakeChat(pkgFor(['G1'])), await: true, force: true })
+    if (okJob.status !== 'succeeded') console.log('T5DBG', JSON.stringify(okJob.reasons ?? okJob))
     expect(okJob.status).toBe('succeeded')
     expect(okJob.published).toBe(true)
     // C4：生成课落账户 scope——操作者列表可见 scope；他人直连取课被拒
@@ -795,12 +819,12 @@ describe('W4/T5+T6 按需生成供给', () => {
     // 对照组：真新内容（不同 prompt/关系）+ 绑定已审素材，同账户正常过门
     const fresh = {
       ...reskin,
-      title: '真正的新课', activities: [
-        { taskFamilyId: 'fresh_fam_a', materialId: 'mat_g3_contrast_texts', prompt: 'New plan, new problems: the team changed the schedule twice this week. 问：改变了几次？', hints: [],
-          relations: [{ id: 'twice', label: '改了两次', anyOf: ['twice', '两次', 'two'], required: true }, { id: 'sched', label: '改的是日程', anyOf: ['schedule', '日程', '计划'], required: true }] },
-        { taskFamilyId: 'fresh_fam_b', materialId: 'mat_g3_contrast_texts', prompt: 'The printer jammed again, so we switched rooms. 问：结果是什么？', hints: [],
-          relations: [{ id: 'switch', label: '换了房间', anyOf: ['switch', '换', 'room'], required: true }, { id: 'jam', label: '原因又是卡纸', anyOf: ['jam', '卡纸', 'printer'], required: true }] },
-      ],
+      title: '真正的新课', activities: bind([
+        { taskFamilyId: 'fresh_fam_a', materialId: 'mat_g3_contrast_texts', prompt: '读排练记录：团队保留了什么、推迟了什么、限制是什么？', hints: ['限制是推迟的依据，不是永久放弃'],
+          relations: [{ id: 'kept', label: '保留手势', anyOf: ['kept', '保留'], required: true }, { id: 'delay', label: '推迟语音', anyOf: ['delay', '推迟'], required: true }] },
+        { taskFamilyId: 'fresh_fam_b', materialId: 'mat_g3_contrast_texts', prompt: '读放映与配音段：保留了什么、推迟了什么？', hints: [],
+          relations: [{ id: 'kept', label: '保留视觉', anyOf: ['kept', '保留', 'visual'], required: true }, { id: 'post', label: '推迟配音', anyOf: ['postponed', '推迟'], required: true }] },
+      ], 'mat_g3_rehearsal'),
     }
     const ok = await gen.startGenerationJob(id, { objectiveId: 'O-K184-02', strategyId: 'sound_segmentation', chat: fakeChat(fresh), await: true, force: true })
     expect(ok.status).toBe('succeeded')

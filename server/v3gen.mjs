@@ -20,7 +20,7 @@ import { rowToObjective } from './v3map.mjs'
 import { runQualityGates, lessonForStrategy, lessonForObjective, getLesson, lessonApplicable } from './v3lessons.mjs'
 import { activityById } from './v3evidence.mjs'
 import { decide } from './v3plan.mjs'
-import { sourceLedger, loadMaterials, materialUsableFor, materialsForPrompt, contentSignature } from './v3registry.mjs'
+import { sourceLedger, loadMaterials, materialUsableFor, materialsForPrompt, contentSignature, segmentText } from './v3registry.mjs'
 import { chatWithMeta, LlmError } from './llm.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
@@ -102,6 +102,9 @@ export function registerGeneratedActivities(jobId, activities) {
       objectiveIds: a.objectiveIds, skillByObjective: a.skillByObjective,
       responseKind: 'text', prompt: a.prompt, hints: a.hints ?? [],
       materialId: a.materialId ?? null, // 素材绑定必须落库，否则下发端无从取正文（实测丢失事故）
+      segmentIds: Array.isArray(a.segmentIds) ? a.segmentIds : null, // 34-F1：本题依据的段（下发只给这些段）
+      referenceAnswer: typeof a.referenceAnswer === 'string' ? a.referenceAnswer : null, // 参考答案：复核/对照用，不下发学习者
+      supportingQuotes: Array.isArray(a.supportingQuotes) ? a.supportingQuotes : null, // 支撑原句：可追溯出题依据
       conditionsSpec: ['firstExposure', 'hintLevel', 'transcriptShown', 'playCount', 'lookupUsed', 'responseMode'],
       evaluationContract: { dimensions: a.dimensions ?? a.relations.map((r) => r.label), relations: a.relations, mustNot: a.mustNot ?? [] },
       complexityBand: a.complexityBand ?? null,
@@ -160,10 +163,32 @@ export function validateGeneratedPackage(pkg, ctx) {
     return Number.isFinite(b) && b >= 1 && b <= maxBand
   })
   // 31 第三批：已审素材绑定门——每个活动必须绑定"audited 且对该目标可用"的素材条目；
-  // 未绑定/未知/待审素材一律拒（输出必须落在真实素材上，不能凭空编材料）。
+  // 未绑定/未知/待审/目标不匹配（34-F5 收窄）一律拒。
   gates.materialsBound = (pkg.activities ?? []).every((a) => materialUsableFor(String(a.materialId ?? ''), ctx.objectiveId))
+  // 34-F1：**可答性门**——题目必须落在所选段上，且支撑句逐字可查：
+  // ① segmentIds 非空且都属于所选素材；② referenceAnswer ≥8 字；③ supportingQuotes ≥1
+  // 且每条是所引段正文的原文子串（归一空白）。问正文没有的信息 → 引不出原文 → 拒。
+  const normWs = (x) => String(x ?? '').replace(/\s+/g, ' ').trim()
+  gates.answerableOnMaterial = (pkg.activities ?? []).every((a) => {
+    const segIds = a.segmentIds
+    if (!Array.isArray(segIds) || !segIds.length) return false
+    const texts = segIds.map((sid) => segmentText(String(a.materialId ?? ''), String(sid)))
+    if (texts.some((t) => t === null)) return false // 段不属于该素材
+    if (typeof a.referenceAnswer !== 'string' || normWs(a.referenceAnswer).length < 8) return false
+    const quotes = a.supportingQuotes
+    if (!Array.isArray(quotes) || !quotes.length) return false
+    return quotes.every((q) => {
+      const nq = normWs(q)
+      return nq.length >= 12 && texts.some((t) => normWs(t).includes(nq))
+    })
+  })
+  // 34-F2：提示质量门——禁止把标点/位置当判断规则的机械提示进入真实学习记录
+  const HINT_BLACKLIST = ['加逗号的那部分', '只要看到逗号', '有逗号就是', '多半在缩小范围', '前面是主张', '后面是限制', '逗号后就是']
+  gates.hintQuality = (pkg.activities ?? []).every((a) =>
+    !(a.hints ?? []).some((h) => HINT_BLACKLIST.some((b) => String(h).includes(b))))
+    && !HINT_BLACKLIST.some((b) => String(pkg.teachingNote ?? '').includes(b))
   gates.truncated = false // chatJson 解析失败根本到不了这里；截断=reject 上游
-  gates.allPassed = ['schemaComplete', 'answersConsistent', 'sourcesUsable', 'explanationClean', 'familyFresh', 'holdoutIsolated', 'bandWithinMax', 'materialsBound']
+  gates.allPassed = ['schemaComplete', 'answersConsistent', 'sourcesUsable', 'explanationClean', 'familyFresh', 'holdoutIsolated', 'bandWithinMax', 'materialsBound', 'answerableOnMaterial', 'hintQuality']
     .every((k) => gates[k])
   return gates
 }
@@ -306,9 +331,17 @@ async function runJob(jobId, { chat = chatWithMeta } = {}) {
         (() => {
           const m = materialsForPrompt(ctx.objectiveId)
           return [
-            `可用已审素材（每个活动的 materialId 必须从这里选）：${JSON.stringify(m.audited)}`,
+            // 34-F1：生成器必须读到素材正文再出题——每段带 segmentId 原文
+            `可用已审素材（含正文；每个活动的 materialId+segmentIds 必须从这里选）：${JSON.stringify(m.audited)}`,
             m.pendingReview.length ? `待审素材（不得绑定）：${JSON.stringify(m.pendingReview)}` : '',
-            '硬性要求：每个活动对象必须有 materialId 字段，值只能取上列表中的 materialId 原文；缺失或自造 → 整课拒收。示例：{"taskFamilyId":"fam_x","materialId":"' + (m.audited[0]?.materialId ?? 'mat_xxx') + '","prompt":"…","relations":[…]}',
+            [
+              '硬性要求（违反 → 整课拒收）：',
+              '① 每个活动对象必须有：materialId、segmentIds（本题依据的段，从所选素材里选）、referenceAnswer（参考答案，≥8 字，必须是读懂正文才能写出的答案）、supportingQuotes（支撑句，≥1 条，逐字摘自所引 segmentIds 的正文，不得改写）。',
+              '② 问题、参考答案、提示只能考正文里实际存在的信息；正文没有的信息一律不问（如正文没提未来计划就不能问未来计划）。',
+              '③ 提示只能解释正文内容或 hintGuidance 里说的判断方法；禁止把标点/位置当判断规则（如"加逗号的多半在缩小范围"），禁止"前面是主张后面是限制"式固定位置规则。',
+              '④ 各活动只测本目标边界内的能力，不得混入其他目标的题型（限定/非限定归 O-K115-01/02，不进对照与限制目标）。',
+              '示例：{"taskFamilyId":"fam_x","materialId":"mat_g3_contrast_texts","segmentIds":["mat_g3_rehearsal"],"referenceAnswer":"团队保留了手势控制，但把语音控制推迟到展厅实测之后——限制是先在展厅验证，不是永久放弃。","supportingQuotes":["We kept the gesture controls, but we delayed voice control until we could test it with visitors in the exhibition hall."],"prompt":"…","hints":[…],"relations":[…]}',
+            ].join('\n'),
           ].filter(Boolean).join('\n')
         })(),
         ctx.learnerEvidence.recentPracticeFeedback?.length ? `本目标近期练习反馈（关键词反馈只用于教学假设，不能视为能力认证；结合支持条件选择下一步）：${JSON.stringify(ctx.learnerEvidence.recentPracticeFeedback)}` : '',

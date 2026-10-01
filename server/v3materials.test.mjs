@@ -23,8 +23,8 @@ const goodPkg = (materialId = 'mat_g3_contrast_texts', tag = 'm') => ({
   teachingNote: '先看说话人承认的部分，再看转折后真正想说的。',
   sourceRefs: [{ ref: 'G3', claim: '两段的 but 都对照预期与实际' }],
   activities: [
-    { taskFamilyId: `mat_${tag}_a`, materialId, role: 'practice', prompt: `${tag}: The plan sounded cheap, but we paid for support later. 问：but 对照什么？`, relations: [{ id: 'contrast', label: '对照预期与实际', anyOf: ['sounded', 'but', 'paid'], required: true }] },
-    { taskFamilyId: `mat_${tag}_b`, materialId, role: 'transfer', prompt: `${tag} b: 导览看起来省时，但大家绕了远路。问：预期与实际各是什么？`, relations: [{ id: 'contrast', label: '对照预期与实际', anyOf: ['看起来', '但', '绕'], required: true }] },
+    { taskFamilyId: `mat_${tag}_a`, materialId, segmentIds: ['mat_g3_rehearsal'], referenceAnswer: '团队保留了手势控制，但把语音控制推迟到展厅实测之后——限制是先在展厅验证，不是永久放弃。', supportingQuotes: ['We kept the gesture controls, but we delayed voice control until we could test it with visitors in the exhibition hall.'], role: 'practice', prompt: `${tag}: 读排练记录——团队保留了什么、推迟了什么？`, relations: [{ id: 'kept', label: '保留手势', anyOf: ['kept', '保留'], required: true }, { id: 'delay', label: '推迟语音', anyOf: ['delay', '推迟'], required: true }] },
+    { taskFamilyId: `mat_${tag}_b`, materialId, segmentIds: ['mat_g3_film'], referenceAnswer: '保留了视觉序列，推迟配音测试——限制只是小房间场景。', supportingQuotes: ['We kept the visual sequence but postponed the voice-over test.'], role: 'transfer', prompt: `${tag} b: 读放映与配音段——保留了什么、推迟了什么？`, relations: [{ id: 'kept', label: '保留视觉', anyOf: ['kept', '保留', 'visual'], required: true }, { id: 'post', label: '推迟配音', anyOf: ['postponed', '推迟'], required: true }] },
   ],
 })
 
@@ -129,21 +129,51 @@ it('素材正文全链路：注册保留 materialId；serve 下发 read 类正�
   const [actId] = gen.registerGeneratedActivities('job-mat-keep', [{
     taskFamilyId: 'mat_keep_fam', prompt: '读下面这段短文并复述。', hints: [],
     objectiveIds: ['O-K184-02'], skillByObjective: { 'O-K184-02': 'reading' },
-    materialId: 'mat_g3_contrast_texts',
+    materialId: 'mat_g3_contrast_texts', segmentIds: ['mat_g3_rehearsal'],
+    referenceAnswer: '团队保留了手势控制，但把语音控制推迟到展厅实测之后。', supportingQuotes: ['We kept the gesture controls, but we delayed voice control until we could test it with visitors in the exhibition hall.'],
     conditionsSpec: ['firstExposure', 'hintLevel', 'transcriptShown', 'playCount', 'lookupUsed', 'responseMode'],
     relations: [{ id: 'contrast', label: '对照', anyOf: ['but', '但'], required: true }],
   }])
   const stored = ev.activityById(actId)
   expect(stored.materialId).toBe('mat_g3_contrast_texts')
-  // publicActivity 下发正文
+  // publicActivity 下发**本题声明的段**正文（34-F1）
   const pub = ev.publicActivity(stored)
-  expect(pub.material?.content?.length).toBeGreaterThan(0)
-  expect(pub.material.content[0].text).toContain('voice prototype')
+  expect(pub.material?.segments?.length).toBe(1) // 只下发 segmentIds 声明的那段
+  expect(pub.material.segments[0].segmentId).toBe('mat_g3_rehearsal')
+  expect(pub.material.segments[0].text).toContain('voice prototype')
+  // 未声明段的旧活动回退整素材（诚实兼容）
+  expect(ev.publicActivity({ ...stored, segmentIds: null }).material?.segments?.length).toBe(2)
   // listen 类不下发正文（音频即素材，首听无脚本）
   expect(ev.publicActivity({ ...stored, materialId: 'aud_l2_museum_v1' }).material).toBeNull()
   // serveLesson 同口径（用诊断里的听力活动验证：有 audioRef 无 materialId → material null）
   const diagAct = ev.activityById('diag_d1_read')
   expect(diagAct.materialId ?? null).toBeNull()
+})
+
+it('34 验收·四类反例（纯函数）：问正文没有的信息/错误语法提示/正确复述/关键词堆砌', async () => {
+  const g = await import('./v3gen.mjs')
+  const ctx = { objectiveId: 'O-K184-02', band: 2, adaptation: { maxBand: 2 }, recentFamilies: [], recentFingerprints: [], objectiveDeclaredSources: ['G3'], sourceLedger: g.sourceLedger() }
+  const act = (over = {}) => ({ taskFamilyId: 're4_a', materialId: 'mat_g4_discourse_markers', segmentIds: ['mat_g4_museum_map'],
+    referenceAnswer: '团队主张地图按设计正常工作，限制是它只反映繁忙程度、管不到访客的偏好假设。', supportingQuotes: ['The map was working as designed, but our assumption about what visitors wanted was incomplete.'],
+    prompt: '读博物馆地图段：主张是什么、限制是什么？', hints: [], relations: [{ id: 'claim', label: '主张', anyOf: ['designed', '正常'], required: true }], ...over })
+  const pkg = (...acts) => ({ title: 't', whyNow: 'w', teachingNote: '先找主张再看限制条件。', sourceRefs: [{ ref: 'G3', claim: 'but 对照预期与实际' }],
+    activities: acts.map((x) => ({ materialId: 'mat_g4_discourse_markers', segmentIds: ['mat_g4_museum_map'],
+      referenceAnswer: '团队主张地图按设计正常工作，限制是它只反映繁忙程度、管不到访客的偏好假设。', supportingQuotes: ['The map was working as designed, but our assumption about what visitors wanted was incomplete.'], ...x })) })
+  // ① 问正文没有的信息（未来计划）→ 支撑句引不出原文 → 拒（34-F1 反例：gen_job_mup9n39c_n3dk_2 同型）
+  const future = pkg(act({
+    referenceAnswer: '团队先暂停地图功能，以后会做语音导览。', supportingQuotes: ['we will add voice tours next month'],
+    prompt: '地图团队现在先做什么？以后还打算做什么？',
+  }))
+  expect(g.validateGeneratedPackage(future, ctx).answerableOnMaterial).toBe(false)
+  // ② 错误语法提示（逗号=缩小的机械规则）→ 拒（34-F2 反例：gen_job_mup7v5h4_n4qx_1 同型）
+  const badHint = pkg(act({ hints: ['加逗号的那部分，如果去掉后意思变了，它多半在缩小范围'] }))
+  expect(g.validateGeneratedPackage(badHint, ctx).hintQuality).toBe(false)
+  // ③ 正确复述（绑定段+逐字支撑+合格参考答案，含两个活动）→ 全过
+  const good = pkg(act(), act({ taskFamilyId: 're4_b', prompt: '读博物馆地图段：哪些访客走向了拥挤展室，为什么？', relations: [{ id: 'motive', label: '动机', anyOf: ['thought', '以为'], required: true }] }))
+  expect(g.validateGeneratedPackage(good, ctx).allPassed).toBe(true)
+  // ④ 关键词堆砌（参考答案无实质内容）→ 拒
+  const stuffing = pkg(act({ referenceAnswer: '地图 限制' }))
+  expect(g.validateGeneratedPackage(stuffing, ctx).answerableOnMaterial).toBe(false)
 })
 
 it('生成库存：ready/pendingReview/failedCooldown/disabled 分开计数，只读无副作用', async () => {

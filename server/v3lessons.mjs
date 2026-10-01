@@ -159,7 +159,7 @@ export function serveLesson(accountId, lessonId) {
         simulatesAudio: !!act.simulatesAudio,
         oralTask: !!act.oralEvidenceDeferred,
         slots,
-        material: materialForLearner(String(act?.materialId ?? '')), // 与 publicActivity 同口径：read 类素材正文随题下发
+        material: materialForLearner(String(act?.materialId ?? ''), act?.segmentIds ?? null), // 与 publicActivity 同口径：只下发本题声明的段
         reasonLabel: act?.evaluationContract?.reason?.label ?? null,
         audio, // synthetic 合成音频；转写不在这（首听隐藏），l2b 的校对稿在题面里
         conditionsSpec: act.conditionsSpec,

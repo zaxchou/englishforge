@@ -27,35 +27,59 @@ export function loadMaterials() {
   return materialsCache
 }
 
+/** 目标适配（34-F5）：objectiveIds 为空的旧语义作废——read 素材必须显式声明适配目标；
+ * listen 素材同理。不匹配 = 不可绑定（防止"任何目标都能绑通用素材"把限定/非限定混进对照目标）。 */
 export function materialUsableFor(materialId, objectiveId) {
-  const m = loadMaterials().find((x) => x.materialId === materialId)
+  const m = getMaterial(materialId)
   if (!m || m.status !== 'audited') return false
-  return !Array.isArray(m.objectiveIds) || m.objectiveIds.length === 0 || m.objectiveIds.includes(objectiveId)
+  if (!Array.isArray(m.objectiveIds) || !m.objectiveIds.includes(objectiveId)) return false
+  // read 素材必须有正文段；listen 素材正文=音频本身（转写不下发），不要求段
+  if (m.kind === 'read' && (!Array.isArray(m.segments) || !m.segments.length)) return false
+  return true
 }
 
-/** 已审素材的完整条目（含正文）。学习者端只对 read 类下发正文——
- * listen 类的素材就是音频本身，转写/正文首听不下发（21 §6.2）。 */
+/** 已审素材的完整条目。审核身份分字段（34-F5）：review.humanReviewed=false = 零真人核验，
+ * "audited"只表示机器整理+自校订完成，绝不冒充专业核验。 */
 export function getMaterial(materialId) {
   return loadMaterials().find((x) => x.materialId === materialId) ?? null
 }
 
-/** 学习者可见的素材附件：read 类给正文；其余（listen/待审）给 null */
-export function materialForLearner(materialId) {
+/** 学习者可见的素材附件：read 类只下发**被选题声明的那几个段**（34-F1：不做整包下发
+ * 而题目指向不清）；listen 类不下发正文（音频即素材，首听无脚本，21 §6.2）。 */
+export function materialForLearner(materialId, segmentIds = null) {
   const m = getMaterial(materialId)
   if (!m || m.status !== 'audited' || m.kind !== 'read') return null
-  if (!Array.isArray(m.content) || !m.content.length) return null
-  return { materialId: m.materialId, kind: m.kind, content: m.content }
+  const segs = Array.isArray(m.segments) ? m.segments : []
+  const picked = Array.isArray(segmentIds) && segmentIds.length
+    ? segs.filter((s) => segmentIds.includes(s.segmentId))
+    : segs
+  if (!picked.length) return null
+  return {
+    materialId: m.materialId, materialVersion: m.materialVersion ?? 1, kind: m.kind,
+    segments: picked.map((s) => ({ segmentId: s.segmentId, title: s.title, text: s.text })),
+  }
 }
 
-/** 给提示用的已审素材清单（该目标可用；pending_review 单独列出并注明不可绑定） */
+/** 给提示用的已审素材清单（34-F1）：带 materialVersion + **完整段正文**（segmentId/标题/文本），
+ * 生成器据此出题——不再只给描述让模型对不存在的信息提问。 */
 export function materialsForPrompt(objectiveId) {
-  const usable = loadMaterials().filter((m) => m.status === 'audited'
-    && (!Array.isArray(m.objectiveIds) || m.objectiveIds.length === 0 || m.objectiveIds.includes(objectiveId)))
+  const usable = loadMaterials().filter((m) => materialUsableFor(m.materialId, objectiveId))
   const pending = loadMaterials().filter((m) => m.status !== 'audited')
   return {
-    audited: usable.map((m) => ({ materialId: m.materialId, kind: m.kind, sourceRef: m.sourceRef, note: m.note })),
+    audited: usable.map((m) => ({
+      materialId: m.materialId, materialVersion: m.materialVersion ?? 1, kind: m.kind, sourceRef: m.sourceRef,
+      note: m.note, hintGuidance: m.hintGuidance ?? '',
+      segments: (m.segments ?? []).map((s) => ({ segmentId: s.segmentId, title: s.title, text: s.text })),
+    })),
     pendingReview: pending.map((m) => ({ materialId: m.materialId, reason: m.status === 'pending_review' ? '待人工听校/审' : m.status })),
   }
+}
+
+/** 34-F1 机器可验的支撑检查：引用句必须是所绑定段的**原文子串**（归一空白）。
+ * 题目问到段里没有的信息时模型引不出原文 → 整课拒收。 */
+export function segmentText(materialId, segmentId) {
+  const m = getMaterial(materialId)
+  return (m?.segments ?? []).find((s) => s.segmentId === segmentId)?.text ?? null
 }
 
 /**
