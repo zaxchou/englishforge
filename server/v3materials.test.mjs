@@ -112,7 +112,7 @@ it('userConfirmed：全局开关关闭时，单次明确确认可生成；未确
     // 即使 normally 需要人审（explanationKind new）→ 用户确认的样本也以 dev_only 发布可学，签审挂账
     const needsSignPkg = { ...goodPkg('mat_g3_contrast_texts', 'uc2'), explanationKind: 'new' }
     const r2 = await gen.startGenerationJob(id, { objectiveId: 'O-K184-02', userConfirmed: true, await: true, force: true,
-      chat: async () => JSON.stringify(needsSignPkg) })
+      semanticJudge: async () => ({ verdict: 'supported', reviewer: 'test-stub' }), chat: async () => JSON.stringify(needsSignPkg) })
     expect(r2.status).toBe('succeeded')
     expect(r2.published).toBe(true)
     expect(r2.devSample).toBe(true)
@@ -164,7 +164,7 @@ it('34 验收·四类反例（纯函数）：问正文没有的信息/错误语�
     referenceAnswer: '团队先暂停地图功能，以后会做语音导览。', supportingQuotes: ['we will add voice tours next month'],
     prompt: '地图团队现在先做什么？以后还打算做什么？',
   }))
-  expect(g.validateGeneratedPackage(future, ctx).answerableOnMaterial).toBe(false)
+  expect(g.validateGeneratedPackage(future, ctx).quoteIntegrity).toBe(false)
   // ② 错误语法提示（逗号=缩小的机械规则）→ 拒（34-F2 反例：gen_job_mup7v5h4_n4qx_1 同型）
   const badHint = pkg(act({ hints: ['加逗号的那部分，如果去掉后意思变了，它多半在缩小范围'] }))
   expect(g.validateGeneratedPackage(badHint, ctx).hintQuality).toBe(false)
@@ -173,7 +173,65 @@ it('34 验收·四类反例（纯函数）：问正文没有的信息/错误语�
   expect(g.validateGeneratedPackage(good, ctx).allPassed).toBe(true)
   // ④ 关键词堆砌（参考答案无实质内容）→ 拒
   const stuffing = pkg(act({ referenceAnswer: '地图 限制' }))
-  expect(g.validateGeneratedPackage(stuffing, ctx).answerableOnMaterial).toBe(false)
+  expect(g.validateGeneratedPackage(stuffing, ctx).quoteIntegrity).toBe(false)
+})
+
+it('36-R1 复审反例：编造问题+无关真实引用 → 机器门过但语义审核拒 → 不发布进学习主线', async () => {
+  const g = await import('./v3gen.mjs')
+  const id = (await call('/api/accounts', { name: 'R1-绕过' }, 'POST')).json.account.id
+  await call(`/api/v1/accounts/${id}/attempts`, {
+    attemptId: 'r1-seen', activityId: 'diag_d1_read', response: { kind: 'text', text: 'x' },
+    conditions: { firstExposure: true, hintLevel: 0, transcriptShown: false, playCount: 1, lookupUsed: false, responseMode: 'typed_summary' },
+  }, 'POST')
+  // 复审原样反例：问"未来计划"（正文没有），引用一句真实存在的原句
+  const bypassPkg = {
+    title: '绕过尝试', whyNow: 'w', teachingNote: '先读地图段再回答。',
+    sourceRefs: [{ ref: 'G3', claim: 'but 对照预期与实际' }],
+    activities: [
+      { taskFamilyId: 'r1_fam_a', materialId: 'mat_g4_discourse_markers', segmentIds: ['mat_g4_museum_map'],
+        referenceAnswer: '团队下个月会新增语音导览并暂停地图功能。', supportingQuotes: ['The map was working as designed, but our assumption about what visitors wanted was incomplete.'],
+        prompt: '团队下个月新增什么？', hints: [], relations: [{ id: 'future', label: '未来计划', anyOf: ['语音', '导览'], required: true }] },
+      { taskFamilyId: 'r1_fam_b', materialId: 'mat_g4_discourse_markers', segmentIds: ['mat_g4_museum_map'],
+        referenceAnswer: '暂停地图后未来会按新计划推进。', supportingQuotes: ['The map was working as designed, but our assumption about what visitors wanted was incomplete.'],
+        prompt: '暂停地图后未来怎么做？', hints: [], relations: [{ id: 'future', label: '未来计划', anyOf: ['计划', '推进'], required: true }] },
+    ],
+  }
+  // 纯函数：quoteIntegrity 门确实**挡不住**这个绕过（引用真实存在）——诚实记录门的边界
+  const gates = g.validateGeneratedPackage(bypassPkg, { objectiveId: 'O-K184-02', band: 2, adaptation: { maxBand: 2 }, recentFamilies: [], recentFingerprints: [], objectiveDeclaredSources: ['G3'], sourceLedger: g.sourceLedger() })
+  expect(gates.quoteIntegrity).toBe(true)
+  // 语义审核层：判定 unsupported → 不发布进学习主线（pending: content_semantic_review）
+  const r = await gen.startGenerationJob(id, { objectiveId: 'O-K184-02', userConfirmed: true, await: true, force: true,
+    semanticJudge: async () => ({ verdict: 'unsupported', reviewer: 'test-stub', reasons: '题目问未来计划，材料没有任何未来计划' }),
+    chat: async () => JSON.stringify(bypassPkg) })
+  expect(r.status).toBe('succeeded')
+  expect(r.published).toBe(false)
+  expect(r.pending).toBe('content_semantic_review')
+  const row = db.getDb().prepare('SELECT content_status FROM lesson_versions WHERE lesson_id = ?').get(r.lessonId)
+  expect(row.content_status).toBe('ready') // 不发布
+  // 审核记录绑定内容版本：validation.semanticReview.contentSignature 存在
+  const job = db.getDb().prepare('SELECT validation FROM generation_jobs WHERE job_id = ?').get(r.jobId)
+  const review = JSON.parse(job.validation).semanticReview
+  expect(review.contentSignature).toBe(reg.contentSignature())
+  expect(review.verdict).toBe('unsupported')
+})
+
+it('36-R2 同义绕过：换措辞的机械规则提示也被已知黑名单拦（其余交语义审核）', async () => {
+  const g = await import('./v3gen.mjs')
+  const ctx = { objectiveId: 'O-K184-02', band: 2, adaptation: { maxBand: 2 }, recentFamilies: [], recentFingerprints: [], objectiveDeclaredSources: ['G3'], sourceLedger: g.sourceLedger() }
+  const base = { taskFamilyId: 'r2_a', materialId: 'mat_g4_discourse_markers', segmentIds: ['mat_g4_museum_map'],
+    referenceAnswer: '团队主张地图按设计正常工作，限制是它只反映繁忙程度、管不到访客的偏好假设。', supportingQuotes: ['The map was working as designed, but our assumption about what visitors wanted was incomplete.'],
+    prompt: '读博物馆地图段：主张与限制？', relations: [{ id: 'claim', label: '主张', anyOf: ['designed', '正常'], required: true }] }
+  const pkg = (hints) => ({ title: 't', whyNow: 'w', teachingNote: '先找主张再看限制条件。', sourceRefs: [{ ref: 'G3', claim: 'but 对照预期与实际' }], activities: [{ ...base, hints }] })
+  expect(g.validateGeneratedPackage(pkg(['逗号后的信息一定是在缩小范围。']), ctx).hintQuality).toBe(false) // 复审 R1 复现措辞
+  expect(g.validateGeneratedPackage(pkg(['but 后面的一定是限制而不是主张。']), ctx).hintQuality).toBe(false) // 同义换措辞
+  // 守则校订后：正常限定/非限定对照、纯对照无范围限制、让步无未来计划三类提示放行（语义层兜底）
+  expect(g.validateGeneratedPackage(pkg(['把修饰去掉后看所指对象是否改变——改变是限定，只是补充信息是补充说明。']), ctx).hintQuality).toBe(true)
+  expect(g.validateGeneratedPackage(pkg(['but 连接的只是两个对照的事实，本句没有这种限制——如实回答信息不足即可。']), ctx).hintQuality).toBe(true)
+  // 注册表守则不再含机械规则话术
+  const reg2 = await import('./v3registry.mjs')
+  const guide = reg2.getMaterial('mat_g3_contrast_texts').hintGuidance
+  expect(guide).toContain('不一定存在')
+  expect(guide).toContain('信息不足')
 })
 
 it('生成库存：ready/pendingReview/failedCooldown/disabled 分开计数，只读无副作用', async () => {

@@ -753,7 +753,7 @@ describe('W4/T5+T6 按需生成供给', () => {
     const trunc = await gen.startGenerationJob(id, { objectiveId: 'O-K184-02', chat: async () => '{"title":"半截', await: true, force: true })
     expect(trunc.status).toBe('rejected')
     // 好输出：阅读目标（claim_checked）→ 自动发布（dev_only 通道）；来源按目标声明带命题（C4）
-    const okJob = await gen.startGenerationJob(id, { objectiveId: 'O-K115-01', strategyId: 'short_explain', chat: fakeChat(pkgFor(['G1'])), await: true, force: true })
+    const okJob = await gen.startGenerationJob(id, { objectiveId: 'O-K115-01', strategyId: 'short_explain', semanticJudge: async () => ({ verdict: 'supported', reviewer: 'test-stub' }), chat: fakeChat(pkgFor(['G1'])), await: true, force: true })
     if (okJob.status !== 'succeeded') console.log('T5DBG', JSON.stringify(okJob.reasons ?? okJob))
     expect(okJob.status).toBe('succeeded')
     expect(okJob.published).toBe(true)
@@ -769,7 +769,7 @@ describe('W4/T5+T6 按需生成供给', () => {
     expect(leaked).toContain('ACTIVITY_NOT_PUBLISHED')
     expect(v3lessons.lessonForObjective('O-K115-01', { excludeCompletedFor: other })?.lessonId).not.toBe(okJob.lessonId)
     // 听力目标（O-K184-02）：文本课不能给听力证据（15 §5 技能不互升）→ 强制人审，不自动发布
-    const listenJob = await gen.startGenerationJob(id, { objectiveId: 'O-K184-02', strategyId: 'sound_segmentation', chat: fakeChat(pkgFor(['G3'])), await: true, force: true })
+    const listenJob = await gen.startGenerationJob(id, { objectiveId: 'O-K184-02', strategyId: 'sound_segmentation', semanticJudge: async () => ({ verdict: 'supported', reviewer: 'test-stub' }), chat: fakeChat(pkgFor(['G3'])), await: true, force: true })
     expect(listenJob.status).toBe('succeeded')
     expect(listenJob.published).toBe(false)
     const listenRow = (await call(`/api/v1/accounts/${id}/generation`)).json.jobs.find((j) => j.job_id === listenJob.jobId)
@@ -826,7 +826,7 @@ describe('W4/T5+T6 按需生成供给', () => {
           relations: [{ id: 'kept', label: '保留视觉', anyOf: ['kept', '保留', 'visual'], required: true }, { id: 'post', label: '推迟配音', anyOf: ['postponed', '推迟'], required: true }] },
       ], 'mat_g3_rehearsal'),
     }
-    const ok = await gen.startGenerationJob(id, { objectiveId: 'O-K184-02', strategyId: 'sound_segmentation', chat: fakeChat(fresh), await: true, force: true })
+    const ok = await gen.startGenerationJob(id, { objectiveId: 'O-K184-02', strategyId: 'sound_segmentation', semanticJudge: async () => ({ verdict: 'supported', reviewer: 'test-stub' }), chat: fakeChat(fresh), await: true, force: true })
     expect(ok.status).toBe('succeeded')
   }, 30000)
 

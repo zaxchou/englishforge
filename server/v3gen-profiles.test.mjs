@@ -34,6 +34,7 @@ const goodPkg = (tag, band) => ({
 
 const captureJob = async (id, captured) => gen.startGenerationJob(id, {
   objectiveId: 'O-K184-02', await: true, force: true,
+  semanticJudge: async () => ({ verdict: 'supported', reviewer: 'test-stub' }),
   chat: async (msgs) => { captured.push(msgs[0].content); return JSON.stringify(goodPkg(id.slice(-4), 2)) },
 })
 
@@ -51,6 +52,7 @@ it('同一目标三种画像：生成提示的适配模式实质不同（focused
   await failOn('pa-1', '团队保留了手势控制，推迟了语音控制，因为多人同时说话时失败了。') // 缺 limit 关系
   await failOn('pa-2', '团队保留了手势并推迟语音，展厅里多人说话导致失败。')
   const capA = []; const jobA = await captureJob(id, capA)
+  console.log('PROFDBG', jobA.status, JSON.stringify(jobA.reasons ?? []), 'capA.len=', capA.length)
   expect(['succeeded']).toContain(jobA.status) // 生成课只到 ready 等人审（needsSign），不自动成为正式可学课
 
   // B 提示/看稿支持下的成功 → fade_support（逐步撤支持）
@@ -84,7 +86,7 @@ it('难度上限是机器门：band 超 maxBand 的生成输出被拒（关键�
   // 先取一次合规包，从提示里读出该画像的 maxBand
   const job = await gen.startGenerationJob(id, {
     objectiveId: 'O-K184-02', await: true, force: true,
-    chat: async (msgs) => { captured.push(msgs[0].content); return JSON.stringify(goodPkg('d1', 2)) },
+    semanticJudge: async () => ({ verdict: 'supported', reviewer: 'test-stub' }), chat: async (msgs) => { captured.push(msgs[0].content); return JSON.stringify(goodPkg('d1', 2)) },
   })
   expect(job.status).toBe('succeeded')
   const maxBand = Number((captured[0].match(/"maxBand":(\d+)/) ?? [])[1])
@@ -92,14 +94,14 @@ it('难度上限是机器门：band 超 maxBand 的生成输出被拒（关键�
   // 越上限输出（band = maxBand+3）→ 质量门拒绝，理由点名 bandWithinMax（难度上限机器门）
   const over = await gen.startGenerationJob(id, {
     objectiveId: 'O-K184-02', await: true, force: true,
-    chat: async () => JSON.stringify(goodPkg('d2', maxBand + 3)),
+    semanticJudge: async () => ({ verdict: 'supported', reviewer: 'test-stub' }), chat: async () => JSON.stringify(goodPkg('d2', maxBand + 3)),
   })
   expect(over.status).toBe('rejected')
   expect((over.reasons ?? []).join(';')).toContain('bandWithinMax')
   // 合规带（≤ maxBand）显式 force 重试可发布
   const ok = await gen.startGenerationJob(id, {
     objectiveId: 'O-K184-02', await: true, force: true,
-    chat: async () => JSON.stringify(goodPkg('d3', maxBand)),
+    semanticJudge: async () => ({ verdict: 'supported', reviewer: 'test-stub' }), chat: async () => JSON.stringify(goodPkg('d3', maxBand)),
   })
   expect(ok.status).toBe('succeeded')
 })

@@ -118,6 +118,53 @@ export function registerGeneratedActivities(jobId, activities) {
   return ids
 }
 
+/** 36-R1：语义审核执行器。judge 缺省 = 模型复核（makeDefaultSemanticJudge(chat)）；
+ * 收集每题实际引用的段正文作为审核输入；异常一律降级 pending（不发布）。 */
+async function runSemanticReview({ pkg, ctx, chat, judge }) {
+  try {
+    const segs = []
+    const acts = []
+    for (const a of pkg.activities ?? []) {
+      const mid = String(a.materialId ?? '')
+      const texts = (Array.isArray(a.segmentIds) ? a.segmentIds : []).map((sid) => segmentText(mid, String(sid))).filter(Boolean)
+      if (texts.length) segs.push({ materialId: mid, segmentIds: a.segmentIds, texts })
+      acts.push({ prompt: a.prompt, referenceAnswer: a.referenceAnswer, supportingQuotes: a.supportingQuotes })
+    }
+    const fn = judge ?? makeDefaultSemanticJudge(chat)
+    const r = await fn({ segments: segs, activities: acts, objectiveId: ctx.objectiveId })
+    const verdict = r?.verdict === 'supported' || r?.verdict === 'unsupported' ? r.verdict : 'pending'
+    return { verdict, reviewer: r?.reviewer ?? 'none', reasons: String(r?.reasons ?? ''), contentSignature: contentSignature() }
+  } catch (e) {
+    return { verdict: 'pending', reviewer: 'semantic-review-error', reasons: String(e?.message ?? e).slice(0, 160), contentSignature: contentSignature() }
+  }
+}
+
+/** 36-R1：内容语义审核（模型复核可辅助，不冒充真人核验）。
+ * 审核对象绑定内容签名；输入=所引段正文 + 每题（问题/参考答案/支撑句），
+ * 输出 verdict: supported | unsupported | pending。注入式（测试用 stub）；
+ * 默认实现走同一 chat 做模型复核，输出不可解析 → pending（宁可不发布）。 */
+export function makeDefaultSemanticJudge(chat) {
+  return async ({ segments, activities }) => {
+    const prompt = [
+      '你是内容审核员。判断下面的每一道题是否"问的是材料里实际存在的信息，且参考答案与材料一致"。',
+      '材料段：' + JSON.stringify(segments),
+      '题目：' + JSON.stringify(activities),
+      '规则：只要有一题问到材料里不存在的信息、或参考答案与材料矛盾、或支撑句与问题无关 → verdict=unsupported 并给出 reasons；全部成立才 verdict=supported。只输出 JSON：{"verdict":"supported|unsupported","reasons":"…"}',
+    ].join(String.fromCharCode(10))
+    try {
+      const out = await chat([{ role: 'user', content: prompt }], { maxTokens: 300 })
+      const raw = typeof out === 'string' ? out : out.text
+      const parsed = JSON.parse(raw)
+      if (parsed?.verdict === 'supported' || parsed?.verdict === 'unsupported') {
+        return { verdict: parsed.verdict, reviewer: 'model-assist', reasons: String(parsed.reasons ?? '') }
+      }
+      return { verdict: 'pending', reviewer: 'model-assist', reasons: '审核输出不可解析' }
+    } catch (e) {
+      return { verdict: 'pending', reviewer: 'semantic-judge-error', reasons: String(e?.message ?? e).slice(0, 160) }
+    }
+  }
+}
+
 // ---------------------------------------------------------------- 质量门（§7，机器可验部分）
 
 const TERM_BLACKLIST = ['主格', '宾格', '物主代词', '三单', '谓语', '从句', '定语', '状语', '系动词', '助动词', '过去分词', '现在分词']
@@ -165,16 +212,20 @@ export function validateGeneratedPackage(pkg, ctx) {
   // 31 第三批：已审素材绑定门——每个活动必须绑定"audited 且对该目标可用"的素材条目；
   // 未绑定/未知/待审/目标不匹配（34-F5 收窄）一律拒。
   gates.materialsBound = (pkg.activities ?? []).every((a) => materialUsableFor(String(a.materialId ?? ''), ctx.objectiveId))
-  // 34-F1：**可答性门**——题目必须落在所选段上，且支撑句逐字可查：
-  // ① segmentIds 非空且都属于所选素材；② referenceAnswer ≥8 字；③ supportingQuotes ≥1
-  // 且每条是所引段正文的原文子串（归一空白）。问正文没有的信息 → 引不出原文 → 拒。
+  // 34-F1 + 36-R1：**引用完整性门（quoteIntegrity）**——只验证"支撑句逐字来自所引段"，
+  // **不宣称能保证语义可答**（36 号复现：编造问题+无关真实引用可过此门）。语义层由
+  // 内容语义审核（semanticReview）负责，未通过不得发布进学习主线。
+  // listen 类素材：正文/转写不下发 → 引用不可查，只要求参考答案；支撑句置空由语义审核接管。
   const normWs = (x) => String(x ?? '').replace(/\s+/g, ' ').trim()
-  gates.answerableOnMaterial = (pkg.activities ?? []).every((a) => {
+  gates.quoteIntegrity = (pkg.activities ?? []).every((a) => {
+    if (typeof a.referenceAnswer !== 'string' || normWs(a.referenceAnswer).length < 8) return false
+    const material = loadMaterials().find((m) => m.materialId === String(a.materialId ?? ''))
+    if (!material) return false
+    if (material.kind !== 'read') return true // listen：引用不可查，语义审核层必经（下方 semanticReview 强制）
     const segIds = a.segmentIds
     if (!Array.isArray(segIds) || !segIds.length) return false
-    const texts = segIds.map((sid) => segmentText(String(a.materialId ?? ''), String(sid)))
+    const texts = segIds.map((sid) => segmentText(material.materialId, String(sid)))
     if (texts.some((t) => t === null)) return false // 段不属于该素材
-    if (typeof a.referenceAnswer !== 'string' || normWs(a.referenceAnswer).length < 8) return false
     const quotes = a.supportingQuotes
     if (!Array.isArray(quotes) || !quotes.length) return false
     return quotes.every((q) => {
@@ -183,12 +234,13 @@ export function validateGeneratedPackage(pkg, ctx) {
     })
   })
   // 34-F2：提示质量门——禁止把标点/位置当判断规则的机械提示进入真实学习记录
-  const HINT_BLACKLIST = ['加逗号的那部分', '只要看到逗号', '有逗号就是', '多半在缩小范围', '前面是主张', '后面是限制', '逗号后就是']
+  // 只挡已知措辞（36-R2：不堆黑名单宣称解决语言事实）；换措辞绕过由语义审核层负责
+  const HINT_BLACKLIST = ['加逗号的那部分', '只要看到逗号', '有逗号就是', '多半在缩小范围', '一定是在缩小范围', '逗号后的信息一定是', '一定是限制', '一定是主张', '前面是主张', '后面是限制', '逗号后就是']
   gates.hintQuality = (pkg.activities ?? []).every((a) =>
     !(a.hints ?? []).some((h) => HINT_BLACKLIST.some((b) => String(h).includes(b))))
     && !HINT_BLACKLIST.some((b) => String(pkg.teachingNote ?? '').includes(b))
   gates.truncated = false // chatJson 解析失败根本到不了这里；截断=reject 上游
-  gates.allPassed = ['schemaComplete', 'answersConsistent', 'sourcesUsable', 'explanationClean', 'familyFresh', 'holdoutIsolated', 'bandWithinMax', 'materialsBound', 'answerableOnMaterial', 'hintQuality']
+  gates.allPassed = ['schemaComplete', 'answersConsistent', 'sourcesUsable', 'explanationClean', 'familyFresh', 'holdoutIsolated', 'bandWithinMax', 'materialsBound', 'quoteIntegrity', 'hintQuality']
     .every((k) => gates[k])
   return gates
 }
@@ -202,7 +254,7 @@ function rejectReasons(gates) {
 
 const COOLDOWN_MS = 10 * 60 * 1000 // 失败后 10 分钟内不为同目标重射任务（防 GET 反复烧钱；§7 撤出候选）
 
-export function startGenerationJob(accountId, { objectiveId, strategyId, chat = chatWithMeta, await: awaitIt = false, force = false, userConfirmed = false } = {}) {
+export function startGenerationJob(accountId, { objectiveId, strategyId, chat = chatWithMeta, semanticJudge = null, await: awaitIt = false, force = false, userConfirmed = false } = {}) {
   // F8：统一开关判定——字符串 '0'/'false' 不算开启；直接接口与窗口同受控。
   // 例外：**用户单次明确点击**（userConfirmed，前端在按钮上明示"调用真实模型、按次计费"）
   // 可以越过全局开关——这是"内容准备中"死等的正解：等的内容由学习者本人一键触发按需生成。
@@ -266,12 +318,12 @@ export function startGenerationJob(accountId, { objectiveId, strategyId, chat = 
       },
     }),
     GEN_CONTRACT_V1.version, Date.now())
-  const p = Promise.resolve(runJob(jobId, { chat }))
+  const p = Promise.resolve(runJob(jobId, { chat, semanticJudge }))
   if (!awaitIt) p.catch((e) => console.error('[v3gen] job', jobId, 'crashed:', e.message))
   return awaitIt ? p : { jobId }
 }
 
-async function runJob(jobId, { chat = chatWithMeta } = {}) {
+async function runJob(jobId, { chat = chatWithMeta, semanticJudge = null } = {}) {
   const conn = ensureV3Schema()
   const job = () => conn.prepare('SELECT * FROM generation_jobs WHERE job_id = ?').get(jobId)
   conn.prepare("UPDATE generation_jobs SET status = 'running', attempts = attempts + 1 WHERE job_id = ?").run(jobId)
@@ -417,25 +469,29 @@ async function runJob(jobId, { chat = chatWithMeta } = {}) {
       // 已知局限：explanationKind 是模型自报，机器无法验证"是否新解释"——所以生成的课永远带
       // human_review=pending + dev_only + 抽检标记，通过 sampling 队列待人工抽样（见 validation.samplingQueued）。
       const needsSign = objective.verification !== 'claim_checked' || pkg.explanationKind === 'new' || audioOral
+      // 36-R1：**内容语义审核**——机器门全绿不够（无关真实引用可绕过 quoteIntegrity）。
+      // 审核对象绑定内容签名；结论记录进 validation。verdict：
+      //   supported   = 审核认为每题都能由所引段支撑
+      //   unsupported = 审核判定存在无依据问题/答案 → 不发布
+      //   pending     = 无审核/审核失败 → 不发布（宁可不学，不给错误教材）
+      const review = await runSemanticReview({ pkg, ctx, chat, judge: semanticJudge })
+      if (review.verdict !== 'supported') {
+        conn.prepare("UPDATE generation_jobs SET status = 'succeeded', cost_tokens = ?, output_lesson_id = ?, output_version = 1, validation = ?, latency_ms = ?, finished_at = ? WHERE job_id = ?")
+          .run(totalTokens, lessonId, JSON.stringify({ gates: lg, published: false, pending: 'content_semantic_review', semanticReview: review, samplingQueued: true }), Date.now() - started, Date.now(), jobId)
+        return { jobId, status: 'succeeded', lessonId, published: false, pending: 'content_semantic_review', reasons: review.reasons ? [review.reasons] : [] }
+      }
       if (needsSign && !spec.userConfirmed) {
         conn.prepare("UPDATE generation_jobs SET status = 'succeeded', cost_tokens = ?, output_lesson_id = ?, output_version = 1, validation = ?, latency_ms = ?, finished_at = ? WHERE job_id = ?")
-          .run(totalTokens, lessonId, JSON.stringify({ gates: lg, published: false, pending: 'human_sign', samplingQueued: true }), Date.now() - started, Date.now(), jobId)
+          .run(totalTokens, lessonId, JSON.stringify({ gates: lg, published: false, pending: 'human_sign', semanticReview: review, samplingQueued: true }), Date.now() - started, Date.now(), jobId)
         return { jobId, status: 'succeeded', lessonId, published: false }
       }
-      if (needsSign && spec.userConfirmed) {
-        // 学习者点出来的课：dev_only 开发样本直接可学（界面明示"未签署"），签署要求不消失——
-        // 审核队列仍见 pending human_sign，签署后升 mainline
-        const { publishLesson } = await import('./v3lessons.mjs')
-        publishLesson(lessonId, { acknowledgeUnreviewed: true, by: 'generator:userConfirmed:' + jobId })
-        conn.prepare("UPDATE generation_jobs SET status = 'succeeded', cost_tokens = ?, output_lesson_id = ?, output_version = 1, validation = ?, latency_ms = ?, finished_at = ? WHERE job_id = ?")
-          .run(totalTokens, lessonId, JSON.stringify({ gates: lg, published: true, channel: 'dev_only', pending: 'human_sign', devSampleForUser: true, samplingQueued: true }), Date.now() - started, Date.now(), jobId)
-        return { jobId, status: 'succeeded', lessonId, published: true, devSample: true }
-      }
+      // 学习者确认（或无需签审）+ 语义审核通过 → dev_only **内容试验预览**可学：
+      // 签审要求不消失（pending human_sign 照记），签署后升 mainline
       const { publishLesson } = await import('./v3lessons.mjs')
-      publishLesson(lessonId, { acknowledgeUnreviewed: true, by: 'generator:' + jobId })
+      publishLesson(lessonId, { acknowledgeUnreviewed: true, by: 'generator:' + (spec.userConfirmed ? 'userConfirmed:' : '') + jobId })
       conn.prepare("UPDATE generation_jobs SET status = 'succeeded', cost_tokens = ?, output_lesson_id = ?, output_version = 1, validation = ?, latency_ms = ?, finished_at = ? WHERE job_id = ?")
-        .run(totalTokens, lessonId, JSON.stringify({ gates: lg, published: true, channel: 'dev_only', samplingQueued: true, explanationKindSelfReported: true }), Date.now() - started, Date.now(), jobId)
-      return { jobId, status: 'succeeded', lessonId, published: true }
+        .run(totalTokens, lessonId, JSON.stringify({ gates: lg, published: true, channel: 'dev_only', contentPreview: true, pending: needsSign ? 'human_sign' : null, semanticReview: review, samplingQueued: true, explanationKindSelfReported: !spec.userConfirmed }), Date.now() - started, Date.now(), jobId)
+      return { jobId, status: 'succeeded', lessonId, published: true, devSample: true, contentPreview: true }
     } catch (e) {
       // 解析类失败（生产 chatJson 式包装抛 LlmError）按内容质量问题重试；其余按管线异常也重试（有上限）
       lastReasons = ['管线异常: ' + String(e?.message).slice(0, 160) + (e instanceof LlmError ? '（解析/接口类，计入重试）' : '')]

@@ -20,7 +20,7 @@
    ],
    "licenseStatus": "confirmed",
    "note": "限定 vs 补充信息的对照句组（G1 命题覆盖；机器整理+自校订，零真人核验）",
-   "hintGuidance": "限定/非限定靠句意判断（去掉后意思是否改变、是否补充新信息），禁止把有无逗号当判断规则。",
+   "hintGuidance": "限定 vs 补充按句意判断：把修饰去掉后所指对象改变=限定（缩小范围）；只是附加一条信息=补充。与逗号有无没有必然关系；允许对含糊句给出\"两种读法都通\"的诚实结论。",
    "segments": [
     {
      "segmentId": "mat_g1_sensor",
@@ -32,7 +32,10 @@
      "title": "投影仪两句",
      "text": "A. The projector, which we borrowed from the media lab, stopped working during the exhibition. B. The projector stopped working during the exhibition, which meant that we had to change the installation."
     }
-   ]
+   ],
+   "bindingNotes": {
+    "O-K184-02": "仅作阅读补练：转述目标的'补充信息'维度可用对照句练；该绑定下全部活动按 reading 记录，不产生听力证据（15 §5 技能不互升）。该段能支持的具体问题：哪句在补充信息、补充了什么。"
+   }
   },
   {
    "materialId": "mat_g3_contrast_texts",
@@ -55,7 +58,7 @@
    ],
    "licenseStatus": "confirmed",
    "note": "决定—原因—限制的对照短文（G3 命题覆盖；机器整理+自校订，零真人核验）",
-   "hintGuidance": "限制=但/尽管之后对范围的收窄（时间/场合/条件），不是全盘否定；禁止教'位置前后'式机械规则。",
+   "hintGuidance": "but/although 连接的可能是对照、让步或补充，不一定存在\"范围限制\"。判断要看两句话实际说了什么：如果后半句只是换一个对照的事实，就没有限制可言；允许得出\"本句没有这种限制/信息不足\"的结论。禁止教\"but 前后位置=主张/限制\"的位置规则。",
    "segments": [
     {
      "segmentId": "mat_g3_rehearsal",
@@ -87,7 +90,7 @@
    ],
    "licenseStatus": "confirmed",
    "note": "话语标记组织的短篇（G4 命题覆盖；机器整理+自校订，零真人核验）",
-   "hintGuidance": "标记词的作用看它连接的两段实际内容；禁止教'but 前是主张 but 后是限制'式位置规则。",
+   "hintGuidance": "标记词的作用看它连接的两段实际内容（对照/因果/话题转换都可能）；不预设\"某词后面一定是什么\"。正文没提的信息（如未来计划）就是没有，不要推断。",
    "segments": [
     {
      "segmentId": "mat_g4_museum_map",
