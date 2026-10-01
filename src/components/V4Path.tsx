@@ -59,6 +59,19 @@ type MapIdx = {
   legacyNotice: string
 }
 
+// 生成质量门的代码 → 人话（只用于失败提示；完整代码仍在 job 记录里可查）
+const GATE_NAMES: Record<string, string> = {
+  schemaComplete: '格式不完整', answersConsistent: '答案结构不合格', sourcesUsable: '来源不合格',
+  explanationClean: '讲解里有不合适用语', familyFresh: '和最近做过的题重复', holdoutIsolated: '保留了测验题',
+  bandWithinMax: '难度超出当前阶段', materialsBound: '材料对不上', quoteIntegrity: '引用和原文对不上',
+  hintQuality: '提示规则不合格', allPassed: '综合检查', truncated: '内容被截断',
+}
+function plainGateReasons(raw: string): string {
+  const names = Object.keys(GATE_NAMES)
+  const found = names.filter((k) => raw.includes(k)).map((k) => GATE_NAMES[k])
+  return found.length ? found.join('、') : raw.slice(0, 80)
+}
+
 async function api<T>(path: string, body?: unknown, method = 'GET'): Promise<T> {
   const res = await fetch('/api/v1' + path, {
     method,
@@ -66,7 +79,32 @@ async function api<T>(path: string, body?: unknown, method = 'GET'): Promise<T> 
     body: body ? JSON.stringify(body) : undefined,
   })
   const json = await res.json()
-  if (!res.ok) throw new Error(json.error ?? String(res.status))
+  if (!res.ok) {
+    const raw = String(json.error ?? res.status)
+    console.warn('[api]', raw) // 完整代码留给排查；界面只给人话
+    const m = raw.match(/^[A-Z][A-Z_0-9]*:\s*([一-鿿].*)$/)
+    if (m) throw new Error(m[1]) // '代码: 中文说明' → 只显示中文说明
+    const PLAIN: Record<string, string> = {
+      ISSUED_TASK_EXPIRED: '这一步的作答通道过期了——点「刷新这一步」重新取题，已写的内容会保留。',
+      ISSUED_TASK_REQUIRED: '请重新打开这个任务再作答。',
+      ISSUED_TASK_VERSION_CHANGED: '这一步刚更新过版本——点「刷新这一步」取最新版。',
+      LISTENING_PLAYBACK_REQUIRED: '先播放音频再作答——听一遍才算听力练习。',
+      CONDITIONS_INCOMPLETE: '提交的信息不完整，点「刷新这一步」再试。',
+      NEW_TAKE_ID_REQUIRED: '系统已记下你上一次的作答；点「再试一次」开始新一轮。',
+      ATTEMPT_REPLAY_MISMATCH: '这次提交和已记录的作答不一致；要重答请点「再试一次」。',
+      LESSON_INCOMPLETE: '这一课还有题目没做完。',
+      HINT_LEVEL_SKIPPED: '提示要一层一层看——先看前面那层。',
+      HINT_LEVEL_OUT_OF_RANGE: '这一步没有更多提示了。',
+      GENERATION_DISABLED: 'AI 现做功能没有开启。',
+      DAILY_QUOTA_EXCEEDED: '今天的量到上限了，明天再来。',
+      MEDIA_TOO_LARGE: '这段录音太大了，录短一点再试。',
+      EMPTY_UPLOAD: '没有收到录音，重录一次试试。',
+      UPLOAD_TOKEN_EXPIRED: '上传通道过期了，重录一次试试。',
+    }
+    if (PLAIN[raw]) throw new Error(PLAIN[raw])
+    if (/^[A-Z][A-Z_0-9]*$/.test(raw)) throw new Error('出了点小问题，请重试；如果反复出现，请截图反馈。')
+    throw new Error(raw)
+  }
   return json as T
 }
 
@@ -201,7 +239,7 @@ export function V4Path({ accountId }: { accountId: string | null }) {
           setGenPhase('failed')
           setGenNote(job.status === 'superseded'
             ? '等你做题的这几分钟里，学习安排变了，这一课就作废了。可以重新做一次，或先学别的。'
-            : '这一课没做好，先不给你用。可以重新做一次，或先学别的。（原因：' + String(job.reject_reasons ?? job.status).slice(0, 80) + '）')
+            : '这一课没做好，先不给你用。可以重新做一次，或先学别的。（原因：' + plainGateReasons(String(job.reject_reasons ?? '')) + '）')
           void loadPlan()
           return
         }
@@ -491,6 +529,10 @@ function LessonAudio({ info, taskId, activityId, accountId, onPlay }: { info: Au
   )
 }
 
+const STEP_NAMES: Record<string, string> = {
+  D1: '读句子', D1b: '再读一组（对照）', D2: '听一段话', D2b: '看文字稿再听一遍', D3: '说一段话',
+}
+
 function DiagPanel({ accountId, onDone }: { accountId: string; onDone: () => void }) {
   const [diag, setDiag] = useState<DiagState | null>(null)
   const [text, setText] = useState('')
@@ -582,7 +624,7 @@ function DiagPanel({ accountId, onDone }: { accountId: string; onDone: () => voi
   }
   return (
     <div className="v4-card">
-      <h3>起点测试 · {diag.step}</h3>
+      <h3>起点测试 · {STEP_NAMES[diag.step ?? ''] ?? diag.step}</h3>
       {note && <div className="v4-note">{note}</div>}
       <pre className="v4-prompt">{diag.activity?.prompt}</pre>
       {diag.activity?.audio && (

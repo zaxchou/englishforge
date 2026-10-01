@@ -558,7 +558,7 @@ function SpeakQ({ q, onAnswered }: { q: AdaptedQuestion; onAnswered: (r: Session
           <div className={`feedback ${firstOk ? 'ok' : 'no'}`}>
             <div className="feedback-title">{firstOk ? '✅ 自评完成。' : '🟡 自评还需练习——'}</div>
             <div className="feedback-body">{q.explain}  目标句：{target}</div>
-            <div className="sr-note">自评不等于客观认证——口语证据会与点击题分开记录。</div>
+            <div className="sr-note">自己打的分不算数——口语练习和点选题是分开记录的。</div>
           </div>
           <div className="speak-actions row">
             <button className="opt retry-btn" onClick={retry}>🔁 再说一次</button>

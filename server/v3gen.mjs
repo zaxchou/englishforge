@@ -345,7 +345,7 @@ export function startGenerationJob(accountId, { objectiveId, strategyId, chat = 
     .get(accountId, objectiveId)
   if (!force && recentFail && Date.now() - (recentFail.finished_at ?? 0) < COOLDOWN_MS) {
     return { jobId: recentFail.job_id, cooledDown: true, status: recentFail.status,
-      note: '同目标近期失败，自动冷却中（§7 撤出候选）；force=true 可显式重试' }
+      note: '这一课刚才没做成，过几分钟再试一次就行' }
   }
   const obj = conn.prepare('SELECT * FROM objective_versions WHERE objective_id = ? ORDER BY version DESC').get(objectiveId)
   if (!obj) throw new ApiError(404, 'OBJECTIVE_NOT_FOUND: ' + objectiveId)
@@ -661,7 +661,7 @@ export function ensureWindow(accountId, { chat = chatWithMeta } = {}) {
       if (String(e.message).startsWith('GENERATION_DISABLED')) {
         slots.push({ slot, objectiveId: oid, status: 'generation_disabled', note: '设 ENGLISHFORGE_V4_GENERATION=1 开启按需生成' })
       } else if (String(e.message).startsWith('GENERATION_COOLDOWN')) {
-        slots.push({ slot, objectiveId: oid, status: 'generation_cooldown', note: '同目标近期失败，冷却中' })
+        slots.push({ slot, objectiveId: oid, status: 'generation_cooldown', note: '刚做过一次没成功，稍等几分钟再试' })
       } else throw e
     }
   })

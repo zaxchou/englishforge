@@ -120,7 +120,7 @@ function WorkCard({ w, kind }: { w: WorkItem; kind: 'old' | 'new' }) {
       <div className="kicker">{kind === 'old' ? `原来的回应 / ${w.label}` : `新的回应 / ${w.label}`}</div>
       {w.mediaId
         ? <audio controls src={`/media/${w.mediaId}`} style={{ width: '100%', marginTop: 12 }} />
-        : <blockquote>{w.text || '（这题没有留下文字——录音文件缺失，如实标注）'}</blockquote>}
+        : <blockquote>{w.text || '（这一题只有录音记录，但音频文件已经不在了——先如实告诉你）'}</blockquote>}
       {w.mediaId && w.text && <p className="works-transcript">转写：{w.text}</p>}
       <p>
         {w.aiFeedback ? `AI 批改：${w.aiFeedback}` : w.relations.length ? w.relations.map((r) => `${r.hit ? '✓' : '✗'}${r.label}`).join(' ') : ''}
