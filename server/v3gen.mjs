@@ -101,6 +101,7 @@ export function registerGeneratedActivities(jobId, activities) {
       activityId, version: 1, role: a.role || 'practice', taskFamilyId: a.taskFamilyId,
       objectiveIds: a.objectiveIds, skillByObjective: a.skillByObjective,
       responseKind: 'text', prompt: a.prompt, hints: a.hints ?? [],
+      materialId: a.materialId ?? null, // 素材绑定必须落库，否则下发端无从取正文（实测丢失事故）
       conditionsSpec: ['firstExposure', 'hintLevel', 'transcriptShown', 'playCount', 'lookupUsed', 'responseMode'],
       evaluationContract: { dimensions: a.dimensions ?? a.relations.map((r) => r.label), relations: a.relations, mustNot: a.mustNot ?? [] },
       complexityBand: a.complexityBand ?? null,

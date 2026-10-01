@@ -17,6 +17,7 @@ import { ApiError, getDb } from './db.mjs'
 import { ensureV3Schema, getMeta, setMeta, nextCounter, getCounter } from './v3db.mjs'
 import { requireAccount } from './v3api.mjs'
 import { audioPublicInfo, audioByMediaId } from './v3audio.mjs'
+import { materialForLearner } from './v3registry.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const ACT_PATH = resolve(HERE, 'data', 'v3-activities.json')
@@ -49,6 +50,7 @@ export function publicActivity(a) {
     simulatesAudio: !!a.simulatesAudio, conditionsSpec: a.conditionsSpec,
     oralTask: !!a.oralEvidenceDeferred,
     slots,
+    material: materialForLearner(String(a.materialId ?? '')), // read 类素材正文随题下发（生成的课"读下面这段短文"必须有文可读）
     reasonLabel: a.evaluationContract?.reason?.label ?? null,
     audio, // synthetic 合成音频（21 §6.2）：mediaId/声源标注/时长；无音频时为 null
     fixtureNotice: audio ? null

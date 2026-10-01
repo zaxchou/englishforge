@@ -33,6 +33,20 @@ export function materialUsableFor(materialId, objectiveId) {
   return !Array.isArray(m.objectiveIds) || m.objectiveIds.length === 0 || m.objectiveIds.includes(objectiveId)
 }
 
+/** 已审素材的完整条目（含正文）。学习者端只对 read 类下发正文——
+ * listen 类的素材就是音频本身，转写/正文首听不下发（21 §6.2）。 */
+export function getMaterial(materialId) {
+  return loadMaterials().find((x) => x.materialId === materialId) ?? null
+}
+
+/** 学习者可见的素材附件：read 类给正文；其余（listen/待审）给 null */
+export function materialForLearner(materialId) {
+  const m = getMaterial(materialId)
+  if (!m || m.status !== 'audited' || m.kind !== 'read') return null
+  if (!Array.isArray(m.content) || !m.content.length) return null
+  return { materialId: m.materialId, kind: m.kind, content: m.content }
+}
+
 /** 给提示用的已审素材清单（该目标可用；pending_review 单独列出并注明不可绑定） */
 export function materialsForPrompt(objectiveId) {
   const usable = loadMaterials().filter((m) => m.status === 'audited'

@@ -123,6 +123,29 @@ it('userConfirmed：全局开关关闭时，单次明确确认可生成；未确
   }
 })
 
+it('素材正文全链路：注册保留 materialId；serve 下发 read 类正文；listen 类不下发正文（首听无脚本）', async () => {
+  const ev = await import('./v3evidence.mjs')
+  // 注册保留 materialId（实测丢失事故：门过但落库丢字段，学习者看不到素材）
+  const [actId] = gen.registerGeneratedActivities('job-mat-keep', [{
+    taskFamilyId: 'mat_keep_fam', prompt: '读下面这段短文并复述。', hints: [],
+    objectiveIds: ['O-K184-02'], skillByObjective: { 'O-K184-02': 'reading' },
+    materialId: 'mat_g3_contrast_texts',
+    conditionsSpec: ['firstExposure', 'hintLevel', 'transcriptShown', 'playCount', 'lookupUsed', 'responseMode'],
+    relations: [{ id: 'contrast', label: '对照', anyOf: ['but', '但'], required: true }],
+  }])
+  const stored = ev.activityById(actId)
+  expect(stored.materialId).toBe('mat_g3_contrast_texts')
+  // publicActivity 下发正文
+  const pub = ev.publicActivity(stored)
+  expect(pub.material?.content?.length).toBeGreaterThan(0)
+  expect(pub.material.content[0].text).toContain('voice prototype')
+  // listen 类不下发正文（音频即素材，首听无脚本）
+  expect(ev.publicActivity({ ...stored, materialId: 'aud_l2_museum_v1' }).material).toBeNull()
+  // serveLesson 同口径（用诊断里的听力活动验证：有 audioRef 无 materialId → material null）
+  const diagAct = ev.activityById('diag_d1_read')
+  expect(diagAct.materialId ?? null).toBeNull()
+})
+
 it('生成库存：ready/pendingReview/failedCooldown/disabled 分开计数，只读无副作用', async () => {
   const id = (await call('/api/accounts', { name: '库存' }, 'POST')).json.account.id
   // 未开启 → disabled

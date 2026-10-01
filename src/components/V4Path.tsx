@@ -28,7 +28,7 @@ type LessonPkg = {
   whyNow: string
   teachingNote: string | null
   devSampleNotice: string | null
-  activities: { resume?: { response: { text?: string; answers?: Record<string, string> }; result: AttemptFeedback } | null; nextTake: number; taskId: string; activityVersion: number; activityId: string; role: string; prompt: string; hintStageCount: number; firstHint: string | null; simulatesAudio: boolean; fixtureNotice: string | null; oralTask?: boolean; audio?: AudioInfo | null; slots?: { slotId: string; prompt: string; options: string[] }[] | null; reasonLabel?: string | null }[]
+  activities: { resume?: { response: { text?: string; answers?: Record<string, string> }; result: AttemptFeedback } | null; nextTake: number; taskId: string; activityVersion: number; activityId: string; role: string; prompt: string; hintStageCount: number; firstHint: string | null; simulatesAudio: boolean; fixtureNotice: string | null; oralTask?: boolean; audio?: AudioInfo | null; slots?: { slotId: string; prompt: string; options: string[] }[] | null; reasonLabel?: string | null; material?: { materialId: string; kind: string; content: { title?: string; text: string }[] } | null }[]
   nextCandidates: string[]
   holdout: { lessonId: string; answersIncluded: boolean } | null
 }
@@ -626,6 +626,16 @@ function LessonRunner({ accountId, pkg, onDone }: {
             {act.simulatesAudio && !act.audio && <span className="v4-dev">文字模拟音频 · 听力证据未测</span>}
           </div>
           <pre className="v4-prompt">{act.prompt}</pre>
+          {act.material?.content?.length ? (
+            <div className="v4-material">
+              {act.material.content.map((m, i) => (
+                <div key={i} className="v4-material-item">
+                  {m.title && <b>{m.title}</b>}
+                  <p>{m.text}</p>
+                </div>
+              ))}
+            </div>
+          ) : null}
           {act.audio && (
             <LessonAudio taskId={act.taskId} info={act.audio} activityId={act.activityId} accountId={accountId}
               onPlay={() => { playsRef.current[act.activityId] = (playsRef.current[act.activityId] ?? 0) + 1 }} />

@@ -17,7 +17,7 @@ import { requireAccount } from './v3api.mjs'
 import { getStoredAttempt, activityById, publicActivity } from './v3evidence.mjs'
 import { audioPublicInfo } from './v3audio.mjs'
 import { seedMap } from './v3map.mjs'
-import { contentSignature } from './v3registry.mjs'
+import { contentSignature, materialForLearner } from './v3registry.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const LESSON_SEED = resolve(HERE, 'data', 'v3-lessons.json')
@@ -159,6 +159,7 @@ export function serveLesson(accountId, lessonId) {
         simulatesAudio: !!act.simulatesAudio,
         oralTask: !!act.oralEvidenceDeferred,
         slots,
+        material: materialForLearner(String(act?.materialId ?? '')), // 与 publicActivity 同口径：read 类素材正文随题下发
         reasonLabel: act?.evaluationContract?.reason?.label ?? null,
         audio, // synthetic 合成音频；转写不在这（首听隐藏），l2b 的校对稿在题面里
         conditionsSpec: act.conditionsSpec,
@@ -328,7 +329,7 @@ export function lessonForObjective(objectiveId, { excludeCompletedFor = null } =
   const rows = conn.prepare(
     `SELECT lesson_id, version, release_channel, objective_ids FROM lesson_versions
      WHERE content_status = 'published' AND account_scope IN ('global', ?)
-     ORDER BY (release_channel = 'mainline') DESC, version DESC`).all(scope)
+     ORDER BY (release_channel = 'mainline') DESC, version DESC, rowid DESC`).all(scope)
   for (const r of rows) {
     if (!JSON.parse(r.objective_ids || '[]').includes(objectiveId)) continue
     if (!lessonApplicable(excludeCompletedFor ?? '__no_account__',{lessonId:r.lesson_id})) continue
@@ -364,7 +365,7 @@ export function lessonForStrategy(strategyId, { excludeCompletedFor = null, must
   const rows = conn.prepare(
     `SELECT lesson_id, version, release_channel, objective_ids FROM lesson_versions
      WHERE content_status = 'published' AND strategy_id = ? AND account_scope IN ('global', ?)
-     ORDER BY (release_channel = 'mainline') DESC, version DESC`).all(strategyId, scope)
+     ORDER BY (release_channel = 'mainline') DESC, version DESC, rowid DESC`).all(strategyId, scope)
   for (const r of rows) {
     if (!lessonApplicable(excludeCompletedFor ?? '__no_account__',{lessonId:r.lesson_id})) continue
     if (done.has(r.lesson_id)) continue // F2：同上

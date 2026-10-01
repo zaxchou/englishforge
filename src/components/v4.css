@@ -198,3 +198,9 @@
 .v4 details { font-size: 13px; }
 .v4 details ul { margin: 6px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
 .v4 details li { color: var(--ink-dim, #9a9aa2); }
+
+/* 素材正文（生成的课绑定 read 素材时随题下发） */
+.v4-material { display: flex; flex-direction: column; gap: 8px; }
+.v4-material-item { background: rgba(255, 255, 255, 0.04); border: 1px solid var(--line, #2a2a31); border-radius: 10px; padding: 10px 14px; }
+.v4-material-item b { display: block; margin-bottom: 4px; font-size: 13px; color: var(--ink-dim, #9a9aa2); }
+.v4-material-item p { margin: 0; line-height: 1.7; font-size: 14px; }
