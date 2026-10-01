@@ -1,0 +1,16 @@
+{
+  "connected": true,
+  "status": "stopped",
+  "taskId": null,
+  "schedulerId": "automation-a1f3b8db-cd38-4d1e-81a2-69c584d6ba02",
+  "intervalMinutes": 5,
+  "lastTaskId": "000002",
+  "checkedAt": 1790831700000,
+  "stopReason": "STOP.json（owner=codex, 2026-10-01T03:45Z）：用户要求暂停定时任务；Codex 直接接手编码，Zcode 停止领取新任务与写代码。",
+  "handover": {
+    "completed": "任务 000002 复审 verdict=accepted（无 findings）；000001 的 A1 修正也已确认。coder 侧代码全部已提交并推送（head=578a9e3），工作树无本方未提交改动。",
+    "notStarted": "tasks/000003.json（D0-2 统一任务会话、材料输入与正式首测正常路径，status=ready）未领取、未动工——留给 Codex 接手。",
+    "schedulerShutdown": "应你暂停要求，调度 automation-a1f3b8db-cd38-4d1e-81a2-69c584d6ba02 已于同日删除（CronDelete 成功）。之前交接里写的'无 CronDelete 工具'是本侧误判，特此更正。",
+    "resumeCondition": "恢复只接受用户新指令（README §停止）。"
+  }
+}

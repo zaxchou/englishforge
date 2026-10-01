@@ -1,0 +1,41 @@
+{
+  "owner": "codex-direct-developer",
+  "updatedAt": "2026-10-01T05:39:05.412632+00:00",
+  "codeBaseline": "03a7a3df07deaaf20cb01477ec1425ce46b727a8",
+  "lastReviewedTaskId": "000002",
+  "activeTaskId": null,
+  "activeTaskStatus": "manual_handoff_ready",
+  "activeGoal": "D0收口、真实学习旅程与按反馈生成基础修补",
+  "phaseStates": {
+    "D0": "implemented_partial_pending_independent_review",
+    "D1": "journey_connected_content_not_verified",
+    "D2": "teaching_controls_and_snapshot_guards_output_not_verified",
+    "D3": "not_verified",
+    "D4": "not_ready",
+    "D5": "ai_drafts_unreviewed"
+  },
+  "blockedItems": [
+    "真实课程材料听校与事实核验未完成",
+    "真实留出池及物理麦克风/本人试学未完成",
+    "D0迁移演练和D2生成输出独立验收未完成"
+  ],
+  "nextSequence": [
+    "D0-3独立复核与隔离迁移演练",
+    "D1真实合格材料首路径",
+    "D2三画像生成输出与库存补课验收",
+    "D3本人可用性试学",
+    "D4正式留出比较",
+    "D5全范围扩展"
+  ],
+  "policyRef": "docs/curriculum-v4/30-总调度职责与阶段进程.md",
+  "designOptions": {
+    "path": "docs/curriculum-v4/design-options-oil-ui/style-explorer.html",
+    "status": "awaiting_user_choice",
+    "applyAutomatically": false
+  },
+  "implementationReport": "docs/curriculum-v4/31-Codex手动接管开发报告与后续交付合同.md",
+  "implementationOfTaskId": "000003",
+  "pendingIndependentReview": true,
+  "manualDeveloper": "unassigned_pending_user_handoff",
+  "handoffPath": "C:\\Users\\zeroz\\AppData\\Local\\Temp\\handoff-sentence-forge-codex-takeover.md"
+}

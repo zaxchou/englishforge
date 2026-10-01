@@ -1,0 +1,15 @@
+{
+  "connected": true,
+  "schedulerId": null,
+  "intervalMinutes": 5,
+  "status": "manual_handoff_ready",
+  "lastReviewedTaskId": "000002",
+  "lastVerdict": "accepted",
+  "nextTaskId": null,
+  "checkedAt": "2026-10-01T05:39:05.412632+00:00",
+  "schedulerStopped": true,
+  "activeManualTaskId": null,
+  "handoffPath": "C:\\Users\\zeroz\\AppData\\Local\\Temp\\handoff-sentence-forge-codex-takeover.md",
+  "lastImplementationCommit": "03a7a3df07deaaf20cb01477ec1425ce46b727a8",
+  "restartSchedulers": false
+}

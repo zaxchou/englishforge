@@ -1,0 +1,10 @@
+{
+  "taskId": "000002",
+  "status": "ready",
+  "verdict": "accepted",
+  "headCommit": "578a9e3",
+  "reportPath": "docs/curriculum-v4/agent-loop/reviews/000002.md",
+  "nextTaskId": "000003",
+  "reviewedAt": "2026-10-01T03:42:19.686187+00:00",
+  "scope": "A1 neutral evidence and today entry thin slice only"
+}

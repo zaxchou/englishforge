@@ -1,0 +1,24 @@
+{
+  "taskId": "000001",
+  "status": "ready",
+  "baseCommit": "9e1ca89",
+  "title": "收口 D0-1a 并接通自动协作",
+  "instructions": [
+    "先阅读 agent-loop/README.md 并确认接入，创建本 agent 的5分钟自动检查；无新任务不重复编码。",
+    "按29处理 A1 原子目标与理由认证范围、A2 传输重试幂等。当前若已经修复，给真实提交/回归即可，不重做。",
+    "更新 implementation-status 过时顶栏与下一提交；保持27/28的产品路线。",
+    "记录28原型的具体下一工作项，并在本批结果中说明可并行安排；不要把后台修复当全部产品交付。",
+    "完成写 results/000001.json 后停止改受审代码，等待 reviewer 的下一任务。"
+  ],
+  "read": [
+    "docs/curriculum-v4/29-D0-1a复审与下一批工作.md",
+    "docs/curriculum-v4/27-后续开发路线与交付合同.md",
+    "docs/curriculum-v4/28-学习者体验校正与前台主流程合同.md"
+  ],
+  "acceptance": [
+    "正确选项+空或冲突理由不认证未测能力",
+    "新take与相同请求网络重试区别清楚，不重复入库",
+    "结果包含稳定commit、正常/反例验证和残留项"
+  ],
+  "createdAt": "2026-10-01"
+}

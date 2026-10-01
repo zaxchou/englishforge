@@ -1,0 +1,41 @@
+{
+  "taskId": "000002",
+  "status": "ready",
+  "baseCommit": "25abdf8",
+  "headCommit": "578a9e3",
+  "changedFiles": [
+    "server/v3evidence.mjs",
+    "server/v3.test.mjs",
+    "src/learning/learnerView.ts",
+    "src/learning/learnerView.test.ts",
+    "src/components/V4Path.tsx",
+    "src/components/v4.css",
+    "docs/curriculum-v4/evidence/2026-10-01-28薄片-今日入口.md",
+    "docs/curriculum-v4/agent-loop/results/000002.json",
+    "docs/curriculum-v4/agent-loop/signals/coder.json"
+  ],
+  "reportPath": "docs/curriculum-v4/implementation-status.md",
+  "checks": [
+    { "cmd": "npx vitest run", "exitCode": 0, "result": "234/234 passed（15 文件；新增 learnerView 3 例 + A1 端到端 1 例）" },
+    { "cmd": "npx tsc --noEmit", "exitCode": 0, "result": "0 错误" },
+    { "cmd": "npx oxlint src --quiet", "exitCode": 0, "result": "0 错误" },
+    { "cmd": "npx vite build", "exitCode": 0, "result": "构建成功" },
+    { "cmd": "node scripts/trajectory-walk.mjs", "exitCode": 0, "result": "TRAJECTORY_OK" },
+    { "cmd": "Playwright 真实页面走查", "exitCode": 0, "result": "今日入口默认渲染：行为名标题/清洗后理由/唯一主按钮/ID 折叠/辅助入口/运营折叠；主按钮直接打开推荐课程（les-listening-v1）——证据见 docs/curriculum-v4/evidence/2026-10-01-28薄片-今日入口.md" }
+  ],
+  "acceptanceMapping": {
+    "partial 不升级且不计失败": "提交→GET evidence 端到端：O-K115-03（ct03 partial，空理由与冲突理由两次提交）state 不为 trained/independent、flags 无 needs_repair；slotOnly 中性判定兼容修复前 v2 事件（重放自动修正），事件行原文未改可追溯",
+    "A2 重发同记录回归继续通过": "『R5 补丁』用例不变仍过（Y 重发幂等回 -t2、库内核验恰好 3 行）",
+    "入口原型可懂": "默认 tab=今日学习；标题=自然行为名（无后台 ID 作主标题）；理由清洗（O-K…/unmeasured/策略名全部转译）；唯一主按钮；ID 进折叠详情；页面快照见 evidence/2026-10-01-28薄片-今日入口.md",
+    "原型数据诚实": "无模拟个人缺口/成长——headline/理由来自真实 plan API；无诊断=find_start、内容未就绪=wait（不冒充可学）；原型/开发模式横幅常驻",
+    "D0-2 未零散做": "本批未动 issuedTask/音频/测量合同；D0-2 完整留给下一任务（见 remaining）"
+  },
+  "remaining": [
+    "D0-2（建议下一任务）：issuedTaskId/sessionId 统一会话合同；播放事件绑定成功分发材料版本（N3）；practiceOnly 与 keyword 听力受限证据单列；N4 录音解析（WAV 伪 chunk/WebM VINT+TimecodeScale/兜底确认）；N5 测量会话首听误排除；N6 页面逐关系反馈接 API",
+    "28 薄片后续阶段：§4.B 找起点任务流包装、§4.C 单动作节奏（课程页仍为整课列表）、§4.D 课后反馈页、§4.E 成长页自然语言版、§4.F 路线视图（页面横幅已如实标注）",
+    "D0-1b：带槽位课进入正常推荐/窗口后的页面正常路径走查",
+    "课程作答反馈刷新后不回显（归 D1 再定）"
+  ],
+  "workingTreeNotes": "coder 侧全部已提交（578a9e3）；reviewer 侧文件（agent-loop 的 README/tasks/reviews/signals/reviewer.json、ZCODE-启动指令.txt）未代提交。工作树无本方未提交改动。",
+  "finishedAt": "2026-10-01T12:10:00+08:00"
+}

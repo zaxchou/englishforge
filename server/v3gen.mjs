@@ -154,8 +154,16 @@ export function validateGeneratedPackage(pkg, ctx) {
     && !termGate.some((t) => pkg.teachingNote.includes(t))
     && pkg.activities.every((a) => !(a.explain && termGate.some((t) => a.explain.includes(t))))
   gates.holdoutIsolated = gates.schemaComplete && pkg.activities.every((a) => a.role !== 'holdout')
+  // D2（31 第三批自审补）：难度上限从提示约定升级为**机器门**——生成活动声明的复杂度带
+  // 不得超过教学适配的 maxBand（关键词反馈不自行升档；独立/迁移证据才允许 +1 探索）。
+  // 未声明带的按目标基础带计（≤ maxBand 恒成立），不惩罚省略。
+  const maxBand = Number(ctx.adaptation?.maxBand ?? ctx.band ?? 1)
+  gates.bandWithinMax = (pkg.activities ?? []).every((a) => {
+    const b = Number(a.complexityBand ?? ctx.band ?? maxBand)
+    return Number.isFinite(b) && b >= 1 && b <= maxBand
+  })
   gates.truncated = false // chatJson 解析失败根本到不了这里；截断=reject 上游
-  gates.allPassed = ['schemaComplete', 'answersConsistent', 'sourcesUsable', 'explanationClean', 'familyFresh', 'holdoutIsolated']
+  gates.allPassed = ['schemaComplete', 'answersConsistent', 'sourcesUsable', 'explanationClean', 'familyFresh', 'holdoutIsolated', 'bandWithinMax']
     .every((k) => gates[k])
   return gates
 }

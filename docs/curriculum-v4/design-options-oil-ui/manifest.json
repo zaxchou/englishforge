@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "project": "Sentence Forge · 学习体验重新设计",
+  "brief": "成人留学英语：今天 → 练习 → 提示重试 → 原理 → 表达 → 下一步。独立设计小样，所有内容及状态为演示，不接生产数据。",
+  "round": "2026-10-01 / 第一轮",
+  "candidates": [
+    {
+      "id": "desk",
+      "name": "学习书桌",
+      "concept": "像与一位清楚、耐心的导师一起，把一句话读透。",
+      "typography": "Georgia / 宋体标题，系统无衬线正文；标题64、正文18",
+      "palette": [
+        "#F5F2E9",
+        "#243C35",
+        "#C9D5C9"
+      ],
+      "traits": [
+        "独立首屏骨架",
+        "单任务练习与提示重试",
+        "作品反馈与下一步"
+      ],
+      "kind": "html",
+      "source": "desk.html",
+      "interactive": true
+    },
+    {
+      "id": "route",
+      "name": "能力航线",
+      "concept": "把一次困难变成下一步的起点，成长来自真实的新挑战。",
+      "typography": "Bahnschrift / 微软雅黑，标题粗体64、数字等宽",
+      "palette": [
+        "#111D31",
+        "#98E6D3",
+        "#566788"
+      ],
+      "traits": [
+        "独立首屏骨架",
+        "单任务练习与提示重试",
+        "作品反馈与下一步"
+      ],
+      "kind": "html",
+      "source": "route.html",
+      "interactive": true
+    },
+    {
+      "id": "studio",
+      "name": "表达工作室",
+      "concept": "每一次训练都服务于一个你在留学中真的需要完成的表达。",
+      "typography": "Segoe UI / 微软雅黑，巨型标题72、正文18、编号等宽",
+      "palette": [
+        "#F2F3F7",
+        "#322ABC",
+        "#EEB642"
+      ],
+      "traits": [
+        "独立首屏骨架",
+        "单任务练习与提示重试",
+        "作品反馈与下一步"
+      ],
+      "kind": "html",
+      "source": "studio.html",
+      "interactive": true
+    }
+  ]
+}

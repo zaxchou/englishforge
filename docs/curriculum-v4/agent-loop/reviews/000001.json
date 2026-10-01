@@ -1,0 +1,23 @@
+{
+  "taskId": "000001",
+  "headCommit": "25abdf8",
+  "verdict": "changes_requested",
+  "reportPath": "docs/curriculum-v4/agent-loop/reviews/000001.md",
+  "findings": [
+    {
+      "id": "AUTO-000001-A1",
+      "priority": "P1",
+      "file": "server/v3evidence.mjs",
+      "title": "partial/未测理由仍写正分并升 trained",
+      "repro": "ct03 decision=A，理由空，响应partial，最终reading band4/base trained",
+      "required": "中性参与/真实子目标隔离；整目标不因未测理由升级也不计连败；断言最终状态"
+    }
+  ],
+  "accepted": [
+    "A2 X→Y→Y 网络重发同记录",
+    "结构化槽位和CT02校订保留",
+    "账本已列28后续工作"
+  ],
+  "nextTaskId": "000002",
+  "finishedAt": "2026-10-01T03:14:50.733607+00:00"
+}

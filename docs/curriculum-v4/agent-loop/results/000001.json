@@ -1,0 +1,51 @@
+{
+  "taskId": "000001",
+  "status": "ready",
+  "baseCommit": "9e1ca89",
+  "headCommit": "25abdf8",
+  "changedFiles": [
+    "server/v3evidence.mjs",
+    "server/v3lessons.mjs",
+    "server/data/v3-activities.json",
+    "server/data/v3-lessons.json",
+    "server/v3.test.mjs",
+    "scripts/trajectory-walk.mjs",
+    "src/components/V4Path.tsx",
+    "src/components/v4.css",
+    "src/components/V4Path.tsx (diag panel: disputed 指引/会话恢复/重试轮次回写)",
+    "server/v3diag.mjs",
+    "server/v3api.mjs",
+    "docs/curriculum-v4/implementation-status.md",
+    "docs/curriculum-v4/evidence/2026-10-01-诊断D2卡死修复走查.md",
+    "docs/curriculum-v4/evidence/2026-10-01-D0-1槽位判题与内容校订.md",
+    "docs/curriculum-v4/evidence/2026-10-01-课程409刷新重提修复.md",
+    "docs/curriculum-v4/agent-loop/signals/coder.json",
+    "docs/curriculum-v4/agent-loop/results/000001.json"
+  ],
+  "reportPath": "docs/curriculum-v4/implementation-status.md",
+  "checks": [
+    { "cmd": "npx vitest run", "exitCode": 0, "result": "230/230 passed（14 文件）" },
+    { "cmd": "npx tsc --noEmit", "exitCode": 0, "result": "0 错误" },
+    { "cmd": "npx oxlint src --quiet", "exitCode": 0, "result": "0 错误（3 条既有 warning）" },
+    { "cmd": "npx vite build", "exitCode": 0, "result": "构建成功（chunk 体积警告为既有状态）" },
+    { "cmd": "node scripts/trajectory-walk.mjs", "exitCode": 0, "result": "TRAJECTORY_OK（三课 + R6 band2/band4 分槽断言，槽位题已改结构化提交）" },
+    { "cmd": "Playwright 真实页面走查 ×2", "exitCode": 0, "result": "①诊断 disputed 场景：纯双否定答案→note 显示+答案保留+重新提交按钮+步骤不推进；用户原话（含'多的内容'）→干净判定 fail→D2b；刷新后服务端恢复会话；完成后自动跳推荐页。②课程 409 场景：错答→整页刷新→改答重提成功（-t2 落行，库内核验）→第二活动通过→完成课→推荐重算" }
+  ],
+  "remaining": [
+    "N3：/support/play 只查 manifest 行，未绑定'成功分发并校验的材料版本'；practiceOnly=true 与 keyword 听力受限证据并存待单列（D0-2）",
+    "N4：WAV 伪 chunk/截断仍会判 playable；WebM VINT sizeLen 与 TimecodeScale 单位换算错误；缺元数据无兜底确认通道（D0-2）",
+    "N5：priorSupport 不分任务会话，正式首测的首次播放会被误判既往曝光（D0-2）",
+    "N6：页面开放题反馈读 r.dimensions?.relations，而 API 已直接返回关系数组（前端一行修复+页面用例）",
+    "D0-1b：带槽位课进入正常推荐/窗口后的页面正常路径走查（les-disposable 为撤回演示课，不在推荐路径）",
+    "课程作答反馈刷新后不回显（作答历史在服务端；是否恢复归 D1 页面旅程再定）",
+    "28 号 learner view model + A 入口原型：可并行开工，工作项清单与依赖已在 implementation-status.md '28 号前台主流程原型的下一工作项'一节"
+  ],
+  "workingTreeNotes": "coder 侧全部已提交（9f6e0de 代码、25abdf8 账本）；agent-loop/ 目录（README、ZCODE-启动指令、tasks/000001.json、signals/reviewer.json）为 reviewer 侧文件，未代提交，留 reviewer 自行入库。工作树无本方未提交改动。",
+  "taskNotes": {
+    "a1_reason_certification": "已于 9f6e0de 修复：带 reason 合同的槽位题选对=partial（reasonAssessed=false 落 basis），空理由/反向同义改述/正常改述成对回归均为 partial；踩 mustNot 或槽错=unmet；纯封闭题（ct01/02 无 reason）槽全对=met。",
+    "a2_retry_idempotency": "已于 17a0f53 引入 bump-take 并在 9f6e0de 按复审实测补内容幂等回查：重发相同内容幂等返回已落行（attemptIdUsed 指向它，不重复入库、不重复推进诊断/曝光）；只有真正新作答落新 take。验收断言 X→Y(-t2)→Y重发(幂等同记录)→Z(-t3)，库内核验恰好 3 行。",
+    "ledger_calibration": "25abdf8：批次表去陈旧（N1 状态、A1/A2 归位）、'下一提交'改为 D0-2 与 28 learner view model 并行。",
+    "parallel_28": "28 原型可并行安排的工作项 1（learner view model 类型+映射）、2（A 入口）、6（运营/学习端分离）不依赖 D0-2 数据合同；3/4/5（找起点任务流/单动作节奏/课后反馈）可直接原型化；涉证据语义文案等 D0-2/N3 定稿。"
+  },
+  "finishedAt": "2026-10-01T11:35:00+08:00"
+}
