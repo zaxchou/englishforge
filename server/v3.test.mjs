@@ -209,7 +209,7 @@ describe('W1/T1 目标覆盖账本', () => {
     // U72 不是遗漏收容箱：三个组各有具体名目
     for (const g of map.groups.filter((x) => x.unitId === 'U72')) expect(g.title.length).toBeGreaterThan(3)
     expect(map.summary.coveredClaims).toBe(0)
-    expect(map.legacyNotice).toContain('不换算')
+    expect(map.legacyNotice).toContain('不会换算')
   })
 
   it('首批 15 条目标齐备：行为/边界/前置/技能出口/来源，未核验不冒充已验证', async () => {

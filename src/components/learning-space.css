@@ -80,3 +80,7 @@ html[data-learning-theme=dark] .learning-mode .sidebar-focus{background:#343047!
   .works-page h1 { font-size: 30px; }
 }
 [data-learning-theme='dark'] .works-page { --wline: rgba(160,140,255,.3); --whigh: rgba(157,139,255,.12); }
+
+/* ---- 48 号用户反馈：地图目标行名称与标签不粘连 ---- */
+.v4-obj .v4-ver { margin-left: 8px; }
+.v4-obj b { margin-right: 4px; }

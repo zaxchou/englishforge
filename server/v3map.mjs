@@ -165,7 +165,7 @@ export function mapIndex({ group, status } = {}) {
   return {
     mapVersion: seed.mapVersion,
     generatedAt: Date.now(),
-    legacyNotice: '旧账户的 XP/题量/box/阶梯层数是历史活动记录，不换算为本图上的能力状态（15 §13）',
+    legacyNotice: '旧版刷题页的 XP、题量、等级是历史活动记录，不会换算成这里的能力状态——两边分开记。',
     sourceNotice: seed.sourceNotice,
     summary: {
       groups: groups.length,

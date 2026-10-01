@@ -368,7 +368,7 @@ async function changeWaiver(objectiveId:string,skill:string,revoked:boolean) {
           {mapIdx && <>
           <h3>具体能力目标</h3>
           <p>
-            共 {mapIdx.summary.groups} 个话题组、{mapIdx.summary.objectives} 个具体目标。课程正在一项项做出来，能学的会出现在「今日学习」。
+            地图上共有 {mapIdx.summary.groups} 个话题；目前已经做好 {mapIdx.summary.objectives} 个具体目标。能学的课会出现在「今日学习」，这里列的是全部规划。
           </p>
           <div className="v4-objlist">
             {mapIdx.objectives.map((o) => (
