@@ -1,0 +1,16 @@
+{
+  "date": "2026-10-03",
+  "comparison": "identical reading 2/3 seed at 1440x1000",
+  "returnScroll": "passed",
+  "motion": [
+    "entry: real CSS animation paused at 0/110/220 ms",
+    "stage: real CSS animation paused at 0/110/220 ms",
+    "primary hover: existing shared transition slowed to 10%, 3 frames"
+  ],
+  "primaryHoveredContrast": 7.373522361773973,
+  "limitations": [
+    "recording device not tested",
+    "no paid API analysis connected",
+    "media metadata checked, lectures not watched"
+  ]
+}

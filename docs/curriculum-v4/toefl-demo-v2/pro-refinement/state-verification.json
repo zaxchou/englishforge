@@ -1,0 +1,12 @@
+{
+  "quickPractice": true,
+  "validationError": true,
+  "mediaErrorRecoveryText": true,
+  "plannedModuleDrawerClosed": true,
+  "keyboardFocusTrap": true,
+  "reducedMotion": true,
+  "limits": [
+    "OS microphone permission not tested",
+    "AI loading states not fabricated"
+  ]
+}

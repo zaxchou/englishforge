@@ -1,0 +1,46 @@
+{
+  "schemaVersion": 1,
+  "project": "FORGE 私人托福老师",
+  "brief": "先独立做题，再老师复盘，之后用新题检查。两种布局，同一内容。",
+  "round": "托福原型 01",
+  "candidates": [
+    {
+      "id": "route",
+      "name": "学习路线",
+      "concept": "每次只有清楚的一步：知道为何练、再看怎样变强。",
+      "typography": "Segoe UI / 微软雅黑，38px标题、16px正文、蓝色步骤编号。",
+      "palette": [
+        "#f4f6fb",
+        "#172e50",
+        "#214ef5"
+      ],
+      "traits": [
+        "通栏学习路线",
+        "当天单一主任务",
+        "分步骤复盘"
+      ],
+      "kind": "html",
+      "source": "route.html",
+      "interactive": false
+    },
+    {
+      "id": "studio",
+      "name": "专注工作室",
+      "concept": "材料、自己的回应和老师放在手边，少打断、少跳转。",
+      "typography": "Georgia展示标题，Calibri / 微软雅黑正文，衬线标题与紧凑工作区。",
+      "palette": [
+        "#111c20",
+        "#eef4ee",
+        "#bde58a"
+      ],
+      "traits": [
+        "左侧任务轨",
+        "工作区优先",
+        "明确信息边界"
+      ],
+      "kind": "html",
+      "source": "studio.html",
+      "interactive": false
+    }
+  ]
+}

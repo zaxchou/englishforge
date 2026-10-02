@@ -1,0 +1,39 @@
+{
+  "results": [
+    "listening: media metadata/speed, method, submission, review progress OK",
+    "reading: media metadata/speed, method, submission, review progress OK",
+    "writing: media metadata/speed, method, submission, review progress OK",
+    "speaking: media metadata/speed, method, submission, review progress OK",
+    "first-attempt immutable, wrongbook deduplicated, weak observations, reload drafts, video resume, mobile navigation OK"
+  ],
+  "errors": [],
+  "media": [
+    {
+      "part": "listening",
+      "duration": 868.84,
+      "error": null
+    },
+    {
+      "part": "reading",
+      "duration": 562.84,
+      "error": null
+    },
+    {
+      "part": "writing",
+      "duration": 2048.88,
+      "error": null
+    },
+    {
+      "part": "speaking",
+      "duration": 1927.2,
+      "error": null
+    }
+  ],
+  "limits": [
+    "no real AI/ASR/TTS dialogue",
+    "no microphone hardware test",
+    "no NAS persistence",
+    "metadata verified; lectures not watched",
+    "full curriculum not published"
+  ]
+}

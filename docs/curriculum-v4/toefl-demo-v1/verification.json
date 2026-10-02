@@ -1,0 +1,19 @@
+{
+  "results": [
+    "route: listening first/review/retry/progress OK",
+    "route: reading first/review/retry/progress OK",
+    "route: speaking first/review/retry/progress OK",
+    "route: writing first/review/retry/progress OK",
+    "studio: listening first/review/retry/progress OK",
+    "studio: reading first/review/retry/progress OK",
+    "studio: speaking first/review/retry/progress OK",
+    "studio: writing first/review/retry/progress OK"
+  ],
+  "errors": [],
+  "viewports": [
+    "1280x900",
+    "390x844",
+    "200% zoom"
+  ],
+  "boundary": "preset teacher feedback; no AI/recording/NAS persistence tested"
+}

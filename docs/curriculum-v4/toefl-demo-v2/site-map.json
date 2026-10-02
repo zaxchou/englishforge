@@ -1,0 +1,296 @@
+{
+  "version": "1.2",
+  "date": "2026-10-03",
+  "type": "planned_and_prototype_not_published_curriculum",
+  "entry": "/dashboard",
+  "navigation": [
+    "首页总览",
+    "四科课程",
+    "独立真题测试",
+    "错题本",
+    "薄弱环节",
+    "个人学习档案",
+    "资料库"
+  ],
+  "parts": [
+    {
+      "id": "listening",
+      "modules": [
+        {
+          "id": "listening-m1",
+          "name": "导学与首听",
+          "status": "one_prototype_chapter",
+          "chapters": [
+            {
+              "id": "listening-sample01",
+              "tabs": [
+                "learn",
+                "practice",
+                "review"
+              ],
+              "requiredActivities": [
+                "method_learning_video_OR_notes",
+                "practice_submission",
+                "review_confirmation"
+              ],
+              "next": "unbound_not_same_question_repeat"
+            }
+          ]
+        },
+        {
+          "id": "listening-m2",
+          "name": "声音识别与语块",
+          "status": "planned",
+          "chapters": []
+        },
+        {
+          "id": "listening-m3",
+          "name": "一句回应",
+          "status": "planned",
+          "chapters": []
+        },
+        {
+          "id": "listening-m4",
+          "name": "对话与意图",
+          "status": "planned",
+          "chapters": []
+        },
+        {
+          "id": "listening-m5",
+          "name": "公告与行动",
+          "status": "planned",
+          "chapters": []
+        },
+        {
+          "id": "listening-m6",
+          "name": "学术谈话",
+          "status": "planned",
+          "chapters": []
+        },
+        {
+          "id": "listening-m7",
+          "name": "限时综合",
+          "status": "planned",
+          "chapters": []
+        }
+      ]
+    },
+    {
+      "id": "reading",
+      "modules": [
+        {
+          "id": "reading-m1",
+          "name": "导学与线索",
+          "status": "one_prototype_chapter",
+          "chapters": [
+            {
+              "id": "reading-sample01",
+              "tabs": [
+                "learn",
+                "practice",
+                "review"
+              ],
+              "requiredActivities": [
+                "method_learning_video_OR_notes",
+                "practice_submission",
+                "review_confirmation"
+              ],
+              "next": "unbound_not_same_question_repeat"
+            }
+          ]
+        },
+        {
+          "id": "reading-m2",
+          "name": "补全单词",
+          "status": "planned",
+          "chapters": []
+        },
+        {
+          "id": "reading-m3",
+          "name": "日常文本",
+          "status": "planned",
+          "chapters": []
+        },
+        {
+          "id": "reading-m4",
+          "name": "长句理解",
+          "status": "planned",
+          "chapters": []
+        },
+        {
+          "id": "reading-m5",
+          "name": "词义与推断",
+          "status": "planned",
+          "chapters": []
+        },
+        {
+          "id": "reading-m6",
+          "name": "修辞与篇章",
+          "status": "planned",
+          "chapters": []
+        },
+        {
+          "id": "reading-m7",
+          "name": "限时综合",
+          "status": "planned",
+          "chapters": []
+        }
+      ]
+    },
+    {
+      "id": "writing",
+      "modules": [
+        {
+          "id": "writing-m1",
+          "name": "导学与表达",
+          "status": "one_prototype_chapter",
+          "chapters": [
+            {
+              "id": "writing-sample01",
+              "tabs": [
+                "learn",
+                "practice",
+                "review"
+              ],
+              "requiredActivities": [
+                "method_learning_video_OR_notes",
+                "practice_submission",
+                "review_confirmation"
+              ],
+              "next": "unbound_not_same_question_repeat"
+            }
+          ]
+        },
+        {
+          "id": "writing-m2",
+          "name": "原词块组句",
+          "status": "planned",
+          "chapters": []
+        },
+        {
+          "id": "writing-m3",
+          "name": "邮件任务",
+          "status": "planned",
+          "chapters": []
+        },
+        {
+          "id": "writing-m4",
+          "name": "学术讨论",
+          "status": "planned",
+          "chapters": []
+        },
+        {
+          "id": "writing-m5",
+          "name": "论证方法",
+          "status": "planned",
+          "chapters": []
+        },
+        {
+          "id": "writing-m6",
+          "name": "修改与限时",
+          "status": "planned",
+          "chapters": []
+        }
+      ]
+    },
+    {
+      "id": "speaking",
+      "modules": [
+        {
+          "id": "speaking-m1",
+          "name": "导学",
+          "status": "one_prototype_chapter",
+          "chapters": [
+            {
+              "id": "speaking-sample01",
+              "tabs": [
+                "learn",
+                "practice",
+                "review"
+              ],
+              "requiredActivities": [
+                "method_learning_video_OR_notes",
+                "practice_submission",
+                "review_confirmation"
+              ],
+              "next": "unbound_not_same_question_repeat"
+            }
+          ]
+        },
+        {
+          "id": "speaking-m2",
+          "name": "发音与意群",
+          "status": "planned",
+          "chapters": []
+        },
+        {
+          "id": "speaking-m3",
+          "name": "听后重复",
+          "status": "planned",
+          "chapters": []
+        },
+        {
+          "id": "speaking-m4",
+          "name": "采访直答",
+          "status": "planned",
+          "chapters": []
+        },
+        {
+          "id": "speaking-m5",
+          "name": "理由与例子",
+          "status": "planned",
+          "chapters": []
+        },
+        {
+          "id": "speaking-m6",
+          "name": "无稿限时",
+          "status": "planned",
+          "chapters": []
+        }
+      ]
+    }
+  ],
+  "crossLinks": {
+    "attempt": [
+      "chapter",
+      "questionFamilyId",
+      "feedbackVersion",
+      "errorEntry",
+      "hypothesis"
+    ],
+    "resources": [
+      "sourceAsset",
+      "handoutPDFPage",
+      "videoSegment",
+      "publicationStatus"
+    ]
+  },
+  "gate": "learner_approval_then_real_AI_media_and_content_validation",
+  "dashboard": {
+    "route": "/dashboard",
+    "progress_scope": "published_chapter_activities_not_ability",
+    "resume": "per_part_chapter_stage_video_position",
+    "sections": [
+      "overall_progress",
+      "four_part_progress",
+      "error_observations",
+      "learner_profile",
+      "grounded_teacher_analysis"
+    ],
+    "empty_state": "no_fake_scores_or_diagnosis"
+  },
+  "profile": {
+    "route": "/profile",
+    "origins": [
+      "user_self_report",
+      "observed_attempt",
+      "teacher_hypothesis"
+    ],
+    "editable": [
+      "target_score",
+      "exam_date",
+      "focus"
+    ],
+    "not_a_diagnosis": true
+  }
+}

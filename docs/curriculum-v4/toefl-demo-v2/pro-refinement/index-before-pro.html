@@ -1,0 +1,1400 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>FORGE · 四科课程样板</title><style>
+*{box-sizing:border-box}body{margin:0;background:#fff;color:#28343d;font:16px/1.65 "Segoe UI","Microsoft YaHei",sans-serif}button,input,textarea,select{font:inherit}button,a,input,textarea,select{outline-offset:3px}button:focus-visible,a:focus-visible{outline:3px solid #d76536}button{cursor:pointer;border:1px solid #d9dfe2;background:#fff;color:inherit;border-radius:6px;padding:9px 14px}button:hover{background:#f5eee8}button:active{transform:translateY(1px)}.primary{background:#cc5e2f;color:white;border-color:#cc5e2f}.app{display:grid;grid-template-columns:190px 260px minmax(0,1fr);min-height:100vh}.side{background:#f5f2ed;border-right:1px solid #dedbd5;padding:25px 16px;display:flex;flex-direction:column;gap:5px}.logo{font:36px Georgia,serif;letter-spacing:-2px;color:#283b38;padding:0 8px 22px}.side .caption{font-size:12px;color:#687571;margin:22px 8px 7px;letter-spacing:1px}.side button{text-align:left;border:0;background:transparent;padding:11px 12px}.side button.active{background:#e9dfd0;font-weight:700}.side small{padding:18px 9px;color:#687571;border-top:1px solid #ddd6ca;margin-top:auto}.directory{background:#f5f7f8;border-right:1px solid #dde3e7;display:flex;flex-direction:column}.dirhead{padding:25px 22px 18px;border-bottom:1px solid #dde3e7}.dirhead h2{font-size:20px;margin:0}.directory .item{text-align:left;padding:20px 22px;border:0;border-radius:0;border-bottom:1px solid #dde3e7;background:transparent;display:block;width:100%}.item.active{background:#fcecdf;box-shadow:inset 3px 0 #cc5e2f}.item b{display:block;font-size:16px}.item span{font-size:13px;color:#677a85}.directory .footer{margin-top:auto;padding:16px 22px;font-size:12px;color:#687981;border-top:1px solid #dde3e7}.content{min-width:0}.top{border-bottom:1px solid #dde3e7;min-height:61px;padding:16px 32px;display:flex;gap:16px;align-items:center}.crumb{font-size:13px;color:#687981;flex:1}.top button{padding:6px 12px;font-size:13px}.body{padding:28px 36px 45px;max-width:1150px;margin:auto}h1{font-size:28px;line-height:1.4;margin:7px 0 12px}h2{font-size:21px;line-height:1.5;margin:0 0 14px}h3{font-size:18px;margin:12px 0}p{margin:10px 0}.muted{color:#657781}.eyebrow{color:#667a77;font-size:13px}.status{font-size:13px;background:#f6f7f7;padding:10px 15px;border:1px solid #e1e5e7;border-radius:6px;display:flex;gap:14px;flex-wrap:wrap;align-items:center}.status strong{color:#a84721}.bar{height:6px;width:100px;background:#ddd;border-radius:4px;overflow:hidden}.bar i{display:block;background:#cc5e2f;height:100%}.tabs{display:flex;gap:24px;border-bottom:1px solid #dce2e5;margin:24px 0}.tabs button{padding:12px 0;border:0;border-radius:0;background:none;color:#667781}.tabs button.active{color:#a74922;box-shadow:0 2px #cc5e2f;font-weight:700}.section{padding:23px 0;border-bottom:1px solid #e1e6e8}.panel{padding:20px;border:1px solid #dfe5e7;border-radius:7px;margin:18px 0}.method{background:#fbf8f3;border-left:3px solid #d68450;padding:18px 22px}.row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.tag{font-size:12px;padding:3px 9px;border:1px solid #ddd;border-radius:5px}.reading{font:19px/1.85 Georgia,serif;max-width:740px;padding:20px;background:#fafbfc;border:1px solid #dce3e6}video{width:100%;max-height:330px;background:#192323;border-radius:5px}audio{width:100%;margin:14px 0}.choices{display:grid;gap:6px}.choices label{border:1px solid #dde3e6;padding:9px 12px;border-radius:5px;cursor:pointer}.choices label:has(input:checked){background:#fcf1e9;border-color:#cc5e2f}fieldset{border:0;padding:0;margin:20px 0}.qtitle{font-weight:600;font-size:16px;padding-bottom:10px}textarea,input[type=text]{width:100%;background:#fff;border:1px solid #cfd9de;border-radius:6px;padding:12px}textarea{min-height:150px;resize:vertical}.error{padding:10px;color:#922d26;background:#ffefec}.result{padding:17px;background:#f4f7f8;border-left:3px solid #53766d;margin:14px 0}.result.wrong{border-color:#ce6b34;background:#fff5ed}.source{font-size:12px;color:#697d86}a{color:#965222}.teacher{margin-top:20px;border:1px solid #d9e1e4;border-radius:8px;padding:24px;background:#fbfcfc}.teacher .row{border-bottom:1px solid #dfe5e7;padding-bottom:12px}.teacher textarea{margin-top:18px;min-height:80px}.blank{padding:25px 0;color:#697e84}.records{padding:18px 0;border-bottom:1px solid #dde3e7}.records h3{margin:0 0 8px}.reviewText{line-height:1.8}.sourceimg{width:100%;margin-top:15px}.cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.catalog{max-height:430px;overflow:auto}.catalog p{padding:10px 0;border-bottom:1px solid #e1e6e8;font-size:14px}.prototype{font-size:12px;color:#687b84;background:#fafbfc;border-bottom:1px solid #dfe5e7;padding:8px 32px}.learnline{padding:12px 0;display:flex;gap:14px;align-items:flex-start}.stepnumber{color:#aa5a31;font-family:Georgia,serif;font-size:25px;min-width:30px}.menu{display:none}details{margin:15px 0}summary{cursor:pointer;font-size:14px}input[type=radio]{accent-color:#cc5e2f}.reading mark{background:#f4dec9}.noteSaved{font-size:13px;color:#5c726c}.body{animation:in .15s ease-out}@keyframes in{from{opacity:.7;transform:translateY(3px)}to{opacity:1;transform:none}}@media(prefers-reduced-motion:reduce){.body{animation:none}}@media(max-width:1100px){.app{grid-template-columns:165px 215px minmax(0,1fr)}.body{padding:25px}.top{padding:16px 25px}}@media(max-width:780px){.app{display:block}.side{display:none}.directory{display:none}.app.showMenu .side{display:flex}.app.showDirectory .directory{display:flex}.top{padding:12px 18px;flex-wrap:wrap}.menu{display:block}.body{padding:22px 18px}.prototype{padding:8px 18px}.cards{grid-template-columns:1fr}h1{font-size:25px}.tabs{gap:18px}.status{gap:10px}.reading{font-size:18px;padding:17px}.row button{flex-grow:1}.catalog{max-height:none}}
+.side,.directory{position:sticky;top:0;height:100vh;overflow:auto}.top{position:sticky;top:0;background:white;z-index:10}@media(max-width:780px){.side,.directory{position:static;height:auto;max-height:75vh}.top{position:sticky;top:0}}
+
+.app.overview{grid-template-columns:190px minmax(0,1fr)}.overview .directory{display:none}.overview .body{max-width:1180px}
+.dashhero{display:flex;justify-content:space-between;align-items:center;gap:24px;padding:8px 0 25px;border-bottom:1px solid #dce3e6}.dashhero h1{font-size:32px}.bigprogress{font:48px/1.1 Georgia,serif;color:#a84721}.dashintro{max-width:650px}
+.overviewgrid{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(260px,1fr);gap:34px;margin-top:28px}.courseRow{display:grid;grid-template-columns:minmax(0,1fr) 95px auto;gap:16px;align-items:center;padding:20px 0;border-bottom:1px solid #dde3e7}.courseRow h3{margin:0 0 3px}.courseRow p{font-size:14px;margin:5px 0;color:#657781}.courseRow .bar{width:100%;margin-top:8px}.statline{display:flex;gap:22px;padding:15px 0}.statline strong{display:block;font-size:27px;font-weight:500;color:#a84721}.statline span{font-size:13px;color:#657781}.quietpanel{padding:20px 0;border-bottom:1px solid #dde3e7}.quietpanel h2{font-size:19px}.overview dd{margin:0 0 12px}.overview dt{font-size:13px;color:#657781}.dashhero .source{max-width:245px}.profileForm{max-width:680px}.profileForm label{display:block;margin:18px 0 6px}.profileForm input{width:100%;padding:10px;border:1px solid #cfd9de;border-radius:6px}
+@media(max-width:1100px){.app.overview{grid-template-columns:165px minmax(0,1fr)}}@media(max-width:780px){.app.overview{display:block}.overviewgrid{grid-template-columns:1fr;gap:10px}.dashhero{align-items:flex-start;flex-direction:column;gap:12px}.dashhero h1{font-size:26px}.courseRow{grid-template-columns:minmax(0,1fr) 70px}.courseRow button{grid-column:1/-1;width:100%}.overview .directory{display:none!important}.overview .dashhero .source{max-width:none}}
+</style></head><body><div class="app"><aside class="side"><div class="logo">Forge.</div><button data-view="dashboard">首页 · 学习总览</button><div class="caption">四科课程</div><button data-part="listening">01　听力</button><button data-part="reading">02　阅读</button><button data-part="writing">03　写作</button><button data-part="speaking">04　口语</button><div class="caption">我的学习记录</div><button data-view="test">独立真题测试</button><button data-view="errors">错题本 <span id="wrongCount">0</span></button><button data-view="weak">薄弱环节</button><button data-view="profile">个人学习档案</button><button data-view="resources">全部资料</button><small>课程、练习、复盘在一起。<br>完成课程 ≠ 已掌握能力。</small></aside><aside class="directory" id="directory"></aside><section class="content"><div class="top"><button class="menu" data-act="menu">科目</button><button class="menu" data-act="directory">目录</button><div class="crumb" id="crumb"></div><button data-act="continue">继续本章</button></div><div class="prototype">四科样板 · 本地交互原型。封闭题按原页证据解释；真实AI、NAS保存和语音对话尚未接入。</div><main class="body" id="body"></main></section></div>
+<script id="catalog" type="application/json">{
+  "status": "inventory_not_full_mapping",
+  "handouts": [
+    {
+      "id": "notes-01",
+      "file": "新D方\\新D方新托福全套\\01 托福词汇课 孙曦\\托福词汇讲义.pdf",
+      "pages": 33,
+      "characters": 9232,
+      "sparse_pages": [
+        1,
+        3,
+        25
+      ],
+      "sha256": "ee8fcc261a07f3151c1f98f6dc0c37ddfb34e683113f5ab22ddcef1964b17337",
+      "extracted": "sentence-forge\\docs\\curriculum-v4\\toefl-redesign\\lecture-notes\\notes-01.txt",
+      "reading_status": "method_review_partial_not_all_exercises_verified"
+    },
+    {
+      "id": "notes-02",
+      "file": "新D方\\新D方新托福全套\\03 托福听口基础能力课\\基础听口课程讲义.pdf",
+      "pages": 137,
+      "characters": 62992,
+      "sparse_pages": [
+        9,
+        28,
+        112
+      ],
+      "sha256": "f2ad737f862e66a5b68a455c0efc24cf63f2a48ae5588161fecfcb6930e6aec7",
+      "extracted": "sentence-forge\\docs\\curriculum-v4\\toefl-redesign\\lecture-notes\\notes-02.txt",
+      "reading_status": "method_review_partial_not_all_exercises_verified"
+    },
+    {
+      "id": "notes-03",
+      "file": "新D方\\新D方新托福全套\\04 新托福  听力 郭小钰\\新托福精讲智能系统课听力讲义-郭小钰_精讲段.pdf",
+      "pages": 75,
+      "characters": 79997,
+      "sparse_pages": [
+        1,
+        2,
+        7,
+        20,
+        65,
+        75
+      ],
+      "sha256": "9798506f14c49e7747653a7b31d6953b69a3225d08ad706c4e587a1e8ebaae62",
+      "extracted": "sentence-forge\\docs\\curriculum-v4\\toefl-redesign\\lecture-notes\\notes-03.txt",
+      "reading_status": "method_review_partial_not_all_exercises_verified"
+    },
+    {
+      "id": "notes-04",
+      "file": "新D方\\新D方新托福全套\\05 新托福  阅读   刘倩俐\\新托福精讲智能系统课阅读讲义-刘倩俐-精讲段-上.pdf",
+      "pages": 72,
+      "characters": 110276,
+      "sparse_pages": [
+        1,
+        5,
+        6,
+        40
+      ],
+      "sha256": "43db2a0af61a0de80eaf6ddba7ea057636e94a1c96ec67e6658662a3ee7d5e52",
+      "extracted": "sentence-forge\\docs\\curriculum-v4\\toefl-redesign\\lecture-notes\\notes-04.txt",
+      "reading_status": "method_review_partial_not_all_exercises_verified"
+    },
+    {
+      "id": "notes-05",
+      "file": "新D方\\新D方新托福全套\\05 新托福  阅读   刘倩俐\\新托福精讲智能系统课阅读讲义-刘倩俐-精讲段-下.pdf",
+      "pages": 71,
+      "characters": 160498,
+      "sparse_pages": [
+        70,
+        71
+      ],
+      "sha256": "6e696d870162343d16be639828c910bca9251e68861b9a5e9754db19fb739665",
+      "extracted": "sentence-forge\\docs\\curriculum-v4\\toefl-redesign\\lecture-notes\\notes-05.txt",
+      "reading_status": "method_review_partial_not_all_exercises_verified"
+    },
+    {
+      "id": "notes-06",
+      "file": "新D方\\新D方新托福全套\\06 新托福  写作 徐欣\\新托福精讲智能系统课写作讲义-徐欣_精讲段.pdf",
+      "pages": 77,
+      "characters": 129750,
+      "sparse_pages": [
+        1,
+        77
+      ],
+      "sha256": "935fd2ba4fa25cb2d5fb24ae354b3ac399138ce36dfc27279ea43bc25947dd96",
+      "extracted": "sentence-forge\\docs\\curriculum-v4\\toefl-redesign\\lecture-notes\\notes-06.txt",
+      "reading_status": "method_review_partial_not_all_exercises_verified"
+    },
+    {
+      "id": "notes-07",
+      "file": "新D方\\新D方新托福全套\\07 新托福  口语 张莹炜\\新托福精讲智能系统课口语讲义-张莹炜_精讲段-上.pdf",
+      "pages": 51,
+      "characters": 55903,
+      "sha256": "fa35fd210130477d3e0e2f0102c415b64f0854773f9c3056d8462cc69c524261",
+      "reading_status": "method_review_partial_not_all_exercises_verified"
+    },
+    {
+      "id": "notes-08",
+      "file": "新D方\\新D方新托福全套\\07 新托福  口语 张莹炜\\新托福精讲智能系统课口语讲义-张莹炜_精讲段-下.pdf",
+      "pages": 53,
+      "characters": 58459,
+      "sha256": "fafc1df3ab01d9394614615fe3e7b1b45632428861ba01bb28a763af0b182c4e",
+      "reading_status": "method_review_partial_not_all_exercises_verified"
+    }
+  ],
+  "snapshot": "2026-10-03",
+  "videos": [
+    {
+      "file": "01 托福词汇课 孙曦\\01 总概-托福词汇简介.mov",
+      "bytes": 56484176,
+      "title": "01 总概-托福词汇简介",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "01 托福词汇课 孙曦\\02 托福词汇-词汇“三维度”及记忆法.mov",
+      "bytes": 214358640,
+      "title": "02 托福词汇-词汇“三维度”及记忆法",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "01 托福词汇课 孙曦\\03 总概-“记”几个词汇背诵的小提示.mov",
+      "bytes": 43074672,
+      "title": "03 总概-“记”几个词汇背诵的小提示",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "01 托福词汇课 孙曦\\04 总概-“用”突破托福写作语言大关.mov",
+      "bytes": 50491872,
+      "title": "04 总概-“用”突破托福写作语言大关",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "01 托福词汇课 孙曦\\05 总概-“考”真题词汇=考点词汇？.mov",
+      "bytes": 26009904,
+      "title": "05 总概-“考”真题词汇=考点词汇？",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "01 托福词汇课 孙曦\\06 托福词汇-前缀之 “方向”系列.mov",
+      "bytes": 297521360,
+      "title": "06 托福词汇-前缀之 “方向”系列",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "01 托福词汇课 孙曦\\07 托福词汇-前缀之 “否定与共同”系列.mov",
+      "bytes": 66277648,
+      "title": "07 托福词汇-前缀之 “否定与共同”系列",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "01 托福词汇课 孙曦\\08 托福词汇-后缀系列.mov",
+      "bytes": 157929648,
+      "title": "08 托福词汇-后缀系列",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "01 托福词汇课 孙曦\\09 基础词汇之词根ceive.mov",
+      "bytes": 89961552,
+      "title": "09 基础词汇之词根ceive",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "01 托福词汇课 孙曦\\10 基础词汇之词根fer.mov",
+      "bytes": 127517872,
+      "title": "10 基础词汇之词根fer",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "01 托福词汇课 孙曦\\11 基础词汇之词根mit.mov",
+      "bytes": 57711120,
+      "title": "11 基础词汇之词根mit",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "01 托福词汇课 孙曦\\12 基础词汇之词根scribscript.mov",
+      "bytes": 51696304,
+      "title": "12 基础词汇之词根scribscript",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "01 托福词汇课 孙曦\\13 基础词汇之词根sist.mov",
+      "bytes": 98478496,
+      "title": "13 基础词汇之词根sist",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "01 托福词汇课 孙曦\\14 基础词汇之词根spectvis.mov",
+      "bytes": 79348496,
+      "title": "14 基础词汇之词根spectvis",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "01 托福词汇课 孙曦\\15 基础词汇之词根spir.mov",
+      "bytes": 56150512,
+      "title": "15 基础词汇之词根spir",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "01 托福词汇课 孙曦\\16 基础词汇之词根vent.mov",
+      "bytes": 60520208,
+      "title": "16 基础词汇之词根vent",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "01 托福词汇课 孙曦\\17 基础词汇之词根versvert.mov",
+      "bytes": 40176400,
+      "title": "17 基础词汇之词根versvert",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "01 托福词汇课 孙曦\\18 基础词汇之词根vocnouncedict.mov",
+      "bytes": 72989488,
+      "title": "18 基础词汇之词根vocnouncedict",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "01 托福词汇课 孙曦\\19 核心词汇之词根ject.mov",
+      "bytes": 85173152,
+      "title": "19 核心词汇之词根ject",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "01 托福词汇课 孙曦\\20 核心词汇之词根pos.mov",
+      "bytes": 107621712,
+      "title": "20 核心词汇之词根pos",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "01 托福词汇课 孙曦\\21 核心词汇之词根tract.mov",
+      "bytes": 87871024,
+      "title": "21 核心词汇之词根tract",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "01 托福词汇课 孙曦\\22 核心词汇之词根press.mov",
+      "bytes": 49939520,
+      "title": "22 核心词汇之词根press",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "01 托福词汇课 孙曦\\23 核心词汇之词根pelpuls.mov",
+      "bytes": 37302832,
+      "title": "23 核心词汇之词根pelpuls",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "01 托福词汇课 孙曦\\24 核心词汇之词根cid.mov",
+      "bytes": 30659680,
+      "title": "24 核心词汇之词根cid",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "01 托福词汇课 孙曦\\25 核心词汇之词根duc.mov",
+      "bytes": 47394736,
+      "title": "25 核心词汇之词根duc",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "01 托福词汇课 孙曦\\26 核心词汇之词根cedceedcess.mov",
+      "bytes": 56666352,
+      "title": "26 核心词汇之词根cedceedcess",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "01 托福词汇课 孙曦\\27 核心词汇之vad.mov",
+      "bytes": 33313536,
+      "title": "27 核心词汇之vad",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "01 托福词汇课 孙曦\\28 核心词汇之词根optsn.mov",
+      "bytes": 44966912,
+      "title": "28 核心词汇之词根optsn",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "01 托福词汇课 孙曦\\29 进阶词汇之词根arch.mov",
+      "bytes": 55794896,
+      "title": "29 进阶词汇之词根arch",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "01 托福词汇课 孙曦\\30 进阶词汇之词根dom.mov",
+      "bytes": 54442368,
+      "title": "30 进阶词汇之词根dom",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "01 托福词汇课 孙曦\\31 进阶词汇之词根humanthropgen.mov",
+      "bytes": 46287616,
+      "title": "31 进阶词汇之词根humanthropgen",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "01 托福词汇课 孙曦\\32 进阶词汇之词根marine.mov",
+      "bytes": 42998448,
+      "title": "32 进阶词汇之词根marine",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "01 托福词汇课 孙曦\\33 进阶词汇之词根terr.mov",
+      "bytes": 52424416,
+      "title": "33 进阶词汇之词根terr",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "01 托福词汇课 孙曦\\34 进阶词汇之词根astr.mov",
+      "bytes": 53066976,
+      "title": "34 进阶词汇之词根astr",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "01 托福词汇课 孙曦\\35 进阶词汇之词根capsci.mov",
+      "bytes": 50456016,
+      "title": "35 进阶词汇之词根capsci",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "01 托福词汇课 孙曦\\36 进阶词汇之词根candflamphoto.mov",
+      "bytes": 30781200,
+      "title": "36 进阶词汇之词根candflamphoto",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "01 托福词汇课 孙曦\\37 进阶词汇之词根sid.mov",
+      "bytes": 35485632,
+      "title": "37 进阶词汇之词根sid",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "01 托福词汇课 孙曦\\38 进阶词汇之词根amtim.mov",
+      "bytes": 34002176,
+      "title": "38 进阶词汇之词根amtim",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "01 托福词汇课 孙曦\\39 学科词汇系列-天文学.mov",
+      "bytes": 62795104,
+      "title": "39 学科词汇系列-天文学",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "01 托福词汇课 孙曦\\40 学科词汇系列-地理地质学.mov",
+      "bytes": 160847696,
+      "title": "40 学科词汇系列-地理地质学",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "01 托福词汇课 孙曦\\41 学科词汇系列-人类考古学.mov",
+      "bytes": 55630272,
+      "title": "41 学科词汇系列-人类考古学",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "01 托福词汇课 孙曦\\42 学科词汇系列-物理&化学.mov",
+      "bytes": 60337360,
+      "title": "42 学科词汇系列-物理&化学",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "01 托福词汇课 孙曦\\43 学科词汇系列-生态学.mov",
+      "bytes": 55396544,
+      "title": "43 学科词汇系列-生态学",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "01 托福词汇课 孙曦\\44 学科词汇系列-数学.mov",
+      "bytes": 65302224,
+      "title": "44 学科词汇系列-数学",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "01 托福词汇课 孙曦\\45 学科词汇系列-气象学.mov",
+      "bytes": 86625648,
+      "title": "45 学科词汇系列-气象学",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "01 托福词汇课 孙曦\\46 学科词汇系列-动物学.mov",
+      "bytes": 59392768,
+      "title": "46 学科词汇系列-动物学",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "01 托福词汇课 孙曦\\47 学科词汇系列-植物学.mov",
+      "bytes": 52427680,
+      "title": "47 学科词汇系列-植物学",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "01 托福词汇课 孙曦\\48 学科词汇系列-政治学.mov",
+      "bytes": 53048848,
+      "title": "48 学科词汇系列-政治学",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "02 托福阅写基础能力课\\01 阅写基础课程-导学.mov",
+      "bytes": 23563776,
+      "title": "01 阅写基础课程-导学",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "02 托福阅写基础能力课\\02 Unit1-1 句子成分.mov",
+      "bytes": 112961296,
+      "title": "02 Unit1-1 句子成分",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "02 托福阅写基础能力课\\03 Unit1-2 句子结构.mov",
+      "bytes": 118003376,
+      "title": "03 Unit1-2 句子结构",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "02 托福阅写基础能力课\\04 Unit2-1 非谓语动词.mov",
+      "bytes": 136770768,
+      "title": "04 Unit2-1 非谓语动词",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "02 托福阅写基础能力课\\05 Unit2-2 非谓语动词的应用.mov",
+      "bytes": 57820320,
+      "title": "05 Unit2-2 非谓语动词的应用",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "02 托福阅写基础能力课\\06 Unit3 强调句.mov",
+      "bytes": 155001840,
+      "title": "06 Unit3 强调句",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "02 托福阅写基础能力课\\07 Unit4 倒装句.mov",
+      "bytes": 77199184,
+      "title": "07 Unit4 倒装句",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "02 托福阅写基础能力课\\08 Unit5 并列连词.mov",
+      "bytes": 73781856,
+      "title": "08 Unit5 并列连词",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "02 托福阅写基础能力课\\09 Unit5 并列连词和平行结构在写作中的应用.mov",
+      "bytes": 141444432,
+      "title": "09 Unit5 并列连词和平行结构在写作中的应用",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "02 托福阅写基础能力课\\10 Unit6 比较结构.mov",
+      "bytes": 167043104,
+      "title": "10 Unit6 比较结构",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "02 托福阅写基础能力课\\11 Unit7 名词性从句.mov",
+      "bytes": 128163360,
+      "title": "11 Unit7 名词性从句",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "02 托福阅写基础能力课\\12 Unit8 定语从句.mov",
+      "bytes": 123127504,
+      "title": "12 Unit8 定语从句",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "02 托福阅写基础能力课\\13 Unit9 副词性从句.mov",
+      "bytes": 85595616,
+      "title": "13 Unit9 副词性从句",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "02 托福阅写基础能力课\\14 Unit10 长短句结合的技巧.mov",
+      "bytes": 88910672,
+      "title": "14 Unit10 长短句结合的技巧",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "03 托福听口基础能力课\\01 听口基础课程导学.mov",
+      "bytes": 34079712,
+      "title": "01 听口基础课程导学",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "03 托福听口基础能力课\\02 听口基础课程-Conversation#1.mov",
+      "bytes": 125680688,
+      "title": "02 听口基础课程-Conversation#1",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "03 托福听口基础能力课\\03 听口基础课程-Conversation#2.mov",
+      "bytes": 160575408,
+      "title": "03 听口基础课程-Conversation#2",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "03 托福听口基础能力课\\04 听口基础课程-Conversation#3.mov",
+      "bytes": 156437808,
+      "title": "04 听口基础课程-Conversation#3",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "03 托福听口基础能力课\\05 听口基础课程-Conversation#4.mov",
+      "bytes": 107174288,
+      "title": "05 听口基础课程-Conversation#4",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "03 托福听口基础能力课\\06 听口基础课程-Conversation#5.mov",
+      "bytes": 141802080,
+      "title": "06 听口基础课程-Conversation#5",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "03 托福听口基础能力课\\07 听口基础课程-Conversation#6.mov",
+      "bytes": 162043040,
+      "title": "07 听口基础课程-Conversation#6",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "03 托福听口基础能力课\\08 听口基础课程-Conversation#7.mov",
+      "bytes": 125416464,
+      "title": "08 听口基础课程-Conversation#7",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "03 托福听口基础能力课\\09 听口基础课程-Conversation#8.mov",
+      "bytes": 154847872,
+      "title": "09 听口基础课程-Conversation#8",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "03 托福听口基础能力课\\10 听口基础课程-Conversation#9.mov",
+      "bytes": 124318400,
+      "title": "10 听口基础课程-Conversation#9",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "03 托福听口基础能力课\\11 听口基础课程-Conversation#10.mov",
+      "bytes": 98063184,
+      "title": "11 听口基础课程-Conversation#10",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "03 托福听口基础能力课\\12 听口基础课程-Conversation#11.mov",
+      "bytes": 123538720,
+      "title": "12 听口基础课程-Conversation#11",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "03 托福听口基础能力课\\13 听口基础课程-Conversation#12.mov",
+      "bytes": 138394800,
+      "title": "13 听口基础课程-Conversation#12",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "03 托福听口基础能力课\\14 听口基础课程-Conversation#13.mov",
+      "bytes": 132914352,
+      "title": "14 听口基础课程-Conversation#13",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "03 托福听口基础能力课\\15 听口基础课程-Conversation#14.mov",
+      "bytes": 166164016,
+      "title": "15 听口基础课程-Conversation#14",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "03 托福听口基础能力课\\16 听口基础课程-Conversation#15.mov",
+      "bytes": 177010848,
+      "title": "16 听口基础课程-Conversation#15",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "03 托福听口基础能力课\\17 听口基础课程总复习.mov",
+      "bytes": 8348928,
+      "title": "17 听口基础课程总复习",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "04 新托福  听力 郭小钰\\01 1.听力导学.mov",
+      "bytes": 53993712,
+      "title": "01 1.听力导学",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "04 新托福  听力 郭小钰\\02 2.1 认识学术讲座.mov",
+      "bytes": 87003360,
+      "title": "02 2.1 认识学术讲座",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "04 新托福  听力 郭小钰\\03 2.2 学术讲座主旨题.mov",
+      "bytes": 67457088,
+      "title": "03 2.2 学术讲座主旨题",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "04 新托福  听力 郭小钰\\04 2.3 学术讲座术语与解释考点.mov",
+      "bytes": 69954464,
+      "title": "04 2.3 学术讲座术语与解释考点",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "04 新托福  听力 郭小钰\\05 3.1 讲座对比与比较考点.mov",
+      "bytes": 62018384,
+      "title": "05 3.1 讲座对比与比较考点",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "04 新托福  听力 郭小钰\\06 3.2 学术讲座细节题.mov",
+      "bytes": 77882816,
+      "title": "06 3.2 学术讲座细节题",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "04 新托福  听力 郭小钰\\07 3.3 听答类型的常见话题.mov",
+      "bytes": 55620400,
+      "title": "07 3.3 听答类型的常见话题",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "04 新托福  听力 郭小钰\\08 4.1 讲座举例与类比考点.mov",
+      "bytes": 81922096,
+      "title": "08 4.1 讲座举例与类比考点",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "04 新托福  听力 郭小钰\\09 4.2 讲座组织结构题.mov",
+      "bytes": 73633136,
+      "title": "09 4.2 讲座组织结构题",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "04 新托福  听力 郭小钰\\10 4.3 对话类型的常见话题.mov",
+      "bytes": 76004288,
+      "title": "10 4.3 对话类型的常见话题",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "04 新托福  听力 郭小钰\\11 5.1 讲座因果逻辑考点.mov",
+      "bytes": 64804272,
+      "title": "11 5.1 讲座因果逻辑考点",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "04 新托福  听力 郭小钰\\12 5.2 讲座推理题.mov",
+      "bytes": 75593248,
+      "title": "12 5.2 讲座推理题",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "04 新托福  听力 郭小钰\\13 5.3 公告类型的常见话题.mov",
+      "bytes": 91192672,
+      "title": "13 5.3 公告类型的常见话题",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "04 新托福  听力 郭小钰\\14 6.1 讲座列举考点.mov",
+      "bytes": 79846304,
+      "title": "14 6.1 讲座列举考点",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "04 新托福  听力 郭小钰\\15 6.2 讲座的结构.mov",
+      "bytes": 70547872,
+      "title": "15 6.2 讲座的结构",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "04 新托福  听力 郭小钰\\16 6.3 询问类听答题.mov",
+      "bytes": 76053072,
+      "title": "16 6.3 询问类听答题",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "04 新托福  听力 郭小钰\\17 7.1 讲座中的强调考点.mov",
+      "bytes": 66116768,
+      "title": "17 7.1 讲座中的强调考点",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "04 新托福  听力 郭小钰\\18 7.2 讲座中的转折考点.mov",
+      "bytes": 54316720,
+      "title": "18 7.2 讲座中的转折考点",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "04 新托福  听力 郭小钰\\19 7.3 陈述类听答题.mov",
+      "bytes": 56156128,
+      "title": "19 7.3 陈述类听答题",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "04 新托福  听力 郭小钰\\20 8.1 讲座预测考点.mov",
+      "bytes": 57337824,
+      "title": "20 8.1 讲座预测考点",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "04 新托福  听力 郭小钰\\21 8.2 对话中的预测.mov",
+      "bytes": 65751056,
+      "title": "21 8.2 对话中的预测",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "04 新托福  听力 郭小钰\\22 8.3 公告中的预测.mov",
+      "bytes": 47577088,
+      "title": "22 8.3 公告中的预测",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "04 新托福  听力 郭小钰\\23 9.1 讲座考点复习1.mov",
+      "bytes": 73896112,
+      "title": "23 9.1 讲座考点复习1",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "04 新托福  听力 郭小钰\\24 9.2 讲座考点复习2.mov",
+      "bytes": 62742768,
+      "title": "24 9.2 讲座考点复习2",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "04 新托福  听力 郭小钰\\25 9.3 对话中的语气.mov",
+      "bytes": 54048944,
+      "title": "25 9.3 对话中的语气",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "04 新托福  听力 郭小钰\\26 10.1 讲座题型复习1.mov",
+      "bytes": 58819904,
+      "title": "26 10.1 讲座题型复习1",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "04 新托福  听力 郭小钰\\27 10.2 讲座题型复习2.mov",
+      "bytes": 46771824,
+      "title": "27 10.2 讲座题型复习2",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "04 新托福  听力 郭小钰\\28 10.3 公告的结构.mov",
+      "bytes": 51950192,
+      "title": "28 10.3 公告的结构",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "04 新托福  听力 郭小钰\\29 11.1 Mock Test - 1.mov",
+      "bytes": 89571024,
+      "title": "29 11.1 Mock Test - 1",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "04 新托福  听力 郭小钰\\30 11.2 Mock Test - 2.mov",
+      "bytes": 82060608,
+      "title": "30 11.2 Mock Test - 2",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "04 新托福  听力 郭小钰\\31 11.3 Mock Test - 3.mov",
+      "bytes": 48377312,
+      "title": "31 11.3 Mock Test - 3",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "04 新托福  听力 郭小钰\\32 11.4 Mock Test - 4.mov",
+      "bytes": 41138432,
+      "title": "32 11.4 Mock Test - 4",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "04 新托福  听力 郭小钰\\33 11.5 Mock Test - 5.mov",
+      "bytes": 87574096,
+      "title": "33 11.5 Mock Test - 5",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "05 新托福  阅读   刘倩俐\\01 1. 导学.mov",
+      "bytes": 35157936,
+      "title": "01 1. 导学",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "05 新托福  阅读   刘倩俐\\02 2.1 利用词性和语法分析进行填词.mov",
+      "bytes": 108226496,
+      "title": "02 2.1 利用词性和语法分析进行填词",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "05 新托福  阅读   刘倩俐\\03 2.2 根据段落主题和上下文语义进行填词.mov",
+      "bytes": 60253088,
+      "title": "03 2.2 根据段落主题和上下文语义进行填词",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "05 新托福  阅读   刘倩俐\\04 2.3 阅读填空综合练习.mov",
+      "bytes": 88978736,
+      "title": "04 2.3 阅读填空综合练习",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "05 新托福  阅读   刘倩俐\\05 3.1 扫读日常文本的重要细节.mov",
+      "bytes": 61551360,
+      "title": "05 3.1 扫读日常文本的重要细节",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "05 新托福  阅读   刘倩俐\\06 3.2 理解日常文本的意图并进行合理推断.mov",
+      "bytes": 70317728,
+      "title": "06 3.2 理解日常文本的意图并进行合理推断",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "05 新托福  阅读   刘倩俐\\07 3.3 日常文本阅读综合练习.mov",
+      "bytes": 76088976,
+      "title": "07 3.3 日常文本阅读综合练习",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "05 新托福  阅读   刘倩俐\\08 4.1 通过词根词缀和上下文推测词义.mov",
+      "bytes": 100156848,
+      "title": "08 4.1 通过词根词缀和上下文推测词义",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "05 新托福  阅读   刘倩俐\\09 4.2 理解长难句之抓取句子主干内容.mov",
+      "bytes": 92309456,
+      "title": "09 4.2 理解长难句之抓取句子主干内容",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "05 新托福  阅读   刘倩俐\\10 4.3 理解长难句之理解句子逻辑关系.mov",
+      "bytes": 112088384,
+      "title": "10 4.3 理解长难句之理解句子逻辑关系",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "05 新托福  阅读   刘倩俐\\11 5.1 定位并理解关键细节信息.mov",
+      "bytes": 115425760,
+      "title": "11 5.1 定位并理解关键细节信息",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "05 新托福  阅读   刘倩俐\\12 5.2 通过排除法锁定目标选项.mov",
+      "bytes": 68554096,
+      "title": "12 5.2 通过排除法锁定目标选项",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "05 新托福  阅读   刘倩俐\\13 5.3 细节题综合练习.mov",
+      "bytes": 64241056,
+      "title": "13 5.3 细节题综合练习",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "05 新托福  阅读   刘倩俐\\14 6.1 使用上下文反向线索进行推理.mov",
+      "bytes": 89358368,
+      "title": "14 6.1 使用上下文反向线索进行推理",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "05 新托福  阅读   刘倩俐\\15 6.2 使用上下文正向线索进行推理.mov",
+      "bytes": 92915104,
+      "title": "15 6.2 使用上下文正向线索进行推理",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "05 新托福  阅读   刘倩俐\\16 6.3 推理题综合练习.mov",
+      "bytes": 96613008,
+      "title": "16 6.3 推理题综合练习",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "05 新托福  阅读   刘倩俐\\17 7.1 识别句子间的指代关系和逻辑关系.mov",
+      "bytes": 90710096,
+      "title": "17 7.1 识别句子间的指代关系和逻辑关系",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "05 新托福  阅读   刘倩俐\\18 7.2 识别句子间的语义关联.mov",
+      "bytes": 69302816,
+      "title": "18 7.2 识别句子间的语义关联",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "05 新托福  阅读   刘倩俐\\19 7.3 句子插入题综合练习.mov",
+      "bytes": 73388688,
+      "title": "19 7.3 句子插入题综合练习",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "05 新托福  阅读   刘倩俐\\20 8.1 识别观点、例子和解释.mov",
+      "bytes": 88404976,
+      "title": "20 8.1 识别观点、例子和解释",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "05 新托福  阅读   刘倩俐\\21 8.2 识别段落的组织结构.mov",
+      "bytes": 79844288,
+      "title": "21 8.2 识别段落的组织结构",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "05 新托福  阅读   刘倩俐\\22 8.3 识别段落的主旨大意.mov",
+      "bytes": 63433808,
+      "title": "22 8.3 识别段落的主旨大意",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "05 新托福  阅读   刘倩俐\\23 9.1 识别不同段落之间的关系.mov",
+      "bytes": 85825504,
+      "title": "23 9.1 识别不同段落之间的关系",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "05 新托福  阅读   刘倩俐\\24 9.2 识别整篇文章的主旨.mov",
+      "bytes": 73862544,
+      "title": "24 9.2 识别整篇文章的主旨",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "05 新托福  阅读   刘倩俐\\25 10.1 历史和艺术类文章练习.mov",
+      "bytes": 99362496,
+      "title": "25 10.1 历史和艺术类文章练习",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "05 新托福  阅读   刘倩俐\\26 10.2 自然科学类文章练习.mov",
+      "bytes": 90729536,
+      "title": "26 10.2 自然科学类文章练习",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "05 新托福  阅读   刘倩俐\\27 10.3 阅读填空综合练习.mov",
+      "bytes": 80610368,
+      "title": "27 10.3 阅读填空综合练习",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "05 新托福  阅读   刘倩俐\\28 11.1 模考讲评与备考规划（一）.mov",
+      "bytes": 59591120,
+      "title": "28 11.1 模考讲评与备考规划（一）",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "05 新托福  阅读   刘倩俐\\29 11.2 模考讲评与备考规划（二）.mov",
+      "bytes": 79350848,
+      "title": "29 11.2 模考讲评与备考规划（二）",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "06 新托福  写作 徐欣\\01 1.1 写作导学.mov",
+      "bytes": 129202336,
+      "title": "01 1.1 写作导学",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "06 新托福  写作 徐欣\\02 1.2 造句练习.mov",
+      "bytes": 69843952,
+      "title": "02 1.2 造句练习",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "06 新托福  写作 徐欣\\03 2.1 邮件写作-结构和常用表达.mov",
+      "bytes": 66429824,
+      "title": "03 2.1 邮件写作-结构和常用表达",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "06 新托福  写作 徐欣\\04 2.2 邮件写作-学术场景1.mov",
+      "bytes": 79384848,
+      "title": "04 2.2 邮件写作-学术场景1",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "06 新托福  写作 徐欣\\05 2.3 邮件写作-学术场景2.mov",
+      "bytes": 76465472,
+      "title": "05 2.3 邮件写作-学术场景2",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "06 新托福  写作 徐欣\\06 2.4 邮件语言-建议.mov",
+      "bytes": 52506656,
+      "title": "06 2.4 邮件语言-建议",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "06 新托福  写作 徐欣\\07 3.1-邮件写作-社会场景1.mov",
+      "bytes": 58864176,
+      "title": "07 3.1-邮件写作-社会场景1",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "06 新托福  写作 徐欣\\08 3.2 邮件写作-社会场景2.mov",
+      "bytes": 48657936,
+      "title": "08 3.2 邮件写作-社会场景2",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "06 新托福  写作 徐欣\\09 3.3 邮件语言-请求.mov",
+      "bytes": 49705472,
+      "title": "09 3.3 邮件语言-请求",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "06 新托福  写作 徐欣\\10 4.1 邮件写作-工作场景1.mov",
+      "bytes": 70598928,
+      "title": "10 4.1 邮件写作-工作场景1",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "06 新托福  写作 徐欣\\11 4.2 邮件写作-工作场景2.mov",
+      "bytes": 71643616,
+      "title": "11 4.2 邮件写作-工作场景2",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "06 新托福  写作 徐欣\\12 4.3 邮件语言-问题和解决方案.mov",
+      "bytes": 59071600,
+      "title": "12 4.3 邮件语言-问题和解决方案",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "06 新托福  写作 徐欣\\13 5.1 学术讨论写作审题.mov",
+      "bytes": 91510192,
+      "title": "13 5.1 学术讨论写作审题",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "06 新托福  写作 徐欣\\14 5.2 学术讨论写作破题串讲.mov",
+      "bytes": 103044496,
+      "title": "14 5.2 学术讨论写作破题串讲",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "06 新托福  写作 徐欣\\15 5.3 学术讨论写作-题目类型&文章结构.mov",
+      "bytes": 98353712,
+      "title": "15 5.3 学术讨论写作-题目类型&文章结构",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "06 新托福  写作 徐欣\\16 5.4 学术讨论写作-文章结构串讲.mov",
+      "bytes": 106885680,
+      "title": "16 5.4 学术讨论写作-文章结构串讲",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "06 新托福  写作 徐欣\\17 6.1 学术讨论-因果论证1.mov",
+      "bytes": 84150400,
+      "title": "17 6.1 学术讨论-因果论证1",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "06 新托福  写作 徐欣\\18 6.2 学术讨论-因果论证2.mov",
+      "bytes": 79810224,
+      "title": "18 6.2 学术讨论-因果论证2",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "06 新托福  写作 徐欣\\19 6.3 学术讨论-因果论证3.mov",
+      "bytes": 45036304,
+      "title": "19 6.3 学术讨论-因果论证3",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "06 新托福  写作 徐欣\\20 7.1 学术讨论-例证1.mov",
+      "bytes": 73398912,
+      "title": "20 7.1 学术讨论-例证1",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "06 新托福  写作 徐欣\\21 7.2 学术讨论-例证2.mov",
+      "bytes": 81620928,
+      "title": "21 7.2 学术讨论-例证2",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "06 新托福  写作 徐欣\\22 7.3 学术讨论-例证3.mov",
+      "bytes": 59913184,
+      "title": "22 7.3 学术讨论-例证3",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "06 新托福  写作 徐欣\\23 8.1 学术讨论让步转折1.mov",
+      "bytes": 79777776,
+      "title": "23 8.1 学术讨论让步转折1",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "06 新托福  写作 徐欣\\24 8.2 学术讨论让步转折2.mov",
+      "bytes": 56128960,
+      "title": "24 8.2 学术讨论让步转折2",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "06 新托福  写作 徐欣\\25 8.3 学术讨论让步转折3.mov",
+      "bytes": 48720832,
+      "title": "25 8.3 学术讨论让步转折3",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "06 新托福  写作 徐欣\\26 9.1 学术讨论-对比论证1.mov",
+      "bytes": 72650368,
+      "title": "26 9.1 学术讨论-对比论证1",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "06 新托福  写作 徐欣\\27 9.2 学术讨论-对比论证2.mov",
+      "bytes": 64376352,
+      "title": "27 9.2 学术讨论-对比论证2",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "06 新托福  写作 徐欣\\28 9.3 学术讨论-对比论证3.mov",
+      "bytes": 59736976,
+      "title": "28 9.3 学术讨论-对比论证3",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "06 新托福  写作 徐欣\\29 10.1 学术讨论-分情况讨论1.mov",
+      "bytes": 75916304,
+      "title": "29 10.1 学术讨论-分情况讨论1",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "06 新托福  写作 徐欣\\30 10.2 学术讨论-分情况讨论2.mov",
+      "bytes": 64397968,
+      "title": "30 10.2 学术讨论-分情况讨论2",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "06 新托福  写作 徐欣\\31 10.3 学术讨论-分情况讨论3.mov",
+      "bytes": 77928544,
+      "title": "31 10.3 学术讨论-分情况讨论3",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "06 新托福  写作 徐欣\\32 11.1 模考讲解.mov",
+      "bytes": 106967280,
+      "title": "32 11.1 模考讲解",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "06 新托福  写作 徐欣\\33 11.2 备考规划.mov",
+      "bytes": 43447824,
+      "title": "33 11.2 备考规划",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "07 新托福  口语 张莹炜\\01 口语导学.mov",
+      "bytes": 96443888,
+      "title": "01 口语导学",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "07 新托福  口语 张莹炜\\02 1.1 利用分块法增强工作记忆.mov",
+      "bytes": 73800624,
+      "title": "02 1.1 利用分块法增强工作记忆",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "07 新托福  口语 张莹炜\\03 1.2 练习易错音.mov",
+      "bytes": 96805440,
+      "title": "03 1.2 练习易错音",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "07 新托福  口语 张莹炜\\04 1.3 学习复述校园场景中的句子.mov",
+      "bytes": 106032416,
+      "title": "04 1.3 学习复述校园场景中的句子",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "07 新托福  口语 张莹炜\\05 2.1 学习描述办事规则的相关词汇和表达.mov",
+      "bytes": 88144832,
+      "title": "05 2.1 学习描述办事规则的相关词汇和表达",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "07 新托福  口语 张莹炜\\06 2.2 语句中不完全爆破辅音的发音 ktp.mov",
+      "bytes": 40817392,
+      "title": "06 2.2 语句中不完全爆破辅音的发音 ktp",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "07 新托福  口语 张莹炜\\07 2.3 准确复述办事规则场景下的长句、复杂句.mov",
+      "bytes": 47536944,
+      "title": "07 2.3 准确复述办事规则场景下的长句、复杂句",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "07 新托福  口语 张莹炜\\08 3.1 如何处理“障碍词”.mov",
+      "bytes": 48901440,
+      "title": "08 3.1 如何处理“障碍词”",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "07 新托福  口语 张莹炜\\09 3.2 练习连读发音现象.mov",
+      "bytes": 37587408,
+      "title": "09 3.2 练习连读发音现象",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "07 新托福  口语 张莹炜\\10 3.3 听完听力后直接重复描述物品使用的句子.mov",
+      "bytes": 40516080,
+      "title": "10 3.3 听完听力后直接重复描述物品使用的句子",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "07 新托福  口语 张莹炜\\11 4.1 如何应对不同的面试题类型 -1.mov",
+      "bytes": 60908944,
+      "title": "11 4.1 如何应对不同的面试题类型 -1",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "07 新托福  口语 张莹炜\\12 4.2 如何应对不同的面试题类型 -2.mov",
+      "bytes": 82609408,
+      "title": "12 4.2 如何应对不同的面试题类型 -2",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "07 新托福  口语 张莹炜\\13 4.3 如何应对不同的面试题类型 -3.mov",
+      "bytes": 83631216,
+      "title": "13 4.3 如何应对不同的面试题类型 -3",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "07 新托福  口语 张莹炜\\14 5.1 学习如何给出详细的例子.mov",
+      "bytes": 31793648,
+      "title": "14 5.1 学习如何给出详细的例子",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "07 新托福  口语 张莹炜\\15 5.2 练习句子中的重音.mov",
+      "bytes": 26182128,
+      "title": "15 5.2 练习句子中的重音",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "07 新托福  口语 张莹炜\\16 5.3 尝试使用“举例子”的方法作答面试题.mov",
+      "bytes": 128138112,
+      "title": "16 5.3 尝试使用“举例子”的方法作答面试题",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "07 新托福  口语 张莹炜\\17 6.1 学习如何用“列举细节”的方法拓展理由.mov",
+      "bytes": 118064704,
+      "title": "17 6.1 学习如何用“列举细节”的方法拓展理由",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "07 新托福  口语 张莹炜\\18 6.2 练习“同化”发音现象.mov",
+      "bytes": 37047824,
+      "title": "18 6.2 练习“同化”发音现象",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "07 新托福  口语 张莹炜\\19 6.3 尝试使用“列举细节”的方法作答面试题.mov",
+      "bytes": 112228768,
+      "title": "19 6.3 尝试使用“列举细节”的方法作答面试题",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "07 新托福  口语 张莹炜\\20 7.1 学习如何用比较、对比、和让步来展开理由.mov",
+      "bytes": 106200336,
+      "title": "20 7.1 学习如何用比较、对比、和让步来展开理由",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "07 新托福  口语 张莹炜\\21 7.2 练习语调的升降.mov",
+      "bytes": 17305392,
+      "title": "21 7.2 练习语调的升降",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "07 新托福  口语 张莹炜\\22 7.3 学习使用“提出解决方案”的方法作答面试题.mov",
+      "bytes": 120770128,
+      "title": "22 7.3 学习使用“提出解决方案”的方法作答面试题",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "07 新托福  口语 张莹炜\\23 8.1 学会使用“看情况”的方式来回答困难问题.mov",
+      "bytes": 37858576,
+      "title": "23 8.1 学会使用“看情况”的方式来回答困难问题",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "07 新托福  口语 张莹炜\\24 8.2 练习单词的重音.mov",
+      "bytes": 36935008,
+      "title": "24 8.2 练习单词的重音",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "07 新托福  口语 张莹炜\\25 8.3 学习如何作答“价值观类”模拟面试题.mov",
+      "bytes": 57006400,
+      "title": "25 8.3 学习如何作答“价值观类”模拟面试题",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "07 新托福  口语 张莹炜\\26 9.1 难题演练-朗读题解析&应对策略.mov",
+      "bytes": 36371008,
+      "title": "26 9.1 难题演练-朗读题解析&应对策略",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "07 新托福  口语 张莹炜\\27 9.2 难题演练-模拟面试题解析.mov",
+      "bytes": 75650128,
+      "title": "27 9.2 难题演练-模拟面试题解析",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "07 新托福  口语 张莹炜\\28 9.3 难题演练-模拟面试题解析&应对策略.mov",
+      "bytes": 89915280,
+      "title": "28 9.3 难题演练-模拟面试题解析&应对策略",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "07 新托福  口语 张莹炜\\29 10.1 考试流程演练-朗读题.mov",
+      "bytes": 52798544,
+      "title": "29 10.1 考试流程演练-朗读题",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "07 新托福  口语 张莹炜\\30 10.2 考试流程演练-模拟面试题解析1.mov",
+      "bytes": 99152624,
+      "title": "30 10.2 考试流程演练-模拟面试题解析1",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "07 新托福  口语 张莹炜\\31 10.3 考试流程演练-模拟面试题解析2.mov",
+      "bytes": 84007760,
+      "title": "31 10.3 考试流程演练-模拟面试题解析2",
+      "status": "file_present_playback_unverified"
+    },
+    {
+      "file": "07 新托福  口语 张莹炜\\32 模考题解析&备考建议.mov",
+      "bytes": 131345216,
+      "title": "32 模考题解析&备考建议",
+      "status": "file_present_playback_unverified"
+    }
+  ]
+}</script>
+<script>
+const $=s=>document.querySelector(s), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const CATALOG=JSON.parse($('#catalog').textContent);
+const defs={listening:{name:'听力',title:'听懂计划变化与说话意图',goal:'跟上人物此刻要做什么，发现时间纠正与误会。',modules:['导学与首听','声音识别与语块','一句回应','对话与意图','公告与行动','学术谈话','限时综合'],summary:'先完整听，保住情境和人物关系。做完题后再回放卡住的话轮，区分声音没识别和意思没接上；不用先把全文听写出来。',source:'郭小钰精讲＋听口基础讲义方法归纳；本章视频为学科导学。',prefix:'04 新托福'},reading:{name:'阅读',title:'从邮件中定位日期与行动',goal:'分清预约日期、活动日期和需要自带的物品。',modules:['导学与线索','补全单词','日常文本','长句理解','词义与推断','修辞与篇章','限时综合'],summary:'先确定题目问的是哪个事件，再回原文找对应的时间和动作。找到同一个词不等于找到答案；比较已提供的东西和要求自带的东西。',source:'刘倩俐阅读讲义定位与语境方法；本章视频为学科导学。',prefix:'05 新托福'},writing:{name:'写作',title:'把问题说明白，把请求写清楚',goal:'完成投稿故障邮件，让读者知道发生什么、怎样帮你。',modules:['导学与表达','原词块组句','邮件任务','学术讨论','论证方法','修改与限时'],summary:'先明确收件人、目的与题目要求。形成自己的第一稿，再检查问题和请求是否清楚。修改优先解决影响读者行动的一点，而不是整篇换成高级词。',source:'徐欣写作讲义的邮件目的、请求和语域方法；本章视频为学科导学。',prefix:'06 新托福'},speaking:{name:'口语',title:'听懂采访问题，展开自己的回应',goal:'先直接回答，再用一个具体理由或细节支撑。',modules:['导学','发音与意群','听后重复','采访直答','理由与例子','无稿限时'],summary:'采访回答先回应问题，再给与自己有关的细节；不背万能长模板。听后重复另练原句保持与可懂度，不能把同义改写算准确重复。',source:'张莹炜口语讲义直接回应、意群及具体细节方法；本章视频为学科导学。',prefix:'07 新托福'}};
+const questions={reading:[{id:'r11',q:'11. When is the date of the art workshop?',opts:['September 10th','September 12th','September 20th','September 30th'],key:2,quote:'The workshop will take place on September 20th at 3:00 PM.',why:'9月10日是预约日期；题目问活动日期，will take place 指向9月20日。',tag:'事件与时间定位'}, {id:'r12',q:'12. What should Ms. Edwards bring to the workshop?',opts:['A payment method','Extra paint','A protective garment','Proof of reservation'],key:2,quote:'All necessary art supplies will be provided, but please bring your own apron or smock.',why:'用品已提供，要求自带的是 apron 或 smock，属于防护衣物。',tag:'语境与行动要求'}],listening:[{id:'l9',q:'9. What does the woman imply that she was about to do?',opts:['See a play','Change her clothes','Go shopping','Eat dinner'],key:2,quote:'Need anything from the supermarket?',why:'女人询问超市需要买什么，暗示自己原本准备去购物。',tag:'话轮意图'},{id:'l10',q:'10. Why does the man say “I’d forget my head if it wasn’t screwed on”?',opts:['He forgot what the woman wanted him to buy.','He forgot about the timing of their plans.','He forgot that they were going to eat for dinner.','He forgot to buy salmon and salad at the supermarket.'],key:1,quote:'Woman: That’s tomorrow.',why:'女人纠正看戏是明天，男人随后自嘲健忘；这里对应忘记计划时间。',tag:'事件与时间定位'}]};
+let saved={};try{saved=JSON.parse(localStorage.getItem('forge-course-sample-v2')||'{}')}catch{}
+const state={part:saved.part||'listening',tab:saved.tab||'learn',view:'dashboard',resume:saved.resume||{},profile:saved.profile||{},answers:saved.answers||{},drafts:saved.drafts||{},done:saved.done||{},attempts:saved.attempts||{},errors:saved.errors||{},notes:saved.notes||{},positions:saved.positions||{},coverage:saved.coverage||{},support:saved.support||{}};
+let audioData='',recorder=null,lastVideoTime=0,recording=false;
+function persist(){try{localStorage.setItem('forge-course-sample-v2',JSON.stringify(state))}catch{}}
+function capture(){if(state.view==='course')state.resume[state.part]=state.tab;const video=$('#lessonVideo');if(video&&video.readyState>=1)state.positions[state.part]=video.currentTime;if($('#draft'))state.drafts[state.part]=$('#draft').value;if($('#note'))state.notes[state.part]=$('#note').value;persist()}
+const btn=(t,a,x='',primary=false)=>'<button '+(primary?'class="primary" ':'')+'data-act="'+a+'" '+x+'>'+t+'</button>';
+function total(){return ['learn','practice','review'].filter(k=>state.done[state.part]?.[k]).length}
+function render(){if(state.view==='course')state.resume[state.part]=state.tab;if(recording){recorder.stop();recording=false}speechSynthesis?.cancel();const d=defs[state.part];document.querySelectorAll('.side button').forEach(b=>b.classList.toggle('active',b.dataset.part===state.part&&state.view==='course'||b.dataset.view===state.view));$('#wrongCount').textContent=Object.keys(state.errors).length;$('#crumb').textContent=state.view==='course'?'四科课程 / '+d.name+' / 样板01 / '+d.title:({dashboard:'首页 / 学习总览',profile:'我的学习 / 个人档案',test:'独立真题测试',errors:'错题本',weak:'薄弱环节',resources:'资料库'}[state.view]);$('#directory').innerHTML='<div class="dirhead"><h2>'+d.name+'课程</h2><p class="muted">教学目录 · 样板章可学习</p><span class="source">全科目录仍在编排，规划章不计为已发布。</span></div>'+d.modules.map((m,i)=>'<button class="item '+(i===0?'active':'')+'" data-module="'+i+'"><b>'+String(i+1).padStart(2,'0')+'　'+m+'</b><span>'+(i===0?'样板01 · '+total()+'/3活动':'后续模块 · 规划中')+'</span></button>').join('')+'<div class="footer">老师原课程：'+CATALOG.videos.filter(v=>v.file.startsWith(d.prefix)).length+'段<br>讲义与原题按章节关联</div>';$('.app').classList.toggle('overview',state.view==='dashboard'||state.view==='profile');if(state.view==='dashboard'||state.view==='profile')$('#directory').innerHTML='';$('#body').innerHTML=state.view==='dashboard'?dashboard():state.view==='profile'?profilePage():state.view==='course'?course():state.view==='errors'?errors():state.view==='weak'?weak():state.view==='test'?test():resources();document.querySelectorAll('.tabs button').forEach(b=>b.classList.toggle('active',b.dataset.tab===state.tab));if($('#lessonVideo')){const videoPart=state.part;let lastVideoTime=0;const v=$('#lessonVideo');const videoStatus=$('#videoStatus');v.addEventListener('loadedmetadata',()=>{if(!v.isConnected)return;v.currentTime=Math.min(state.positions[videoPart]||0,v.duration||0);lastVideoTime=v.currentTime});v.addEventListener('timeupdate',()=>{if(!v.isConnected)return;const t=v.currentTime,delta=t-lastVideoTime;state.positions[videoPart]=t;if(!v.paused&&delta>0&&delta<5){let intervals=state.coverage[videoPart]||[];intervals.push([lastVideoTime,t]);intervals.sort((a,b)=>a[0]-b[0]);let merged=[];for(const p of intervals){let prev=merged.at(-1);if(prev&&p[0]<=prev[1]+.2)prev[1]=Math.max(prev[1],p[1]);else merged.push(p.slice())}state.coverage[videoPart]=merged}lastVideoTime=t;let sec=(state.coverage[videoPart]||[]).reduce((n,a)=>n+a[1]-a[0],0);videoStatus.textContent='位置 '+Math.floor(t)+'秒 / 覆盖 '+(v.duration?Math.min(100,Math.round(sec/v.duration*100)):0)+'%（观看区间）';persist()});v.addEventListener('seeking',()=>lastVideoTime=v.currentTime);v.addEventListener('error',()=>videoStatus.textContent='播放器未能加载此文件，可读讲义继续；播放不算完成。')}
+if($('#recordPlayback')&&audioData)$('#recordPlayback').innerHTML='<audio controls src="'+audioData+'"></audio>';document.querySelector('.app').classList.remove('showMenu','showDirectory');window.scrollTo(0,0);persist();}
+function course(){const d=defs[state.part],n=total();return '<div class="eyebrow">样板01 / '+d.name+'入门方法与原题应用</div><h1>'+d.title+'</h1><p class="muted">'+d.goal+'</p><div class="status"><strong>样板课程 '+Math.round(n/3*100)+'%</strong><div class="bar"><i style="width:'+n/3*100+'%"></i></div><span>'+n+'/3活动</span><span>能力：'+(state.attempts[state.part]?'已有作答，尚待新题检查':'尚无证据')+'</span></div><div class="tabs">'+[['learn','① 方法学习'],['practice','② 配套真题'],['review','③ 老师复盘']].map(([a,t])=>btn(t,'tab','data-tab="'+a+'"')).join('')+'</div>'+ (state.tab==='learn'?learn():state.tab==='practice'?practice():review())}
+function learn(){const d=defs[state.part],notes=CATALOG.handouts.filter(n=>n.file.includes(d.prefix)),links=notes.map(n=>'<a href="../../../../'+n.file.replaceAll('\\','/')+'" target="_blank">打开原讲义（'+n.pages+'页）</a>').join(' · ');return '<section class="section"><div class="row"><h2>两种方式，学同一个方法</h2><span class="tag">'+(state.done[state.part]?.learn?'方法活动已完成':'待学习')+'</span></div><p>你可以看完整视频，也可以直接读讲义和下面的要点，再进入同一组练习。</p><video id="lessonVideo" controls preload="metadata" src="assets/'+state.part+'-intro.mp4"></video><div class="row"><label>播放速度 <select id="speed"><option value="1">1×</option><option value="1.25">1.25×</option><option value="1.5">1.5×</option><option value="2">2×</option></select></label><span id="videoStatus" class="source">记录播放位置与实际观看区间；拖动不算看完。</span></div><p class="source">'+d.source+'</p></section><section class="section"><h2>讲义快读 · 本章要点</h2><div class="method">'+d.summary+'</div><p>'+links+'</p><div class="row">'+btn('我已读懂要点，进入练习','learnDone','',true)+btn('我已看完视频','videoDone')+btn('先挑战原题','tab','data-tab="practice"')+'</div><p class="source">方法完成可以来自讲义；自报看完视频单独记录，不覆盖观看区间或认定掌握。</p></section><section class="section"><label for="note">本章笔记 / 想问老师的问题</label><textarea id="note">'+esc(state.notes[state.part]||'')+'</textarea>'+btn('保存笔记','note')+'<span id="saveState" class="noteSaved"></span></section>'}
+function questionHTML(){return (questions[state.part]||[]).map(q=>'<fieldset><legend class="qtitle">'+q.q+'</legend><div class="choices">'+q.opts.map((o,i)=>'<label><input type="radio" data-q="'+q.id+'" name="'+q.id+'" value="'+i+'" '+(state.answers[q.id]==i?'checked':'')+'>'+String.fromCharCode(65+i)+'. '+o+'</label>').join('')+'</div></fieldset>').join('')}
+function practice(){let k=state.part;const text=k==='reading'?'<div class="reading"><b>Art Workshop Reservation Confirmation</b><p>Dear Ms. Edwards,</p><p>The reservation for the art workshop that you made on September 10th has been confirmed. The workshop will take place on September 20th at 3:00 PM. All necessary art supplies will be provided, but please bring your own apron or smock.</p><p>Best regards,<br>Laura Bennett</p></div>':k==='listening'?'<h2>Listen to a conversation.</h2><audio controls src="assets/conversation.mp4"></audio><p class="muted">首做不显示听力稿。此原音按同目录名称初配，逐段校验仍待完成。</p>':k==='writing'?'<h2>Write an email.</h2><details open><summary>查看原任务</summary><img class="sourceimg" src="assets/page31.png" alt="学生版1投稿故障邮件原题，PDF31页"></details>':'<h2>Take an interview.</h2><audio controls src="assets/interview.mp4"></audio><details><summary>查看采访题目</summary><img class="sourceimg" src="assets/page36.png" alt="学生版1采访原题，PDF36页"></details>';
+return '<section class="section"><div class="row"><h2>配套原题 / '+defs[k].name+'</h2><span class="tag">精学模式</span></div><p class="source">本地学生版练习第1套 · PDF'+({reading:10,listening:19,writing:31,speaking:36}[k])+'页。纸面适配，非精确自适应模拟。</p>'+text+'</section><section class="section">'+(questions[k]?questionHTML():'<label for="draft">'+(k==='writing'?'你的第一稿':'你的回应或转写')+'</label><textarea id="draft">'+esc(state.drafts[k]||'')+'</textarea>'+(k==='speaking'?'<div class="row">'+btn('开始 / 停止录音','record')+'<label>导入录音<input type="file" id="recordFile" accept="audio/*"></label></div><div id="recordState" role="status"></div><div id="recordPlayback"></div>':''))+'<div id="validation" role="status"></div><div class="row">'+btn('提交本组，进入复盘','submit','',true)+btn('记录这题卡住了','selfWeak')+'</div><p class="source">提交保留首做；原型记录存浏览器，正式版需NAS持久化。录音暂存当前页面，不自动评分。</p></section>'}
+function review(){const a=state.attempts[state.part];if(!a)return '<div class="blank"><h2>还没有你的作答。</h2><p>先做一组，老师才有依据复盘。不会提前用一段通用答案评价你。</p>'+btn('去配套真题','tab','data-tab="practice"',true)+'</div>';let feedback=questions[state.part]?questions[state.part].map(q=>{let chosen=a.answers[q.id],right=chosen===q.key;return '<article class="result '+(right?'':'wrong')+'"><b>'+q.q+'</b><p>你的选择：'+String.fromCharCode(65+chosen)+' · '+esc(q.opts[chosen])+'<br>原文支持：'+String.fromCharCode(65+q.key)+' · '+q.opts[q.key]+'</p><p>“'+q.quote+'”</p><p>'+q.why+'</p><span class="source">'+(right?'本题选对；是否犹豫可另记。':'可能卡点：'+q.tag+'。这里只记录选项差异，尚未确诊原因。')+'</span></article>'}).join(''):'<div class="result"><h3>你的第一稿 / 回应已保留</h3><blockquote>'+esc(a.draft||'已提供录音，尚未转写')+'</blockquote><p>个性化老师尚未接入。不会对这段内容编造评分、转写或诊断。</p></div>';
+return '<h2>先看作答与依据，再讨论原因。</h2><p class="source">'+(questions[state.part]?'以下解释按你提交的具体选项组织，依据原题页；不是已接通的生成式AI。':'开放题需要真实模型结合本人内容，当前只保存输入。')+'</p><div id="feedbackText" class="reviewText">'+feedback+'</div><section class="teacher"><div class="row"><h3>专属老师 / 本章上下文</h3>'+btn('朗读当前文字','speak')+btn('暂停 / 继续','pause')+btn('停止','stop')+'</div><p class="source">系统文字朗读可体验。语音问答、真实AI复盘与同步高亮仍待接入。</p><label for="note">我卡在哪里 / 对分析有什么异议？</label><textarea id="note" placeholder="例如：不是没理解日期，是听到 tomorrow 时没反应过来。">'+esc(state.notes[state.part]||'')+'</textarea><div class="row">'+btn('保存疑问，等待老师分析','ask')+btn('查看错题本','errors')+'</div><p id="teacherState" class="noteSaved"></p></section><div class="section row">'+btn('我已复盘，记录本章完成','reviewDone','',true)+btn('回去再试','tab','data-tab="practice"')+btn('查看下一模块','next')+'</div><p class="source">完成复盘是本人学习活动确认，仍需不同新题检查。开放题AI未就绪，可写自己的总结后确认。</p>'}
+function errors(){const list=Object.values(state.errors);return '<div class="eyebrow">跨课程记录</div><h1>错题本</h1><p class="muted">保留首次错误和当时的疑问，重做不增加独立样本。</p>'+ (list.length?list.map(e=>'<article class="records"><span class="tag">'+defs[e.part].name+' / '+e.tag+'</span><h3>'+e.title+'</h3><p>'+esc(e.detail)+'</p><span class="source">状态：待复盘或待新题检验 · 条目 '+e.id+'</span><div class="row">'+btn('返回原章复盘','backError','data-part="'+e.part+'"')+'</div></article>').join(''):'<div class="blank">尚无错题记录。可以从配套题提交，或主动记录猜对、卡住的地方。</div>')}
+function weak(){let groups={};for(const e of Object.values(state.errors))(groups[e.tag]??=[]).push(e);return '<div class="eyebrow">根据实际记录逐步分析</div><h1>我的薄弱环节</h1><p class="muted">错误是观察，原因是需要你确认的假设。少量题不能给出完整能力画像。</p>'+Object.entries(groups).map(([tag,items])=>'<div class="records"><h3>'+tag+'</h3><p>'+items.length+'个不同题目的记录 · '+(items.length>=2?'重复出现，建议检查原因':'单次线索，暂不确定')+'</p><p>下一步：回到原题确认是词义、声音、关系还是时间问题；再用另一组未见材料检查。</p><span class="source">同题重做不增加这里的条目数。当前标签来自题目证据分类，不是AI诊断。</span></div>').join('')+(Object.keys(groups).length?'':'<div class="blank">现在没有足够观察，不展示虚构弱项或掌握雷达图。</div>')}
+function test(){return '<div class="eyebrow">与课程共用原题与曝光记录</div><h1>独立真题测试</h1><p>课内精学有帮助，独立检查不看稿、不查答案，结束后再复盘。</p><div class="method">样板题已曝光，不当未见测试。本原型尚未绑定保留池和限时引擎，因此不会把精学结果当模考分数。</div><div class="section">'+btn('回到课程精学','continue','',true)+'</div>'}
+function resources(){return '<div class="eyebrow">原教师目录与教材库存</div><h1>所有资料都有位置。</h1><p>当前快照：'+CATALOG.videos.length+'段视频、'+CATALOG.handouts.length+'份核心讲义。完整视频目录可查；教学章节映射尚未全部审校。</p><div class="cards">'+Object.entries(defs).map(([k,d])=>'<div class="panel"><h3>'+d.name+'精讲</h3><p>'+CATALOG.videos.filter(v=>v.file.startsWith(d.prefix)).length+'段原视频</p>'+btn('进入本科样板','part','data-part="'+k+'"')+'</div>').join('')+'</div><h2>原始视频目录</h2><div class="catalog">'+CATALOG.videos.map(v=>'<p>'+esc(v.file)+'<br><span class="source">文件存在；尚未全部播放/映射验收</span></p>').join('')+'</div><p>词汇、听口基础、阅写基础作为四科共用补课。真题库存与来源见PRD，不把文件数称作题目数。</p>'}
+
+function partCount(k){return ['learn','practice','review'].filter(t=>state.done[k]?.[t]).length}
+const stages={learn:'方法学习',practice:'配套真题',review:'老师复盘'};
+function dashboard(){
+ const n=Object.keys(defs).reduce((sum,k)=>sum+partCount(k),0),list=Object.values(state.errors),q=list.filter(e=>!e.id.endsWith('-self')),self=list.length-q.length;
+ const pending=Object.keys(state.attempts).filter(k=>!questions[k]).length,last=state.part,d=defs[last],groups={};
+ for(const e of q)(groups[e.tag]??=[]).push(e);
+ const repeating=Object.entries(groups).filter(([,es])=>es.length>1);
+ const recent=q.at(-1),rq=recent?(questions[recent.part]||[]).find(x=>x.id===recent.id):null;
+ const analysis=rq?'<div class="result"><span class="source">已能解释的题目证据 · '+defs[recent.part].name+'</span><p><b>'+esc(recent.detail)+'</b></p><p>'+esc(rq.why)+'</p><p class="source">下一步要区分：是不熟悉关键词，还是把题目所问的事件/动作对应错了？这需要你的解释，不能从选项直接确诊。</p>'+btn('带着这题问老师','backError','data-part="'+recent.part+'"')+'</div>':'<p class="muted">提交作答后，在这里查看与你的答案有关的证据和分析状态。</p>';
+ return '<div class="dashhero"><div class="dashintro"><div class="eyebrow">你的托福学习总览</div><h1>知道学到哪里，继续下一步。</h1><p class="muted">'+(Object.keys(state.resume).length?'上次停在 '+d.name+' · '+stages[state.resume[last]||'learn']+'。':'从任一科开始第一章。')+'四科分别推进，不必齐头并进。</p>'+btn('继续'+d.name+' · '+stages[state.resume[last]||'learn'],'part','data-part="'+last+'"',true)+'</div><div><div class="bigprogress">'+Math.round(n/12*100)+'<small style="font:18px Segoe UI">%</small></div><p>已完成 '+n+' / 12 个学习活动</p><p class="source">范围：当前四科各1个样板章。不是全套教材覆盖率，也不是托福能力分数。</p></div></div><div class="overviewgrid"><div><h2>四科进度 / 各自继续</h2>'+Object.entries(defs).map(([k,d])=>{const c=partCount(k),stage=state.resume[k]||'learn';return '<article class="courseRow"><div><h3>'+d.name+' <span class="source">样板01</span></h3><p>'+d.title+'</p><p>当前位置：'+stages[stage]+(stage==='learn'&&state.positions[k]?' · 视频 '+Math.floor(state.positions[k])+' 秒':'')+'</p><span class="source">'+(c===3?'本章活动完成；下一章尚未发布，能力待新题检查':c+'/3活动完成 · '+(state.attempts[k]?'已有首做记录':'还没有首做记录'))+'</span></div><div><b>'+Math.round(c/3*100)+'%</b><div class="bar"><i style="width:'+c/3*100+'%"></i></div></div>'+btn(c===3?'查看本章':'继续学习','part','data-part="'+k+'"')+'</article>'}).join('')+'<section class="section"><div class="row"><h2>错题与疑点</h2>'+btn('打开错题本','errors')+'</div><div class="statline"><div><strong>'+q.length+'</strong><span>不同原题的首次错误</span></div><div><strong>'+self+'</strong><span>你主动记录的疑点</span></div><div><strong>'+list.length+'</strong><span>尚待新题检验</span></div></div>'+(list.length?list.slice(-3).reverse().map(e=>'<div class="records"><span class="source">'+defs[e.part].name+' · '+esc(e.tag)+'</span><p>'+esc(e.title)+'</p>'+btn('看作答与依据','backError','data-part="'+e.part+'"')+'</div>').join(''):'<p class="muted">还没有记录。猜对、听不清或表达卡住，也可以主动记下。</p>')+'</section></div><div><section class="quietpanel"><div class="row"><h2>我的学习档案</h2>'+btn('查看 / 补充','profile','data-view="profile"')+'</div><dl><dt>学习目标 · 你的自述</dt><dd>以托福备考为主，兼顾留学后的真实交流。</dd><dt>现有基础 · 你的自述</dt><dd>英语四级；词汇约8,000–10,000；每天约3–4小时。</dd><dt>考试计划</dt><dd>'+esc(state.profile.target?'目标 '+state.profile.target:'目标分数尚未确定')+' · '+esc(state.profile.date||'考试日期尚未确定')+'</dd><dt>当前重点 · 可随时修改</dt><dd>'+esc(state.profile.focus||'声音识别与跟上语流、长句关系、独立口头表达。')+'</dd></dl><p class="source">这些是你的陈述和偏好，不是系统测出的能力等级。</p></section><section class="quietpanel"><h2>AI 老师 / 错题分析</h2>'+analysis+(repeating.length?repeating.map(([tag,es])=>'<p><b>'+esc(tag)+'</b>在'+es.length+'道不同题上出现。值得检查，但还不能确定是词义、声音还是关系理解的问题。</p>').join(''):'<p class="muted">目前没有足够的不同题证据判断稳定弱项。</p>')+'<p>'+pending+'份开放题作答等待个性化分析。</p><p class="source">当前能展示原题依据和错误分类；真实AI老师尚未接入。不会把分类标签当成诊断。</p>'+btn('查看全部观察','weak','data-view="weak"')+'</section><section class="quietpanel"><h2>接下来怎样学？</h2><p>先继续未完成的章，再带着自己的答案复盘。不同新题用于检查能否迁移，重复原题不会增加掌握证据。</p><p class="source">观看、作答、复盘分别计进度；能力结论需要独立检查。</p></section></div></div>';
+}
+function profilePage(){return '<div class="eyebrow">个人信息与学习约定</div><h1>老师需要了解的，不只有错题。</h1><p class="muted">你的基础、目标和学习习惯是教学背景；具体能力仍要通过作答验证。</p><section class="section"><h2>已知背景 / 来自你的自述</h2><p>英语四级；词汇约8,000–10,000；每天约3–4小时学习。考试至少还有一年，准确日期未定。</p><p>听懂熟悉词的速度、复杂句关系和独立表达是你希望改善的方向。愿意写作、录音和对话；先做小题组再复盘，先理解原理，再解释特殊情况。</p><p>已有词汇、跟读、听力与阅读练习习惯；不希望已掌握的内容反复刷。艺术与科技方向留学是长期应用背景。</p><p class="source">以上记录不是AI评分；正式版应支持逐条修改、删除和来源时间。</p></section><section class="section profileForm"><h2>补充当前计划</h2><label for="targetScore">目标分数（也可暂时留空）</label><input id="targetScore" type="text" value="'+esc(state.profile.target||'')+'" placeholder="总分和单科要求，分制待确认"><label for="examDate">预计考试日期</label><input id="examDate" type="date" value="'+esc(state.profile.date||'')+'"><label for="personalFocus">目前最希望老师帮助的事情</label><textarea id="personalFocus">'+esc(state.profile.focus||'')+'</textarea><div class="row">'+btn('保存计划','profileSave','',true)+btn('返回学习总览','home','data-view="dashboard"')+'</div><p id="profileStatus" role="status" class="noteSaved"></p></section>'}
+
+function complete(key){state.done[state.part]??={};state.done[state.part][key]=true;persist()}
+document.addEventListener('change',e=>{if(e.target.dataset.q){state.answers[e.target.dataset.q]=Number(e.target.value);persist()}if(e.target.id==='speed')$('#lessonVideo').playbackRate=Number(e.target.value);if(e.target.id==='recordFile'&&e.target.files[0]){const r=new FileReader();r.onload=()=>{audioData=r.result;$('#recordPlayback').innerHTML='<audio controls src="'+audioData+'"></audio>';$('#recordState').textContent='录音已导入，尚未分析。'};r.readAsDataURL(e.target.files[0])}});
+document.addEventListener('click',async e=>{const b=e.target.closest('button');if(!b)return;capture();if(b.dataset.part&&b.dataset.act!=='backError'){state.part=b.dataset.part;state.view='course';state.tab=state.resume[state.part]||'learn';render();return}if(b.dataset.view){state.view=b.dataset.view;render();return}if(b.dataset.module){if(b.dataset.module==='0'){state.view='course';state.tab='learn';render()}else{$('#body').innerHTML='<div class="eyebrow">'+defs[state.part].name+' / 规划模块</div><h1>'+defs[state.part].modules[b.dataset.module]+'</h1><p>这是站点地图中的后续模块，尚未扩建教学章。不会把空目录称为已经交付的课程。</p>'+btn('回到样板章','continue','',true)}return}
+const a=b.dataset.act;if(a==='profileSave'){state.profile={target:$('#targetScore').value.trim(),date:$('#examDate').value,focus:$('#personalFocus').value.trim()};persist();$('#profileStatus').textContent='已保存；返回首页可查看。'}else if(a==='menu'){$('.app').classList.toggle('showMenu');window.scrollTo(0,0)}else if(a==='directory'){$('.app').classList.toggle('showDirectory');window.scrollTo(0,0)}else if(a==='tab'){state.view='course';state.tab=b.dataset.tab;render()}else if(a==='learnDone'||a==='videoDone'){complete('learn');if(a==='videoDone'){state.support[state.part]='video_self_report';persist()}state.tab='practice';render()}else if(a==='submit'){const qs=questions[state.part];let invalid=qs?qs.some(q=>state.answers[q.id]===undefined):!state.drafts[state.part]?.trim()&&!(state.part==='speaking'&&audioData);if(invalid){$('#validation').className='error';$('#validation').textContent='请先完成本组选择，或提供文字/录音。已有输入保留。';return}if(!state.attempts[state.part])state.attempts[state.part]={answers:{...state.answers},draft:state.drafts[state.part]||'',time:Date.now()};for(const q of qs||[]){if(state.attempts[state.part].answers[q.id]!==q.key&&!state.errors[q.id])state.errors[q.id]={id:q.id,part:state.part,title:q.q,tag:q.tag,detail:'首次记录的选择：'+String.fromCharCode(65+state.attempts[state.part].answers[q.id])+'，原文支持 '+String.fromCharCode(65+q.key)}}complete('practice');state.tab='review';render()}else if(a==='selfWeak'){state.errors[state.part+'-self']??={id:state.part+'-self',part:state.part,title:defs[state.part].title,tag:'本人记录：卡住或不确定',detail:state.notes[state.part]||'需要在复盘中说明困难。'};persist();$('#validation').textContent='疑点已进入错题本。'}else if(a==='reviewDone'){if(!questions[state.part]&&!state.notes[state.part]?.trim()){$('#teacherState').textContent='请先写下自己的复盘或疑问；AI尚未分析，不直接标记已复盘。';return}complete('review');render()}else if(a==='note')$('#saveState').textContent=' 笔记已保存到本浏览器原型。';else if(a==='ask')$('#teacherState').textContent='已保存你的问题和当前作答。AI老师尚未接入，不生成预设回复。';else if(a==='errors'){state.view='errors';render()}else if(a==='backError'){state.part=b.dataset.part;state.view='course';state.tab='review';render()}else if(a==='continue'){state.view='course';render()}else if(a==='next')$('#body').innerHTML='<h1>下一步进入后续模块。</h1><p>样板当前完成 '+total()+'/3活动。后续章与未见验证题尚未发布，不会循环把同题当新进展。</p>'+btn('看课程目录','directory')+btn('返回样板','continue');else if(a==='speak'){if(!window.speechSynthesis){$('#teacherState').textContent='此浏览器不支持文字朗读。';return}speechSynthesis.cancel();const u=new SpeechSynthesisUtterance($('#feedbackText').innerText);u.lang='zh-CN';speechSynthesis.speak(u)}else if(a==='pause'){if(speechSynthesis.paused)speechSynthesis.resume();else speechSynthesis.pause()}else if(a==='stop')speechSynthesis.cancel();else if(a==='record'){if(recording){recorder.stop();recording=false;$('#recordState').textContent='录音结束，正在准备回放。';return}try{const stream=await navigator.mediaDevices.getUserMedia({audio:true}),parts=[];recorder=new MediaRecorder(stream);recorder.ondataavailable=e=>parts.push(e.data);recorder.onstop=()=>{const r=new FileReader();r.onload=()=>{audioData=r.result;if($('#recordPlayback'))$('#recordPlayback').innerHTML='<audio controls src="'+audioData+'"></audio>'};r.readAsDataURL(new Blob(parts,{type:recorder.mimeType}));stream.getTracks().forEach(t=>t.stop())};recorder.start();recording=true;$('#recordState').textContent='正在录音，点击按钮停止。'}catch{$('#recordState').textContent='麦克风不可用或未授权，可导入录音；其他输入已保存。'}}});
+render();
+</script></body></html>

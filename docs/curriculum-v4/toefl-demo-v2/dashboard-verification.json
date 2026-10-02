@@ -1,0 +1,12 @@
+{
+  "date": "2026-10-03",
+  "checks": [
+    "empty dashboard: 0%, no diagnosis",
+    "different progress: reading 67%, other subjects 0%; per-part resume survives reload; writing draft isolated",
+    "editable profile persists; actual errors linked to first answer; AI pending remains explicit",
+    "390px dashboard and profile: no horizontal overflow; mobile navigation works",
+    "780px breakpoint: no horizontal overflow"
+  ],
+  "errors": [],
+  "scope": "prototype only; microphone and real AI not tested"
+}

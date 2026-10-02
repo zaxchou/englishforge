@@ -1,0 +1,17 @@
+{
+  "date": "2026-10-03",
+  "checks": [
+    "listening: media metadata, 2x speed, method, empty validation, first submission, review render",
+    "reading: media metadata, 2x speed, method, empty validation, first submission, review render",
+    "writing: media metadata, 2x speed, method, empty validation, first submission, review render",
+    "speaking: media metadata, 2x speed, method, empty validation, first submission, review render",
+    "unequal progress, immutable first answer, errors deduplicated, profile reload, mobile navigation/directory/home, Escape focus restoration",
+    "200% zoom: responsive dashboard has no page horizontal overflow"
+  ],
+  "errors": [],
+  "limits": [
+    "prototype only",
+    "no actual AI feedback or microphone device test",
+    "file transport/NAS API not tested"
+  ]
+}
