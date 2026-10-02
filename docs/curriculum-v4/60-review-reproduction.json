@@ -1,0 +1,43 @@
+{
+  "head": "3215ef2",
+  "boundary": "isolated temporary SQLite, stubbed failing teacher; no real model calls",
+  "emptyClosed": {
+    "submitStatus": 200,
+    "answers": {},
+    "exposedKeys": [
+      2,
+      2
+    ]
+  },
+  "failedFeedbackProgress": {
+    "before": 1,
+    "after": 0,
+    "readingFailureStatus": 502
+  },
+  "unbackedVerification": {
+    "status": 200,
+    "result": "verified",
+    "newCheckAttemptSupplied": false
+  },
+  "savedUpgrade": {
+    "before": "Do not erase this original draft.",
+    "after": "",
+    "status": 200
+  },
+  "emptySpeaking": {
+    "status": 200,
+    "audio": false,
+    "transcript": null
+  },
+  "resumeOverwrite": {
+    "chapterId": "toefl-listening-s01",
+    "activity": "practice",
+    "mediaId": null,
+    "lastPosition": 0,
+    "updatedAt": 1790965645447
+  },
+  "audioUploadRoute": {
+    "status": 404,
+    "error": "no such endpoint: PUT /api/toefl/accounts/acc_v8vi80reap/attempts/ta_2a118dc5-3c5/audio"
+  }
+}

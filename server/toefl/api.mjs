@@ -110,38 +110,46 @@ function submitAttempt(accountId, body) {
 
   const existing = db.prepare('SELECT * FROM toefl_attempts WHERE account_id = ? AND idempotency_key = ?').get(accountId, idem)
   const submit = body.submit === true
+  // 限时模式整体不可用：没有已核验的未见题池（样板题已曝光），先于一切提交逻辑拒绝
+  if (body.mode === 'timed_check') {
+    throw new ApiError(409, 'TOEFL_NO_VERIFIED_UNSEEN_POOL: 独立限时检查还没有已核验的未见题池，样板题已曝光，不能当未见测试')
+  }
+  /** 封闭题完整性（60 复审）：必须全部作答才允许提交——空提交不得成为判分记录、更不能借此看到答案。
+   * merged 用于 saved→submit 升级路径：本次答案叠加已存答案后判定，避免误伤"先存后交"。 */
+  const requireComplete = (merged) => {
+    if (task.kind !== 'mc_group') return
+    const missing = task.questions.filter((q) => merged?.[q.id] === undefined)
+    if (missing.length) throw new ApiError(400, `TOEFL_INCOMPLETE_SUBMISSION: 还有 ${missing.length} 题未作答，先答完再提交`)
+  }
   if (existing) {
     // 幂等语义（55 §12：重复请求返回同记录）：
-    // · 同键已提交 → 原样返回，不重复入库、不重复判分；
+    // · 同键已提交 → 原样返回，不重复入库、不重复判分（重放不做完整性检查）；
     // · 同键 saved → submit = 一次性升级为提交（自动保存后点提交的正常路径），仍同一条记录；
     // · 同键 saved → 再保存 = 更新草稿内容（自动保存），不新建
-    if (submit && existing.status === 'saved') {
-      const answers = task.kind === 'mc_group' ? sanitizeAnswers(body.answers) : null
-      const draft = task.kind !== 'mc_group' ? str(body.draft, 20000) : null
+    if (existing.status !== 'saved') return { attempt: attemptPublic(existing), replayed: true }
+    const answers = task.kind === 'mc_group' ? sanitizeAnswers(body.answers) : null
+    const draft = task.kind !== 'mc_group' ? (str(body.draft, 20000) || null) : null
+    if (submit) {
+      requireComplete({ ...(j(existing.answers) ?? {}), ...(answers ?? {}) })
       db.prepare(`UPDATE toefl_attempts SET status='submitted', answers=?, draft=?, draft_transcript=?, transcript_origin=?, submitted_at=? WHERE attempt_id=?`)
         .run(answers ? JSON.stringify(answers) : existing.answers, draft ?? existing.draft,
           str(body.transcript, 8000) || existing.draft_transcript,
           ['user_typed', 'asr'].includes(body.transcriptOrigin) ? body.transcriptOrigin : existing.transcript_origin,
           Date.now(), existing.attempt_id)
       event(db, accountId, 'submit', { attemptId: existing.attempt_id, taskId: task.taskId, part: task.part, mode: existing.mode })
-      applyClosedGrading(db, accountId, task, { answers: answers ?? j(existing.answers), guessed: body.guessedQuestionIds })
+      applyClosedGrading(db, accountId, task, { answers: { ...(j(existing.answers) ?? {}), ...(answers ?? {}) }, guessed: body.guessedQuestionIds })
       return { attempt: attemptPublic(db.prepare('SELECT * FROM toefl_attempts WHERE attempt_id = ?').get(existing.attempt_id)), replayed: false }
     }
-    if (!submit && existing.status === 'saved') {
-      const answers = task.kind === 'mc_group' ? sanitizeAnswers(body.answers) : null
-      const draft = task.kind !== 'mc_group' ? str(body.draft, 20000) : null
-      db.prepare('UPDATE toefl_attempts SET answers=?, draft=? WHERE attempt_id=?')
-        .run(answers ? JSON.stringify(answers) : existing.answers, draft ?? existing.draft, existing.attempt_id)
-      return { attempt: attemptPublic(db.prepare('SELECT * FROM toefl_attempts WHERE attempt_id = ?').get(existing.attempt_id)), replayed: false }
-    }
-    return { attempt: attemptPublic(existing), replayed: true }
+    db.prepare('UPDATE toefl_attempts SET answers=?, draft=? WHERE attempt_id=?')
+      .run(answers ? JSON.stringify(answers) : existing.answers, draft ?? existing.draft, existing.attempt_id)
+    return { attempt: attemptPublic(db.prepare('SELECT * FROM toefl_attempts WHERE attempt_id = ?').get(existing.attempt_id)), replayed: false }
   }
 
   const mode = ['course_first', 'retry', 'timed_check'].includes(body.mode) ? body.mode : 'course_first'
-  if (mode === 'timed_check') throw new ApiError(409, 'TOEFL_NO_VERIFIED_UNSEEN_POOL: 独立限时检查还没有已核验的未见题池，样板题已曝光，不能当未见测试')
   const attemptId = 'ta_' + randomUUID().slice(0, 12)
   const answers = task.kind === 'mc_group' ? sanitizeAnswers(body.answers) : null
-  const draft = task.kind !== 'mc_group' ? str(body.draft, 20000) : null
+  const draft = task.kind !== 'mc_group' ? (str(body.draft, 20000) || null) : null
+  if (submit) requireComplete(answers)
   db.prepare(`INSERT INTO toefl_attempts
     (attempt_id, account_id, idempotency_key, part, chapter_id, task_id, mode, status, answers, draft, draft_transcript, transcript_origin, created_at, submitted_at)
     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
@@ -270,8 +278,8 @@ async function requestFeedback(accountId, attemptId, body) {
   } catch (err) {
     db.prepare("UPDATE toefl_feedback SET status='failed', error=? WHERE feedback_id=?")
       .run(String(err?.message ?? err).slice(0, 500), feedbackId)
-    db.prepare("UPDATE toefl_attempts SET status = 'failed' WHERE attempt_id = ?").run(attemptId)
-    // 失败不改作答、不生成假分析（55 §8）；错题留待人工或稍后重试
+    // 失败只落 feedback；attempt 复位回 submitted——60 复审：AI 失败不得把已完成活动倒扣（55 §8）
+    db.prepare("UPDATE toefl_attempts SET status = 'submitted' WHERE attempt_id = ?").run(attemptId)
     throw new ApiError(502, 'TOEFL_FEEDBACK_FAILED: ' + String(err?.message ?? err))
   }
   const row = db.prepare('SELECT * FROM toefl_feedback WHERE feedback_id = ?').get(feedbackId)
@@ -343,6 +351,14 @@ function errorStatus(accountId, errorId, body) {
   }
   if (!allowed[row.status]?.includes(next)) {
     throw new ApiError(409, `TOEFL_ERROR_STATE_ILLEGAL: ${row.status} → ${next} 不允许；verified 只能由新题检验达成`)
+  }
+  // 60 复审：verified 必须绑定一次真实的未见新题作答——当前没有已核验未见题池，API 直调不可达
+  if (next === 'verified') {
+    const vid = str(body.newCheckAttemptId, 60)
+    const back = vid
+      ? db.prepare("SELECT attempt_id FROM toefl_attempts WHERE attempt_id = ? AND account_id = ? AND mode = 'timed_check' AND status IN ('submitted','analyzed')").get(vid, accountId)
+      : null
+    if (!back) throw new ApiError(409, 'TOEFL_VERIFICATION_UNBACKED: verified 必须绑定一次真实未见新题作答（newCheckAttemptId）')
   }
   const hypothesis = body.hypothesis ? JSON.stringify({ statement: str(body.hypothesis.statement ?? '', 500), confidence: str(body.hypothesis.confidence ?? 'low', 10) }) : row.hypothesis
   db.prepare('UPDATE toefl_errors SET status=?, hypothesis=?, user_response=?, updated_at=? WHERE error_id=?')

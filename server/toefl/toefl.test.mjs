@@ -90,7 +90,8 @@ it('开放题：未提交拒绝反馈；反馈版本递增；失败保留作答�
   expect(r.status).toBe(502)
   expect(r.json.error).toContain('TOEFL_FEEDBACK_FAILED')
   r = await call(`/api/toefl/accounts/${id}/attempts/${attemptId}`)
-  expect(r.json.attempt.status).toBe('failed')
+  // 60 复审：反馈失败只落 feedback，attempt 保持 submitted（进度不倒扣）
+  expect(r.json.attempt.status).toBe('submitted')
   // 注入成功 → done；再要一次 → v2
   teacher.__setTeacherChat(async () => ({ text: MOCK_TEACHER(), finishReason: 'stop', usage: {} }))
   r = await call(`/api/toefl/accounts/${id}/attempts/${attemptId}/feedback`, {}, 'POST')
@@ -124,10 +125,12 @@ it('错题状态机：非法转移 409；verified 只能来自 awaiting_new_chec
   expect((await call(`/api/toefl/accounts/${id}/errors/${errorId}/status`, { status: 'verified' }, 'POST')).status).toBe(409)
   expect((await call(`/api/toefl/accounts/${id}/errors/${errorId}/status`, { status: 'reviewed' }, 'POST')).json.error.status).toBe('reviewed')
   expect((await call(`/api/toefl/accounts/${id}/errors/${errorId}/status`, { status: 'awaiting_new_check' }, 'POST')).json.error.status).toBe('awaiting_new_check')
-  const ok = await call(`/api/toefl/accounts/${id}/errors/${errorId}/status`, { status: 'verified', detail: '新段落同类线索做对' }, 'POST')
-  expect(ok.json.error.status).toBe('verified')
-  // verified 是终点
-  expect((await call(`/api/toefl/accounts/${id}/errors/${errorId}/status`, { status: 'reviewed' }, 'POST')).status).toBe(409)
+  // 60 复审：verified 必须绑定真实未见新题作答；当前没有题池，API 直调不可达
+  const unbacked = await call(`/api/toefl/accounts/${id}/errors/${errorId}/status`, { status: 'verified', detail: '新段落同类线索做对' }, 'POST')
+  expect(unbacked.status).toBe(409)
+  expect(unbacked.json.error).toContain('TOEFL_VERIFICATION_UNBACKED')
+  // 无凭据的 verified 被拒后状态不变（仍在 awaiting_new_check，可回退 reviewed 继续处理）
+  expect((await call(`/api/toefl/accounts/${id}/errors`)).json.errors.find((e) => e.errorId === errorId).status).toBe('awaiting_new_check')
 })
 
 it('主动疑点：self_noted 可登记、不依赖题目', async () => {
@@ -186,4 +189,48 @@ it('老师输入绑定：封闭题带核验答案与他的选择；模型不改�
   expect(input).toContain('核验答案：C')
   expect(input).toContain('他的选择：A')
   expect(input).toContain('你不能修改答案或判分')
+})
+
+// ---- 60 号（Codex 复审）回归 ----
+
+it('60-a 空提交拒绝：不成为判分记录、不暴露答案', async () => {
+  const id = await freshAccount('60a')
+  const r = await call(`/api/toefl/accounts/${id}/attempts`, { idempotencyKey: 'e1', taskId: 'tg-reading-s01-email', submit: true, answers: {} }, 'POST')
+  expect(r.status).toBe(400)
+  expect(r.json.error).toContain('TOEFL_INCOMPLETE_SUBMISSION')
+  const r2 = await call(`/api/toefl/accounts/${id}/attempts`, { idempotencyKey: 'e2', taskId: 'tg-reading-s01-email', submit: true, answers: { r11: 2 } }, 'POST')
+  expect(r2.status).toBe(400) // 缺 r12 也拒绝
+  expect((await call(`/api/toefl/accounts/${id}/errors`)).json.errors).toHaveLength(0)
+})
+
+it('60-b 反馈失败不倒扣进度', async () => {
+  const id = await freshAccount('60b')
+  await call(`/api/toefl/accounts/${id}/attempts`, { idempotencyKey: 'w1', taskId: 'tg-writing-s01-email', submit: true, draft: 'Dear Editor, please help.' }, 'POST')
+  let dash = (await call(`/api/toefl/accounts/${id}/dashboard`)).json
+  expect(dash.progress.overall.done).toBe(1)
+  const attemptId = dash.errors.total // 0；取 attempt 另查
+  const st = (await call(`/api/toefl/accounts/${id}/chapter/toefl-writing-s01`)).json
+  await call(`/api/toefl/accounts/${id}/attempts/${st.latestAttempt.attemptId}/feedback`, {}, 'POST') // 测试桩抛错 → 502
+  dash = (await call(`/api/toefl/accounts/${id}/dashboard`)).json
+  expect(dash.progress.overall.done).toBe(1) // 仍是 1，不回退
+})
+
+it('60-c 保存→提交不清空已有草稿', async () => {
+  const id = await freshAccount('60c')
+  await call(`/api/toefl/accounts/${id}/attempts`, { idempotencyKey: 'w1', taskId: 'tg-writing-s01-email', draft: 'Do not erase this original draft.' }, 'POST')
+  const r = await call(`/api/toefl/accounts/${id}/attempts`, { idempotencyKey: 'w1', taskId: 'tg-writing-s01-email', submit: true }, 'POST')
+  expect(r.status).toBe(200)
+  expect(r.json.attempt.draft).toBe('Do not erase this original draft.')
+})
+
+it('60-d verified 不可无凭据直达：必须绑定 timed_check 作答（60-d 测试与状态机用例合并覆盖）', async () => {
+  const id = await freshAccount('60d')
+  await call(`/api/toefl/accounts/${id}/attempts`, { idempotencyKey: 'k1', taskId: 'tg-reading-s01-email', submit: true, answers: { r11: 0, r12: 2 } }, 'POST')
+  const { errors } = (await call(`/api/toefl/accounts/${id}/errors`)).json
+  const errorId = errors[0].errorId
+  await call(`/api/toefl/accounts/${id}/errors/${errorId}/status`, { status: 'reviewed' }, 'POST')
+  await call(`/api/toefl/accounts/${id}/errors/${errorId}/status`, { status: 'awaiting_new_check' }, 'POST')
+  const r = await call(`/api/toefl/accounts/${id}/errors/${errorId}/status`, { status: 'verified', detail: '直接API调用' }, 'POST')
+  expect(r.status).toBe(409)
+  expect(r.json.error).toContain('TOEFL_VERIFICATION_UNBACKED')
 })
