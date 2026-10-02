@@ -28,11 +28,19 @@ services:
       # 证书文件放生产目录 tls/（不进仓库）；不设这两个变量则回退纯 HTTP。
       ENGLISHFORGE_TLS_KEY: "${ENGLISHFORGE_TLS_KEY:-}"
       ENGLISHFORGE_TLS_CERT: "${ENGLISHFORGE_TLS_CERT:-}"
+      # 托福样板章媒体（59 号）：容器内路径，指向下面挂载的 NAS 百度盘同步副本（只读）
+      TOEFL_MEDIA_ROOT: /media/toefl
+      TOEFL_NOTES_ROOT: /media/notes
     volumes:
       # 生产数据库目录（NAS 本机真实路径，写在 .env）：与本地开发库相互独立
       - ${DATA_DIR}/englishforge-production:/app/data
       # 自签证书（本目录 tls/，只读；相对路径按 compose 文件所在目录解析）
       - ./tls:/app/tls:ro
+      # 托福样板章媒体：小文件已入 git 随镜像分发，但 4 段导学视频（35–129MB）不进镜像，
+      # 直接挂 NAS 上的百度盘同步副本（与仓库同盘、随仓库同步）。缺失时接口 404 明示。
+      - ${TOEFL_MEDIA_ROOT:-/volume2/Media/BaiduNetdiskWorkspace/myagent-work/zcode/JunEnglish/sentence-forge/docs/curriculum-v4/toefl-demo-v2/assets}:/media/toefl:ro
+      # 讲义 PDF 等教材（含 新D方/ 新托福全套）：同盘只读挂载；未挂载时讲义链接 404 明示
+      - ${TOEFL_NOTES_ROOT:-/volume2/Media/BaiduNetdiskWorkspace/myagent-work/zcode/JunEnglish}:/media/notes:ro
     healthcheck:
       # 有 TLS 时打 https，否则 http（两种都试，自签证书要 --no-check-certificate）
       test: ["CMD-SHELL", "(wget -qO- --no-check-certificate https://127.0.0.1:4173/api/health 2>/dev/null || wget -qO- http://127.0.0.1:4173/api/health 2>/dev/null) >/dev/null 2>&1 || exit 1"]
