@@ -12,6 +12,7 @@ import {
 } from './db.mjs'
 import { enrichCauses, rewriteQuestions, reviewQuestions } from './content-ai.mjs'
 import { V3_ROUTES } from './v3api.mjs'
+import { TOEFL_ROUTES, serveToeflFile } from './toefl/api.mjs'
 import { invalidateLlmConfig, llmStatus, DEFAULT_MODEL } from './llm.mjs'
 
 const MAX_BODY = 64 * 1024 * 1024   // 首次把浏览器里的整份进度搬进库时会有一次大包
@@ -26,6 +27,7 @@ export class HttpError extends Error {
 /** 路由表：pattern 用 :name 占位 */
 const ROUTES = [
   ...V3_ROUTES,
+  ...TOEFL_ROUTES,
   ['GET', '/api/health', () => ({ ok: true, ...dbInfo(), accounts: listAccounts(), time: Date.now() })],
 
   ['GET', '/api/accounts', () => ({ accounts: listAccounts() })],
@@ -339,11 +341,17 @@ export function apiMiddleware() {
   return async function (req, res, next) {
     const url = new URL(req.url ?? '/', 'http://localhost')
     if (!url.pathname.startsWith('/api/')) return next()
-    // 口语音频上传走 raw 二进制直通（W5 /oral 合同）；其余仍是 JSON
+    // 托福媒体（Range 分发）与反馈朗读音频走 raw 直通，不进 JSON 通道
+    if (/^\/api\/toefl\/(media|feedback-audio)\//.test(url.pathname)) {
+      if (serveToeflFile(req, res, url.pathname)) return
+      return next()
+    }
+    // 口语音频上传走 raw 二进制直通（W5 /oral 合同）；托福口语录音同理；其余仍是 JSON
     const isOralUpload = req.method === 'PUT' && /^\/api\/v1\/accounts\/[^/]+\/oral\/[^/]+$/.test(url.pathname)
+    const isToeflAudioUpload = req.method === 'PUT' && /^\/api\/toefl\/accounts\/[^/]+\/attempts\/[^/]+\/audio$/.test(url.pathname)
     let body = null
     try {
-      body = isOralUpload ? await readRawBody(req, 12 * 1024 * 1024) : await readJsonBody(req)
+      body = isOralUpload || isToeflAudioUpload ? await readRawBody(req, 12 * 1024 * 1024) : await readJsonBody(req)
     } catch (err) {
       res.statusCode = err instanceof HttpError ? err.status : 400
       res.setHeader('content-type', 'application/json; charset=utf-8')

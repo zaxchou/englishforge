@@ -1,0 +1,140 @@
+{
+ "catalogVersion": 1,
+ "notice": "托福课程目录（59 号 S1）。规划模块来自 site-map 1.2；只有 publicationStatus=published 的章进学习分母。分母 = 当前版本全部已发布章的必需活动数（4 章 × 3 = 12）；『方法学习』是视频或讲义 OR 路径，不重复加分。进度是课程完成度，不是能力分数，更不是托福分数。",
+ "planVersionNote": "新增已发布章时 catalogVersion+1 并在此解释分母变化；学习开始时冻结版本，历史进度按其版本分母保留。",
+ "parts": {
+  "listening": { "name": "听力", "order": 1, "modules": [
+   { "id": "listening-m1", "name": "导学与首听", "status": "published_sample" },
+   { "id": "listening-m2", "name": "声音识别与语块", "status": "planned" },
+   { "id": "listening-m3", "name": "一句回应", "status": "planned" },
+   { "id": "listening-m4", "name": "对话与意图", "status": "planned" },
+   { "id": "listening-m5", "name": "公告与行动", "status": "planned" },
+   { "id": "listening-m6", "name": "学术谈话", "status": "planned" },
+   { "id": "listening-m7", "name": "限时综合", "status": "planned" }
+  ] },
+  "reading": { "name": "阅读", "order": 2, "modules": [
+   { "id": "reading-m1", "name": "导学与线索", "status": "published_sample" },
+   { "id": "reading-m2", "name": "补全单词", "status": "planned" },
+   { "id": "reading-m3", "name": "日常文本", "status": "planned" },
+   { "id": "reading-m4", "name": "长句理解", "status": "planned" },
+   { "id": "reading-m5", "name": "词义与推断", "status": "planned" },
+   { "id": "reading-m6", "name": "修辞与篇章", "status": "planned" },
+   { "id": "reading-m7", "name": "限时综合", "status": "planned" }
+  ] },
+  "writing": { "name": "写作", "order": 3, "modules": [
+   { "id": "writing-m1", "name": "导学与表达", "status": "published_sample" },
+   { "id": "writing-m2", "name": "原词块组句", "status": "planned" },
+   { "id": "writing-m3", "name": "邮件任务", "status": "planned" },
+   { "id": "writing-m4", "name": "学术讨论", "status": "planned" },
+   { "id": "writing-m5", "name": "论证方法", "status": "planned" },
+   { "id": "writing-m6", "name": "修改与限时", "status": "planned" }
+  ] },
+  "speaking": { "name": "口语", "order": 4, "modules": [
+   { "id": "speaking-m1", "name": "导学", "status": "published_sample" },
+   { "id": "speaking-m2", "name": "发音与意群", "status": "planned" },
+   { "id": "speaking-m3", "name": "听后重复", "status": "planned" },
+   { "id": "speaking-m4", "name": "采访直答", "status": "planned" },
+   { "id": "speaking-m5", "name": "理由与例子", "status": "planned" },
+   { "id": "speaking-m6", "name": "无稿限时", "status": "planned" }
+  ] }
+ },
+ "chapters": [
+  {
+   "chapterId": "toefl-listening-s01",
+   "part": "listening",
+   "moduleId": "listening-m1",
+   "order": 1,
+   "title": "听懂计划变化与说话意图",
+   "goal": "跟上人物此刻要做什么，发现时间纠正与误会。",
+   "learnWhat": "对话里『原本打算做什么』和『计划改成了什么』分别藏在哪句话；转折与纠正出现时先信后说的。",
+   "position": "本章是听力课程入口：先建立『先听意思、再修卡点』的方法，后续模块再分声音识别、一句回应、对话、公告、学术谈话递进。",
+   "methodText": "先完整听，保住情境和人物关系。做完题后再回放卡住的话轮，区分声音没识别和意思没接上；不用先把全文听写出来。",
+   "methodSource": "郭小钰精讲＋听口基础讲义方法归纳（notes-03 / notes-02）；本章视频为学科导学，不逐段讲解配套题。",
+   "videoBindings": [{ "mediaId": "vid_listening_intro", "role": "part_intro" }],
+   "handoutPages": [
+    { "notesId": "notes-03", "file": "新D方/新D方新托福全套/04 新托福  听力 郭小钰/新托福精讲智能系统课听力讲义-郭小钰_精讲段.pdf", "pages": [9, 13, 14, 23, 29, 32], "note": "概念—定义—举例、交际功能、对话方法页" },
+    { "notesId": "notes-02", "file": "新D方/新D方新托福全套/03 托福听口基础能力课/基础听口课程讲义.pdf", "pages": [3, 4, 5, 6, 7, 8], "note": "整段理解→缺口填听→语言回顾→自己的意见" }
+   ],
+   "practiceTaskId": "tg-listening-s01-conversation",
+   "reviewPolicy": "closed_mc_with_verified_key；错因先标假设，本人可异议；音频逐段对应待人工审校",
+   "requiredActivities": ["method", "practice", "review"],
+   "weaknessTags": ["声音识别", "语境词义", "句子关系", "任务回应"],
+   "nextCandidates": [],
+   "difficultyNotes": "样板题非难度上限；后续每模块从简单定位递进到嵌套/篇章/复杂输出（56 §3）",
+   "publicationStatus": "published",
+   "newQuestionCheck": "unavailable_no_verified_unseen_pool"
+  },
+  {
+   "chapterId": "toefl-reading-s01",
+   "part": "reading",
+   "moduleId": "reading-m1",
+   "order": 1,
+   "title": "从邮件中定位日期与行动",
+   "goal": "分清预约日期、活动日期和需要自带的物品。",
+   "learnWhat": "先确定题目问的是哪个事件，再回原文找对应的时间和动作；找到同一个词不等于找到答案。",
+   "position": "本章是阅读课程入口：练『定位＋语境核对』的基本功，后续模块再上补全单词、长句、词义推断、修辞与篇章。",
+   "methodText": "先确定题目问的是哪个事件，再回原文找对应的时间和动作。找到同一个词不等于找到答案；比较已提供的东西和要求自带的东西。",
+   "methodSource": "刘倩俐阅读讲义定位与语境方法（notes-04，PDF10/17/23 页方法）；本章视频为学科导学。",
+   "videoBindings": [{ "mediaId": "vid_reading_intro", "role": "part_intro" }],
+   "handoutPages": [
+    { "notesId": "notes-04", "file": "新D方/新D方新托福全套/05 新托福  阅读   刘倩俐/新托福精讲智能系统课阅读讲义-刘倩俐-精讲段-上.pdf", "pages": [7, 10, 17, 23, 39, 44, 45, 49], "note": "填词方法、日常文本定位与略读、词义与主干、逻辑关系（PDF 页序）" }
+   ],
+   "practiceTaskId": "tg-reading-s01-email",
+   "reviewPolicy": "closed_mc_with_verified_key；区分『读错内容』与『定位浪费时间』",
+   "requiredActivities": ["method", "practice", "review"],
+   "weaknessTags": ["句子关系", "篇章与记忆", "语境词义"],
+   "nextCandidates": [],
+   "difficultyNotes": "样板为日常文本层级；学术篇章在后继模块",
+   "publicationStatus": "published",
+   "newQuestionCheck": "unavailable_no_verified_unseen_pool"
+  },
+  {
+   "chapterId": "toefl-writing-s01",
+   "part": "writing",
+   "moduleId": "writing-m1",
+   "order": 1,
+   "title": "把问题说明白，把请求写清楚",
+   "goal": "完成投稿故障邮件，让读者知道发生什么、怎样帮你。",
+   "learnWhat": "先明确收件人、目的与题目要求，再形成自己的第一稿；修改优先解决影响读者行动的一点，而不是整篇换高级词。",
+   "position": "本章是写作课程入口：邮件任务先练『目的→请求』的组织，组句/学术讨论/论证方法在后继模块。",
+   "methodText": "先明确收件人、目的与题目要求。形成自己的第一稿，再检查问题和请求是否清楚。修改优先解决影响读者行动的一点，而不是整篇换成高级词。",
+   "methodSource": "徐欣写作讲义邮件组成、请求与语域方法（notes-06，PDF14–16/28–30 页）；本章视频为学科导学。",
+   "videoBindings": [{ "mediaId": "vid_writing_intro", "role": "part_intro" }],
+   "handoutPages": [
+    { "notesId": "notes-06", "file": "新D方/新D方新托福全套/06 新托福  写作 徐欣/新托福精讲智能系统课写作讲义-徐欣_精讲段.pdf", "pages": [14, 15, 16, 28, 29, 30], "note": "邮件组成、改写与语域、请求写法（PDF 页序）" }
+   ],
+   "practiceTaskId": "tg-writing-s01-email",
+   "reviewPolicy": "open_ai_assisted；第一稿/本人修改/AI建议分属，AI代写不计本人掌握",
+   "requiredActivities": ["method", "practice", "review"],
+   "weaknessTags": ["任务回应", "组织与展开", "表达准确与可懂度"],
+   "nextCandidates": [],
+   "difficultyNotes": "样板为交际邮件；学术讨论与论证在后继模块",
+   "publicationStatus": "published",
+   "newQuestionCheck": "unavailable_no_verified_unseen_pool"
+  },
+  {
+   "chapterId": "toefl-speaking-s01",
+   "part": "speaking",
+   "moduleId": "speaking-m1",
+   "order": 1,
+   "title": "听懂采访问题，展开自己的回应",
+   "goal": "先直接回答，再用一个具体理由或细节支撑。",
+   "learnWhat": "采访回答先回应问题，再给与自己有关的细节；不背万能长模板。听后重复另练原句保持，不与采访混计。",
+   "position": "本章是口语课程入口：采访直答练『回应＋具体细节』，听后重复/发音意群/无稿限时在后继模块。",
+   "methodText": "采访回答先回应问题，再给与自己有关的细节；不背万能长模板。听后重复另练原句保持与可懂度，不能把同义改写算准确重复。",
+   "methodSource": "张莹炜口语讲义直接回应、意群及具体细节方法（notes-07，PDF37–41/46–48 页）；本章视频为学科导学。",
+   "videoBindings": [{ "mediaId": "vid_speaking_intro", "role": "part_intro" }],
+   "handoutPages": [
+    { "notesId": "notes-07", "file": "新D方/新D方新托福全套/07 新托福  口语 张莹炜/口语精讲上册.pdf", "pages": [37, 38, 39, 40, 41, 46, 47, 48], "note": "题型与直接回应、具体例子（PDF 页序）" }
+   ],
+   "practiceTaskId": "tg-speaking-s01-interview",
+   "reviewPolicy": "open_ai_assisted；转写须本人补录并核对；ASR 不可用如实标注",
+   "requiredActivities": ["method", "practice", "review"],
+   "weaknessTags": ["任务回应", "组织与展开", "表达准确与可懂度", "速度与紧张"],
+   "nextCandidates": [],
+   "difficultyNotes": "样板为采访直答；听后重复样音已登记未映射（aud_speaking_repeat）",
+   "publicationStatus": "published",
+   "newQuestionCheck": "unavailable_no_verified_unseen_pool"
+  }
+ ]
+}

@@ -36,7 +36,7 @@ interface Props {
 }
 
 
-type NavTarget = 'today' | 'courses' | 'v4path' | 'history' | 'settings'
+type NavTarget = 'today' | 'courses' | 'v4path' | 'history' | 'settings' | 'toefl'
 export type { NavTarget }
 
 /** 侧边栏在**所有视图**都由 App 渲染（首页也保留），所以它是唯一的一处导航。
@@ -71,6 +71,7 @@ export function Sidebar({ active = 'today', dueCount, account, dbState, onNaviga
       <button className={active === 'today' ? 'selected' : ''} onClick={() => onNavigate('today')}><NavIcon kind="home" />今日练习</button>
       <button className={active === 'courses' ? 'selected' : ''} onClick={() => onNavigate('courses')}><NavIcon kind="book" />全部课程</button>
       <button className={active === 'v4path' ? 'selected' : ''} onClick={() => onNavigate('v4path')}><NavIcon kind="chart" />学习路径</button>
+      <button className={active === 'toefl' ? 'selected' : ''} onClick={() => onNavigate('toefl')}><NavIcon kind="book" />托福课程</button>
       <button onClick={onReview}><NavIcon kind="review" />巩固复习{dueCount > 0 && <span className="nav-count">{dueCount}</span>}</button>
       <button className={active === 'history' ? 'selected' : ''} onClick={() => onNavigate('history')}><NavIcon kind="chart" />学习记录</button>
       <button onClick={onReviewContent}><NavIcon kind="check" />题目审核</button>

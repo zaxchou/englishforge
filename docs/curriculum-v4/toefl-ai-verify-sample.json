@@ -1,0 +1,169 @@
+{
+ "date": "2026-10-02T18:01:17.161Z",
+ "account": "acc_dwtynnrq74",
+ "subjects": {
+  "reading": {
+   "attemptId": "ta_82c54f61-035",
+   "feedbackId": "tf_ec1e6079-c17",
+   "version": 1,
+   "model": "server-llm",
+   "output": {
+    "observation": "两题都出现了同一类问题：把文中出现的某个时间/名词直接当成题目所问对象的答案，没有先确认题目问的是哪个事件或哪类信息。",
+    "evidence": [
+     "第11题他选 A. September 10th，并自述“我看到 September 10th 就选了，没细看问的是哪个事件”。原文支持答案 C 的句子是 \"The workshop will take place on September 20th at 3:00 PM.\"，September 10th 在文中若出现，属于另一个事件/日期，与 workshop 的日期不是同一对象。",
+     "第12题他选 D. Proof of reservation。原文支持答案 C 的句子是 \"All necessary art supplies will be provided, but please bring your own apron or smock.\"，其中 apron or smock 对应 C 的 A protective garment；原文并未要求带 reservation 证明，D 属于把确认信里“确认/预订”这个场景词误当成要带的东西。"
+    ],
+    "hypothesis": "他做题时以“文中见过的词/日期”为线索直接匹配选项，缺少一步：先读题干确定问的是哪个事件、哪类信息，再回原文定位对应句。第11题是时间与事件错位，第12题是物品与场景词错位。单题证据不足以断定是词汇问题还是习惯问题，但两题表现一致，更像定位习惯问题。",
+    "confidence": "medium",
+    "one_fix": "做题时先在题干上圈出问的对象（如 date of the art workshop / what to bring），再回原文只找同时包含该对象的句子，找到后把该句和选项逐词对照，不选只因为“文中见过”。",
+    "followup": "请用第11题重做一遍：先写出题干问的对象是什么，再从原文抄出同时包含该对象的原句，最后说明 A 的 September 10th 在原文里属于哪个事件。",
+    "_meta": {
+     "model": "server-llm",
+     "usage": {
+      "prompt_tokens": 443,
+      "completion_tokens": 408,
+      "total_tokens": 851,
+      "prompt_tokens_details": {
+       "cached_tokens": 0
+      },
+      "prompt_cache_hit_tokens": 0,
+      "prompt_cache_miss_tokens": 443
+     }
+    }
+   },
+   "latencyMs": 2671,
+   "structureOk": true
+  },
+  "listening": {
+   "attemptId": "ta_5ce87b77-904",
+   "feedbackId": "tf_4f0c8ea1-55c",
+   "version": 1,
+   "model": "server-llm",
+   "output": {
+    "observation": "两题都错在同一个薄弱点：你能抓到局部词（supermarket、forget），但没把紧跟其后的修正话轮（\"That's tomorrow.\"）纳入理解，导致把女士的意图和男士道歉的原因都锚在了错误的时间点上。",
+    "evidence": [
+     "第9题你选 B. Change her clothes，但原文女士问 \"Need anything from the supermarket?\"，这句才是她\"正要去做\"的事，指向 C. Go shopping；换衣服在原文没有对应支持。",
+     "第10题你选 A. He forgot what the woman wanted him to buy，但原文女士紧接着说 \"That's tomorrow.\"，这是对男士搞错时间的直接纠正，支持 B. He forgot about the timing of their plans.",
+     "你自己的反馈：\"对话有点快，tomorrow 那句没反应过来\"——这正好落在第10题的关键话轮上。"
+    ],
+    "hypothesis": "你的听力在\"局部词触发\"层面是通的（听到 supermarket、forget 就能选），但缺少对\"修正/否定话轮\"的即时挂靠：当一方说出 That's tomorrow 这类短句时，它其实在推翻前一句的时间设定，而你把注意力停在了前一句的名词上。第9题可能是同一模式的另一面——你抓到一个动作词就选，没回到女士问句的意图。单题不足以定性，但两题同向，倾向是话轮关系处理而非纯词汇问题。",
+    "confidence": "medium",
+    "one_fix": "下次听到一方说出时间词（today/tomorrow/next week）或否定词（no/not/actually）时，立刻在草稿上给\"前一句\"打一个叉，强迫自己把这一句当成对上一句的修正来听，而不是新信息。",
+    "followup": "把这段对话里女士说 \"That's tomorrow.\" 前后的两到三句单独拎出来，不看选项，用中文写出：男士以为是什么时候、女士纠正成什么时候、男士因此道歉的原因是什么。写完再回看第10题。",
+    "_meta": {
+     "model": "server-llm",
+     "usage": {
+      "prompt_tokens": 475,
+      "completion_tokens": 433,
+      "total_tokens": 908,
+      "prompt_tokens_details": {
+       "cached_tokens": 0
+      },
+      "prompt_cache_hit_tokens": 0,
+      "prompt_cache_miss_tokens": 475
+     }
+    }
+   },
+   "latencyMs": 3078,
+   "structureOk": true
+  },
+  "writing": {
+   "attemptId": "ta_2331e17e-3e7",
+   "feedbackId": "tf_ae95e1aa-e3f",
+   "version": 1,
+   "model": "server-llm",
+   "output": {
+    "observation": "这封邮件基本能读懂，但收件人无法直接照你的请求行动：你没有给出稿件编号/文件名/账号等定位信息，也没有把'check my file'和'how to resubmit'收敛成一个可执行动作。",
+    "evidence": [
+     "你写 'I uploaded my essay to your submission system last Friday, but the website shows a format error.'——说明了问题，但 'my essay' 没有标题、编号或文件名，编辑无法在系统里定位是哪一份。",
+     "你写 'Please check my file or tell me how to resubmit it.'——用 'or' 把两个请求并列，收件人不知道先做哪个、做到什么程度算完成；'check my file' 也没说希望他们检查后给你什么结果（例如确认文件是否损坏、还是直接帮你重置提交）。",
+     "'I tried Chrome and Edge and it still does not work.' 是有用的排查信息，但 'it' 指代不清（是网站、上传按钮还是格式校验），编辑仍需追问。"
+    ],
+    "hypothesis": "你可能把'把问题说清楚'等同于'把请求说清楚'，默认编辑知道你的稿件身份和系统上下文；单题看不出这是习惯还是本次赶时间，暂不确定。",
+    "confidence": "medium",
+    "one_fix": "把最后一句改成一个带定位信息的具体请求：先补上稿件标识（标题/编号/文件名任选其一），再把 'check my file or tell me how to resubmit it' 改成只请对方做一件事，并说明你希望得到的结果。",
+    "followup": "请只重写这封邮件的最后两句：第一句给出你的稿件标识，第二句写一个编辑看完就能直接执行的动作（例如'请帮我确认该文件是否被系统误判，并告知我是否需要重新上传'）。写完自己读一遍，问：编辑看完知道先点哪里、回你什么吗？",
+    "_meta": {
+     "model": "server-llm",
+     "usage": {
+      "prompt_tokens": 358,
+      "completion_tokens": 401,
+      "total_tokens": 759,
+      "prompt_tokens_details": {
+       "cached_tokens": 128
+      },
+      "prompt_cache_hit_tokens": 128,
+      "prompt_cache_miss_tokens": 230
+     }
+    }
+   },
+   "latencyMs": 2618,
+   "structureOk": true
+  },
+  "speaking": {
+   "attemptId": "ta_164e90dd-dd3",
+   "feedbackId": "tf_632689a6-01a",
+   "version": 1,
+   "model": "server-llm",
+   "output": {
+    "observation": "这是一段结构完整的采访直答：先直接回应偏好（morning），再给出与自己有关的例子（昨天早上7点背单词记得比晚上多）。文字稿层面任务回应和组织都到位，但细节仍偏笼统。",
+    "evidence": [
+     "开头 'I prefer to study in the morning because my mind is fresh.' 直接回应了问题，符合'先直接回应'的要求。",
+     "例子 'yesterday I reviewed vocabulary at 7 am and I remembered more words than at night' 是个人经历，满足'与自己有关的具体理由或细节'，但'more words'没有给出可感知的数量或场景，具体度有限。"
+    ],
+    "hypothesis": "可能把'具体细节'理解成'有时间+有活动'即可，因此停在'more words'这种模糊比较上；也可能受限于当场词汇/时间压力，来不及补数字或画面。单题不定性，需下一题验证。",
+    "confidence": "medium",
+    "one_fix": "在例子里加一个可感知的数字或结果，例如把 'I remembered more words than at night' 改成 'I memorized about 30 words in 20 minutes, but at night I could only get through 10.'",
+    "followup": "用同一问题再录一遍，只改例子：给出一个具体数字或一个能看见的画面（几点、多少词、花了多久），其余保持不变。",
+    "_meta": {
+     "model": "server-llm",
+     "usage": {
+      "prompt_tokens": 361,
+      "completion_tokens": 288,
+      "total_tokens": 649,
+      "prompt_tokens_details": {
+       "cached_tokens": 0
+      },
+      "prompt_cache_hit_tokens": 0,
+      "prompt_cache_miss_tokens": 361
+     }
+    }
+   },
+   "latencyMs": 1938,
+   "structureOk": true
+  }
+ },
+ "tts": {
+  "sha256": "616c311c68992095064a53a2084895eba0d671c2f431d6a77d0de8b018c5422b",
+  "bytes": 3832364,
+  "latencyMs": 15929,
+  "cached": false,
+  "textSample": "这封邮件基本能读懂，但收件人无法直接照你的请求行动：你没有给出稿件编号/文件名/账号等定位信息，也没有把'check my file'和'how to resu"
+ },
+ "errorEntries": [
+  {
+   "part": "listening",
+   "kind": "first_wrong",
+   "tag": "事件与时间定位",
+   "status": "pending_review"
+  },
+  {
+   "part": "listening",
+   "kind": "first_wrong",
+   "tag": "话轮意图",
+   "status": "pending_review"
+  },
+  {
+   "part": "reading",
+   "kind": "first_wrong",
+   "tag": "事件与时间定位",
+   "status": "pending_review"
+  },
+  {
+   "part": "reading",
+   "kind": "first_wrong",
+   "tag": "语境与行动要求",
+   "status": "pending_review"
+  }
+ ]
+}

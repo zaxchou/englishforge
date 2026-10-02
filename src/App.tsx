@@ -18,6 +18,7 @@ import { Quiz, type SessionResult, type QuizAttempt, type QuizEntry } from './co
 import { Confetti } from './components/fx'
 import { Dashboard, Sidebar, type NavTarget } from './components/Dashboard'
 import { V4Path } from './components/V4Path'
+import { ToeflApp } from './toefl/ToeflApp'
 import { ContentReview } from './components/ContentReview'
 import { AccountSwitcher } from './components/AccountSwitcher'
 import { PathHome } from './components/PathHome'
@@ -40,6 +41,7 @@ const LOCATION: Record<View['name'], string> = {
   review: '内容审核 · 逐题核对',
   records: '回顾 · 课程与记录',
   v4: '学习路径 · 今天与下一步',
+  toefl: '托福课程 · 四科学习',
 }
 
 type View =
@@ -50,6 +52,7 @@ type View =
   | { name: 'review' }   // 内容审核（R1-03）：逐题核对语料派生题
   | { name: 'records' }  // 回顾：章节列表、学习记录、设置（旧首页）
   | { name: 'v4' }      // curriculum-v4 能力路径（诊断/推荐/证据/地图）
+  | { name: 'toefl' }   // 托福学习系统（59 号：独立浅色外壳，四科课程/首页/档案）
 
 export default function App() {
   const [loaded] = useState(() => loadProgress())
@@ -57,10 +60,10 @@ export default function App() {
   const progressRef = useRef(progress)
   const [notice, setNotice] = useState<LoadNotice>(loaded.notice)
   const [saveErr, setSaveErr] = useState(hadSaveError)
-  const [view, setView] = useState<View>(() => ({ name: window.location.hash === '#legacy' ? 'home' : 'v4' }))
+  const [view, setView] = useState<View>(() => ({ name: window.location.hash === '#toefl' ? 'toefl' : window.location.hash === '#legacy' ? 'home' : 'v4' }))
   /** 侧栏里被选中的那一项（首页与内页共用同一条侧栏） */
   const [nav, setNav] = useState<NavTarget>('today')
-  const navActive: NavTarget = view.name === 'lesson' ? 'courses' : view.name === 'v4' ? 'v4path' : view.name === 'records' ? nav : 'today'
+  const navActive: NavTarget = view.name === 'lesson' ? 'courses' : view.name === 'v4' ? 'v4path' : view.name === 'toefl' ? 'toefl' : view.name === 'records' ? nav : 'today'
 
   function handleNav(target: NavTarget) {
     window.history.replaceState(null,'',target==='v4path'?'#learn':target==='today'?'#legacy':window.location.pathname+window.location.search)
@@ -73,6 +76,11 @@ export default function App() {
     if (target === 'v4path') {
       setView({ name: 'v4' })
       window.scrollTo({ top: 0, behavior: 'smooth' })
+      return
+    }
+    if (target === 'toefl') {
+      setView({ name: 'toefl' })
+      window.scrollTo({ top: 0 })
       return
     }
     setView({ name: 'records' })
@@ -471,6 +479,29 @@ export default function App() {
       stateCounts: countStates(evidence),
     }
   }, [progress, pool, dueList, evidence, active])
+
+  // 托福学习系统：独立浅色外壳（59 号），整页接管，不共用 v7 外壳
+  if (view.name === 'toefl') {
+    const accountId = db.account?.id
+    if (!accountId) {
+      return (
+        <div className="app shell view-inner">
+          <Sidebar
+            active={'toefl' as NavTarget}
+            dueCount={0}
+            account={db.account}
+            dbState={db.dbState}
+            onNavigate={handleNav}
+            onReview={() => {}}
+            onReviewContent={() => setView({ name: 'review' })}
+            onOpenAccount={() => setAcctOpen(true)}
+          />
+          <div className="sys-banner">托福课程需要先选择账户：点左侧账户卡新建或选择一个账户。</div>
+        </div>
+      )
+    }
+    return <ToeflApp accountId={accountId} onExit={() => setView({ name: 'v4' })} />
+  }
 
   return (
     <div className={`app shell view-inner ${view.name === 'v4' ? 'learning-mode' : ''}`}>

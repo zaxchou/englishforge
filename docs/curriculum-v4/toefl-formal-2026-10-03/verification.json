@@ -1,0 +1,48 @@
+{
+ "date": "2026-10-02T18:17:32.975Z",
+ "base": "http://localhost:4199",
+ "account": "acc_dwtynnrq74(隔离库)",
+ "steps": [
+  {
+   "step": "dashboard",
+   "progressText": "42% |  | 课程进度 · 5 / 12 活动 |  | 范围：当前目录版本 v1 已发布 4 章 × 3 活动；不是能力分数。"
+  },
+  {
+   "step": "learn-video-src",
+   "videoSrc": "/api/toefl/media/vid_reading_intro"
+  },
+  {
+   "step": "method-done → practice",
+   "ok": true
+  },
+  {
+   "step": "teacher-analysis",
+   "sample": "老师看到：第12题定位准确并选对；第11题把日期选项当成事件匹配，看到 September 10th 就选，未回到题干确认问的是 workshop 的日期。\n\n· 第11题他选 A. September 10th，但原文支持句是 \"The workshop will take place on September 20th at 3:00 PM.\"，题干问 When is the date of the art workshop，答案应"
+  },
+  {
+   "step": "errors-status",
+   "transition": "reviewed→awaiting_new_check"
+  },
+  {
+   "step": "errors-status",
+   "hasReviewed": true
+  },
+  {
+   "step": "profile-saved",
+   "ok": true
+  },
+  {
+   "step": "dashboard-after",
+   "progressText": "42% |  | 课程进度 · 5 / 12 活动 |  | 范围：当前目录版本 v1 已发布 4 章 × 3 活动；不是能力分数。"
+  },
+  {
+   "step": "mobile-390-dashboard",
+   "horizontalOverflow": false
+  },
+  {
+   "step": "mobile-drawer-esc",
+   "drawerClosed": true
+  }
+ ],
+ "consoleErrors": []
+}

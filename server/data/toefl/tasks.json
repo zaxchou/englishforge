@@ -1,0 +1,102 @@
+{
+ "notice": "托福样板章配套任务（59 号 S1）。来源=学生版1（新D方真题库，student1-p*.txt/影印对照）；answerSource=verified 表示已对照影印页核验。封闭题的答案/解析**不在首做 API 下发**，提交判分后随复盘返回（55 §11）。开放题没有唯一答案：老师反馈是辅助意见，不给伪官方分数。",
+ "tasks": {
+  "tg-reading-s01-email": {
+   "kind": "mc_group",
+   "part": "reading",
+   "chapterId": "toefl-reading-s01",
+   "title": "Art Workshop Reservation Confirmation（确认信两题）",
+   "material": {
+    "type": "text",
+    "title": "Art Workshop Reservation Confirmation",
+    "body": "Dear Ms. Edwards,\n\nThe reservation for the art workshop that you made on September 10th has been confirmed. The workshop will take place on September 20th at 3:00 PM. All necessary art supplies will be provided, but please bring your own apron or smock.\n\nBest regards,\nLaura Bennett"
+   },
+   "source": { "pack": "学生版1", "pdfPage": 10, "assetRef": "toefl-redesign/student1-p10.png", "versionNote": "学生版题面；与教师版同名套卷不是同一卷（55 §11）" },
+   "answerSource": "verified",
+   "questions": [
+    {
+     "id": "r11", "familyId": "stu1-p10-q11",
+     "prompt": "11. When is the date of the art workshop?",
+     "options": ["September 10th", "September 12th", "September 20th", "September 30th"],
+     "key": 2,
+     "quote": "The workshop will take place on September 20th at 3:00 PM.",
+     "why": "9月10日是预约日期；题目问活动日期，will take place 指向9月20日。",
+     "tag": "事件与时间定位"
+    },
+    {
+     "id": "r12", "familyId": "stu1-p10-q12",
+     "prompt": "12. What should Ms. Edwards bring to the workshop?",
+     "options": ["A payment method", "Extra paint", "A protective garment", "Proof of reservation"],
+     "key": 2,
+     "quote": "All necessary art supplies will be provided, but please bring your own apron or smock.",
+     "why": "用品已提供，要求自带的是 apron 或 smock，属于防护衣物。",
+     "tag": "语境与行动要求"
+    }
+   ]
+  },
+  "tg-listening-s01-conversation": {
+   "kind": "mc_group",
+   "part": "listening",
+   "chapterId": "toefl-listening-s01",
+   "title": "计划变化与话轮意图（对话两题）",
+   "material": {
+    "type": "audio",
+    "mediaId": "aud_listening_conversation",
+    "honestyNote": "首做先听原音，一次播放后作答；音频与题号/话轮的逐段对应尚未人工审校。"
+   },
+   "source": { "pack": "学生版1", "pdfPage": 19, "assetRef": "toefl-redesign/student1-p19.png" },
+   "answerSource": "verified",
+   "questions": [
+    {
+     "id": "l9", "familyId": "stu1-p19-q9",
+     "prompt": "9. What does the woman imply that she was about to do?",
+     "options": ["See a play", "Change her clothes", "Go shopping", "Eat dinner"],
+     "key": 2,
+     "quote": "Need anything from the supermarket?",
+     "why": "女人询问超市需要买什么，暗示自己原本准备去购物。",
+     "tag": "话轮意图"
+    },
+    {
+     "id": "l10", "familyId": "stu1-p19-q10",
+     "prompt": "10. Why does the man say “I’d forget my head if it wasn’t screwed on”?",
+     "options": ["He forgot what the woman wanted him to buy.", "He forgot about the timing of their plans.", "He forgot that they were going to eat for dinner.", "He forgot to buy salmon and salad at the supermarket."],
+     "key": 1,
+     "quote": "Woman: That’s tomorrow.",
+     "why": "女人纠正看戏是明天，男人随后自嘲健忘；这里对应忘记计划时间。",
+     "tag": "事件与时间定位"
+    }
+   ]
+  },
+  "tg-writing-s01-email": {
+   "kind": "open_writing",
+   "part": "writing",
+   "chapterId": "toefl-writing-s01",
+   "title": "投稿故障邮件（完整第一稿）",
+   "material": {
+    "type": "open",
+    "mediaId": "img_writing_task_page31",
+    "prompt": "按照原任务写一封完整邮件：向编辑部说明你遇到的问题，并提出请他们帮你解决的具体请求。写完再读一遍：收件人能否直接照你的请求行动？",
+    "checklist": ["对象是否明确", "问题是否说明白", "题目要求是否满足", "请求是否可执行"]
+   },
+   "source": { "pack": "学生版1", "pdfPage": 31, "assetRef": "toefl-redesign/student1-p31.png" },
+   "answerSource": "open_no_single_key",
+   "feedbackScale": "辅助意见；最影响读者行动的一两个点优先，不整篇改写（54 §7）"
+  },
+  "tg-speaking-s01-interview": {
+   "kind": "open_speaking",
+   "part": "speaking",
+   "chapterId": "toefl-speaking-s01",
+   "title": "采访直答（听问题独立回应）",
+   "material": {
+    "type": "open",
+    "mediaId": "aud_speaking_interview",
+    "imageMediaId": "img_speaking_task_page36",
+    "prompt": "先听采访问题（可重听，但首答前不看题目影印），独立录一段回答：先直接回应问题，再给一个与自己有关的具体理由或细节。",
+    "honestyNote": "系统暂无自动转写（ASR）：录音会保存并回放；要老师分析请自己补一段文字稿（可粗糙），来源标 user_typed。"
+   },
+   "source": { "pack": "学生版1", "pdfPage": 36, "assetRef": "toefl-redesign/student1-p36.png" },
+   "answerSource": "open_no_single_key",
+   "feedbackScale": "回应是否切题、听者能否跟上、一个具体细节；准确保留与独立表达分开（54 §6）"
+  }
+ }
+}
