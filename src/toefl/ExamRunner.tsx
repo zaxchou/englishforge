@@ -84,21 +84,41 @@ export function ExamLibrary({ onOpen }: { onOpen: (examId: string) => void }) {
 
 // ---------- 考试进行中 ----------
 
+/** 解析完形填空文段：把 `前缀+下划线+[n]` 还原成 原文段 / 带前缀的空位 序列。
+ * 前缀字母与下划线个数是原题的难度提示（保留下划线数决定输入框宽度）。 */
+function parseCloze(passage: string): { type: 'text'; value: string }[] | { type: 'blank'; n: number; prefix: string; width: number }[] {
+  const parts: any[] = []
+  const re = /([A-Za-z'’-]*)(_+)\s*\[(\d+)\]/g
+  let last = 0
+  let m: RegExpExecArray | null
+  while ((m = re.exec(passage))) {
+    if (m.index > last) parts.push({ type: 'text', value: passage.slice(last, m.index) })
+    parts.push({ type: 'blank', prefix: m[1], width: m[2].length, n: Number(m[3]) })
+    last = m.index + m[0].length
+  }
+  if (last < passage.length) parts.push({ type: 'text', value: passage.slice(last) })
+  return parts
+}
+
 function ClozeGroup({ group, modulePrefix, answers, setAnswers }: { group: ExamGroup; modulePrefix: string; answers: any; setAnswers: (k: string, v: string) => void }) {
+  const parts = parseCloze(group.passage ?? '')
   return <section className="section">
     <h3>{group.title}</h3>
     <p className="muted">{group.instruction}</p>
-    <div className="reading">{esc(group.passage)}</div>
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 8, marginTop: 12 }}>
-      {group.questions.map((q) => (
-        <label key={q.n} style={{ display: 'flex', gap: 6, alignItems: 'center', border: '1px solid var(--control)', borderRadius: 6, padding: '6px 10px' }}>
-          <span>第 {q.n} 空</span>
-          <input type="text" value={answers[`${modulePrefix}-c-${q.n}`] ?? ''}
-            onChange={(e) => setAnswers(`${modulePrefix}-c-${q.n}`, e.target.value)}
-            placeholder="缺失字母" style={{ flex: 1, minWidth: 0, padding: '4px 8px' }} />
-        </label>
-      ))}
+    <div className="reading" style={{ lineHeight: 2.4 }}>
+      {parts.map((part, i) => part.type === 'text'
+        ? <span key={i}>{esc(part.value)}</span>
+        : <span key={i} style={{ whiteSpace: 'nowrap' }}>
+            {part.prefix && <span style={{ fontWeight: 600 }}>{esc(part.prefix)}</span>}
+            <input type="text" aria-label={`第 ${part.n} 空（前缀 ${part.prefix || '无'}，补 ${part.width} 个字母）`}
+              value={answers[`${modulePrefix}-c-${part.n}`] ?? ''}
+              onChange={(e) => setAnswers(`${modulePrefix}-c-${part.n}`, e.target.value)}
+              placeholder={'_'.repeat(part.width)}
+              size={part.width + 1}
+              style={{ width: `${Math.max(2.2, part.width * 0.85 + 1.6)}ch`, padding: '2px 4px', margin: '0 2px', border: 'none', borderBottom: '2px solid var(--action)', borderRadius: 0, background: 'var(--tint, #fcf0e6)', font: 'inherit', textAlign: 'center' }} />
+          </span>)}
     </div>
+    <p className="source">空位前的字母是原文保留的提示；下划线个数 = 缺失的字母数。把缺的字母补进横线里。</p>
   </section>
 }
 function McGroup({ gKey, group, answers, setAnswers }: { gKey: string; group: ExamGroup; answers: any; setAnswers: (k: string, v: number) => void }) {
