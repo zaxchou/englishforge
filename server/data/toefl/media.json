@@ -226,6 +226,105 @@
    "status": "mapped",
    "chapterId": null,
    "note": "exam-pack1 口语 采访 4 问"
+  },
+  "exam2_l_m1_response": {
+   "file": "819新托福真题持续更新/托福18套/01. 官方学生版样题2套（包含音频、答案）（第1套有解析）/托福样题02音频/托福样题02-听力-Module 01-01-Listen and Choose a Response.mp3",
+   "root": "exam",
+   "kind": "audio",
+   "mime": "audio/mpeg",
+   "status": "mapped",
+   "chapterId": null,
+   "note": "exam-pack2 学生版样题第2套音频"
+  },
+  "exam2_l_m1_conv1": {
+   "file": "819新托福真题持续更新/托福18套/01. 官方学生版样题2套（包含音频、答案）（第1套有解析）/托福样题02音频/托福样题02-听力-Module 01-02-Conversation 01.mp3",
+   "root": "exam",
+   "kind": "audio",
+   "mime": "audio/mpeg",
+   "status": "mapped",
+   "chapterId": null,
+   "note": "exam-pack2 学生版样题第2套音频"
+  },
+  "exam2_l_m1_conv2": {
+   "file": "819新托福真题持续更新/托福18套/01. 官方学生版样题2套（包含音频、答案）（第1套有解析）/托福样题02音频/托福样题02-听力-Module 01-02-Conversation 02.mp3",
+   "root": "exam",
+   "kind": "audio",
+   "mime": "audio/mpeg",
+   "status": "mapped",
+   "chapterId": null,
+   "note": "exam-pack2 学生版样题第2套音频"
+  },
+  "exam2_l_m1_announce": {
+   "file": "819新托福真题持续更新/托福18套/01. 官方学生版样题2套（包含音频、答案）（第1套有解析）/托福样题02音频/托福样题02-听力-Module 01-03-Announcement.mp3",
+   "root": "exam",
+   "kind": "audio",
+   "mime": "audio/mpeg",
+   "status": "mapped",
+   "chapterId": null,
+   "note": "exam-pack2 学生版样题第2套音频"
+  },
+  "exam2_l_m1_talk": {
+   "file": "819新托福真题持续更新/托福18套/01. 官方学生版样题2套（包含音频、答案）（第1套有解析）/托福样题02音频/托福样题02-听力-Module 01-04-Academic Talk.mp3",
+   "root": "exam",
+   "kind": "audio",
+   "mime": "audio/mpeg",
+   "status": "mapped",
+   "chapterId": null,
+   "note": "exam-pack2 学生版样题第2套音频"
+  },
+  "exam2_l_m2_response": {
+   "file": "819新托福真题持续更新/托福18套/01. 官方学生版样题2套（包含音频、答案）（第1套有解析）/托福样题02音频/托福样题02-听力-Module 02-01-Listen and Choose a Response.mp3",
+   "root": "exam",
+   "kind": "audio",
+   "mime": "audio/mpeg",
+   "status": "mapped",
+   "chapterId": null,
+   "note": "exam-pack2 学生版样题第2套音频"
+  },
+  "exam2_l_m2_conv1": {
+   "file": "819新托福真题持续更新/托福18套/01. 官方学生版样题2套（包含音频、答案）（第1套有解析）/托福样题02音频/托福样题02-听力-Module 02-02-Conversation 01.mp3",
+   "root": "exam",
+   "kind": "audio",
+   "mime": "audio/mpeg",
+   "status": "mapped",
+   "chapterId": null,
+   "note": "exam-pack2 学生版样题第2套音频"
+  },
+  "exam2_l_m2_announce": {
+   "file": "819新托福真题持续更新/托福18套/01. 官方学生版样题2套（包含音频、答案）（第1套有解析）/托福样题02音频/托福样题02-听力-Module 02-03-Announcement.mp3",
+   "root": "exam",
+   "kind": "audio",
+   "mime": "audio/mpeg",
+   "status": "mapped",
+   "chapterId": null,
+   "note": "exam-pack2 学生版样题第2套音频"
+  },
+  "exam2_l_m2_talk": {
+   "file": "819新托福真题持续更新/托福18套/01. 官方学生版样题2套（包含音频、答案）（第1套有解析）/托福样题02音频/托福样题02-听力-Module 02-04-Academic Talk.mp3",
+   "root": "exam",
+   "kind": "audio",
+   "mime": "audio/mpeg",
+   "status": "mapped",
+   "chapterId": null,
+   "note": "exam-pack2 学生版样题第2套音频"
+  },
+  "exam2_s_repeat": {
+   "file": "819新托福真题持续更新/托福18套/01. 官方学生版样题2套（包含音频、答案）（第1套有解析）/托福样题02音频/托福样题02-口语-01-Listen and Repeat.mp3",
+   "root": "exam",
+   "kind": "audio",
+   "mime": "audio/mpeg",
+   "status": "mapped",
+   "chapterId": null,
+   "note": "exam-pack2 学生版样题第2套音频"
+  },
+  "exam2_s_interview": {
+   "file": "819新托福真题持续更新/托福18套/01. 官方学生版样题2套（包含音频、答案）（第1套有解析）/托福样题02音频/托福样题02-口语-02-Interview.mp3",
+   "root": "exam",
+   "kind": "audio",
+   "mime": "audio/mpeg",
+   "status": "mapped",
+   "chapterId": null,
+   "note": "exam-pack2 学生版样题第2套音频"
   }
  }
 }

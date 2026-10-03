@@ -1,0 +1,1242 @@
+{
+ "meta": {
+  "examId": "pack2",
+  "title": "官方学生版样题 第2套（2026 新题型全真模拟）",
+  "sourcePack": "819新托福真题持续更新/托福18套/01. 官方学生版样题2套（包含音频、答案）（第1套有解析）",
+  "sourceFiles": {
+   "questions": "托福改革样题第2套（题目）toefl-full-length-practice-test2.pdf（36页影印）",
+   "answers": "题目册内各 Section Answer Key 页（p12-14/p25-27/p32-33）",
+   "audio": "托福样题02音频/（11 段 mp3）"
+  },
+  "digitizedAt": 1759560000000,
+  "digitization": "转录代理逐页视觉转录（36/36 页，无模糊缺页）；Zcode 独立核验 Reading M1（20/20）与 Listening M1（18/18）答案键页逐题比对一致；其余键页同批转录。听力 M2 册内印刷题号跳 12（13-17），按答案键连续编号 1-16 保证判分对位。音频按文件序号对应题组，逐段人工对齐待审校。",
+  "order": [
+   "reading",
+   "listening",
+   "speaking",
+   "writing"
+  ],
+  "status": "published",
+  "honestyNote": "官方不提供跨题时长校准：显示建议用时不强制倒计时；口语/写作为开放题，AI 反馈是辅助意见不是 ETS 分数。本套无解析册，讲解由 AI 依据题目与官方答案生成。"
+ },
+ "reading": {
+  "label": "阅读 Reading",
+  "modules": [
+   {
+    "moduleId": "reading-m1",
+    "title": "Reading Module 1",
+    "audioMediaId": null,
+    "groups": [
+     {
+      "type": "cloze",
+      "title": "Fill in the missing letters in the paragraph.（Questions 1–10）",
+      "instruction": "在段落挖空处填上缺失的字母。",
+      "passage": "Maps are tools that help us understand the world around us. They sh__[1] the loca______[2] of pla___[3] like cit___[4], rivers, a__[5] mountains. Th___[6] visual gu____[7] can al__[8] display different ty___[9] of infor______[10], such as climate or population. There are many kinds, including physical, political, and thematic versions. The study of maps and cartography, the process by which they are made, can teach us about the geography of our planet and how people live in different regions.",
+      "questions": [
+       {
+        "n": 1,
+        "prompt": "第 1 空（sh__）",
+        "answer": "ow",
+        "explain": ""
+       },
+       {
+        "n": 2,
+        "prompt": "第 2 空（loca______）",
+        "answer": "tions",
+        "explain": ""
+       },
+       {
+        "n": 3,
+        "prompt": "第 3 空（pla___）",
+        "answer": "ces",
+        "explain": ""
+       },
+       {
+        "n": 4,
+        "prompt": "第 4 空（cit___）",
+        "answer": "ies",
+        "explain": ""
+       },
+       {
+        "n": 5,
+        "prompt": "第 5 空（a__）",
+        "answer": "nd",
+        "explain": ""
+       },
+       {
+        "n": 6,
+        "prompt": "第 6 空（Th___）",
+        "answer": "ese",
+        "explain": ""
+       },
+       {
+        "n": 7,
+        "prompt": "第 7 空（gu____）",
+        "answer": "ides",
+        "explain": ""
+       },
+       {
+        "n": 8,
+        "prompt": "第 8 空（al__）",
+        "answer": "so",
+        "explain": ""
+       },
+       {
+        "n": 9,
+        "prompt": "第 9 空（ty___）",
+        "answer": "pes",
+        "explain": ""
+       },
+       {
+        "n": 10,
+        "prompt": "第 10 空（infor______）",
+        "answer": "mation",
+        "explain": ""
+       }
+      ]
+     },
+     {
+      "type": "reading_mc",
+      "title": "Read an email.（Maintenance Request）",
+      "passage": "To: brownchocolover@dmail.com | From: santos.apartments@dmail.com | Date: 05/22/2025 | Subject: Maintenance Request\n\nDear Mr. Brown,\n\nYour maintenance request has been received. Our technician will visit your apartment on June 10th between 1:00 PM and 3:00 PM. You must be present during that time, as our policy is that only the primary tenant can let the technician in.\n\nBest regards,\n\nMaria Santos",
+      "questions": [
+       {
+        "n": 11,
+        "prompt": "What is the earliest time of day that the technician will arrive?",
+        "options": [
+         "10:00 AM",
+         "11:00 AM",
+         "1:00 PM",
+         "3:00 PM"
+        ],
+        "key": 2,
+        "explain": ""
+       },
+       {
+        "n": 12,
+        "prompt": "Why must Mr. Brown be present?",
+        "options": [
+         "To sign off on completed work",
+         "To provide details about the problem",
+         "To let the technician in",
+         "To complete a survey"
+        ],
+        "key": 2,
+        "explain": ""
+       }
+      ]
+     },
+     {
+      "type": "reading_mc",
+      "title": "Read an email.（Audit）",
+      "passage": "To: miyazakisuzuki@dmail.com | From: rogersemily.branscomb.services@dmail.com | Date: 03/23/2025 | Subject: Audit\n\nDear Mr. Suzuki,\n\nBranscomb Technology's annual inventory audit will be performed on Thursday, April 19, beginning promptly at 8:00 a.m. in the warehouse on Kramer Boulevard. All department heads like yourself are required to attend and assist with the audit process. Please ensure that all inventory logs from your department are updated and will be readily accessible two days prior to the event. Because the audit is expected to take the entire day, we will be providing lunch from Beasley Bistro for participants. Please look over the attached menu and submit your selection to Fran Paloma in the HR department. We ask that you avoid scheduling any meetings on the morning of April 20 in the event that we need additional time to complete the process.\n\nRegards,\n\nEmily Rogers",
+      "questions": [
+       {
+        "n": 13,
+        "prompt": "Why did Ms. Rogers send the email to Mr. Suzuki?",
+        "options": [
+         "To assist him with an audit process",
+         "To remind him to update inventory logs every day",
+         "To inform him of an upcoming event",
+         "To request his input on how to revise a process"
+        ],
+        "key": 2,
+        "explain": ""
+       },
+       {
+        "n": 14,
+        "prompt": "Why should Mr. Suzuki contact Ms. Paloma?",
+        "options": [
+         "To provide her with his meal preference",
+         "To obtain some information from the HR department",
+         "To share a list of employees who have experience with audits",
+         "To send her an updated inventory log"
+        ],
+        "key": 0,
+        "explain": ""
+       },
+       {
+        "n": 15,
+        "prompt": "What is indicated about the morning of April 20?",
+        "options": [
+         "The audit might continue then.",
+         "Mr. Suzuki might have several meetings then.",
+         "A menu might be updated then.",
+         "Employees might have free time then."
+        ],
+        "key": 0,
+        "explain": ""
+       }
+      ]
+     },
+     {
+      "type": "reading_mc",
+      "title": "The Impact of Sports on Social Integration",
+      "passage": "Sports can promote social integration by bridging gaps between people of various backgrounds. Participation in sports can lead to increased social cohesion and improved relationships among diverse groups.\n\nFor example, community soccer leagues often bring together people from different ethnicities, creating an environment where cultural differences are celebrated and mutual respect is cultivated. However, the impact of sports on social integration is not without challenges. Competitive environments can sometimes exacerbate social tensions, particularly when favoritism or exclusionary practices are present.\n\nDespite these issues, many initiatives aim to use sports as a platform for social change. One such initiative is the Sport for Peace program, which focuses on conflict resolution through team-building activities and collaborative sports events. The role of sports in social integration extends beyond participation. Spectatorship and fandom also play significant roles in uniting people. Major international sports events like the Olympics or the World Cup serve as opportunities for nations to come together and share common goals. The visibility of athletes from diverse backgrounds during these events fosters a sense of global harmony. These events often highlight stories of athletes overcoming adversity, inspiring spectators and fostering a collective sense of achievement.",
+      "questions": [
+       {
+        "n": 16,
+        "prompt": "The word \"cohesion\" in the passage is closest in meaning to",
+        "options": [
+         "diversity",
+         "awareness",
+         "unity",
+         "celebration"
+        ],
+        "key": 2,
+        "explain": ""
+       },
+       {
+        "n": 17,
+        "prompt": "In which of the following situations can sports have an especially negative impact on social integration?",
+        "options": [
+         "When people from different ethnicities are brought together",
+         "When participants are unreasonably strict about the rules of competition",
+         "When the social environment is not favorable to competition",
+         "When social tensions are heightened by favoring or excluding certain participants"
+        ],
+        "key": 3,
+        "explain": ""
+       },
+       {
+        "n": 18,
+        "prompt": "What is the relationship between paragraphs 2 and 3?",
+        "options": [
+         "Paragraph 3 discusses ways of addressing a problem mentioned in paragraph 2.",
+         "Paragraph 3 contradicts a theory proposed in paragraph 2.",
+         "Paragraph 3 provides evidence for an idea presented in paragraph 2.",
+         "Paragraph 3 introduces a new challenge related to paragraph 2."
+        ],
+        "key": 0,
+        "explain": ""
+       },
+       {
+        "n": 19,
+        "prompt": "What does the passage suggest about the Sport for Peace program?",
+        "options": [
+         "Its main goal is to eliminate favoritism in sports.",
+         "It primarily targets professional athletes.",
+         "It uses team-building exercises to address conflicts.",
+         "It is only effective in local communities."
+        ],
+        "key": 2,
+        "explain": ""
+       },
+       {
+        "n": 20,
+        "prompt": "Why does the author mention major international sports events like the Olympics and the World Cup?",
+        "options": [
+         "To argue that these events have little impact on social integration",
+         "To illustrate how sports can unite people globally",
+         "To suggest that these events mainly benefit athletes",
+         "To highlight the competitive nature of these events"
+        ],
+        "key": 1,
+        "explain": ""
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "moduleId": "reading-m2",
+    "title": "Reading Module 2",
+    "audioMediaId": null,
+    "groups": [
+     {
+      "type": "cloze",
+      "title": "Fill in the missing letters in the paragraph.（Questions 1–10）",
+      "instruction": "在段落挖空处填上缺失的字母。",
+      "passage": "Elephants are social animals that live in groups called herds. They commu______[1] using sou___[2], gestures, a__[3] touch. These ani____[4] are kn___[5] for th___[6] strong fam___[7] bonds and of___[8] help ea__[9] other i_[10] times of need. They can remember the locations of water sources and food, which helps them survive in their natural environment. These highly intelligent creatures play an important role in their ecosystems, shaping the landscape, creating access to moisture, and spreading seeds.",
+      "questions": [
+       {
+        "n": 1,
+        "prompt": "第 1 空（commu______）",
+        "answer": "nicate",
+        "explain": ""
+       },
+       {
+        "n": 2,
+        "prompt": "第 2 空（sou___）",
+        "answer": "nds",
+        "explain": ""
+       },
+       {
+        "n": 3,
+        "prompt": "第 3 空（a__）",
+        "answer": "nd",
+        "explain": ""
+       },
+       {
+        "n": 4,
+        "prompt": "第 4 空（ani____）",
+        "answer": "mals",
+        "explain": ""
+       },
+       {
+        "n": 5,
+        "prompt": "第 5 空（kn___）",
+        "answer": "own",
+        "explain": ""
+       },
+       {
+        "n": 6,
+        "prompt": "第 6 空（th___）",
+        "answer": "eir",
+        "explain": ""
+       },
+       {
+        "n": 7,
+        "prompt": "第 7 空（fam___）",
+        "answer": "ily",
+        "explain": ""
+       },
+       {
+        "n": 8,
+        "prompt": "第 8 空（of___）",
+        "answer": "ten",
+        "explain": ""
+       },
+       {
+        "n": 9,
+        "prompt": "第 9 空（ea__）",
+        "answer": "ch",
+        "explain": ""
+       },
+       {
+        "n": 10,
+        "prompt": "第 10 空（i_）",
+        "answer": "n",
+        "explain": ""
+       }
+      ]
+     },
+     {
+      "type": "reading_mc",
+      "title": "Read an email.（You're in!）",
+      "passage": "To: jhsigh36@dmail.com | From: emmaj.onlinecourses@dmail.com | Date: 08/17/2025 | Subject: You're in!\n\nDear Mr. Singh,\n\nYour registration for the online coding course, which begins on October 5th at 9:00 AM, is complete. Login details will be sent a day before the course begins. If you would like to cancel your registration, let us know by October 3rd.\n\nBest regards,\n\nEmma Johnson",
+      "questions": [
+       {
+        "n": 11,
+        "prompt": "What is the main purpose of the e-mail?",
+        "options": [
+         "To cancel registration for a course",
+         "To confirm registration for a course",
+         "To provide information about a course",
+         "To request payment for a course"
+        ],
+        "key": 1,
+        "explain": ""
+       },
+       {
+        "n": 12,
+        "prompt": "When will Mr. Singh receive login details?",
+        "options": [
+         "October 2nd",
+         "October 3rd",
+         "October 4th",
+         "October 5th"
+        ],
+        "key": 2,
+        "explain": ""
+       }
+      ]
+     },
+     {
+      "type": "reading_mc",
+      "title": "Read an email.（Upcoming Heating System Maintenance – Tuesday, May 27）",
+      "passage": "To: gardnerjardinero@dmail.com | From: thompson.building.co@dmail.com | Subject: Upcoming Heating System Maintenance – Tuesday, May 27\n\nDear Ms. Gardner,\n\nI hope you're doing well. I'm writing to inform you of a scheduled maintenance procedure on the office heating system, set to take place on Tuesday, May 27, from 8:00 A.M. to 5:00 P.M. This essential work is part of our seasonal inspection and efficiency upgrade initiative to ensure optimal performance during the colder months.\n\nPlease note that the heating system will be offline throughout the day, and indoor temperatures will drop noticeably. We recommend dressing in warm layers and advising your team to do the same. If any team members are particularly sensitive to cooler environments, remote work arrangements may be considered.\n\nAdditionally, as external technicians will be on-site, please ensure all confidential materials are secured appropriately.\n\nShould you have any questions, contact the maintenance team at 555-7264.\n\nWarm regards, Robert Thompson",
+      "questions": [
+       {
+        "n": 13,
+        "prompt": "What is indicated about the office heating system?",
+        "options": [
+         "It failed an inspection.",
+         "It will not be functioning during maintenance.",
+         "It is not working properly.",
+         "It performs optimally."
+        ],
+        "key": 1,
+        "explain": ""
+       },
+       {
+        "n": 14,
+        "prompt": "What can be inferred about the weather on May 27?",
+        "options": [
+         "It will be cooler than the temperature at which the office is normally kept.",
+         "It will be unusual for the season.",
+         "It will require office workers to stay home rather than go to the office.",
+         "It will change throughout the day."
+        ],
+        "key": 0,
+        "explain": ""
+       },
+       {
+        "n": 15,
+        "prompt": "Who will be performing maintenance?",
+        "options": [
+         "Ms. Gardner",
+         "Ms. Gardner's team members",
+         "Professionals from another company",
+         "Robert Thompson"
+        ],
+        "key": 2,
+        "explain": ""
+       }
+      ]
+     },
+     {
+      "type": "reading_mc",
+      "title": "The Human Microbiome",
+      "passage": "The human microbiome consists of trillions of microorganisms living in and on our bodies. These include bacteria, viruses, fungi, and other microbes. They play a pivotal role in functions such as digestion, immunity, and mood regulation. For instance, gut bacteria help break down food and produce essential vitamins.\n\nRecent studies show that the microbiome can be influenced by diet, lifestyle, and medication. Antibiotics, while effective against harmful bacteria, can disrupt the balance of beneficial microbes. This disruption can lead to health issues like digestive problems and weakened immunity. Researchers are exploring the connection between the microbiome and mental health. Certain gut bacteria produce neurotransmitters affecting brain function. An imbalance in these bacteria may be linked to conditions like depression and anxiety.\n\nMaintaining a healthy microbiome involves eating a varied diet rich in fiber, reducing stress, and avoiding unnecessary antibiotics. Bacteria that aid digestion, known as robotics and prebiotics, are also beneficial. As understanding of the microbiome grows, it may lead to breakthroughs in treating diseases and improving health.",
+      "questions": [
+       {
+        "n": 16,
+        "prompt": "The word \"pivotal\" in the passage is closest in meaning to",
+        "options": [
+         "very important",
+         "possible",
+         "combined",
+         "unwelcome"
+        ],
+        "key": 0,
+        "explain": ""
+       },
+       {
+        "n": 17,
+        "prompt": "What is one way antibiotics can affect humans?",
+        "options": [
+         "They enhance the production of neurotransmitters.",
+         "They can weaken immunity by harming beneficial microbes.",
+         "They can help relieve digestive problems.",
+         "They make it easier to produce essential vitamins."
+        ],
+        "key": 1,
+        "explain": ""
+       },
+       {
+        "n": 18,
+        "prompt": "What connection are researchers exploring regarding the microbiome?",
+        "options": [
+         "The link between gut bacteria and immunity",
+         "The role of fungi in mood regulation",
+         "The role of viruses in digestion",
+         "The link between gut bacteria and mental health"
+        ],
+        "key": 3,
+        "explain": ""
+       },
+       {
+        "n": 19,
+        "prompt": "All of the following help to maintain a healthy microbiome EXCEPT",
+        "options": [
+         "eating a varied diet rich in fiber",
+         "lowering stress levels",
+         "avoiding sources of bacteria",
+         "reducing the use of antibiotics"
+        ],
+        "key": 2,
+        "explain": ""
+       },
+       {
+        "n": 20,
+        "prompt": "What is the relationship between paragraphs 2 and 3?",
+        "options": [
+         "Paragraph 3 challenges the ideas proposed in paragraph 2.",
+         "Paragraph 3 provides examples of the disruptions mentioned in paragraph 2.",
+         "Paragraph 3 specifies how to achieve a healthy microbiome based on the factors mentioned in paragraph 2.",
+         "Paragraph 3 elaborates on the benefits of antibiotics mentioned in paragraph 2."
+        ],
+        "key": 2,
+        "explain": ""
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ "listening": {
+  "label": "听力 Listening",
+  "modules": [
+   {
+    "moduleId": "listening-m1",
+    "title": "Listening Module 1",
+    "audioMediaId": null,
+    "groups": [
+     {
+      "type": "listen_response",
+      "title": "Choose the best response.（Questions 1–8）",
+      "instruction": "听问题或陈述，选出最恰当的回应。每题音频只播一遍。",
+      "questions": [
+       {
+        "n": 1,
+        "prompt": "Man: How can I get this light to work?",
+        "options": [
+         "The lighter one is over there.",
+         "There's a switch on the back wall.",
+         "The side door is open.",
+         "I prefer to work at home."
+        ],
+        "key": 1,
+        "explain": ""
+       },
+       {
+        "n": 2,
+        "prompt": "Woman: I'm not available tomorrow.",
+        "options": [
+         "Let's try to get there early.",
+         "What's a better day for you?",
+         "It's not on my schedule either.",
+         "I was in a meeting last night."
+        ],
+        "key": 1,
+        "explain": ""
+       },
+       {
+        "n": 3,
+        "prompt": "Man: The campus talent contest will be held next Saturday evening.",
+        "options": [
+         "I can hold that for you.",
+         "Stage lighting is usually very hot.",
+         "My roommate is a talented basketball player.",
+         "Do you know who the judges will be?"
+        ],
+        "key": 3,
+        "explain": ""
+       },
+       {
+        "n": 4,
+        "prompt": "Man: What time do I need to pick up Michael from the train station?",
+        "options": [
+         "Don't worry about it—I'll get him.",
+         "He said he prefers the window seat.",
+         "The station now has a snack shop.",
+         "There's road construction near the entrance."
+        ],
+        "key": 0,
+        "explain": ""
+       },
+       {
+        "n": 5,
+        "prompt": "Woman: Isn't the grocery store open late tonight?",
+        "options": [
+         "Yes, it is.",
+         "No, shopping takes time.",
+         "It's next to the store.",
+         "I'd rather not."
+        ],
+        "key": 0,
+        "explain": ""
+       },
+       {
+        "n": 6,
+        "prompt": "Woman: Did you bring the identification documents?",
+        "options": [
+         "They are in the blue folder.",
+         "Who can identify them?",
+         "Both can be done.",
+         "Yes, I would."
+        ],
+        "key": 0,
+        "explain": ""
+       },
+       {
+        "n": 7,
+        "prompt": "Man: Wait, isn't the concert tomorrow night?",
+        "options": [
+         "No, it's tonight.",
+         "No, I can't wait.",
+         "Yes, I would.",
+         "Yes, that's fine."
+        ],
+        "key": 0,
+        "explain": ""
+       },
+       {
+        "n": 8,
+        "prompt": "Woman: I'm not available this afternoon.",
+        "options": [
+         "So am I.",
+         "It takes a while.",
+         "I didn't mean it.",
+         "Well, I understand."
+        ],
+        "key": 3,
+        "explain": ""
+       }
+      ],
+      "audioMediaId": "exam2_l_m1_response"
+     },
+     {
+      "type": "listen_mc",
+      "title": "Listen to a conversation.（laptop acting up）",
+      "transcript": "Man: I think my laptop is acting up again. It keeps freezing and shutting down randomly.\nWoman: That's frustrating. Have you tried restarting it or running a virus scan?\nMan: Yes, I did both, but it didn't help. I might need to take it to a repair shop.\nWoman: That sounds like a good idea. They should be able to diagnose and fix the issue.\nMan: I'll do that this afternoon.",
+      "questions": [
+       {
+        "n": 9,
+        "prompt": "What problem is the man experiencing with his laptop?",
+        "options": [
+         "It has a cracked screen.",
+         "It won't turn on.",
+         "It keeps freezing and shutting down.",
+         "It is running slowly."
+        ],
+        "key": 2,
+        "explain": ""
+       },
+       {
+        "n": 10,
+        "prompt": "What will the man most likely do next?",
+        "options": [
+         "Buy a new laptop",
+         "Run another virus scan",
+         "Take his laptop to a repair shop",
+         "Restart his laptop"
+        ],
+        "key": 2,
+        "explain": ""
+       }
+      ],
+      "audioMediaId": "exam2_l_m1_conv1",
+      "audioNote": "音频按文件序号对应题组（Conv 01/02 按册内出现顺序），逐段人工对齐待审校。"
+     },
+     {
+      "type": "listen_mc",
+      "title": "Listen to a conversation.（supermarket drinks）",
+      "transcript": "Man: Are you going to the supermarket today by any chance?\nWoman: I was just there yesterday. Why?\nMan: suddenly remembered that I'm supposed to bring some drinks to my team's lunch meeting tomorrow at work, and I'm in the middle of a project I need to finish tonight.\nWoman: You're in luck. I stocked up yesterday.",
+      "questions": [
+       {
+        "n": 11,
+        "prompt": "What is the man's problem?",
+        "options": [
+         "He has nothing to eat for lunch.",
+         "He is unable to attend a meeting.",
+         "He forgot about an obligation at work.",
+         "He needs more resources to finish a project."
+        ],
+        "key": 2,
+        "explain": ""
+       },
+       {
+        "n": 12,
+        "prompt": "What does the woman imply when she says, \"I stocked up yesterday\"?",
+        "options": [
+         "She does not plan to go to work tomorrow.",
+         "She will provide the man with drinks for his meeting.",
+         "The supermarket has plenty of drinks available.",
+         "The man will not need extra time to finish his project."
+        ],
+        "key": 1,
+        "explain": ""
+       }
+      ],
+      "audioMediaId": "exam2_l_m1_conv2",
+      "audioNote": "音频按文件序号对应题组（Conv 01/02 按册内出现顺序），逐段人工对齐待审校。"
+     },
+     {
+      "type": "listen_mc",
+      "title": "Listen to an announcement at a university club meeting.（short-story contest）",
+      "transcript": "Announcer: Welcome to the creative writing club's monthly meeting! Before we get started, I wanted to remind you of the guidelines for our upcoming short-story contest. We're looking for stories on the theme of family, and all stories must be submitted by the end ofNovember to be considered. Good luck to everyone participating!",
+      "questions": [
+       {
+        "n": 13,
+        "prompt": "Why does the speaker mention family?",
+        "options": [
+         "It is the topic of the story they are reading.",
+         "It was discussed at last month's meeting.",
+         "It is a contest theme.",
+         "Families are invited to the next meeting."
+        ],
+        "key": 2,
+        "explain": ""
+       },
+       {
+        "n": 14,
+        "prompt": "What does the speaker encourage the participants to do?",
+        "options": [
+         "Observe the guidelines",
+         "Read last month's submissions",
+         "Prepare for a presentation",
+         "Join the club's mailing list"
+        ],
+        "key": 0,
+        "explain": ""
+       }
+      ],
+      "audioMediaId": "exam2_l_m1_announce",
+      "audioNote": "音频按文件序号对应题组（Conv 01/02 按册内出现顺序），逐段人工对齐待审校。"
+     },
+     {
+      "type": "listen_mc",
+      "title": "Listen to a talk in a physics class.（Dark Matter）",
+      "transcript": "Professor: Dark matter is a type of matter that doesn't emit, absorb, or reflect light, making it invisible to current instruments. Despite being unobservable directly, it's believed to make up about 27 percent of the universe's mass-energy content. How do scientists know dark matter exists? Well, all the stars in a galaxy rotate around the center of their galaxy. According to basic physics, the farther a star is from the center of a galaxy, the slower it should rotate. However, observations show that stars in the outer regions of galaxies rotate at unexpectedly high speeds. This anomaly suggests that a massive, unseen matter is exerting gravitational force, keeping the stars moving faster than expected.\n\nDark matter is hugely important for the structure of the universe. Computer simulations show that galaxies wouldn't have formed the way they did if dark matter hadn't been around. But what does dark matter consist of? Well, there are different theories, so let's consider a couple of them.",
+      "questions": [
+       {
+        "n": 15,
+        "prompt": "What is the main topic of the talk?",
+        "options": [
+         "How gravity affects stars",
+         "Material in the universe that cannot be directly seen",
+         "The distribution of stars in galaxies",
+         "The formation of the universe"
+        ],
+        "key": 1,
+        "explain": ""
+       },
+       {
+        "n": 16,
+        "prompt": "According to the speaker, how do scientists infer the existence of dark matter?",
+        "options": [
+         "From the temperature of visible matter",
+         "From the amount of light in the universe",
+         "From the number of stars in galaxies",
+         "From the speed of stars' movement"
+        ],
+        "key": 3,
+        "explain": ""
+       },
+       {
+        "n": 17,
+        "prompt": "Why does the speaker mention computer simulations?",
+        "options": [
+         "To support the claim that dark matter plays an important role in the universe",
+         "To describe how the gravitational forces acting on stars were calculated",
+         "To highlight the anomalies in basic physics",
+         "To explain how the speeds of stars were measured"
+        ],
+        "key": 0,
+        "explain": ""
+       },
+       {
+        "n": 18,
+        "prompt": "What will the speaker most likely discuss next?",
+        "options": [
+         "Measurements of dark matter in galaxies",
+         "Ideas about dark matter's composition",
+         "The anomalies in galaxy rotation caused by dark matter",
+         "The distribution of dark matter in the universe"
+        ],
+        "key": 1,
+        "explain": ""
+       }
+      ],
+      "audioMediaId": "exam2_l_m1_talk",
+      "audioNote": "音频按文件序号对应题组（Conv 01/02 按册内出现顺序），逐段人工对齐待审校。"
+     }
+    ]
+   },
+   {
+    "moduleId": "listening-m2",
+    "title": "Listening Module 2",
+    "audioMediaId": null,
+    "groups": [
+     {
+      "type": "listen_response",
+      "title": "Choose the best response.（Questions 1–8）",
+      "instruction": "听问题或陈述，选出最恰当的回应。每题音频只播一遍。",
+      "questions": [
+       {
+        "n": 1,
+        "prompt": "Woman: Who is responsible for the project timeline?",
+        "options": [
+         "I do.",
+         "I'm not sure.",
+         "A few unexpected delays.",
+         "It stays on track."
+        ],
+        "key": 1,
+        "explain": ""
+       },
+       {
+        "n": 2,
+        "prompt": "Woman: Why did the team meeting get canceled?",
+        "options": [
+         "Two days ago.",
+         "Meeting attendees.",
+         "Actually, it was rescheduled.",
+         "How about another time?"
+        ],
+        "key": 2,
+        "explain": ""
+       },
+       {
+        "n": 3,
+        "prompt": "Man: Can you assist me with my science report?",
+        "options": [
+         "Let me know what you think.",
+         "You're very kind.",
+         "What exactly do you need help with?",
+         "It doesn't matter."
+        ],
+        "key": 2,
+        "explain": ""
+       },
+       {
+        "n": 4,
+        "prompt": "Man: I'm not sure about the current plan.",
+        "options": [
+         "That's unfortunate.",
+         "Sure, I can.",
+         "I think you have it.",
+         "No, it's planned."
+        ],
+        "key": 0,
+        "explain": ""
+       },
+       {
+        "n": 5,
+        "prompt": "Man: If you need help, ask Ms. Johnson.",
+        "options": [
+         "Either is fine by me.",
+         "Happy to help.",
+         "That's what I'll do.",
+         "I'm available."
+        ],
+        "key": 2,
+        "explain": ""
+       },
+       {
+        "n": 6,
+        "prompt": "Woman: What time does the event start?",
+        "options": [
+         "In the party room.",
+         "At 1 p.m.",
+         "It's crowded.",
+         "Event coordinators."
+        ],
+        "key": 1,
+        "explain": ""
+       },
+       {
+        "n": 7,
+        "prompt": "Man: Who is hosting the party tonight?",
+        "options": [
+         "The marketing team is.",
+         "It's tonight.",
+         "I can't help it.",
+         "It's good for two days."
+        ],
+        "key": 0,
+        "explain": ""
+       },
+       {
+        "n": 8,
+        "prompt": "Man: Let's go hiking this weekend.",
+        "options": [
+         "Maybe it is.",
+         "Why not this weekend instead?",
+         "Have you checked the weather?",
+         "Are you busy?"
+        ],
+        "key": 2,
+        "explain": ""
+       }
+      ],
+      "audioMediaId": "exam2_l_m2_response"
+     },
+     {
+      "type": "listen_mc",
+      "title": "Listen to a conversation.（library books）",
+      "transcript": "Man: Have you returned the books we borrowed from the library?\nWoman: Why? I thought we could keep them for six weeks.\nMan: Actually, it's now four weeks. They changed the policy. I guess I forgot to tell you!\nWoman: That means they're due tomorrow!\nMan: Exactly!\nWoman: In that case, I'll take care of it right now!",
+      "questions": [
+       {
+        "n": 9,
+        "prompt": "What was the woman not aware of?",
+        "options": [
+         "The library's new location",
+         "The library's borrowing policy",
+         "The library's holiday schedule",
+         "The library's hours of operation"
+        ],
+        "key": 1,
+        "explain": ""
+       },
+       {
+        "n": 10,
+        "prompt": "What will the woman probably do next?",
+        "options": [
+         "Return books to the library",
+         "Make a phone call to the library",
+         "Pay a fine for returning books late",
+         "Borrow a new book from the library"
+        ],
+        "key": 0,
+        "explain": ""
+       }
+      ],
+      "audioMediaId": "exam2_l_m2_conv1",
+      "audioNote": "音频按文件序号对应题组（Conv 01/02 按册内出现顺序），逐段人工对齐待审校。"
+     },
+     {
+      "type": "listen_mc",
+      "title": "Listen to an announcement on the campus radio station.（charity auction）",
+      "transcript": "Announcer: Good evening everyone. Just a friendly reminder that the university's annual charity auction will take place tomorrow at 7 P.M. in the Main Hall. All proceeds will go to local charities. We hope to see you there and appreciate your support!",
+      "questions": [
+       {
+        "n": 11,
+        "prompt": "What is the main topic of the announcement?",
+        "options": [
+         "A new university event",
+         "A lecture on local charities",
+         "A change in venue",
+         "An upcoming fundraiser"
+        ],
+        "key": 3,
+        "explain": ""
+       },
+       {
+        "n": 12,
+        "prompt": "What does the speaker hope the listeners will do?",
+        "options": [
+         "Attend an event",
+         "Prepare for a lecture",
+         "Donate online",
+         "Volunteer at an event"
+        ],
+        "key": 0,
+        "explain": ""
+       }
+      ],
+      "audioMediaId": "exam2_l_m2_announce",
+      "audioNote": "音频按文件序号对应题组（Conv 01/02 按册内出现顺序），逐段人工对齐待审校。"
+     },
+     {
+      "type": "listen_mc",
+      "title": "Listen to a talk in an environmental science class.（Biomimicry）",
+      "transcript": "Professor: Biomimicry is the human practice of learning from and imitating things found in nature in order to create new inventions. This way, scientists and engineers can create innovative solutions that are both efficient and sustainable.\n\nOne well-known example of biomimicry is the development of a widely used fastening system. The inventor was inspired by the way burrs, uh, thorns, from plants stuck to his dog's fur. By replicating the tiny hooks found on the burrs he removed from the dog fur, he created the new fastening system. Another example is the design of energy-efficient buildings based on the ventilation system of structures created by termites. Termites are ground-dwelling insects that use different materials to create hills, or mounds, in which the termites live. Termite mounds have a complex network of vents. The vents maintain a stable internal temperature, which can be emulated in human architecture.\n\nBiomimicry can also be applied to renewable energy. For instance, researchers are developing wind turbine blades modeled after the flippers of humpback whales. The unique shape of the flippers reduces drag and increases efficiency, leading to more effective wind energy capture.",
+      "questions": [
+       {
+        "n": 13,
+        "prompt": "What is the talk mainly about?",
+        "options": [
+         "Ways in which humans use natural materials in clothing and architecture",
+         "Hiding strategies of different animals",
+         "New methods of using renewable energy",
+         "Examples of how humans imitate nature for practical purposes"
+        ],
+        "key": 3,
+        "explain": ""
+       },
+       {
+        "n": 14,
+        "prompt": "Why does the speaker mention a dog?",
+        "options": [
+         "To illustrate how an inventor copied animal behavior",
+         "To compare its efficiency in movement with that of humpback whales",
+         "To explain how a structure found in plants inspired an invention",
+         "To show the close bond between scientists and animals"
+        ],
+        "key": 2,
+        "explain": ""
+       },
+       {
+        "n": 15,
+        "prompt": "What point does the speaker make about termite mounds?",
+        "options": [
+         "The temperature inside them does not change much.",
+         "Termites sometimes build them near human-made structures.",
+         "Building them takes a lot of energy.",
+         "They are created mostly from plant material."
+        ],
+        "key": 0,
+        "explain": ""
+       },
+       {
+        "n": 16,
+        "prompt": "What does the speaker imply about wind turbine blades that are being developed?",
+        "options": [
+         "The noise they create can be harmful to whales.",
+         "They can be easily installed on buildings.",
+         "They can be efficiently constructed from renewable materials.",
+         "They are very similar to some whales' flippers in shape."
+        ],
+        "key": 3,
+        "explain": ""
+       }
+      ],
+      "audioMediaId": "exam2_l_m2_talk",
+      "audioNote": "音频按文件序号对应题组（Conv 01/02 按册内出现顺序），逐段人工对齐待审校。"
+     }
+    ]
+   }
+  ]
+ },
+ "speaking": {
+  "label": "口语 Speaking",
+  "audioMediaId": null,
+  "tasks": [
+   {
+    "type": "listen_repeat",
+    "title": "Listen and Repeat（7 句）",
+    "instruction": "You will listen as someone speaks to you. Listen carefully and then repeat what you have heard. The clock will indicate how much time you have to speak. No time for preparation will be provided. You are learning how to guide new students through the campus gym. Listen to the speaker and repeat what she says. Repeat only once.",
+    "items": [
+     {
+      "n": 1,
+      "text": "Welcome to our campus gym.",
+      "tip": ""
+     },
+     {
+      "n": 2,
+      "text": "Cardio machines are near the entrance.",
+      "tip": ""
+     },
+     {
+      "n": 3,
+      "text": "Free weights are in the back.",
+      "tip": ""
+     },
+     {
+      "n": 4,
+      "text": "All of our locker rooms are equipped with showers and towels.",
+      "tip": ""
+     },
+     {
+      "n": 5,
+      "text": "Our fitness instructors hold exercise classes over here.",
+      "tip": ""
+     },
+     {
+      "n": 6,
+      "text": "You can check the schedule for available classes and timings.",
+      "tip": ""
+     },
+     {
+      "n": 7,
+      "text": "If you have any questions, please seek assistance from the attendants at the help desk.",
+      "tip": ""
+     }
+    ],
+    "audioMediaId": "exam2_s_repeat"
+   },
+   {
+    "type": "interview",
+    "title": "Take an Interview（4 问）",
+    "instruction": "An interviewer will ask you questions. Answer the questions and be sure to say as much as you can in the time allowed. No time for preparation will be provided. You have volunteered for a research study about commuting habits. You will have a short online interview with a researcher. The researcher will ask you some questions. Please answer the interviewer's questions.",
+    "intro": "Thank you for joining the study. Today, I'd like to ask you some questions about your commuting habits.",
+    "items": [
+     {
+      "n": 1,
+      "prompt": "First, is it important to live close to your school or work? Why?"
+     },
+     {
+      "n": 2,
+      "prompt": "I see. Imagine that you could choose to commute by car, which is faster but more expensive, or by public transportation, which is slower but less expensive. Which would you choose, and why?"
+     },
+     {
+      "n": 3,
+      "prompt": "Interesting. Some people believe that commuting can be stressful and tiring. What do you think are one or two different ways to make commuting more enjoyable? Give reasons for your answer."
+     },
+     {
+      "n": 4,
+      "prompt": "Good points. Lastly, considering advances in technology, some people believe that commuting might disappear entirely. How do you think a severe decline in commuting might affect businesses in positive ways and negative ways? Please give one example of each."
+     }
+    ],
+    "sampleAnswersNote": "",
+    "audioMediaId": "exam2_s_interview"
+   }
+  ]
+ },
+ "writing": {
+  "label": "写作 Writing",
+  "tasks": [
+   {
+    "type": "build_sentence",
+    "title": "Build a Sentence（10 题）",
+    "instruction": "Move the words in the boxes to create grammatical sentences. A clock will show you how much time you have to complete this task. Make an appropriate sentence.",
+    "items": [
+     {
+      "n": 1,
+      "prompt": "I need to buy a new laptop.",
+      "prefix": "",
+      "suffix": "?",
+      "chunks": [
+       "has",
+       "the best",
+       "which",
+       "store",
+       "deals"
+      ],
+      "answer": "Which store has the best deals?",
+      "explain": ""
+     },
+     {
+      "n": 2,
+      "prompt": "I'm thinking about starting a blog.",
+      "prefix": "",
+      "suffix": "yet?",
+      "chunks": [
+       "decided",
+       "you",
+       "a topic",
+       "have",
+       "on"
+      ],
+      "answer": "Have you decided on a topic yet?",
+      "explain": ""
+     },
+     {
+      "n": 3,
+      "prompt": "I'm going to study at the library this afternoon.",
+      "prefix": "",
+      "suffix": "?",
+      "chunks": [
+       "to",
+       "do",
+       "borrow",
+       "any books",
+       "you",
+       "need"
+      ],
+      "answer": "Do you need to borrow any books?",
+      "explain": ""
+     },
+     {
+      "n": 4,
+      "prompt": "I'm thinking about getting a pet.",
+      "prefix": "",
+      "suffix": "?",
+      "chunks": [
+       "are",
+       "you",
+       "considering",
+       "kind",
+       "of",
+       "what",
+       "animal"
+      ],
+      "answer": "What kind of animal are you considering?",
+      "explain": ""
+     },
+     {
+      "n": 5,
+      "prompt": "I'm excited to see the new science fiction movie tonight.",
+      "prefix": "",
+      "suffix": "?",
+      "chunks": [
+       "it",
+       "showing",
+       "is",
+       "where"
+      ],
+      "answer": "Where is it showing?",
+      "explain": ""
+     },
+     {
+      "n": 6,
+      "prompt": "I have an interview for a new job next week.",
+      "prefix": "",
+      "suffix": "?",
+      "chunks": [
+       "ready",
+       "resume",
+       "have",
+       "you",
+       "do",
+       "your"
+      ],
+      "answer": "Do you have your resume ready?",
+      "explain": ""
+     },
+     {
+      "n": 7,
+      "prompt": "I need to submit my assignment by tomorrow.",
+      "prefix": "",
+      "suffix": "?",
+      "chunks": [
+       "writing",
+       "finished",
+       "you",
+       "it",
+       "have"
+      ],
+      "answer": "Have you finished writing it?",
+      "explain": ""
+     },
+     {
+      "n": 8,
+      "prompt": "I'm planning a trip to Europe this summer.",
+      "prefix": "",
+      "suffix": "book your ______ ______?",
+      "chunks": [
+       "did",
+       "flight",
+       "you",
+       "yet"
+      ],
+      "answer": "Did you book your flight yet?",
+      "explain": ""
+     },
+     {
+      "n": 9,
+      "prompt": "I just started learning French.",
+      "prefix": "",
+      "suffix": "?",
+      "chunks": [
+       "you",
+       "taking",
+       "are",
+       "where",
+       "classes"
+      ],
+      "answer": "Where are you taking classes?",
+      "explain": ""
+     },
+     {
+      "n": 10,
+      "prompt": "Why are you asking about the project deadline?",
+      "prefix": "I'm",
+      "suffix": ".",
+      "chunks": [
+       "checking",
+       "to see",
+       "if",
+       "has been",
+       "extended",
+       "it"
+      ],
+      "answer": "I'm checking to see if it has been extended.",
+      "explain": ""
+     }
+    ],
+    "grading": "提交后与官方句对照：AI 按结构/用词/意思给判定与讲解（意思结构一致即算对，逐词不同但正确也可）；官方句只是参照，不是唯一合法排列。"
+   },
+   {
+    "type": "email",
+    "title": "Write an Email（餐厅失望反馈邮件）",
+    "timeMinutes": 7,
+    "situation": "Your coworker, Kevin, recently recommended a new restaurant for your team to visit. You took the team there, but everyone was disappointed. The food was not as good as expected, and the service was slow. You need to inform Kevin about the situation and discuss future lunch options. Write as much as you can and in complete sentences.",
+    "requirements": [
+     "Explain what was wrong with the restaurant.",
+     "Describe the team's reaction to the visit.",
+     "Suggest alternative lunch arrangements."
+    ],
+    "to": "Kevin",
+    "subject": "Team Lunch Experience",
+    "grading": "按三项要求逐条检查（说明餐厅问题→描述团队反应→提出替代午餐安排）+ 语气得体 + 语法结构；AI 反馈为辅助意见（本套题册无官方范文）。"
+   },
+   {
+    "type": "academic_discussion",
+    "title": "Write for an Academic Discussion（运动与心理健康讨论）",
+    "timeMinutes": 10,
+    "professorPrompt": "Today we'll discuss the effects of exercise on mental health. Clearly, regular physical activity can improve mood and reduce stress. On the other hand, some people believe that mental health is primarily influenced by other factors such as genetics and the environment. Which do you believe plays a larger role in mental health? Why?",
+    "classmates": [
+     {
+      "name": "Student A",
+      "text": "I think regular exercise has a significant positive impact on mental health. It can reduce stress, improve mood, and increase overall well-being by releasing endorphins and promoting a healthy lifestyle."
+     },
+     {
+      "name": "Student B",
+      "text": "I believe that while exercise is important, other factors like genetics and environment play a larger role in mental health. A supportive environment and good mental health practices are crucial for overall well-being."
+     }
+    ],
+    "requirements": [
+     "Express and support your opinion.",
+     "Make a contribution to the discussion in your own words."
+    ],
+    "minWords": 100,
+    "grading": "评分要点：明确立场、给出理由、使用真实可解释的经历例子、末尾总结态度；AI 对照教授问题与两位同学的贡献检查扣题与新贡献，不提供伪官方分数。"
+   }
+  ]
+ }
+}
