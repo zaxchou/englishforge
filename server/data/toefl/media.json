@@ -1,22 +1,231 @@
 {
- "notice": "托福样板章媒体清单（59 号 S1）。媒体 ID → 相对文件的**白名单**：媒体接口只按这里的 ID 分发，绝不接受客户端路径拼接（55 §10）。文件根 = docs/curriculum-v4/toefl-demo-v2/assets（可用 TOEFL_MEDIA_ROOT 覆盖，用于将来接 NAS 教材目录）。大体积导学视频（4 段 35–129MB）不进 git、随百度盘同步，在 NAS 上与仓库同盘可直接读。status: registered=文件已存在待映射验收；mapped=已绑定到某章。",
+ "notice": "托福样板章媒体清单（59 号 S1）。媒体 ID → 相对文件的**白名单**：媒体接口只按这里的 ID 分发，绝不接受客户端路径拼接（55 §10）。文件根 = docs/curriculum-v4/toefl-demo-v2/assets；root=exam 指向 819 真题音频目录（TOEFL_EXAM_ROOT 覆盖）。大体积导学视频（4 段 35–129MB）不进 git、随百度盘同步，在 NAS 上与仓库同盘可直接读。status: registered=文件已存在待映射验收；mapped=已绑定到某章。",
  "mediaRoot": "docs/curriculum-v4/toefl-demo-v2/assets",
  "notesRootNote": "root=notes 的条目按 JunEnglish 教材根解析（env TOEFL_NOTES_ROOT 可覆盖）；目录缺失时接口 404 并说明，不假装可在线打开。",
  "media": {
-  "vid_listening_intro": { "file": "listening-intro.mp4", "kind": "video", "mime": "video/mp4", "status": "mapped", "chapterId": "toefl-listening-s01", "note": "听力学科导学（原 MOV remux，54 §9 抽验 1 份 H.264/AAC；未逐段看完）" },
-  "vid_reading_intro": { "file": "reading-intro.mp4", "kind": "video", "mime": "video/mp4", "status": "mapped", "chapterId": "toefl-reading-s01", "note": "阅读学科导学" },
-  "vid_writing_intro": { "file": "writing-intro.mp4", "kind": "video", "mime": "video/mp4", "status": "mapped", "chapterId": "toefl-writing-s01", "note": "写作学科导学" },
-  "vid_speaking_intro": { "file": "speaking-intro.mp4", "kind": "video", "mime": "video/mp4", "status": "mapped", "chapterId": "toefl-speaking-s01", "note": "口语学科导学" },
-  "aud_listening_conversation": { "file": "conversation.mp4", "kind": "audio", "mime": "audio/mp4", "status": "mapped", "chapterId": "toefl-listening-s01", "note": "听力配套对话原音；与学生版1 PDF19 页 9/10 题的逐段对应**尚未人工审校**（56 §10 如实标注）" },
-  "aud_speaking_interview": { "file": "interview.mp4", "kind": "audio", "mime": "audio/mp4", "status": "mapped", "chapterId": "toefl-speaking-s01", "note": "口语采访原问题音频；对应 PDF36 页" },
-  "aud_speaking_repeat": { "file": "repeat.mp4", "kind": "audio", "mime": "audio/mp4", "status": "registered", "chapterId": null, "note": "听后重复样音：文件在，样板章未用（听后重复是另一练法，56 §3）" },
-  "img_writing_task_page31": { "file": "page31.png", "kind": "image", "mime": "image/png", "status": "mapped", "chapterId": "toefl-writing-s01", "note": "学生版1 PDF31 页投稿故障邮件原题影印" },
-  "img_speaking_task_page36": { "file": "page36.png", "kind": "image", "mime": "image/png", "status": "mapped", "chapterId": "toefl-speaking-s01", "note": "学生版1 PDF36 页采访题影印" },
-  "img_speaking_page29": { "file": "page29.png", "kind": "image", "mime": "image/png", "status": "registered", "chapterId": null, "note": "PDF29 页影印：听后重复相关页，样板章未用" },
-  "pdf_notes_listening": { "file": "新D方/新D方新托福全套/04 新托福  听力 郭小钰/新托福精讲智能系统课听力讲义-郭小钰_精讲段.pdf", "root": "notes", "kind": "file", "mime": "application/pdf", "status": "mapped", "chapterId": "toefl-listening-s01", "note": "郭小钰听力精讲讲义（75 页）" },
-  "pdf_notes_reading": { "file": "新D方/新D方新托福全套/05 新托福  阅读   刘倩俐/新托福精讲智能系统课阅读讲义-刘倩俐-精讲段-上.pdf", "root": "notes", "kind": "file", "mime": "application/pdf", "status": "mapped", "chapterId": "toefl-reading-s01", "note": "刘倩俐阅读精讲上册（72 页）" },
-  "pdf_notes_writing": { "file": "新D方/新D方新托福全套/06 新托福  写作 徐欣/新托福精讲智能系统课写作讲义-徐欣_精讲段.pdf", "root": "notes", "kind": "file", "mime": "application/pdf", "status": "mapped", "chapterId": "toefl-writing-s01", "note": "徐欣写作精讲讲义（77 页）" },
-  "pdf_notes_speaking": { "file": "新D方/新D方新托福全套/07 新托福  口语 张莹炜/新托福精讲智能系统课口语讲义-张莹炜_精讲段-上.pdf", "root": "notes", "kind": "file", "mime": "application/pdf", "status": "mapped", "chapterId": "toefl-speaking-s01", "note": "张莹炜口语精讲上册（51 页）" },
-  "pdf_notes_listenbase": { "file": "新D方/新D方新托福全套/03 托福听口基础能力课/基础听口课程讲义.pdf", "root": "notes", "kind": "file", "mime": "application/pdf", "status": "mapped", "chapterId": "toefl-listening-s01", "note": "吴奇听口基础讲义（137 页）" }
+  "vid_listening_intro": {
+   "file": "listening-intro.mp4",
+   "kind": "video",
+   "mime": "video/mp4",
+   "status": "mapped",
+   "chapterId": "toefl-listening-s01",
+   "note": "听力学科导学（原 MOV remux，54 §9 抽验 1 份 H.264/AAC；未逐段看完）"
+  },
+  "vid_reading_intro": {
+   "file": "reading-intro.mp4",
+   "kind": "video",
+   "mime": "video/mp4",
+   "status": "mapped",
+   "chapterId": "toefl-reading-s01",
+   "note": "阅读学科导学"
+  },
+  "vid_writing_intro": {
+   "file": "writing-intro.mp4",
+   "kind": "video",
+   "mime": "video/mp4",
+   "status": "mapped",
+   "chapterId": "toefl-writing-s01",
+   "note": "写作学科导学"
+  },
+  "vid_speaking_intro": {
+   "file": "speaking-intro.mp4",
+   "kind": "video",
+   "mime": "video/mp4",
+   "status": "mapped",
+   "chapterId": "toefl-speaking-s01",
+   "note": "口语学科导学"
+  },
+  "aud_listening_conversation": {
+   "file": "conversation.mp4",
+   "kind": "audio",
+   "mime": "audio/mp4",
+   "status": "mapped",
+   "chapterId": "toefl-listening-s01",
+   "note": "听力配套对话原音；与学生版1 PDF19 页 9/10 题的逐段对应**尚未人工审校**（56 §10 如实标注）"
+  },
+  "aud_speaking_interview": {
+   "file": "interview.mp4",
+   "kind": "audio",
+   "mime": "audio/mp4",
+   "status": "mapped",
+   "chapterId": "toefl-speaking-s01",
+   "note": "口语采访原问题音频；对应 PDF36 页"
+  },
+  "aud_speaking_repeat": {
+   "file": "repeat.mp4",
+   "kind": "audio",
+   "mime": "audio/mp4",
+   "status": "registered",
+   "chapterId": null,
+   "note": "听后重复样音：文件在，样板章未用（听后重复是另一练法，56 §3）"
+  },
+  "img_writing_task_page31": {
+   "file": "page31.png",
+   "kind": "image",
+   "mime": "image/png",
+   "status": "mapped",
+   "chapterId": "toefl-writing-s01",
+   "note": "学生版1 PDF31 页投稿故障邮件原题影印"
+  },
+  "img_speaking_task_page36": {
+   "file": "page36.png",
+   "kind": "image",
+   "mime": "image/png",
+   "status": "mapped",
+   "chapterId": "toefl-speaking-s01",
+   "note": "学生版1 PDF36 页采访题影印"
+  },
+  "img_speaking_page29": {
+   "file": "page29.png",
+   "kind": "image",
+   "mime": "image/png",
+   "status": "registered",
+   "chapterId": null,
+   "note": "PDF29 页影印：听后重复相关页，样板章未用"
+  },
+  "pdf_notes_listening": {
+   "file": "新D方/新D方新托福全套/04 新托福  听力 郭小钰/新托福精讲智能系统课听力讲义-郭小钰_精讲段.pdf",
+   "root": "notes",
+   "kind": "file",
+   "mime": "application/pdf",
+   "status": "mapped",
+   "chapterId": "toefl-listening-s01",
+   "note": "郭小钰听力精讲讲义（75 页）"
+  },
+  "pdf_notes_reading": {
+   "file": "新D方/新D方新托福全套/05 新托福  阅读   刘倩俐/新托福精讲智能系统课阅读讲义-刘倩俐-精讲段-上.pdf",
+   "root": "notes",
+   "kind": "file",
+   "mime": "application/pdf",
+   "status": "mapped",
+   "chapterId": "toefl-reading-s01",
+   "note": "刘倩俐阅读精讲上册（72 页）"
+  },
+  "pdf_notes_writing": {
+   "file": "新D方/新D方新托福全套/06 新托福  写作 徐欣/新托福精讲智能系统课写作讲义-徐欣_精讲段.pdf",
+   "root": "notes",
+   "kind": "file",
+   "mime": "application/pdf",
+   "status": "mapped",
+   "chapterId": "toefl-writing-s01",
+   "note": "徐欣写作精讲讲义（77 页）"
+  },
+  "pdf_notes_speaking": {
+   "file": "新D方/新D方新托福全套/07 新托福  口语 张莹炜/新托福精讲智能系统课口语讲义-张莹炜_精讲段-上.pdf",
+   "root": "notes",
+   "kind": "file",
+   "mime": "application/pdf",
+   "status": "mapped",
+   "chapterId": "toefl-speaking-s01",
+   "note": "张莹炜口语精讲上册（51 页）"
+  },
+  "pdf_notes_listenbase": {
+   "file": "新D方/新D方新托福全套/03 托福听口基础能力课/基础听口课程讲义.pdf",
+   "root": "notes",
+   "kind": "file",
+   "mime": "application/pdf",
+   "status": "mapped",
+   "chapterId": "toefl-listening-s01",
+   "note": "吴奇听口基础讲义（137 页）"
+  },
+  "exam1_l_m1_response": {
+   "file": "819新托福真题持续更新/托福18套/01. 官方学生版样题2套（包含音频、答案）（第1套有解析）/托福样题01音频/托福样题01-听力-Module 01-01-Listen and Choose a Response.mp3",
+   "root": "exam",
+   "kind": "audio",
+   "mime": "audio/mpeg",
+   "status": "mapped",
+   "chapterId": null,
+   "note": "exam-pack1 听力M1 选回应"
+  },
+  "exam1_l_m1_conv1": {
+   "file": "819新托福真题持续更新/托福18套/01. 官方学生版样题2套（包含音频、答案）（第1套有解析）/托福样题01音频/托福样题01-听力-Module 01-02-Conversation 01.mp3",
+   "root": "exam",
+   "kind": "audio",
+   "mime": "audio/mpeg",
+   "status": "mapped",
+   "chapterId": null,
+   "note": "exam-pack1 听力M1 对话1（超市/看剧）"
+  },
+  "exam1_l_m1_conv2": {
+   "file": "819新托福真题持续更新/托福18套/01. 官方学生版样题2套（包含音频、答案）（第1套有解析）/托福样题01音频/托福样题01-听力-Module 01-02-Conversation 02.mp3",
+   "root": "exam",
+   "kind": "audio",
+   "mime": "audio/mpeg",
+   "status": "mapped",
+   "chapterId": null,
+   "note": "exam-pack1 听力M1 对话2（空调维修）"
+  },
+  "exam1_l_m1_announce": {
+   "file": "819新托福真题持续更新/托福18套/01. 官方学生版样题2套（包含音频、答案）（第1套有解析）/托福样题01音频/托福样题01-听力-Module 01-03-Announcement.mp3",
+   "root": "exam",
+   "kind": "audio",
+   "mime": "audio/mpeg",
+   "status": "mapped",
+   "chapterId": null,
+   "note": "exam-pack1 听力M1 课堂通知（嘉宾讲座）"
+  },
+  "exam1_l_m1_talk": {
+   "file": "819新托福真题持续更新/托福18套/01. 官方学生版样题2套（包含音频、答案）（第1套有解析）/托福样题01音频/托福样题01-听力-Module 01-04-Academic Talk.mp3",
+   "root": "exam",
+   "kind": "audio",
+   "mime": "audio/mpeg",
+   "status": "mapped",
+   "chapterId": null,
+   "note": "exam-pack1 听力M1 学术谈话（心理学播客）"
+  },
+  "exam1_l_m2_response": {
+   "file": "819新托福真题持续更新/托福18套/01. 官方学生版样题2套（包含音频、答案）（第1套有解析）/托福样题01音频/托福样题01-听力-Module 02-01-Listen and Choose a Response.mp3",
+   "root": "exam",
+   "kind": "audio",
+   "mime": "audio/mpeg",
+   "status": "mapped",
+   "chapterId": null,
+   "note": "exam-pack1 听力M2 选回应"
+  },
+  "exam1_l_m2_conv1": {
+   "file": "819新托福真题持续更新/托福18套/01. 官方学生版样题2套（包含音频、答案）（第1套有解析）/托福样题01音频/托福样题01-听力-Module 02-02-Conversation 01.mp3",
+   "root": "exam",
+   "kind": "audio",
+   "mime": "audio/mpeg",
+   "status": "mapped",
+   "chapterId": null,
+   "note": "exam-pack1 听力M2 对话（选设备）"
+  },
+  "exam1_l_m2_announce": {
+   "file": "819新托福真题持续更新/托福18套/01. 官方学生版样题2套（包含音频、答案）（第1套有解析）/托福样题01音频/托福样题01-听力-Module 02-03-Announcement.mp3",
+   "root": "exam",
+   "kind": "audio",
+   "mime": "audio/mpeg",
+   "status": "mapped",
+   "chapterId": null,
+   "note": "exam-pack1 听力M2 通知（休息室关闭）"
+  },
+  "exam1_l_m2_talk": {
+   "file": "819新托福真题持续更新/托福18套/01. 官方学生版样题2套（包含音频、答案）（第1套有解析）/托福样题01音频/托福样题01-听力-Module 02-04-Academic Talk.mp3",
+   "root": "exam",
+   "kind": "audio",
+   "mime": "audio/mpeg",
+   "status": "mapped",
+   "chapterId": null,
+   "note": "exam-pack1 听力M2 讲座（生态足迹）"
+  },
+  "exam1_s_repeat": {
+   "file": "819新托福真题持续更新/托福18套/01. 官方学生版样题2套（包含音频、答案）（第1套有解析）/托福样题01音频/托福样题01-口语-01-Listen and Repeat.mp3",
+   "root": "exam",
+   "kind": "audio",
+   "mime": "audio/mpeg",
+   "status": "mapped",
+   "chapterId": null,
+   "note": "exam-pack1 口语 跟读 7 句"
+  },
+  "exam1_s_interview": {
+   "file": "819新托福真题持续更新/托福18套/01. 官方学生版样题2套（包含音频、答案）（第1套有解析）/托福样题01音频/托福样题01-口语-02-Interview.mp3",
+   "root": "exam",
+   "kind": "audio",
+   "mime": "audio/mpeg",
+   "status": "mapped",
+   "chapterId": null,
+   "note": "exam-pack1 口语 采访 4 问"
+  }
  }
 }

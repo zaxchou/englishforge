@@ -20,7 +20,7 @@ const TTS_VOICE = 'Cherry'
 let chatImpl = null
 export function __setTeacherChat(fn) { chatImpl = fn }
 export function __resetTeacherChat() { chatImpl = null }
-async function teacherChat(messages, opts) {
+export async function teacherChat(messages, opts) {
   if (chatImpl) return chatImpl(messages, opts)
   return chatWithMeta(messages, opts)
 }

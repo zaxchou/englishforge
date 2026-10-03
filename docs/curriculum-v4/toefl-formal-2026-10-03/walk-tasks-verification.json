@@ -1,0 +1,39 @@
+{
+ "date": "2026-10-03T03:41:56.984Z",
+ "steps": [
+  {
+   "step": "app-loaded",
+   "hasAccount": true
+  },
+  {
+   "step": "account-created",
+   "acct": "acc_kjp0roi7nw"
+  },
+  {
+   "step": "launcher",
+   "hasLegacy": true,
+   "hasV4": true,
+   "hasToefl": true
+  },
+  {
+   "step": "exam-library",
+   "hasSnapshot": true,
+   "packs": 32
+  },
+  {
+   "step": "reading-answered",
+   "blanks": 20,
+   "radios": 80
+  },
+  {
+   "step": "reading-submitted",
+   "score": "本部分得分：5 / 40\n\n35 道错题已自动进入错题本（可重训到全对）。"
+  },
+  {
+   "step": "error-retrain-dismiss",
+   "trainMsg": "✗ 还没对。正确答案：B。这里指'精心整理产品结构'，不是减少或增加，而是有策略地呈现。 这道题继续留在训练队列。",
+   "statAfter": "34 训练中 1 已打勾结业 35 全部记录"
+  }
+ ],
+ "consoleErrors": []
+}

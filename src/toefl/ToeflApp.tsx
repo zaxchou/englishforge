@@ -4,6 +4,7 @@
 // 口语无 ASR → 本人补录文字稿（origin=user_typed）。
 import { useCallback, useEffect, useRef, useState } from 'react'
 import './toefl.css'
+import { ExamLibrary, ExamRunner } from './ExamRunner'
 
 // ---------- 类型 ----------
 
@@ -669,12 +670,16 @@ function ProfilePage({ accountId, data, onSaved }: { accountId: string; data: Da
 }
 
 const STATUS_LABEL: Record<string, string> = {
-  pending_review: '待复盘', reviewed: '已复盘待重做', awaiting_new_check: '原题修正待新题验证',
-  verified: '新题验证通过', disputed: '有争议', analyze_failed: '分析失败可重试',
+  pending_review: '待复盘', reviewed: '已复盘', awaiting_new_check: '待新题验证',
+  verified: '新题验证通过', disputed: '有争议', analyze_failed: '分析失败可重试', dismissed: '已打勾 · 不再训练',
 }
 
 function ErrorsPage({ accountId, onChanged }: { accountId: string; onChanged: () => void }) {
   const [errors, setErrors] = useState<ErrorEntry[] | null>(null)
+  const [filter, setFilter] = useState<'active' | 'dismissed' | 'all'>('active')
+  const [training, setTraining] = useState<{ errorId: string; kind: string; prompt: string; options: string[] | null; groupTitle: string | null; streak: number } | null>(null)
+  const [trainValue, setTrainValue] = useState<string>('')
+  const [trainMsg, setTrainMsg] = useState('')
   const load = useCallback(async () => {
     setErrors((await api<{ errors: ErrorEntry[] }>(`/api/toefl/accounts/${accountId}/errors`)).errors)
   }, [accountId])
@@ -683,29 +688,93 @@ function ErrorsPage({ accountId, onChanged }: { accountId: string; onChanged: ()
     try {
       await api(`/api/toefl/accounts/${accountId}/errors/${errorId}/status`, { status }, 'POST')
       await load(); onChanged()
-    } catch (e) { alert(humanize(String((e as Error).message))) }
+    } catch (e) { alert(String((e as Error).message).replace(/^[A-Z_]+:\s*/, '')) }
+  }
+  const startTraining = async (errorId: string) => {
+    setTrainMsg(''); setTrainValue('')
+    try {
+      const q = await api<any>(`/api/toefl/accounts/${accountId}/errors/${errorId}/retry`)
+      setTraining({ errorId, kind: q.kind, prompt: q.prompt, options: q.options, groupTitle: q.groupTitle, streak: q.streak })
+    } catch (e) { setTrainMsg(String((e as Error).message).replace(/^[A-Z_]+:\s*/, '')) }
+  }
+  const submitAnswer = async () => {
+    if (!training) return
+    try {
+      const value = training.kind === 'mc' ? Number(trainValue) : trainValue
+      const r = await api<any>(`/api/toefl/accounts/${accountId}/errors/${training.errorId}/answer`, { value }, 'POST')
+      setTrainMsg(r.correct
+        ? `✓ 答对了！${r.streak >= 1 ? `这条已连对 ${r.streak} 次。` : ''}${r.explain ? ` ${r.explain}` : ''}`
+        : `✗ 还没对。正确答案：${r.keyText}。${r.explain ?? ''} 这道题继续留在训练队列。`)
+      if (r.correct) setTraining({ ...training, streak: r.streak })
+      await load(); onChanged()
+    } catch (e) { setTrainMsg(String((e as Error).message).replace(/^[A-Z_]+:\s*/, '')) }
+  }
+  const dismiss = async (errorId: string) => {
+    await api(`/api/toefl/accounts/${accountId}/errors/${errorId}/dismiss`, {}, 'POST').catch(() => {})
+    await load(); onChanged()
+  }
+  const restore = async (errorId: string) => {
+    await api(`/api/toefl/accounts/${accountId}/errors/${errorId}/restore`, {}, 'POST').catch(() => {})
+    await load(); onChanged()
   }
   if (!errors) return <p className="muted">正在读取…</p>
+  const shown = errors.filter((e) => filter === 'all' ? true : filter === 'dismissed' ? e.status === 'dismissed' : e.status !== 'dismissed')
+  const activeCount = errors.filter((e) => e.status !== 'dismissed' && e.status !== 'verified').length
   return <>
-    <div className="eyebrow">跨课程记录</div>
+    <div className="eyebrow">跨课程记录 · 课程与模考共用</div>
     <h1>错题本</h1>
-    <p className="muted">保留首次错误和当时的疑问，重做不增加独立样本。</p>
-    {errors.length
-      ? errors.map((e) => (
+    <p className="muted">保留首次错误和当时的疑问；重做到连对为止，或自己打勾标记不再训练（历史保留，随时恢复）。</p>
+    <div className="statline">
+      <div><strong>{activeCount}</strong><span>训练中</span></div>
+      <div><strong>{errors.filter((e) => e.status === 'dismissed').length}</strong><span>已打勾结业</span></div>
+      <div><strong>{errors.length}</strong><span>全部记录</span></div>
+    </div>
+    <div className="row" style={{ marginBottom: 8 }}>
+      {([['active', '训练中'], ['dismissed', '已打勾'], ['all', '全部']] as const).map(([k, label]) => (
+        <button key={k} className={filter === k ? '' : 'secondary'} onClick={() => setFilter(k)}>{label}</button>
+      ))}
+    </div>
+    {training && <div className="panel" style={{ borderColor: 'var(--action)' }}>
+      <b>重训这道题</b>
+      {training.groupTitle && <p className="source">{esc(training.groupTitle)}</p>}
+      <p>{esc(training.prompt)}</p>
+      {training.kind === 'mc'
+        ? <div className="choices">
+            {(training.options ?? []).map((o, i) => (
+              <label key={i}>
+                <input type="radio" name="retrain" checked={trainValue === String(i)} onChange={() => setTrainValue(String(i))} />
+                {String.fromCharCode(65 + i)}. {o}
+              </label>
+            ))}
+          </div>
+        : <input type="text" value={trainValue} onChange={(e) => setTrainValue(e.target.value)} placeholder="填缺失字母" style={{ width: '100%', padding: 10, border: '1px solid var(--control)', borderRadius: 6 }} />}
+      <div className="row" style={{ marginTop: 10 }}>
+        <button className="primary" disabled={trainValue === ''} onClick={submitAnswer}>提交答案</button>
+        <button className="secondary" onClick={() => { setTraining(null); setTrainMsg('') }}>收起</button>
+        {training.streak > 0 && <span className="noteSaved">已连对 {training.streak} 次</span>}
+      </div>
+      {trainMsg && <p className="noteSaved">{trainMsg}</p>}
+    </div>}
+    {shown.length
+      ? shown.map((e) => (
         <article className="records" key={e.errorId}>
           <span className="tag">{e.partName} / {esc(e.tag) || '待归类'}</span>
           <h3>{e.title}</h3>
           <p>{e.detail}</p>
-          {e.retries > 0 && <p className="source">已重做 {e.retries} 次（同题重做不计独立能力）</p>}
-          <span className="source">状态：{STATUS_LABEL[e.status] ?? e.status}{e.hypothesis?.statement ? ` · 假设：${e.hypothesis.statement}` : ''}</span>
+          <span className="source">状态：{STATUS_LABEL[e.status] ?? e.status}{e.retries > 0 ? ` · 重做错 ${e.retries} 次` : ''}{(e as any).answer_streak > 0 ? ` · 连对 ${(e as any).answer_streak} 次` : ''}</span>
           <div className="row">
-            {e.status === 'pending_review' && <button onClick={() => setStatus(e.errorId, 'reviewed')}>标记：已复盘</button>}
-            {e.status === 'reviewed' && <button onClick={() => setStatus(e.errorId, 'awaiting_new_check')}>标记：等新题验证</button>}
-            <button className="secondary" onClick={() => setStatus(e.errorId, 'disputed')}>我对这条有异议</button>
+            {e.status === 'dismissed'
+              ? <button onClick={() => restore(e.errorId)}>恢复训练</button>
+              : <>
+                  {!['verified'].includes(e.status) && <button onClick={() => startTraining(e.errorId)}>重做这道题</button>}
+                  {e.status === 'pending_review' && <button className="secondary" onClick={() => setStatus(e.errorId, 'reviewed')}>标记：已复盘</button>}
+                  {e.status === 'reviewed' && <button className="secondary" onClick={() => setStatus(e.errorId, 'awaiting_new_check')}>标记：等新题验证</button>}
+                  <button className="secondary" onClick={() => dismiss(e.errorId)}>✓ 打勾 · 不再训练</button>
+                </>}
           </div>
         </article>
       ))
-      : <div className="blank">尚无错题记录。可以从配套题提交，或主动记录猜对、卡住的地方。</div>}
+      : <div className="blank">这个视图下没有记录。做错题、猜对或卡住的题都会进到这里。</div>}
   </>
 }
 
@@ -739,14 +808,10 @@ function ResourcesPage({ catalog }: { catalog: { resources: { videoCatalog: { vi
   </>
 }
 
-function TestPage() {
-  return <>
-    <div className="eyebrow">与课程共用原题与曝光记录</div>
-    <h1>独立真题测试</h1>
-    <p>课内精学有帮助，独立检查不看稿、不查答案，结束后再复盘。</p>
-    <div className="method">样板题已曝光，不当未见测试。还没有已核验的未见题池，因此这里不会给出模考分数。题池建设见 59 号账本（H4/H5）。</div>
-    <div className="section row" />
-  </>
+function TestPage({ accountId }: { accountId: string }) {
+  const [examId, setExamId] = useState<string | null>(null)
+  if (examId) return <ExamRunner accountId={accountId} examId={examId} onExit={() => setExamId(null)} />
+  return <ExamLibrary onOpen={setExamId} />
 }
 
 interface CatalogFull {
@@ -853,7 +918,7 @@ export function ToeflApp({ accountId, onExit }: { accountId: string; onExit: () 
             {view === 'errors' && <ErrorsPage accountId={accountId} onChanged={loadDashboard} />}
             {view === 'weak' && data && <WeakPage data={data} />}
             {view === 'resources' && catalog && <ResourcesPage catalog={catalog} />}
-            {view === 'test' && <TestPage />}
+            {view === 'test' && <TestPage accountId={accountId} />}
           </div>
         </div>
       </div>

@@ -3,7 +3,7 @@
 // 进度只算一个地方：这里。Dashboard 与课程页都吃本文件的纯函数，
 // 禁止两套页面各写各的百分比（57「禁止两套页面各写各的百分比」）。
 // 分母 = 当前版本已发布章 × 该章 requiredActivities 数；方法学习是视频/讲义 OR 路径，不重复加分。
-import { readFileSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -49,7 +49,21 @@ export function mediaRoot(entry) {
     // 教材根 = JunEnglish（notes 条目的 file 以 新D方/… 开头）；env 可覆盖
     return process.env.TOEFL_NOTES_ROOT ?? resolve(HERE, '..', '..', '..')
   }
+  if (entry?.root === 'exam') {
+    // 真题音频根（819 目录）；env 可覆盖
+    return process.env.TOEFL_EXAM_ROOT ?? resolve(HERE, '..', '..', '..')
+  }
   return process.env.TOEFL_MEDIA_ROOT ?? resolve(resolve(HERE, '..', '..'), toeflMediaMap().mediaRoot)
+}
+
+/** 已数字化的真题套（server/data/toefl/exams/*.json） */
+export function toeflExamPack(examId) {
+  try {
+    return JSON.parse(readFileSync(join(DATA, 'exams', `${examId}.json`), 'utf8'))
+  } catch { return null }
+}
+export function toeflExamIds() {
+  try { return readdirSync(join(DATA, 'exams')).filter((f) => f.endsWith('.json')).map((f) => f.replace(/\.json$/, '')) } catch { return [] }
 }
 
 /** 该章必需活动清单 */

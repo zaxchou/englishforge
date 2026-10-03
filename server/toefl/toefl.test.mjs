@@ -234,3 +234,87 @@ it('60-d verified 不可无凭据直达：必须绑定 timed_check 作答（60-d
   expect(r.status).toBe(409)
   expect(r.json.error).toContain('TOEFL_VERIFICATION_UNBACKED')
 })
+
+// ---- 真题模考（用户指令 2/3）----
+
+/** 全卷作答助手：按题库结构生成一套"全填 zz/全选 A"的答案，再覆盖指定的两题为正确答案 */
+function fullAnswers(exam, section, overrides = {}) {
+  const out = {}
+  for (const m of exam.sections[section].modules) {
+    for (const g of m.groups) {
+      for (const q of g.questions) {
+        const k = `${m.moduleId}-${g.type === 'cloze' ? 'c' : 'q'}-${q.n}`
+        out[k] = g.type === 'cloze' ? 'zz' : 0
+      }
+    }
+  }
+  return { ...out, ...overrides }
+}
+
+
+it('模考：题库下发不带官方答案；判分按官方键；错题自动入错题本', async () => {
+  const id = await freshAccount('模考')
+  const exam = (await call(`/api/toefl/accounts/${id}/exam/pack1`)).json
+  expect(exam.meta.examId).toBe('pack1')
+  expect(Object.keys(exam.sections)).toEqual(['reading', 'listening', 'speaking', 'writing'])
+  expect(JSON.stringify(exam.sections)).not.toMatch(/"(answer|explain)":/)
+  expect(exam.sections.reading.modules).toHaveLength(2)
+  expect(exam.sections.listening.modules[0].groups.every((g) => !g.transcript)).toBe(true) // 首听无稿
+  // 空/漏答拒绝（60 复审同款）
+  const partial = await call(`/api/toefl/accounts/${id}/exam/pack1/reading/submit`, { answers: { 'reading-m1-c-1': 'GHT' } }, 'POST')
+  expect(partial.status).toBe(400)
+  expect(partial.json.error).toContain('TOEFL_INCOMPLETE_SUBMISSION')
+  // 全卷作答：2 对 38 错（全卷 40 题）
+  const full = fullAnswers(exam, 'reading', { 'reading-m1-c-1': 'GHT', 'reading-m1-q-11': 3 })
+  const r = await call(`/api/toefl/accounts/${id}/exam/pack1/reading/submit`, { answers: full }, 'POST')
+  expect(r.status).toBe(200)
+  expect(r.json.score.total).toBe(40)
+  expect(r.json.score.correct).toBe(r.json.results.filter((x) => x.correct).length)
+  expect(r.json.score.correct).toBeGreaterThanOrEqual(2) // 至少 c-1 与 q-11 两题对（全选 A 可能撞中个别官方键）
+  expect(r.json.results.find((x) => x.qKey === 'reading-m1-c-4').keyText).toBe('ly') // 官方键：only
+  expect(r.json.debrief).toBeTruthy()
+  const errs = (await call(`/api/toefl/accounts/${id}/errors`)).json.errors
+  expect(errs).toHaveLength(r.json.wrongCount)
+  expect(errs.every((e) => e.questionFamilyId.startsWith('exam:pack1:'))).toBe(true)
+})
+
+it('模考幂等：重复交卷回看结果，不重复判分、不重复登记错题', async () => {
+  const id = await freshAccount('模考幂等')
+  const exam = (await call(`/api/toefl/accounts/${id}/exam/pack1`)).json
+  const answers = fullAnswers(exam, 'reading')
+  const r1 = await call(`/api/toefl/accounts/${id}/exam/pack1/reading/submit`, { answers }, 'POST')
+  expect(r1.json.replayed).toBeFalsy()
+  const r2 = await call(`/api/toefl/accounts/${id}/exam/pack1/reading/submit`, { answers }, 'POST')
+  expect(r2.json.replayed).toBe(true)
+  expect(r2.json.score).toEqual(r1.json.score)
+  expect((await call(`/api/toefl/accounts/${id}/errors`)).json.errors).toHaveLength(r1.json.wrongCount)
+})
+
+it('错题重训：连对计数、答错清零、打勾结业与恢复', async () => {
+  const id = await freshAccount('重训')
+  const exam = (await call(`/api/toefl/accounts/${id}/exam/pack1`)).json
+  await call(`/api/toefl/accounts/${id}/exam/pack1/reading/submit`, { answers: fullAnswers(exam, 'reading', { 'reading-m1-q-11': 0 }) }, 'POST')
+  const { errors } = (await call(`/api/toefl/accounts/${id}/errors`)).json
+  const target = errors.find((e) => e.questionFamilyId === 'exam:pack1:reading-m1-q-11')
+  const q = (await call(`/api/toefl/accounts/${id}/errors/${target.errorId}/retry`)).json
+  expect(q.kind).toBe('mc')
+  expect(q.options).toHaveLength(4)
+  const ok = await call(`/api/toefl/accounts/${id}/errors/${target.errorId}/answer`, { value: 3 }, 'POST') // 官方键 D
+  expect(ok.json.correct).toBe(true)
+  expect(ok.json.streak).toBe(1)
+  const bad = await call(`/api/toefl/accounts/${id}/errors/${target.errorId}/answer`, { value: 0 }, 'POST')
+  expect(bad.json.correct).toBe(false)
+  expect(bad.json.streak).toBe(0)
+  expect(bad.json.retries).toBe(1)
+  const dismissed = await call(`/api/toefl/accounts/${id}/errors/${target.errorId}/dismiss`, {}, 'POST')
+  expect(dismissed.json.error.status).toBe('dismissed')
+  const restored = await call(`/api/toefl/accounts/${id}/errors/${target.errorId}/restore`, {}, 'POST')
+  expect(restored.json.error.status).toBe('pending_review')
+})
+
+it('真题库清单：扫描结果可用且不含伪造题数', async () => {
+  const lib = (await call('/api/toefl/exam/library')).json
+  expect(lib.packs.length).toBeGreaterThan(20)
+  expect(lib.totalFiles).toBeGreaterThan(1000)
+  expect(lib.notice).toContain('不等于题数')
+})

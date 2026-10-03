@@ -1,0 +1,1245 @@
+{
+ "meta": {
+  "examId": "pack1",
+  "title": "官方学生版样题 第1套（2026 新题型全真模拟）",
+  "sourcePack": "819新托福真题持续更新/托福18套/01. 官方学生版样题2套（包含音频、答案）（第1套有解析）",
+  "sourceFiles": {
+   "questions": "托福改革样题第1套（题目）toefl-full-length-practice.pdf（36页影印）",
+   "answers": "托福改革后题库第1套（解析）.pdf（14页）",
+   "audio": "托福样题01音频/（10 段 mp3）"
+  },
+  "digitizedAt": 1759500000000,
+  "digitization": "题目/转写自影印页逐题转录；判分以题目册内官方 Answer Key 为准（q13/q14/q26/q27/q32 页）。第三方解析册仅作讲解文本来源，发现其听力 M1 对话 Q9 与官方键不符（解析 B / 官方 C）——以官方为准。",
+  "order": [
+   "reading",
+   "listening",
+   "speaking",
+   "writing"
+  ],
+  "status": "published",
+  "honestyNote": "官方不提供跨题时长校准：界面显示建议用时但不强制倒计时；口语/写作为开放题，AI 反馈是辅助意见不是 ETS 分数。"
+ },
+ "reading": {
+  "label": "阅读 Reading",
+  "modules": [
+   {
+    "moduleId": "reading-m1",
+    "title": "Reading Module 1",
+    "audioMediaId": null,
+    "groups": [
+     {
+      "type": "cloze",
+      "title": "Fill in the missing letters（Questions 1–10）",
+      "instruction": "在段落挖空处填上缺失的字母。",
+      "passage": "We know from drawings that have been preserved in caves for over 10,000 years that early humans performed dances as a group activity. We mi____[1] think th____[2] prehistoric peo____[3] concentrated on____[4] on ba____[5] survival. How______[6] it i_[7] clear fr___[8] the rec____[9] that dan____[10] was important to them. They recorded more drawings of dances than of any other group activity. Dances served various purposes, including ritualistic communication with the divine, storytelling, and social cohesion.",
+      "questions": [
+       {
+        "n": 1,
+        "prompt": "第 1 空（mi____）",
+        "answer": "ght",
+        "explain": "might：情态动词 'might think'（也许认为）固定搭配，填 ght。"
+       },
+       {
+        "n": 2,
+        "prompt": "第 2 空（th____）",
+        "answer": "at",
+        "explain": "that：连接宾语从句，'think that…'。"
+       },
+       {
+        "n": 3,
+        "prompt": "第 3 空（peo____）",
+        "answer": "ple",
+        "explain": "people：'prehistoric people'（史前人类）固定搭配。"
+       },
+       {
+        "n": 4,
+        "prompt": "第 4 空（on____）",
+        "answer": "ly",
+        "explain": "only：'concentrated only on basic survival'——只专注于基本生存。"
+       },
+       {
+        "n": 5,
+        "prompt": "第 5 空（ba____）",
+        "answer": "sic",
+        "explain": "basic：'basic survival'（基本生存）。"
+       },
+       {
+        "n": 6,
+        "prompt": "第 6 空（How______）",
+        "answer": "ever",
+        "explain": "However：转折词，观点对比。"
+       },
+       {
+        "n": 7,
+        "prompt": "第 7 空（it i_）",
+        "answer": "s",
+        "explain": "is：'it is clear from…' 常用表达结构。"
+       },
+       {
+        "n": 8,
+        "prompt": "第 8 空（fr___）",
+        "answer": "om",
+        "explain": "from：'clear from the records' 固定搭配。"
+       },
+       {
+        "n": 9,
+        "prompt": "第 9 空（rec____）",
+        "answer": "ord",
+        "explain": "records：舞蹈被'记录'下来。"
+       },
+       {
+        "n": 10,
+        "prompt": "第 10 空（dan____）",
+        "answer": "cing",
+        "explain": "dancing：动名词形式作主语。"
+       }
+      ]
+     },
+     {
+      "type": "reading_mc",
+      "title": "Read a notice.（Municipal Charter）",
+      "passage": "Municipal Charter — Sign up for paperless billing statements today.\n\nSafe, convenient, easy. Enroll in paperless billing to receive monthly savings account statements in an electronic PDF document. Access your Municipal Charter account through the mobile app and select account preferences in the upper right-hand corner to enroll.",
+      "questions": [
+       {
+        "n": 11,
+        "prompt": "What type of business issued the notice?",
+        "options": [
+         "An Internet provider",
+         "A computer company",
+         "A paper company",
+         "A bank"
+        ],
+        "key": 3,
+        "explain": "通知内容提到 'monthly savings account statements'（储蓄账户月度结单），是银行服务；虽然名称含 Municipal Charter 看似政府机构，但储蓄业务说明其为银行。"
+       },
+       {
+        "n": 12,
+        "prompt": "How can customers enroll in paperless billing?",
+        "options": [
+         "By visiting a Municipal Charter office",
+         "By accessing the Municipal Charter website",
+         "By using the Municipal Charter app",
+         "By calling a Municipal Charter customer service representative"
+        ],
+        "key": 2,
+        "explain": "通知写道：'Access your Municipal Charter account through the mobile app and select account preferences…'——通过手机 App 完成。"
+       }
+      ]
+     },
+     {
+      "type": "reading_mc",
+      "title": "Read a social media post.（Sofia Baker）",
+      "passage": "Sofia Baker: Every Saturday, our local farmer's market is the place to be! Fresh fruits, veggies, homemade goodies, and unique crafts await you. The Thompson family's organic produce is a must-try, known for its quality and cordial service. Their stall is always bustling with customers eager to buy fresh, pesticide-free vegetables from the welcoming staff.\n\nDon't miss the bakery stall—get there early for the best bread and pastries, including gluten-free and vegan options. The smell of freshly baked goods fills the air, and these treats sell out fast!\n\nIn addition to food, the market sells handmade crafts like jewelry, pottery, and textiles. These unique items make perfect gifts and support local artisans. Plus, enjoy live music while you shop. Talented local musicians help create a vibrant atmosphere, and the community spirit makes it a delightful experience for all. See you there!",
+      "questions": [
+       {
+        "n": 13,
+        "prompt": "What is the main purpose of the post?",
+        "options": [
+         "To explain the benefits of organic farming",
+         "To describe the variety of products available at the farmer's market",
+         "To compare different farmer's markets in the area",
+         "To offer advice on starting a stall at the farmer's market"
+        ],
+        "key": 1,
+        "explain": "文章提到各种有机蔬菜、手工制品、烘焙、音乐等，核心在'内容丰富'而非宣传某一摊位。"
+       },
+       {
+        "n": 14,
+        "prompt": "What reason is given for the popularity of the Thompson family's stall?",
+        "options": [
+         "They offer cooking tips and recipes.",
+         "They offer the lowest prices at the market.",
+         "They provide friendly service and excellent products.",
+         "They have a beautiful and well-decorated stall."
+        ],
+        "key": 2,
+        "explain": "文中写道：'known for its quality and cordial service.'（以品质和热情服务著称。）"
+       },
+       {
+        "n": 15,
+        "prompt": "Why do customers go to the bakery stall early?",
+        "options": [
+         "To get the free samples given in mornings",
+         "To get freshly baked bread and pastries before they are gone",
+         "To meet the famous baker",
+         "To take advantage of early morning discounts"
+        ],
+        "key": 1,
+        "explain": "'sell out fast'（很快卖完）是关键信息——早去是为了在卖完前买到。"
+       }
+      ]
+     },
+     {
+      "type": "reading_mc",
+      "title": "The Mirror Test",
+      "passage": "Very young children cannot recognize themselves in a mirror; they usually achieve this milestone around 18 months of age. The ability to recognize oneself in the mirror is considered to be a key component of self-awareness and consciousness for humans. But what about animals?\n\nFor many years, scientists have known that members of the great ape family could recognize themselves in mirrors. They measured this by the \"mirror test,\" which involved putting a colored mark on an ape's body, and then showing the ape its reflection in a mirror. If the ape tried to remove the mark on its own body, the scientists knew that the ape was recognizing its reflection.\n\nApes are close relatives of humans, but in recent years, scientists have discovered that other animals also pass the \"mirror test.\" Elephants and dolphins have shown signs of self-recognition. These, like apes, are highly intelligent animals. But in a more recent experiment, a type of fish called the cleaner fish tried to scrape a mark off its body when it saw itself in the mirror. This suggests that even less intelligent animals may possess more self-awareness than previously suspected.",
+      "questions": [
+       {
+        "n": 16,
+        "prompt": "What is the passage mainly about?",
+        "options": [
+         "Stages of early childhood development",
+         "Research on animal cognition",
+         "Differences between apes, elephants, and dolphins",
+         "Recent experiments on fish"
+        ],
+        "key": 1,
+        "explain": "全文围绕镜子测试展开的动物认知研究。"
+       },
+       {
+        "n": 17,
+        "prompt": "The word \"milestone\" in the first sentence is closest in meaning to",
+        "options": [
+         "accomplishment",
+         "distance",
+         "weight",
+         "discovery"
+        ],
+        "key": 0,
+        "explain": "原句 'very young children achieve this milestone around 18 months of age'——成长中的一个重要阶段或能力的达成，最近似 accomplishment。"
+       },
+       {
+        "n": 18,
+        "prompt": "Why did scientists put colored marks on animals' bodies?",
+        "options": [
+         "It made it possible to track the animals' movements.",
+         "It helped them determine whether the animals recognized themselves.",
+         "It made it easier to tell the animals apart.",
+         "It showed whether some animals can detect color differences."
+        ],
+        "key": 1,
+        "explain": "把颜色标记涂在猿类身体上再照镜子，若动物试图触摸或擦掉标记，说明它意识到镜中的是自己——实验用于判断动物是否具有自我认知能力。"
+       },
+       {
+        "n": 19,
+        "prompt": "According to the passage, all of the following are true about elephants EXCEPT:",
+        "options": [
+         "They can recognize themselves in mirrors.",
+         "They are highly intelligent animals.",
+         "They possess qualities in common with apes.",
+         "They understand certain signs from other animals."
+        ],
+        "key": 3,
+        "explain": "大象通过镜子测试（对）、很聪明（对）、和猿类一样表现出自我意识（对）；文中未提到大象能理解其它动物的信号，D 为'不符合文中信息'的选项。"
+       },
+       {
+        "n": 20,
+        "prompt": "Why does the author mention cleaner fish?",
+        "options": [
+         "To suggest that a wide range of animals may possess self-awareness",
+         "To imply that ocean animals are highly intelligent",
+         "To demonstrate a flaw in a recent experiment",
+         "To provide an example of an animal that does not recognize itself"
+        ],
+        "key": 0,
+        "explain": "cleaner fish 也会试图擦除镜像中看到的身体标记，引出结论：自我意识可能不只存在于高智商动物中——用该例说明自我认知能力可能更普遍。"
+       }
+      ]
+     }
+    ]
+   },
+   {
+    "moduleId": "reading-m2",
+    "title": "Reading Module 2",
+    "audioMediaId": null,
+    "groups": [
+     {
+      "type": "cloze",
+      "title": "Fill in the missing letters（Questions 1–10）",
+      "instruction": "在段落挖空处填上缺失的字母。",
+      "passage": "The human brain is a complex organ responsible for controlling all bodily functions and enabling thought, emotion, and memory. It i_[1] divided in__[2] several reg____[3], each wi__[4] specific ro___[5]. The cerebrum, i_[6] largest pa__[7], is ino____[8] in cogn_____[9] functions su__[10] as reasoning, planning, and language. The cerebellum coordinates movement and balance, while the brainstem controls vital bodily functions like breathing and heart rate. Together, they enable the brain to perform its various tasks.",
+      "questions": [
+       {
+        "n": 1,
+        "prompt": "第 1 空（i_）",
+        "answer": "s",
+        "explain": "is：'It is divided into…'。"
+       },
+       {
+        "n": 2,
+        "prompt": "第 2 空（in__）",
+        "answer": "to",
+        "explain": "into：'divided into several regions'。"
+       },
+       {
+        "n": 3,
+        "prompt": "第 3 空（reg____）",
+        "answer": "ions",
+        "explain": "regions：几个区域。"
+       },
+       {
+        "n": 4,
+        "prompt": "第 4 空（wi__）",
+        "answer": "th",
+        "explain": "with：'each with specific roles'。"
+       },
+       {
+        "n": 5,
+        "prompt": "第 5 空（ro___）",
+        "answer": "les",
+        "explain": "roles：各自的具体角色。"
+       },
+       {
+        "n": 6,
+        "prompt": "第 6 空（i_）",
+        "answer": "ts",
+        "explain": "its：'its largest part'。"
+       },
+       {
+        "n": 7,
+        "prompt": "第 7 空（pa__）",
+        "answer": "rt",
+        "explain": "part：最大的一部分。"
+       },
+       {
+        "n": 8,
+        "prompt": "第 8 空（ino____）",
+        "answer": "lved",
+        "explain": "involved：'is involved in cognitive functions'。"
+       },
+       {
+        "n": 9,
+        "prompt": "第 9 空（cogn_____）",
+        "answer": "itive",
+        "explain": "cognitive：认知功能。"
+       },
+       {
+        "n": 10,
+        "prompt": "第 10 空（su__）",
+        "answer": "ch",
+        "explain": "such：'such as reasoning, planning, and language'。"
+       }
+      ]
+     },
+     {
+      "type": "reading_mc",
+      "title": "Read an email.（Art Workshop Reservation Confirmation）",
+      "passage": "To: edward56L@dmail.com | From: artforeveryone@dmail.com | Date: 10/09/2025 | Subject: Art Workshop Reservation Confirmation\n\nDear Ms. Edwards,\n\nThe reservation for the art workshop that you made on September 10th has been confirmed. The workshop will take place on September 20th at 3:00 PM. All necessary arts supplies will be provided, but please bring your own apron or smock.\n\nBest regards,\nLaura Bennett",
+      "questions": [
+       {
+        "n": 11,
+        "prompt": "When is the date of the art workshop?",
+        "options": [
+         "September 10th",
+         "September 12th",
+         "September 20th",
+         "September 30th"
+        ],
+        "key": 2,
+        "explain": "邮件中写明：The workshop will take place on September 20th at 3:00 PM.（9月10日是预约日期，题目问活动日期。）"
+       },
+       {
+        "n": 12,
+        "prompt": "What should Ms. Edwards bring to the workshop?",
+        "options": [
+         "A payment method",
+         "Extra paint",
+         "A protective garment",
+         "Proof of reservation"
+        ],
+        "key": 2,
+        "explain": "邮件中写到：please bring your own apron or smock（防护衣物）。"
+       }
+      ]
+     },
+     {
+      "type": "reading_mc",
+      "title": "Read an email.（Fitness Center Grand Opening）",
+      "passage": "To: nguyenbooklover@dmail.com | From: part.gymworkers@dmail.com | Subject: You're Invited – Bring Friends & Family to Our Grand Opening!\n\nDear Ms. Nguyen,\n\nWe're excited to invite you—and your friends and family—to the grand opening of our new branch at 25 Orchid Street, happening next Monday. This event is a great opportunity to explore our state-of-the-art facility, featuring top-tier equipment, energizing group classes, and expert personal training.\n\nThis celebration, exclusively for our valued members and their guests, will include guided tours, live fitness demonstrations, and complimentary refreshments. It's the perfect chance to experience our community-focused approach to wellness and introduce others to a space designed for all fitness levels.\n\nBring your friends and family! We're offering a special one-day-only discount on memberships for all attendees.\n\nFor questions or to RSVP, contact our customer service team at 555-1234.\n\nWarm regards,\nJohn Parker",
+      "questions": [
+       {
+        "n": 13,
+        "prompt": "What is the main purpose of the email?",
+        "options": [
+         "To attract customers to a new fitness center",
+         "To provide Ms. Nguyen with an opportunity to provide expert personal training",
+         "To celebrate Ms. Nguyen's achievements in wellness",
+         "To announce a discount available to fitness-center members"
+        ],
+        "key": 0,
+        "explain": "邮件内容强调开业活动、体验课程、折扣，显然意在吸引新客户。"
+       },
+       {
+        "n": 14,
+        "prompt": "What can be inferred about Ms. Nguyen's relationship with the fitness center?",
+        "options": [
+         "She helps the fitness center to organize activities.",
+         "She has already explored the new facility.",
+         "She is a member at one of the fitness center's other locations.",
+         "She is new to using fitness centers and exercise equipment."
+        ],
+        "key": 2,
+        "explain": "邮件称 'for our valued members and their guests'，说明她原本就是会员。"
+       },
+       {
+        "n": 15,
+        "prompt": "The new fitness center is intended for use by which of the following groups of people?",
+        "options": [
+         "Expert personal trainers",
+         "Top-tier athletes",
+         "Existing fitness-center members",
+         "Community members of all fitness levels"
+        ],
+        "key": 3,
+        "explain": "邮件末尾原文指出：a space designed for all fitness levels。"
+       }
+      ]
+     },
+     {
+      "type": "reading_mc",
+      "title": "The Paradox of Choice",
+      "passage": "The paradox of choice, a concept popularized by psychologist Barry Schwartz, suggests that more options can lead to less satisfaction. While the freedom to choose is fundamental to consumer culture, an overabundance of choices—from groceries to electronics—can overwhelm individuals, causing anxiety and decision fatigue. This paradox implies that the vast array of possibilities available today might actually diminish consumer contentment, as the fear of making the wrong choice looms large.\n\nResearch supports this notion. In an experiment, psychologist Sheena Iyengar found that shoppers were more likely to purchase jam when offered 6 varieties instead of 24. The limited selection eased the decision process, reducing the pressure to find the 'perfect' option and making the experience more enjoyable. This phenomenon reveals that fewer choices can sometimes make consumers happier, which is a valuable insight for marketers and retailers aiming to boost satisfaction by curating their offerings.\n\nThe paradox also has broader implications. In individualistic cultures, where personal choice is highly valued, the burden of decision-making can be significant. Conversely, collectivist cultures, which often provide fewer choices, report higher levels of contentment. This dynamic suggests that understanding cultural differences in consumer psychology can help businesses optimize their product strategies and enhance overall well-being.",
+      "questions": [
+       {
+        "n": 16,
+        "prompt": "Which of the following best states a main idea of the passage?",
+        "options": [
+         "Effective marketing strategies focus on increasing product options.",
+         "Modern consumer culture is driven by a demand for fewer products.",
+         "Individualism enhances consumer contentment.",
+         "Limiting consumer choices can lead to higher satisfaction."
+        ],
+        "key": 3,
+        "explain": "文章中心思想是'选择并非越多越好，过多的选择会导致焦虑和不满意'，因此'减少选择反而能提升幸福感'是主旨。"
+       },
+       {
+        "n": 17,
+        "prompt": "What is one effect of decision fatigue as mentioned in the passage?",
+        "options": [
+         "Desire to make the same choices as other consumers",
+         "Anxiety about making the wrong choice",
+         "Preference for consumer cultures",
+         "Enhanced freedom to choose"
+        ],
+        "key": 1,
+        "explain": "文中写道，做出选择会引发焦虑和心理压力，害怕选错，因此 B 正确。"
+       },
+       {
+        "n": 18,
+        "prompt": "Why does the author mention Sheena Iyengar's experiment?",
+        "options": [
+         "To highlight the effectiveness of marketing strategies",
+         "To explain the methodology used in consumer psychology",
+         "To provide evidence supporting the paradox of choice",
+         "To criticize the abundance of products in modern markets"
+        ],
+        "key": 2,
+        "explain": "通过'果酱选择数量越少、购买率越高'的实验，说明选择多并不更好，因此用作论证支持。"
+       },
+       {
+        "n": 19,
+        "prompt": "The word \"curating\" in the passage is closest in meaning to",
+        "options": [
+         "eliminating",
+         "organizing",
+         "increasing",
+         "changing"
+        ],
+        "key": 1,
+        "explain": "这里指'精心整理产品结构'，不是减少或增加，而是有策略地呈现。"
+       },
+       {
+        "n": 20,
+        "prompt": "What can be inferred about consumers in collectivist cultures?",
+        "options": [
+         "They tend to report lower levels of satisfaction.",
+         "They are more affected by the paradox of choice.",
+         "They generally have fewer choices available.",
+         "They prefer individual decision-making."
+        ],
+        "key": 2,
+        "explain": "文中指出：集体主义文化中选择更少、幸福感反而更高，因此可推断 C。"
+       }
+      ]
+     }
+    ]
+   }
+  ]
+ },
+ "listening": {
+  "label": "听力 Listening",
+  "modules": [
+   {
+    "moduleId": "listening-m1",
+    "title": "Listening Module 1",
+    "audioMediaId": null,
+    "groups": [
+     {
+      "type": "listen_response",
+      "title": "Part 1: Choose the best response.（Questions 1–8）",
+      "instruction": "听问题或陈述，选出最恰当的回应。每题音频只播一遍。",
+      "questions": [
+       {
+        "n": 1,
+        "prompt": "Woman: Didn't I just see you in the library an hour ago?",
+        "options": [
+         "As a matter of fact, I was returning a book.",
+         "Yes, you can find it in the reference section.",
+         "I don't think I'll have enough time to do that.",
+         "Actually, I think I can get there a little earlier."
+        ],
+        "key": 0,
+        "explain": "回应'是的，我当时在还书'，逻辑直接。"
+       },
+       {
+        "n": 2,
+        "prompt": "Man: Where is the nearest bus stop?",
+        "options": [
+         "I nearly missed the bus.",
+         "Every 30 minutes.",
+         "I can help you find it.",
+         "I'll take the subway instead."
+        ],
+        "key": 2,
+        "explain": "对地点询问，给帮助最自然。"
+       },
+       {
+        "n": 3,
+        "prompt": "Woman: How do I contact customer service?",
+        "options": [
+         "Yes, you're allowed to do that.",
+         "Use the convenient chat feature.",
+         "No, I don't mind.",
+         "They provide good service."
+        ],
+        "key": 1,
+        "explain": "问'如何联系'，B 给具体方法。"
+       },
+       {
+        "n": 4,
+        "prompt": "Woman: I'm afraid I'm not available this evening.",
+        "options": [
+         "Oh, that's too early.",
+         "How about tomorrow night then?",
+         "She arrived this afternoon.",
+         "No, that's not necessary."
+        ],
+        "key": 1,
+        "explain": "对方没空 → 提出替代时间。"
+       },
+       {
+        "n": 5,
+        "prompt": "Man: Isn't the post office open today?",
+        "options": [
+         "No, it's my package.",
+         "It's just around the corner!",
+         "I think he's come home already.",
+         "Let's check the schedule online."
+        ],
+        "key": 3,
+        "explain": "正确回应方式是'查一下'。"
+       },
+       {
+        "n": 6,
+        "prompt": "Woman: If you need me, just text.",
+        "options": [
+         "I can help you with that.",
+         "You don't need any more information.",
+         "You have a lot of questions, don't you?",
+         "You haven't given me your number yet."
+        ],
+        "key": 3,
+        "explain": "指出前提缺失是自然回应——还没给我号码呢。"
+       },
+       {
+        "n": 7,
+        "prompt": "Woman: So the store is open for business all weekend?",
+        "options": [
+         "Yes, there is a major power outage.",
+         "Yes, it's under renovation.",
+         "Yes, it's closed all day on Sunday.",
+         "Yes, they're having a huge sale."
+        ],
+        "key": 3,
+        "explain": "肯定 + 原因补充，符合语境。"
+       },
+       {
+        "n": 8,
+        "prompt": "Man: Did you attend the seminar?",
+        "options": [
+         "I overslept.",
+         "No, not very well.",
+         "Have you asked your professor?",
+         "I forgot to look."
+        ],
+        "key": 0,
+        "explain": "用'睡过头'解释未参加。"
+       }
+      ],
+      "audioMediaId": "exam1_l_m1_response"
+     },
+     {
+      "type": "listen_mc",
+      "title": "Listen to a conversation.（supermarket / play）",
+      "audioNote": "音频：Conversation 01（本组题对应 Module 01-02-Conversation 01）",
+      "transcript": "Woman: Need anything from the supermarket?\nMan: Huh? Aren't we getting ready to go see that play in a few minutes?\nWoman: That's tomorrow.\nMan: Oh. Wow, I'd forget my head if it wasn't screwed on.... Guess I don't need to change my clothes after all.\nWoman: So, you weren't planning to prepare dinner?\nMan: No, but I can. What do you want?\nWoman: Just something light and healthy. So, can you go shopping instead?\nMan: Yeah, sure. How about salmon and salad? Want anything else?\nWoman: No, that's good. Thanks!",
+      "questions": [
+       {
+        "n": 9,
+        "prompt": "What does the woman imply that she was about to do?",
+        "options": [
+         "See a play",
+         "Change her clothes",
+         "Go shopping",
+         "Eat dinner"
+        ],
+        "key": 2,
+        "explain": "女人询问超市需要买什么（Need anything from the supermarket?），暗示自己原本准备去购物。（官方 Answer Key：C。第三方解析册此题标 B，与官方不符，以官方为准。）"
+       },
+       {
+        "n": 10,
+        "prompt": "Why does the man say \"I'd forget my head if it wasn't screwed on\"?",
+        "options": [
+         "He forgot what the woman wanted him to buy.",
+         "He forgot about the timing of their plans.",
+         "He forgot that they were going to eat for dinner.",
+         "He forgot to buy salmon and salad at the supermarket."
+        ],
+        "key": 1,
+        "explain": "女人纠正看戏是明天（That's tomorrow），男人随后自嘲健忘——对应忘记计划时间。（官方 Answer Key：B。）"
+       }
+      ],
+      "audioMediaId": "exam1_l_m1_conv1"
+     },
+     {
+      "type": "listen_mc",
+      "title": "Listen to a conversation.（air-conditioning）",
+      "transcript": "Man: Did you see the maintenance request about the air-conditioning?\nWoman: Yes, I called the technician this morning. They said someone should be here shortly.\nMan: That's a relief. It's getting uncomfortably warm in here.\nWoman: I know—I called as soon as I noticed. Hopefully, it's just a minor issue and they can get it working again without too much delay. In the meantime, why don't you go out to lunch early? Maybe it'll be better when you get back.",
+      "questions": [
+       {
+        "n": 11,
+        "prompt": "Why did the woman call a technician?",
+        "options": [
+         "An air-conditioner is leaking.",
+         "A room is too hot.",
+         "An elevator needs maintenance.",
+         "A window will not open."
+        ],
+        "key": 1,
+        "explain": "屋里越来越热（uncomfortably warm），她一发现就打电话叫维修。"
+       },
+       {
+        "n": 12,
+        "prompt": "What does the woman suggest the man do?",
+        "options": [
+         "Finish an assignment early",
+         "Wait for a service agent",
+         "Open a door",
+         "Take a break early"
+        ],
+        "key": 3,
+        "explain": "建议提前去吃午饭（go out to lunch early）等维修完成。"
+       }
+      ],
+      "audioMediaId": "exam1_l_m1_conv2"
+     },
+     {
+      "type": "listen_mc",
+      "title": "Listen to an announcement in a classroom.（guest lecture）",
+      "transcript": "Man: Good afternoon, everyone. I am excited to inform you that Dr. Cynthia Palmer, a renowned expert in environmental science, will be giving a guest lecture next Monday at 2 PM in Waldman Auditorium. Dr. Palmer will discuss the latest advancements in sustainable energy solutions and their impact on global climate change. Due to her popularity and the high interest in her work, I highly recommend arriving early to secure a seat.",
+      "questions": [
+       {
+        "n": 13,
+        "prompt": "What is the announcement about?",
+        "options": [
+         "A guest lecture",
+         "A different location for a class",
+         "Requirements for a class",
+         "A new university science course"
+        ],
+        "key": 0,
+        "explain": "宣布嘉宾讲座（guest lecture）的时间地点。"
+       },
+       {
+        "n": 14,
+        "prompt": "Why does the professor mention Dr. Palmer's popularity?",
+        "options": [
+         "To encourage students to read her work",
+         "To indicate why she was invited to the university",
+         "To compare her to other invited experts",
+         "To explain why students should arrive early"
+        ],
+        "key": 3,
+        "explain": "人多 → 座位紧 → 要早来。"
+       }
+      ],
+      "audioMediaId": "exam1_l_m1_announce"
+     },
+     {
+      "type": "listen_mc",
+      "title": "Listen to a talk on a podcast about psychology.（Hard vs Soft Fascination）",
+      "transcript": "Podcast Host: Did you see that new thriller movie that came out last week? I did and loved it. The action, the plot twists... I was totally captivated. Time just flew by. Not a single thought occurred to me that was unrelated to the movie. What I experienced is what psychologists call hard fascination. Hard fascination means intense focus and concentration. Whether it's TV programs, video games... hard fascination is all too easy to come by in this modern world.\n\nThere's another type of fascination—soft fascination. There's still effortless attention, meaning that no special effort is required for you to stay focused, but there's still room for other thoughts. When I take a walk in the park and look at the flowers and trees, for example, I might be thinking in the back of my mind about my dinner plans.\n\nNow, one thing to know is hard fascination causes mental fatigue. The mind is so intensely focused that it gets tired fast. What follows mental fatigue? You might find yourself easily distracted, irritable, and stressed. Soft fascination, in contrast, engages a different part of the brain—the DMN, or Default Mode Network, which soothes the mind and helps combat mental fatigue. So next time you feel like your mind is on overload, turn off the TV, put down your phone. Take a walk, or simply sit and stare at the clouds.",
+      "questions": [
+       {
+        "n": 15,
+        "prompt": "What is the topic of the talk?",
+        "options": [
+         "How psychologists study attention",
+         "How to keep the mind focused",
+         "Two types of fascination",
+         "The benefits of hard fascination"
+        ],
+        "key": 2,
+        "explain": "整段对比 hard fascination 与 soft fascination 两类专注。"
+       },
+       {
+        "n": 16,
+        "prompt": "Why does the speaker mention a movie?",
+        "options": [
+         "To compare different types of movies",
+         "To introduce a concept in psychology",
+         "To explain how movies affect emotions",
+         "To encourage listeners to watch more movies"
+        ],
+        "key": 1,
+        "explain": "用看电影全神贯注的体验引出 hard fascination 这个心理学概念。"
+       },
+       {
+        "n": 17,
+        "prompt": "What does the speaker say about her walk in the park?",
+        "options": [
+         "It is similar to her experience watching a good movie.",
+         "Her mind has space for thoughts unrelated to nature.",
+         "She needs to put in special effort to stay focused on flowers and trees.",
+         "She gets mental fatigue from her mind engaging in hard fascination."
+        ],
+        "key": 1,
+        "explain": "散步看花草时，脑子里还有余量想晚饭（unrelated thoughts）——soft fascination 的特征。"
+       },
+       {
+        "n": 18,
+        "prompt": "What does the speaker say about Default Mode Network?",
+        "options": [
+         "It is involved in soft fascination.",
+         "It leads to irritability and stress.",
+         "It is easily tired from overuse.",
+         "Its effect is unknown to psychologists."
+        ],
+        "key": 0,
+        "explain": "DMN 被 soft fascination 激活，能安抚大脑、对抗精神疲劳。"
+       }
+      ],
+      "audioMediaId": "exam1_l_m1_talk"
+     }
+    ]
+   },
+   {
+    "moduleId": "listening-m2",
+    "title": "Listening Module 2",
+    "audioMediaId": null,
+    "groups": [
+     {
+      "type": "listen_response",
+      "title": "Part 1: Choose the best response.（Questions 1–8）",
+      "instruction": "听问题或陈述，选出最恰当的回应。每题音频只播一遍。",
+      "questions": [
+       {
+        "n": 1,
+        "prompt": "Woman: Who is the new manager?",
+        "options": [
+         "She started last week.",
+         "I'm unsure, but I can find out.",
+         "Let's welcome the new manager.",
+         "The position has been filled."
+        ],
+        "key": 1,
+        "explain": "诚实 + 提供帮助，最自然。"
+       },
+       {
+        "n": 2,
+        "prompt": "Man: When is the due date for the report?",
+        "options": [
+         "Please wait while I look that up.",
+         "Give me some dates.",
+         "No, I have another due date.",
+         "Yes, that's correct."
+        ],
+        "key": 0,
+        "explain": "表示需要查一下 → 合理回应。"
+       },
+       {
+        "n": 3,
+        "prompt": "Man: I'm going to get some groceries.",
+        "options": [
+         "Every Wednesday.",
+         "In aisle 4.",
+         "The cinema is not open today.",
+         "Let's go together."
+        ],
+        "key": 3,
+        "explain": "'去买菜' → 提出一起去最自然。"
+       },
+       {
+        "n": 4,
+        "prompt": "Woman: Would you like a copy of my notes?",
+        "options": [
+         "The research facility.",
+         "That would be great.",
+         "The break is in an hour.",
+         "Two bullet points."
+        ],
+        "key": 1,
+        "explain": "礼貌接受。"
+       },
+       {
+        "n": 5,
+        "prompt": "Man: Sami and Layla are on their way to the café.",
+        "options": [
+         "Should we join them?",
+         "Did you like the concert?",
+         "Yesterday evening.",
+         "The best coffee."
+        ],
+        "key": 0,
+        "explain": "听到朋友要去 → 提议一起去。"
+       },
+       {
+        "n": 6,
+        "prompt": "Woman: I'd like to hear your thoughts on the job candidates.",
+        "options": [
+         "I'm revising my résumé.",
+         "I'll set up a meeting for us to talk.",
+         "She just got a promotion.",
+         "Yes, the training is complete."
+        ],
+        "key": 1,
+        "explain": "'我找个时间一起讨论'是最贴合回应。"
+       },
+       {
+        "n": 7,
+        "prompt": "Woman: How much does expedited shipping cost?",
+        "options": [
+         "It's one of many.",
+         "Twice last week.",
+         "We don't offer that.",
+         "I'd like the bill, please."
+        ],
+        "key": 2,
+        "explain": "直接说明服务不存在。"
+       },
+       {
+        "n": 8,
+        "prompt": "Man: If you need more information, contact Ms. Lee.",
+        "options": [
+         "I can help with that.",
+         "What is her role in the company?",
+         "You ask a lot of questions.",
+         "And whom should I contact?"
+        ],
+        "key": 1,
+        "explain": "合理追问，理解她负责什么。"
+       }
+      ],
+      "audioMediaId": "exam1_l_m2_response"
+     },
+     {
+      "type": "listen_mc",
+      "title": "Listen to a conversation.（Choosing a device）",
+      "transcript": "Man: I'm trying to decide whether to get a smartphone or a tablet. What do you think?\nWoman: It depends on what you need it for. If you want something portable and easy to use on the go, a smartphone is better.\nMan: That's true. But I like the larger screen on a tablet for watching videos and reading.\nWoman: In that case...\nMan: I better think about it some more.",
+      "questions": [
+       {
+        "n": 9,
+        "prompt": "What is the man trying to decide between?",
+        "options": [
+         "A laptop and a smartphone",
+         "A smartphone and a tablet",
+         "A tablet and a desktop computer",
+         "A smartphone and a smartwatch"
+        ],
+        "key": 1,
+        "explain": "开头即点明：smartphone or a tablet。"
+       },
+       {
+        "n": 10,
+        "prompt": "What reason does the woman give for her suggestion?",
+        "options": [
+         "The device is cheaper.",
+         "The device is easier to use on the go.",
+         "The device has a larger screen.",
+         "The device has better battery life."
+        ],
+        "key": 1,
+        "explain": "她推荐手机，因为更便携（portable and easy to use on the go）。"
+       }
+      ],
+      "audioMediaId": "exam1_l_m2_conv1"
+     },
+     {
+      "type": "listen_mc",
+      "title": "Listen to an announcement in a student lounge.（closure）",
+      "transcript": "Man: Attention everyone! The student lounge will be closed tomorrow from one P.M. to three P.M. for maintenance. We will be repairing a broken pipe in the ceiling. We apologize for any inconvenience this may cause. Please plan accordingly and consider using the library or the campus café during this time.",
+      "questions": [
+       {
+        "n": 11,
+        "prompt": "What is the main purpose of the announcement?",
+        "options": [
+         "To inform students about a schedule change",
+         "To announce new lounge amenities",
+         "To notify students of a new facility",
+         "To encourage students to use the lounge more"
+        ],
+        "key": 0,
+        "explain": "说明临时关闭（时间变更）。"
+       },
+       {
+        "n": 12,
+        "prompt": "What should students do during the closure?",
+        "options": [
+         "Wait in the lounge",
+         "Assist with the maintenance",
+         "Use alternate spaces",
+         "Visit the library website"
+        ],
+        "key": 2,
+        "explain": "使用图书馆或咖啡厅等替代空间。"
+       }
+      ],
+      "audioMediaId": "exam1_l_m2_announce"
+     },
+     {
+      "type": "listen_mc",
+      "title": "Listen to a talk in an environmental science class.（Ecological Footprint）",
+      "transcript": "Professor: An ecological footprint is a measure of the environmental impact of an individual, community, or country. It calculates the amount of natural resources consumed and the waste generated by human activities, usually expressed in global hectares. By comparing ecological footprints, we can understand how different lifestyles and practices contribute to resource depletion and environmental degradation. For instance, the ecological footprint of someone living in a developed country is typically larger than that of someone living in a developing country, mainly due to higher consumption levels and waste production. Factors such as energy use, transportation, food consumption, and housing play significant roles in determining the size of an ecological footprint. Understanding ecological footprints is crucial for promoting sustainability. It helps identify areas where changes can be made to reduce environmental impact. For example, if you consume locally produced foods, you'll likely reduce your ecological footprint because less energy will be used for transporting that food. Governments and organizations can use ecological footprint data to develop policies aimed at achieving sustainable development. I'll discuss some examples of that next.",
+      "questions": [
+       {
+        "n": 13,
+        "prompt": "What is the main topic of the talk?",
+        "options": [
+         "Changes in consumption in societies over time",
+         "A measure of environmental impact",
+         "Environmentally damaging activities",
+         "The role of governments in sustainability"
+        ],
+        "key": 1,
+        "explain": "主题是 Ecological Footprint（生态足迹）——环境影响的度量。"
+       },
+       {
+        "n": 14,
+        "prompt": "Why does the speaker mention developed and developing countries?",
+        "options": [
+         "To contradict a theory related to the ecological footprint",
+         "To show that resource depletion can be similar regardless of lifestyle",
+         "To illustrate the usefulness of comparing ecological footprints",
+         "To point out that production efficiency reduces the ecological footprint"
+        ],
+        "key": 2,
+        "explain": "通过对比说明这一比较工具的意义。"
+       },
+       {
+        "n": 15,
+        "prompt": "What does the speaker mention as a way that people can reduce their ecological footprint?",
+        "options": [
+         "By disposing of waste appropriately",
+         "By joining an environmental organization",
+         "By using environmentally friendly forms of transportation",
+         "By eating locally produced food"
+        ],
+        "key": 3,
+        "explain": "吃本地产的食物 → 减少运输能耗。"
+       },
+       {
+        "n": 16,
+        "prompt": "What will the speaker most likely discuss next?",
+        "options": [
+         "How information about ecological footprints has been used in creating policies",
+         "How data about ecological footprints has been collected",
+         "Why the idea of ecological footprint is often misunderstood",
+         "Why sustainable development can be difficult to achieve"
+        ],
+        "key": 0,
+        "explain": "文末明确提到'下一步会讲政策应用'（I'll discuss some examples of that next）。"
+       }
+      ],
+      "audioMediaId": "exam1_l_m2_talk"
+     }
+    ]
+   }
+  ]
+ },
+ "speaking": {
+  "label": "口语 Speaking",
+  "audioMediaId": null,
+  "tasks": [
+   {
+    "type": "listen_repeat",
+    "title": "Listen and Repeat（7 句）",
+    "instruction": "听管理员说话，每句听完立即重复一遍（只重复一次）。系统无自动语音评分：录完自己对照转写核对漏词/变词，AI 只就你补录的文字稿给内容与可懂度建议。",
+    "items": [
+     {
+      "n": 1,
+      "text": "We have a variety of wildlife.",
+      "tip": "variety 重音在第二音节：va-RI-e-ty；'of' 弱读 /əv/"
+     },
+     {
+      "n": 2,
+      "text": "Bears, wolves, and large cats are to the right.",
+      "tip": "wolves /wʊlvz/ 不是 /wulfs/；large cats 连读 /lɑɹdʒ kæts/"
+     },
+     {
+      "n": 3,
+      "text": "You can find sea lions and elephants further down the path.",
+      "tip": "sea lions → /siː ˈlaɪənz/；further 不读成 father"
+     },
+     {
+      "n": 4,
+      "text": "Please, no outside food or drinks, and do not feed the animals.",
+      "tip": "food or drinks → /fuːdəɹ drɪŋks/ 连读"
+     },
+     {
+      "n": 5,
+      "text": "Avoid banging or tapping on the displays and enclosures.",
+      "tip": "enclosure → /ɪnˈkloʊʒər/"
+     },
+     {
+      "n": 6,
+      "text": "For those with children, we offer summer camps and educational opportunities.",
+      "tip": "opportunities → /ˌɑːpəɹˈtuːnətiz/ 重音在 tu"
+     },
+     {
+      "n": 7,
+      "text": "The visitor's center, located near the front entrance, can give you more information.",
+      "tip": "located → /ˈloʊkeɪtɪd/ 重音在 lo"
+     }
+    ],
+    "audioMediaId": "exam1_s_repeat"
+   },
+   {
+    "type": "interview",
+    "title": "Take an Interview（4 问）",
+    "instruction": "面试官会连续提问（研究城市生活的访谈）。每问听完后独立回答，说满可用时间。无准备时间。",
+    "intro": "Thank you for speaking with me today. I'm conducting a study about people's experiences and perceptions of living in a city. I'd like to ask you some questions.",
+    "items": [
+     {
+      "n": 1,
+      "prompt": "Now, do you currently live in a big city, a small town, or a village?"
+     },
+     {
+      "n": 2,
+      "prompt": "Cities affect people in different ways. Some people find cities dynamic and exciting. Others find that cities are overwhelming and drain them of energy. What kind of reaction do you have to cities? Why do you think you react in this way?"
+     },
+     {
+      "n": 3,
+      "prompt": "Some people believe that those who live in cities lead more interesting lives. They would argue, for example, that people who live in cities have more access to professional opportunities and interesting leisure activities. Do you agree that people who live in cities lead more interesting lives? Why or why not?"
+     },
+     {
+      "n": 4,
+      "prompt": "For some time now, researchers have been interested in whether green spaces, such as parks, make people who live in cities happier. Do you think that city governments should create more parks in urban areas to promote a general sense of happiness and life satisfaction? Why or why not?"
+     }
+    ],
+    "sampleAnswersNote": "解析册提供四问的示范回答与评分要点（明确立场/具体细节/组织清楚）；你的回答由 AI 按任务回应、细节、组织、可懂度给辅助意见。",
+    "audioMediaId": "exam1_s_interview"
+   }
+  ]
+ },
+ "writing": {
+  "label": "写作 Writing",
+  "tasks": [
+   {
+    "type": "build_sentence",
+    "title": "Build a Sentence（10 题）",
+    "instruction": "把词块拖动/排列成完整的语法句。用给出的词块，全部用上，不改词形。",
+    "items": [
+     {
+      "n": 1,
+      "prompt": "What was the highlight of your trip?",
+      "prefix": "The",
+      "suffix": "fantastic.",
+      "chunks": [
+       "were",
+       "the",
+       "was",
+       "old city",
+       "showed us around",
+       "who",
+       "tour guides"
+      ],
+      "answer": "The tour guides who showed us around the old city were fantastic.",
+      "explain": "主干 + 定语从句，结构完整。"
+     },
+     {
+      "n": 2,
+      "prompt": "I heard Anna got a promotion.",
+      "prefix": "",
+      "suffix": "she will be ______ ______?",
+      "chunks": [
+       "a different department",
+       "if",
+       "moving to",
+       "know",
+       "do",
+       "you"
+      ],
+      "answer": "Do you know if she will be moving to a different department?",
+      "explain": "Do you know if + 陈述语序。"
+     },
+     {
+      "n": 3,
+      "prompt": "We're planning a trip to the mountains next weekend.",
+      "prefix": "",
+      "suffix": "tell me ______ ______ ______ ______?",
+      "chunks": [
+       "the cabins",
+       "available",
+       "whether",
+       "can",
+       "will be",
+       "you"
+      ],
+      "answer": "Can you tell me whether the cabins will be available?",
+      "explain": "whether 引导的宾语从句用陈述语序。"
+     },
+     {
+      "n": 4,
+      "prompt": "I'm looking forward to the concert this weekend.",
+      "prefix": "",
+      "suffix": "?",
+      "chunks": [
+       "does",
+       "what",
+       "time",
+       "it",
+       "start"
+      ],
+      "answer": "What time does it start?",
+      "explain": "一般疑问句结构。"
+     },
+     {
+      "n": 5,
+      "prompt": "The museum exhibition opens next month.",
+      "prefix": "",
+      "suffix": "?",
+      "chunks": [
+       "do",
+       "you",
+       "how",
+       "know",
+       "tickets",
+       "will cost",
+       "much"
+      ],
+      "answer": "Do you know how much the tickets will cost?",
+      "explain": "how much + 陈述语序。"
+     },
+     {
+      "n": 6,
+      "prompt": "I'm planning to go to the beach tomorrow.",
+      "prefix": "",
+      "suffix": "?",
+      "chunks": [
+       "is",
+       "time of year",
+       "what",
+       "the water",
+       "this",
+       "like",
+       "temperature"
+      ],
+      "answer": "What is the water temperature like this time of year?",
+      "explain": "'What's … like?' 用于询问情况。"
+     },
+     {
+      "n": 7,
+      "prompt": "I need to buy groceries today.",
+      "prefix": "",
+      "suffix": "?",
+      "chunks": [
+       "list",
+       "do",
+       "a",
+       "have",
+       "shopping",
+       "you"
+      ],
+      "answer": "Do you have a shopping list?",
+      "explain": "一般疑问句。"
+     },
+     {
+      "n": 8,
+      "prompt": "I'll be taking a cooking class this weekend.",
+      "prefix": "",
+      "suffix": "?",
+      "chunks": [
+       "learn",
+       "what",
+       "will",
+       "you",
+       "recipes"
+      ],
+      "answer": "What recipes will you learn?",
+      "explain": "特殊疑问句：what + will + 主语 + 动词。"
+     },
+     {
+      "n": 9,
+      "prompt": "What did Maria ask you about the book you're reading?",
+      "prefix": "She",
+      "suffix": ".",
+      "chunks": [
+       "she",
+       "wanted",
+       "a copy",
+       "buy",
+       "to know",
+       "could",
+       "where"
+      ],
+      "answer": "She wanted to know where she could buy a copy.",
+      "explain": "间接引语 → 陈述语序。"
+     },
+     {
+      "n": 10,
+      "prompt": "How did you prepare for the exam?",
+      "prefix": "I used",
+      "suffix": ".",
+      "chunks": [
+       "by",
+       "the professor",
+       "that",
+       "the study guide",
+       "was provided",
+       "it"
+      ],
+      "answer": "I used the study guide that was provided by the professor.",
+      "explain": "被动 + 定语从句。"
+     }
+    ],
+    "grading": "提交后与官方句对照：AI 按结构/用词/意思给判定与讲解（意思结构一致即算对，逐词不同但正确也可）；官方句只是参照，不是唯一合法排列。"
+   },
+   {
+    "type": "email",
+    "title": "Write an Email（投稿故障邮件）",
+    "timeMinutes": 7,
+    "situation": "A new poetry magazine has asked its readers for submissions, and you decided to submit two of your poems. However, you had a problem using the online submission form, and you are not certain that your submissions were received.",
+    "requirements": [
+     "Tell the editor what you like about the new magazine.",
+     "Describe the problem you experienced.",
+     "Ask about the status of your submissions."
+    ],
+    "to": "editor@sunshinepoetrymagazine.com",
+    "subject": "Problem using submission form",
+    "grading": "按三项要求逐条检查（内容完整：表达欣赏→描述问题→请求帮助）+ 语气正式礼貌 + 语法结构；AI 反馈为辅助意见，附官方范文要点（不把范文当唯一答案）。"
+   },
+   {
+    "type": "academic_discussion",
+    "title": "Write for an Academic Discussion（志愿劳动讨论）",
+    "timeMinutes": 10,
+    "professorPrompt": "Volunteerism refers to the act of offering your time and service without financial compensation to benefit a community, organization, or cause. While many people volunteer mainly to help others, some institutions have mandatory volunteer programs. High schools are one example, where students may be required to complete a certain number of volunteer hours to graduate. What do you think? Should high school students be required to do volunteer work? Why or why not?",
+    "classmates": [
+     {
+      "name": "Student A",
+      "text": "Yes, I think high schools should require volunteer hours because it helps students build a sense of civic responsibility. Many teenagers don't naturally think about helping others, and this requirement can introduce them to the idea that their time and effort can make a real difference in the lives of others."
+     },
+     {
+      "name": "Student B",
+      "text": "I don't think volunteer hours should be required because many students already have limited free time. Some have part-time jobs or take care of younger siblings after school. Adding a mandatory volunteer requirement could create extra stress and make it harder for those students to balance their existing responsibilities."
+     }
+    ],
+    "requirements": [
+     "Express and support your opinion.",
+     "Make a contribution to the discussion in your own words."
+    ],
+    "minWords": 100,
+    "grading": "评分要点：明确立场（同意/反对）、给出理由（至少 2 条）、使用真实可解释的经历例子、末尾总结态度；AI 对照教授问题与两位同学的贡献检查扣题与新贡献，不提供伪官方分数。"
+   }
+  ]
+ }
+}

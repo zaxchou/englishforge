@@ -141,6 +141,8 @@ export function ensureToeflSchema() {
   const db = getDb()
   if (!ensured) {
     db.exec(SCHEMA)
+    // 轻量补列（任务3）：错题重训的连对计数
+    try { db.exec('ALTER TABLE toefl_errors ADD COLUMN answer_streak INTEGER NOT NULL DEFAULT 0') } catch { /* 已存在 */ }
     ensured = true
   }
   return db

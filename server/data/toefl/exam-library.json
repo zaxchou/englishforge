@@ -1,0 +1,332 @@
+{
+ "generatedAt": 1790997928308,
+ "notice": "真题库清单（用户指令 2 的\"扫描整理\"）。packs=文件级快照（不等于题数）；digitizedExams=已完成电子化录入可开考的套。录入流水线见 55 §11：逐套需人工校对题面、官方答案键与音频配对。",
+ "roots": [
+  "819新托福真题持续更新",
+  "新D方/新D方新托福全套"
+ ],
+ "totalFiles": 1812,
+ "packs": [
+  {
+   "groupId": "819新托福真题持续更新/2026新托福改革新题型13套/口语写作评分标准",
+   "category": "recent_exam",
+   "fileCount": 2,
+   "pdfCount": 2,
+   "audioCount": 0,
+   "fingerprint": "75842690aca5",
+   "status": "registered_not_digitized",
+   "note": "文件快照入库；逐套录入需按 55 §11 流水线（抽取→原页校对→音频/答案配对→审核）后才能开考"
+  },
+  {
+   "groupId": "819新托福真题持续更新/2026新托福改革新题型13套/听说读写课程计划建议",
+   "category": "recent_exam",
+   "fileCount": 5,
+   "pdfCount": 5,
+   "audioCount": 0,
+   "fingerprint": "5dd440e8176c",
+   "status": "registered_not_digitized",
+   "note": "文件快照入库；逐套录入需按 55 §11 流水线（抽取→原页校对→音频/答案配对→审核）后才能开考"
+  },
+  {
+   "groupId": "819新托福真题持续更新/2026新托福改革新题型13套/托福词汇一键通",
+   "category": "recent_exam",
+   "fileCount": 8,
+   "pdfCount": 6,
+   "audioCount": 0,
+   "fingerprint": "b102bf82fc2f",
+   "status": "registered_not_digitized",
+   "note": "文件快照入库；逐套录入需按 55 §11 流水线（抽取→原页校对→音频/答案配对→审核）后才能开考"
+  },
+  {
+   "groupId": "819新托福真题持续更新/2026新托福改革新题型13套/改革后综述",
+   "category": "recent_exam",
+   "fileCount": 1,
+   "pdfCount": 1,
+   "audioCount": 0,
+   "fingerprint": "c83e2914df66",
+   "status": "registered_not_digitized",
+   "note": "文件快照入库；逐套录入需按 55 §11 流水线（抽取→原页校对→音频/答案配对→审核）后才能开考"
+  },
+  {
+   "groupId": "819新托福真题持续更新/2026新托福改革新题型13套/新托福官方样题2套",
+   "category": "official_style",
+   "fileCount": 28,
+   "pdfCount": 6,
+   "audioCount": 22,
+   "fingerprint": "dbefc620b6c1",
+   "status": "registered_not_digitized",
+   "note": "文件快照入库；逐套录入需按 55 §11 流水线（抽取→原页校对→音频/答案配对→审核）后才能开考"
+  },
+  {
+   "groupId": "819新托福真题持续更新/2026新托福改革新题型13套/新托福官方模拟题1-11套",
+   "category": "official_style",
+   "fileCount": 77,
+   "pdfCount": 33,
+   "audioCount": 32,
+   "fingerprint": "2f1a103f422b",
+   "status": "registered_not_digitized",
+   "note": "文件快照入库；逐套录入需按 55 §11 流水线（抽取→原页校对→音频/答案配对→审核）后才能开考"
+  },
+  {
+   "groupId": "819新托福真题持续更新/2026真题持续更新中/1月",
+   "category": "recent_exam",
+   "fileCount": 18,
+   "pdfCount": 0,
+   "audioCount": 5,
+   "fingerprint": "d1fcf5d169a3",
+   "status": "registered_not_digitized",
+   "note": "文件快照入库；逐套录入需按 55 §11 流水线（抽取→原页校对→音频/答案配对→审核）后才能开考"
+  },
+  {
+   "groupId": "819新托福真题持续更新/2026真题持续更新中/2月",
+   "category": "recent_exam",
+   "fileCount": 58,
+   "pdfCount": 6,
+   "audioCount": 15,
+   "fingerprint": "adef86e5b85f",
+   "status": "registered_not_digitized",
+   "note": "文件快照入库；逐套录入需按 55 §11 流水线（抽取→原页校对→音频/答案配对→审核）后才能开考"
+  },
+  {
+   "groupId": "819新托福真题持续更新/2026真题持续更新中/3月",
+   "category": "recent_exam",
+   "fileCount": 119,
+   "pdfCount": 15,
+   "audioCount": 54,
+   "fingerprint": "66c3f6a279d0",
+   "status": "registered_not_digitized",
+   "note": "文件快照入库；逐套录入需按 55 §11 流水线（抽取→原页校对→音频/答案配对→审核）后才能开考"
+  },
+  {
+   "groupId": "819新托福真题持续更新/2026真题持续更新中/4月",
+   "category": "recent_exam",
+   "fileCount": 51,
+   "pdfCount": 6,
+   "audioCount": 12,
+   "fingerprint": "af58b8407117",
+   "status": "registered_not_digitized",
+   "note": "文件快照入库；逐套录入需按 55 §11 流水线（抽取→原页校对→音频/答案配对→审核）后才能开考"
+  },
+  {
+   "groupId": "819新托福真题持续更新/2026真题持续更新中/5月",
+   "category": "recent_exam",
+   "fileCount": 63,
+   "pdfCount": 11,
+   "audioCount": 15,
+   "fingerprint": "d198e0b9fe96",
+   "status": "registered_not_digitized",
+   "note": "文件快照入库；逐套录入需按 55 §11 流水线（抽取→原页校对→音频/答案配对→审核）后才能开考"
+  },
+  {
+   "groupId": "819新托福真题持续更新/2026真题持续更新中/6月",
+   "category": "recent_exam",
+   "fileCount": 174,
+   "pdfCount": 0,
+   "audioCount": 122,
+   "fingerprint": "bb083f97d2e3",
+   "status": "registered_not_digitized",
+   "note": "文件快照入库；逐套录入需按 55 §11 流水线（抽取→原页校对→音频/答案配对→审核）后才能开考"
+  },
+  {
+   "groupId": "819新托福真题持续更新/2026真题持续更新中/7月",
+   "category": "recent_exam",
+   "fileCount": 144,
+   "pdfCount": 29,
+   "audioCount": 93,
+   "fingerprint": "a28e9ec3c433",
+   "status": "registered_not_digitized",
+   "note": "文件快照入库；逐套录入需按 55 §11 流水线（抽取→原页校对→音频/答案配对→审核）后才能开考"
+  },
+  {
+   "groupId": "819新托福真题持续更新/2026真题持续更新中/8月",
+   "category": "recent_exam",
+   "fileCount": 219,
+   "pdfCount": 0,
+   "audioCount": 199,
+   "fingerprint": "78ad28567c19",
+   "status": "registered_not_digitized",
+   "note": "文件快照入库；逐套录入需按 55 §11 流水线（抽取→原页校对→音频/答案配对→审核）后才能开考"
+  },
+  {
+   "groupId": "819新托福真题持续更新/2026真题持续更新中/新版托福真题-带听力原文",
+   "category": "recent_exam",
+   "fileCount": 73,
+   "pdfCount": 36,
+   "audioCount": 37,
+   "fingerprint": "0e13095b8af4",
+   "status": "registered_not_digitized",
+   "note": "文件快照入库；逐套录入需按 55 §11 流水线（抽取→原页校对→音频/答案配对→审核）后才能开考"
+  },
+  {
+   "groupId": "819新托福真题持续更新/【201】新版本自学礼包/02-2026托福Email范文.pdf",
+   "category": "recent_exam",
+   "fileCount": 1,
+   "pdfCount": 1,
+   "audioCount": 0,
+   "fingerprint": "bd9a1191fb8f",
+   "status": "registered_not_digitized",
+   "note": "文件快照入库；逐套录入需按 55 §11 流水线（抽取→原页校对→音频/答案配对→审核）后才能开考"
+  },
+  {
+   "groupId": "819新托福真题持续更新/【201】新版本自学礼包/04-2026 新托福词汇全科",
+   "category": "recent_exam",
+   "fileCount": 10,
+   "pdfCount": 5,
+   "audioCount": 0,
+   "fingerprint": "3ce7e23891c3",
+   "status": "registered_not_digitized",
+   "note": "文件快照入库；逐套录入需按 55 §11 流水线（抽取→原页校对→音频/答案配对→审核）后才能开考"
+  },
+  {
+   "groupId": "819新托福真题持续更新/【201】新版本自学礼包/【00】新版OG",
+   "category": "recent_exam",
+   "fileCount": 99,
+   "pdfCount": 1,
+   "audioCount": 94,
+   "fingerprint": "147c9032153c",
+   "status": "registered_not_digitized",
+   "note": "文件快照入库；逐套录入需按 55 §11 流水线（抽取→原页校对→音频/答案配对→审核）后才能开考"
+  },
+  {
+   "groupId": "819新托福真题持续更新/【201】新版本自学礼包/【01】新托福TPO1-6",
+   "category": "tpo",
+   "fileCount": 40,
+   "pdfCount": 19,
+   "audioCount": 15,
+   "fingerprint": "f80ad78446cd",
+   "status": "registered_not_digitized",
+   "note": "文件快照入库；逐套录入需按 55 §11 流水线（抽取→原页校对→音频/答案配对→审核）后才能开考"
+  },
+  {
+   "groupId": "819新托福真题持续更新/【201】新版本自学礼包/【03】托福词汇+语法网课",
+   "category": "recent_exam",
+   "fileCount": 2,
+   "pdfCount": 2,
+   "audioCount": 0,
+   "fingerprint": "3dc4ce189681",
+   "status": "registered_not_digitized",
+   "note": "文件快照入库；逐套录入需按 55 §11 流水线（抽取→原页校对→音频/答案配对→审核）后才能开考"
+  },
+  {
+   "groupId": "819新托福真题持续更新/【201】新版本自学礼包/【05】 TOEFL+Essentials",
+   "category": "recent_exam",
+   "fileCount": 30,
+   "pdfCount": 18,
+   "audioCount": 6,
+   "fingerprint": "5c7c40bc3b6a",
+   "status": "registered_not_digitized",
+   "note": "文件快照入库；逐套录入需按 55 §11 流水线（抽取→原页校对→音频/答案配对→审核）后才能开考"
+  },
+  {
+   "groupId": "819新托福真题持续更新/【201】新版本自学礼包/【06】7+2套样题",
+   "category": "official_style",
+   "fileCount": 63,
+   "pdfCount": 27,
+   "audioCount": 22,
+   "fingerprint": "041e54644976",
+   "status": "registered_not_digitized",
+   "note": "文件快照入库；逐套录入需按 55 §11 流水线（抽取→原页校对→音频/答案配对→审核）后才能开考"
+  },
+  {
+   "groupId": "819新托福真题持续更新/托福18套/00. TPO1-6 全套（包含音频、听力原文和答案）",
+   "category": "tpo",
+   "fileCount": 30,
+   "pdfCount": 18,
+   "audioCount": 12,
+   "fingerprint": "a5c2085fe85c",
+   "status": "registered_not_digitized",
+   "note": "文件快照入库；逐套录入需按 55 §11 流水线（抽取→原页校对→音频/答案配对→审核）后才能开考"
+  },
+  {
+   "groupId": "819新托福真题持续更新/托福18套/01. 官方学生版样题2套（包含音频、答案）（第1套有解析）",
+   "category": "official_style",
+   "fileCount": 25,
+   "pdfCount": 3,
+   "audioCount": 22,
+   "fingerprint": "1686656f524d",
+   "status": "registered_not_digitized",
+   "note": "文件快照入库；逐套录入需按 55 §11 流水线（抽取→原页校对→音频/答案配对→审核）后才能开考"
+  },
+  {
+   "groupId": "819新托福真题持续更新/托福18套/02. 官方教师版样题2套（包含答案 官方未提供音频）",
+   "category": "official_style",
+   "fileCount": 2,
+   "pdfCount": 2,
+   "audioCount": 0,
+   "fingerprint": "21ae8a092883",
+   "status": "registered_not_digitized",
+   "note": "文件快照入库；逐套录入需按 55 §11 流水线（抽取→原页校对→音频/答案配对→审核）后才能开考"
+  },
+  {
+   "groupId": "819新托福真题持续更新/托福18套/03. 官方体验日3套（包含音频和答案）",
+   "category": "official_style",
+   "fileCount": 15,
+   "pdfCount": 3,
+   "audioCount": 0,
+   "fingerprint": "4afa0881c325",
+   "status": "registered_not_digitized",
+   "note": "文件快照入库；逐套录入需按 55 §11 流水线（抽取→原页校对→音频/答案配对→审核）后才能开考"
+  },
+  {
+   "groupId": "819新托福真题持续更新/托福18套/04. 付费新题2套 (包含音频和答案）",
+   "category": "official_style",
+   "fileCount": 93,
+   "pdfCount": 3,
+   "audioCount": 90,
+   "fingerprint": "cc57909a52fd",
+   "status": "registered_not_digitized",
+   "note": "文件快照入库；逐套录入需按 55 §11 流水线（抽取→原页校对→音频/答案配对→审核）后才能开考"
+  },
+  {
+   "groupId": "819新托福真题持续更新/托福18套/05. TOEFL Essentials母题3套（题目、听力原文、音频和答案）",
+   "category": "official_style",
+   "fileCount": 30,
+   "pdfCount": 18,
+   "audioCount": 6,
+   "fingerprint": "338ab904f6b9",
+   "status": "registered_not_digitized",
+   "note": "文件快照入库；逐套录入需按 55 §11 流水线（抽取→原页校对→音频/答案配对→审核）后才能开考"
+  },
+  {
+   "groupId": "819新托福真题持续更新/托福18套/06. 口语写作评分标准",
+   "category": "recent_exam",
+   "fileCount": 2,
+   "pdfCount": 2,
+   "audioCount": 0,
+   "fingerprint": "dac7a350c410",
+   "status": "registered_not_digitized",
+   "note": "文件快照入库；逐套录入需按 55 §11 流水线（抽取→原页校对→音频/答案配对→审核）后才能开考"
+  },
+  {
+   "groupId": "819新托福真题持续更新/托福18套/07. 教师听说读写课程计划建议",
+   "category": "recent_exam",
+   "fileCount": 5,
+   "pdfCount": 5,
+   "audioCount": 0,
+   "fingerprint": "5311969a5cdd",
+   "status": "registered_not_digitized",
+   "note": "文件快照入库；逐套录入需按 55 §11 流水线（抽取→原页校对→音频/答案配对→审核）后才能开考"
+  },
+  {
+   "groupId": "819新托福真题持续更新/托福18套/官方改革后综述 toefl-ibt-test-overview.pdf",
+   "category": "recent_exam",
+   "fileCount": 1,
+   "pdfCount": 1,
+   "audioCount": 0,
+   "fingerprint": "c6d596e852d0",
+   "status": "registered_not_digitized",
+   "note": "文件快照入库；逐套录入需按 55 §11 流水线（抽取→原页校对→音频/答案配对→审核）后才能开考"
+  },
+  {
+   "groupId": "新D方/新D方新托福全套",
+   "category": "other",
+   "fileCount": 324,
+   "pdfCount": 77,
+   "audioCount": 224,
+   "fingerprint": "2b00586db36f",
+   "status": "registered_not_digitized",
+   "note": "文件快照入库；逐套录入需按 55 §11 流水线（抽取→原页校对→音频/答案配对→审核）后才能开考"
+  }
+ ],
+ "digitizedExams": []
+}

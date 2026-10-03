@@ -21,13 +21,14 @@ import {
   computeProgress, partName, toeflResources,
 } from './content.mjs'
 import { runTeacher, synthesizeFeedbackAudio, feedbackSpeechText } from './teacher.mjs'
+import { EXAM_ROUTES, EXAM_ERROR_ROUTES } from './exam.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const ATTEMPT_AUDIO_DIR = resolve(HERE, '..', 'assets', 'toefl-attempts')
 const FEEDBACK_AUDIO_DIR = resolve(HERE, '..', 'assets', 'toefl-tts')
 
 const PARTS = ['listening', 'reading', 'writing', 'speaking']
-const ERROR_STATUSES = ['pending_review', 'reviewed', 'awaiting_new_check', 'verified', 'disputed', 'analyze_failed']
+const ERROR_STATUSES = ['pending_review', 'reviewed', 'awaiting_new_check', 'verified', 'disputed', 'analyze_failed', 'dismissed']
 
 function conn(accountId) {
   const db = ensureToeflSchema()
@@ -349,6 +350,12 @@ function errorStatus(accountId, errorId, body) {
     disputed: ['pending_review', 'reviewed'],
     analyze_failed: ['pending_review', 'reviewed'],
   }
+  // 本人打勾结业（任务3）：任意进行中状态都可标记不再训练；历史保留可恢复
+  if (next === 'dismissed' && !['verified', 'dismissed'].includes(row.status)) {
+    db.prepare("UPDATE toefl_errors SET status='dismissed', user_response='dismissed_by_user', updated_at=? WHERE error_id=?").run(Date.now(), errorId)
+    event(db, accountId, 'error_status', { errorId, from: row.status, to: next })
+    return { error: errorRowPublic(db.prepare('SELECT * FROM toefl_errors WHERE error_id = ?').get(errorId)) }
+  }
   if (!allowed[row.status]?.includes(next)) {
     throw new ApiError(409, `TOEFL_ERROR_STATE_ILLEGAL: ${row.status} → ${next} 不允许；verified 只能由新题检验达成`)
   }
@@ -524,6 +531,8 @@ function chapterState(accountId, chapterId) {
 // ---- 路由表 ----
 
 export const TOEFL_ROUTES = [
+  ...EXAM_ROUTES,
+  ...EXAM_ERROR_ROUTES,
   ['GET', '/api/toefl/catalog', () => {
     const c = toeflCatalog()
     return { ...c, partNames: Object.fromEntries(Object.entries(c.parts).map(([k, v]) => [k, v.name])), resources: toeflResources() }

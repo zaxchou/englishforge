@@ -42,6 +42,7 @@ const LOCATION: Record<View['name'], string> = {
   records: '回顾 · 课程与记录',
   v4: '学习路径 · 今天与下一步',
   toefl: '托福课程 · 四科学习',
+  launcher: '选择一套学习系统',
 }
 
 type View =
@@ -53,6 +54,7 @@ type View =
   | { name: 'records' }  // 回顾：章节列表、学习记录、设置（旧首页）
   | { name: 'v4' }      // curriculum-v4 能力路径（诊断/推荐/证据/地图）
   | { name: 'toefl' }   // 托福学习系统（59 号：独立浅色外壳，四科课程/首页/档案）
+  | { name: 'launcher' } // 默认入口：三套系统并列展示（用户指令 1：两个历史系统都显示，不默认进任何一套）
 
 export default function App() {
   const [loaded] = useState(() => loadProgress())
@@ -60,7 +62,7 @@ export default function App() {
   const progressRef = useRef(progress)
   const [notice, setNotice] = useState<LoadNotice>(loaded.notice)
   const [saveErr, setSaveErr] = useState(hadSaveError)
-  const [view, setView] = useState<View>(() => ({ name: window.location.hash === '#toefl' ? 'toefl' : window.location.hash === '#legacy' ? 'home' : 'v4' }))
+  const [view, setView] = useState<View>(() => ({ name: window.location.hash === '#toefl' ? 'toefl' : window.location.hash === '#legacy' ? 'home' : 'launcher' }))
   /** 侧栏里被选中的那一项（首页与内页共用同一条侧栏） */
   const [nav, setNav] = useState<NavTarget>('today')
   const navActive: NavTarget = view.name === 'lesson' ? 'courses' : view.name === 'v4' ? 'v4path' : view.name === 'toefl' ? 'toefl' : view.name === 'records' ? nav : 'today'
@@ -567,6 +569,25 @@ export default function App() {
             onResume={() => { if (!resumeSession()) setStartError('没有找到未完成的会话。') }}
             onStartSkill={(skillId) => { setStartError(null); if (!startSession('skill', skillId)) setStartError('这个思维点还没有题目——题库正在建设中。') }}
           />
+        )}
+        {view.name === 'launcher' && (
+          <div style={{ maxWidth: 880, margin: '0 auto', padding: '32px 16px' }}>
+            <h1 style={{ fontSize: 26, marginBottom: 6 }}>三套学习系统，进度各自保留。</h1>
+            <p style={{ color: 'var(--muted, #60717a)', marginBottom: 24 }}>按今天想学什么选入口；历史系统的数据都在，随时可回。</p>
+            {([
+              { key: 'legacy', title: '刷题训练 · 旧版系统', desc: '词句训练、每日队列、复习循环与连击——最早上线的那套刷题系统。', action: () => { setView({ name: 'home' }); window.scrollTo({ top: 0 }) }, btn: '进入刷题训练' },
+              { key: 'v4', title: '学习路径 · 能力系统', desc: '诊断、推荐课、能力证据与方向地图——以掌握度推进的第二套系统。', action: () => { setView({ name: 'v4' }); window.scrollTo({ top: 0 }) }, btn: '进入学习路径' },
+              { key: 'toefl', title: '托福课程 · 最新系统', desc: '四科课程、成套真题模考（分 part 评分 + AI 讲解）、错题本与私人老师。', action: () => { setView({ name: 'toefl' }); window.scrollTo({ top: 0 }) }, btn: '进入托福课程' },
+            ] as const).map((c) => (
+              <div key={c.key} style={{ display: 'flex', gap: 16, alignItems: 'center', justifyContent: 'space-between', padding: '20px 4px', borderBottom: '1px solid var(--line, #dde3e7)', flexWrap: 'wrap' }}>
+                <div style={{ minWidth: 240, flex: 1 }}>
+                  <b style={{ fontSize: 17 }}>{c.title}</b>
+                  <p style={{ margin: '4px 0 0', color: 'var(--muted, #60717a)', fontSize: 14 }}>{c.desc}</p>
+                </div>
+                <button className="primary" onClick={c.action}>{c.btn} →</button>
+              </div>
+            ))}
+          </div>
         )}
         {view.name === 'v4' && (
           <V4Path accountId={db.account?.id ?? null} />
