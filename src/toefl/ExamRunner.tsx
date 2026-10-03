@@ -275,6 +275,7 @@ function ResultsPanel({ r }: { r: SectionResult }) {
 }
 
 export function ExamRunner({ accountId, examId, onExit }: { accountId: string; examId: string; onExit: () => void }) {
+
   const [data, setData] = useState<ExamPayload | null>(null)
   const [section, setSection] = useState<string>('')
   const [answers, setAnswersState] = useState<Record<string, any>>({})
@@ -284,6 +285,10 @@ export function ExamRunner({ accountId, examId, onExit }: { accountId: string; e
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const order = data?.meta.order ?? SECTIONS
+  // 部分切换写 hash（#/toefl/test/<examId>/<section>），刷新可回到当前部分
+  useEffect(() => {
+    if (section && data) window.history.replaceState(null, '', `#/toefl/test/${examId}/${section}`)
+  }, [examId, section, data])
 
   useEffect(() => {
     void api<ExamPayload>(`/api/toefl/accounts/${accountId}/exam/${examId}`).then((d) => {

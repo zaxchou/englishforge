@@ -1,0 +1,56 @@
+{
+ "date": "2026-10-03T03:58:41.204Z",
+ "checks": [
+  {
+   "check": "默认进入托福",
+   "hash": "#/toefl/dashboard",
+   "ok": true
+  },
+  {
+   "check": "错题本",
+   "hash": "#/toefl/errors",
+   "ok": true
+  },
+  {
+   "check": "个人学习档案",
+   "hash": "#/toefl/profile",
+   "ok": true
+  },
+  {
+   "check": "独立真题测试",
+   "hash": "#/toefl/test",
+   "ok": true
+  },
+  {
+   "check": "资料库",
+   "hash": "#/toefl/resources",
+   "ok": true
+  },
+  {
+   "check": "首页总览",
+   "hash": "#/toefl/dashboard",
+   "ok": true
+  },
+  {
+   "check": "课程页带科目",
+   "hash": "#/toefl/course/reading",
+   "ok": true
+  },
+  {
+   "check": "深链直达错题本",
+   "h1": "错题本",
+   "ok": true
+  },
+  {
+   "check": "刷新后仍定位",
+   "h1": "错题本",
+   "ok": true
+  },
+  {
+   "check": "设置与存档按钮",
+   "ok": false,
+   "note": "当前视图找不到（托福外壳内）"
+  }
+ ],
+ "consoleErrors": []
+}

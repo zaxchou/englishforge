@@ -808,10 +808,9 @@ function ResourcesPage({ catalog }: { catalog: { resources: { videoCatalog: { vi
   </>
 }
 
-function TestPage({ accountId }: { accountId: string }) {
-  const [examId, setExamId] = useState<string | null>(null)
-  if (examId) return <ExamRunner accountId={accountId} examId={examId} onExit={() => setExamId(null)} />
-  return <ExamLibrary onOpen={setExamId} />
+function TestPage({ accountId, examId, onOpenExam, onExitExam }: { accountId: string; examId: string | null; onOpenExam: (id: string) => void; onExitExam: () => void }) {
+  if (examId) return <ExamRunner accountId={accountId} examId={examId} onExit={onExitExam} />
+  return <ExamLibrary onOpen={onOpenExam} />
 }
 
 interface CatalogFull {
@@ -821,9 +820,32 @@ interface CatalogFull {
 
 // ---------- 根组件 ----------
 
+const VIEWS: View[] = ['dashboard', 'course', 'profile', 'errors', 'weak', 'resources', 'test']
+const PART_IDS: Part[] = ['listening', 'reading', 'writing', 'speaking']
+
+/** hash 形如 #/toefl/<view>[/<part>]（如 #/toefl/course/reading、#/toefl/test/pack1）；刷新/分享可直达 */
+function parseHash(): { view: View; part: Part; examId: string | null } {
+  const m = window.location.hash.match(/^#\/toefl(?:\/([a-z]+))?(?:\/([a-z0-9-]+))?/i)
+  const v = (m?.[1] ?? '') as View
+  const p2 = (m?.[2] ?? '') as Part
+  return {
+    view: VIEWS.includes(v) ? v : 'dashboard',
+    part: PART_IDS.includes(p2) ? p2 : 'listening',
+    examId: m?.[1] === 'test' && m?.[2] && !PART_IDS.includes(p2) ? m[2] : null,
+  }
+}
+function pushHash(view: View, part: Part, examId?: string | null) {
+  const seg = examId ? `/${view}/${examId}` : view === 'course' ? `/course/${part}` : `/${view}`
+  window.history.replaceState(null, '', `#/toefl${seg}`)
+}
+
 export function ToeflApp({ accountId, onExit }: { accountId: string; onExit: () => void }) {
-  const [view, setView] = useState<View>('dashboard')
-  const [part, setPart] = useState<Part>('listening')
+  const initial = parseHash()
+  const [view, setViewState] = useState<View>(initial.view)
+  const [part, setPartState] = useState<Part>(initial.part)
+  const [examId, setExamId] = useState<string | null>(initial.examId)
+  // 视图/科目变化写 hash（course 与 test 带第二段）
+  const setView = (v: View) => { setViewState(v); pushHash(v, part, examId) }
   const [data, setData] = useState<Dashboard | null>(null)
   const [catalog, setCatalog] = useState<CatalogFull | null>(null)
   const [err, setErr] = useState('')
@@ -834,13 +856,21 @@ export function ToeflApp({ accountId, onExit }: { accountId: string; onExit: () 
     } catch (e) { setErr(String((e as Error).message)) }
   }, [accountId])
   useEffect(() => { void loadDashboard() }, [loadDashboard])
+  // 浏览器前进/后退与手工改 hash → 同步视图
+  useEffect(() => {
+    const onHash = () => { const h = parseHash(); setViewState(h.view); setPartState(h.part); setExamId(h.examId) }
+    window.addEventListener('hashchange', onHash)
+    // 首次挂载若无 hash，立即补上 #/toefl/dashboard——每一页从一开始就有自己的网址
+    if (!window.location.hash) pushHash(initial.view, initial.part, initial.examId)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [])
   useEffect(() => {
     void api<CatalogFull>('/api/toefl/catalog')
       .then(setCatalog).catch(() => {})
   }, [])
 
-  const openCourse = (p: Part) => { setPart(p); setView('course'); setDrawer(false); window.scrollTo(0, 0) }
-  const goto = (v: View) => { setView(v); setDrawer(false); window.scrollTo(0, 0) }
+  const openCourse = (p: Part) => { setPartState(p); setView('course'); setDrawer(false); setDirOpen(false); window.scrollTo(0, 0); pushHash('course', p) }
+  const goto = (v: View) => { setView(v); setDrawer(false); setDirOpen(false); window.scrollTo(0, 0) }
   const [drawer, setDrawer] = useState(false)
   const [dirOpen, setDirOpen] = useState(false)
   useEffect(() => {
@@ -874,7 +904,7 @@ export function ToeflApp({ accountId, onExit }: { accountId: string; onExit: () 
           ))}
           <small>
             账户：{accountId.slice(0, 8)}…<br />
-            <button className="secondary" onClick={onExit}>返回旧版学习应用</button>
+            <button className="secondary" onClick={onExit}>历史系统（已弃用）</button>
           </small>
         </nav>
         {view === 'course' && (() => {
@@ -913,12 +943,12 @@ export function ToeflApp({ accountId, onExit }: { accountId: string; onExit: () 
                   onOpenWeak={() => setView('weak')}
                 />
               : <p className="muted">正在读取学习总览…</p>)}
-            {view === 'course' && <CoursePage part={part} accountId={accountId} onBack={() => setView('dashboard')} />}
+            {view === 'course' && <CoursePage part={part} accountId={accountId} onBack={() => { setView('dashboard'); pushHash('dashboard', part) }} />}
             {view === 'profile' && data && <ProfilePage accountId={accountId} data={data} onSaved={loadDashboard} />}
             {view === 'errors' && <ErrorsPage accountId={accountId} onChanged={loadDashboard} />}
             {view === 'weak' && data && <WeakPage data={data} />}
             {view === 'resources' && catalog && <ResourcesPage catalog={catalog} />}
-            {view === 'test' && <TestPage accountId={accountId} />}
+            {view === 'test' && <TestPage accountId={accountId} examId={examId} onOpenExam={(eid) => { setExamId(eid); pushHash('test', part, eid) }} onExitExam={() => { setExamId(null); pushHash('test', part) }} />}
           </div>
         </div>
       </div>

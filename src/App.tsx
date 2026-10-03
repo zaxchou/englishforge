@@ -62,7 +62,8 @@ export default function App() {
   const progressRef = useRef(progress)
   const [notice, setNotice] = useState<LoadNotice>(loaded.notice)
   const [saveErr, setSaveErr] = useState(hadSaveError)
-  const [view, setView] = useState<View>(() => ({ name: window.location.hash === '#toefl' ? 'toefl' : window.location.hash === '#legacy' ? 'home' : 'launcher' }))
+  // 默认直接进托福课程（用户 2026-10-03 决定：历史系统已弃用，藏进设置与存档）
+  const [view, setView] = useState<View>(() => ({ name: window.location.hash === '#legacy' ? 'home' : window.location.hash === '#learn' ? 'v4' : 'toefl' }))
   /** 侧栏里被选中的那一项（首页与内页共用同一条侧栏） */
   const [nav, setNav] = useState<NavTarget>('today')
   const navActive: NavTarget = view.name === 'lesson' ? 'courses' : view.name === 'v4' ? 'v4path' : view.name === 'toefl' ? 'toefl' : view.name === 'records' ? nav : 'today'
@@ -81,10 +82,12 @@ export default function App() {
       return
     }
     if (target === 'toefl') {
+      window.history.replaceState(null, '', '#toefl')
       setView({ name: 'toefl' })
       window.scrollTo({ top: 0 })
       return
     }
+    if (target === 'settings') { setView({ name: 'launcher' }); window.scrollTo({ top: 0 }); return }
     setView({ name: 'records' })
     // 等回顾页渲染完再滚到对应区块
     window.setTimeout(() => document.getElementById(target)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60)
@@ -502,7 +505,7 @@ export default function App() {
         </div>
       )
     }
-    return <ToeflApp accountId={accountId} onExit={() => setView({ name: 'v4' })} />
+    return <ToeflApp accountId={accountId} onExit={() => { window.history.replaceState(null, '', ''); setView({ name: 'launcher' }); window.scrollTo({ top: 0 }) }} />
   }
 
   return (
@@ -572,12 +575,12 @@ export default function App() {
         )}
         {view.name === 'launcher' && (
           <div style={{ maxWidth: 880, margin: '0 auto', padding: '32px 16px' }}>
-            <h1 style={{ fontSize: 26, marginBottom: 6 }}>三套学习系统，进度各自保留。</h1>
-            <p style={{ color: 'var(--muted, #60717a)', marginBottom: 24 }}>按今天想学什么选入口；历史系统的数据都在，随时可回。</p>
+            <h1 style={{ fontSize: 26, marginBottom: 6 }}>历史系统（已弃用）</h1>
+            <p style={{ color: 'var(--muted, #60717a)', marginBottom: 24 }}>现在默认使用托福课程。以下两套历史系统仍在运行，数据保留，仅供回看。</p>
             {([
-              { key: 'legacy', title: '刷题训练 · 旧版系统', desc: '词句训练、每日队列、复习循环与连击——最早上线的那套刷题系统。', action: () => { setView({ name: 'home' }); window.scrollTo({ top: 0 }) }, btn: '进入刷题训练' },
-              { key: 'v4', title: '学习路径 · 能力系统', desc: '诊断、推荐课、能力证据与方向地图——以掌握度推进的第二套系统。', action: () => { setView({ name: 'v4' }); window.scrollTo({ top: 0 }) }, btn: '进入学习路径' },
-              { key: 'toefl', title: '托福课程 · 最新系统', desc: '四科课程、成套真题模考（分 part 评分 + AI 讲解）、错题本与私人老师。', action: () => { setView({ name: 'toefl' }); window.scrollTo({ top: 0 }) }, btn: '进入托福课程' },
+              { key: 'legacy', title: '刷题训练 · 旧版系统', desc: '词句训练、每日队列、复习循环与连击——最早上线的那套刷题系统（已弃用，仅回看）。', action: () => { setView({ name: 'home' }); window.scrollTo({ top: 0 }) }, btn: '进入刷题训练' },
+              { key: 'v4', title: '学习路径 · 能力系统', desc: '诊断、推荐课、能力证据与方向地图——以掌握度推进的第二套系统（已弃用，仅回看）。', action: () => { setView({ name: 'v4' }); window.scrollTo({ top: 0 }) }, btn: '进入学习路径' },
+              
             ] as const).map((c) => (
               <div key={c.key} style={{ display: 'flex', gap: 16, alignItems: 'center', justifyContent: 'space-between', padding: '20px 4px', borderBottom: '1px solid var(--line, #dde3e7)', flexWrap: 'wrap' }}>
                 <div style={{ minWidth: 240, flex: 1 }}>
