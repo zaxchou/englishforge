@@ -31,6 +31,7 @@ services:
       # 托福样板章媒体（59 号）：容器内路径，指向下面挂载的 NAS 百度盘同步副本（只读）
       TOEFL_MEDIA_ROOT: /media/toefl
       TOEFL_NOTES_ROOT: /media/notes
+      TOEFL_EXAM_ROOT: /media/notes  # 真题音频与讲义同根（JunEnglish 819 目录）
     volumes:
       # 生产数据库目录（NAS 本机真实路径，写在 .env）：与本地开发库相互独立
       - ${DATA_DIR}/englishforge-production:/app/data
