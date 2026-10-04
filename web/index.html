@@ -61,7 +61,9 @@ video.tfl{width:100%;background:#161616;border-radius:var(--r);aspect-ratio:16/9
   border-radius:4px;padding:8px 14px;font-size:13px}
 .ai-bar button:hover{background:#e8efdf}
 .ai-bar button:disabled{opacity:.55;cursor:default}
-.ai-tip{font-size:11px;color:var(--t3)}
+'.ai-tip{font-size:11px;color:var(--t3)}
+.ai-have{font-style:normal;font-size:10px;color:#4d7a5f;background:#e3efdb;
+  border-radius:8px;padding:1px 6px;margin-left:5px;vertical-align:1px}
 .caveat-strip{margin:10px 0 14px;padding:10px 14px;background:var(--warnbg,#fdf3e0);
   border:1px solid var(--warnln,#e0c9a0);border-left:3px solid #b8863b;border-radius:4px;
   font-size:13px;line-height:1.7;color:#7a5b23}
@@ -294,8 +296,19 @@ async function loadSet(id) {
 }
 
 /* ---------- AI 助教解析（错题本 + 做题判分后共用）----------
-   生成过的解析在服务端永久落盘（records 卷），这里只是会话内缓存。 */
+   生成过的解析在服务端永久落盘（records 卷），这里只是会话内缓存。
+   AI_HAVE_SET：已生成过解析的题号清单（按钮上显示「已生成」标记）。 */
 const AI_EXPLAIN_CACHE = {};
+let AI_HAVE_SET = new Set(), _aiHaveP = null;
+function aiHave() {
+  if (!_aiHaveP) _aiHaveP = api('/api/ai/explain')
+    .then(j => { AI_HAVE_SET = new Set(j.qids || []); return AI_HAVE_SET; })
+    .catch(() => new Set());
+  return _aiHaveP;
+}
+function aiBtnInner(qid) {
+  return 'AI解析' + (AI_HAVE_SET.has(qid) ? '<i class="ai-have">已生成</i>' : '');
+}
 function aiPanelRender(ex) {
   const q = ex.q || {};
   let h = '<div class="ai-head">AI 助教解析' + (ex.cached ? ' · 已生成' : '') + '</div>';
@@ -320,19 +333,21 @@ function aiPanelRender(ex) {
 }
 async function aiExplainToggle(qid, panel, btn) {
   if (!panel) return;
-  if (!panel.hidden) { panel.hidden = true; if (btn) btn.disabled = false; return; }
+  if (!panel.hidden) { panel.hidden = true; if (btn) { btn.disabled = false; btn.innerHTML = aiBtnInner(qid); } return; }
   panel.hidden = false;
+  panel.scrollIntoView({ block: 'nearest', behavior: 'smooth' });   // 面板可能在视口外, 不滚过去就像"没反应"
   if (AI_EXPLAIN_CACHE[qid]) { panel.innerHTML = AI_EXPLAIN_CACHE[qid]; return; }
-  if (btn) btn.disabled = true;
+  if (btn) { btn.disabled = true; btn.innerHTML = '分析中…'; }
   panel.innerHTML = '<div class="ai-note ai-loading">AI 分析中，约需 2~4 秒…</div>';
   try {
     const r = await api('/api/ai/explain', { method: 'POST',
       headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ qid }) });
     AI_EXPLAIN_CACHE[qid] = aiPanelRender(r);
     panel.innerHTML = AI_EXPLAIN_CACHE[qid];
+    (await aiHave()).add(qid);
   } catch (e) {
     panel.innerHTML = '<div class="ai-note">' + esc(e.message || '解析失败，稍后再试') + '</div>';
-  } finally { if (btn) btn.disabled = false; }
+  } finally { if (btn) { btn.disabled = false; btn.innerHTML = aiBtnInner(qid); } }
 }
 
 /* ---------- 学习记录（服务端唯一真源） ---------- */
@@ -1194,7 +1209,7 @@ function renderFB(rows, ok, noLabel, heading, aiQid){
     ${ok?'':`<div class="tagrow"><span class="lb">已收入错题本</span>
       <span class="tag">1 天后复习</span></div>`}</div>
     ${aiQid?`<div class="ai-explain" hidden></div>
-    <div class="ai-bar"><button class="ai-trigger" data-fb-ai="${esc(aiQid)}">AI解析</button><span class="ai-tip">按本题材料与题干生成解析（对错都可看，蒙对的也值得核对思路）</span></div>`:''}`;
+    <div class="ai-bar"><button class="ai-trigger" data-fb-ai="${esc(aiQid)}">${aiBtnInner(aiQid)}</button><span class="ai-tip">按本题材料与题干生成解析（对错都可看，蒙对的也值得核对思路）</span></div>`:''}`;
   const trig=$('d-fb').querySelector('[data-fb-ai]');
   if(trig) trig.onclick=()=>aiExplainToggle(trig.dataset.fbAi, trig.closest('.ai-bar').previousElementSibling, trig);
   $('d-next').textContent='下一题';
@@ -1532,6 +1547,7 @@ async function renderReview(){
     return;
   }
   ms.sort((a,b)=>(a[1].due||0)-(b[1].due||0));
+  await aiHave();   // 已生成清单, 按钮上标「已生成」
   const items=await Promise.all(ms.map(async([k,m])=>{
     const stem=await stemOf(k);
     const due=m.due||0;
@@ -1541,7 +1557,7 @@ async function renderReview(){
       <div class="c"><div class="q">${esc(stem.slice(0,80))}</div>
         <div class="m">${esc(k)} · 错 ${m.n_wrong||1} 次</div></div>
       <div class="due" style="color:${col}">${dt}</div>
-      <button data-ai="${esc(k)}">AI解析</button>
+      <button data-ai="${esc(k)}">${aiBtnInner(k)}</button>
       <button data-redo="${esc(k)}">重做</button>
       <button data-clear="${esc(k)}">不再训练</button></div>
     <div class="ai-explain" hidden></div>`;

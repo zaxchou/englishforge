@@ -484,9 +484,10 @@ const handler = async (req, res) => {
 
     /* ---- API: AI 助教错题解析 ---- */
     if (p === '/api/ai/explain') {
-      if (req.method !== 'POST') return sendJSON(res, 405, { error: 'method' });
       const origin = req.headers.origin;
       if (origin && origin !== `http://${req.headers.host}` && origin !== `https://${req.headers.host}`) return sendJSON(res, 403, { error: 'cross-origin rejected' });
+      if (req.method === 'GET') return sendJSON(res, 200, { ok: true, qids: Object.keys(AI_STORE) });
+      if (req.method !== 'POST') return sendJSON(res, 405, { error: 'method' });
       if (!AI_CFG.key) return sendJSON(res, 503, { error: 'AI 未配置（服务端缺少 TFL_AI_KEY）' });
       const body = await readBody(req);
       let inc; try { inc = JSON.parse(body.toString('utf8') || '{}'); } catch (e) { return sendJSON(res, 400, { error: 'bad json' }); }
