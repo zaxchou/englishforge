@@ -815,18 +815,21 @@ function renderHome(){
     :'从下面选一科开始，进度会自动保存。';
 
   /* ---- 继续上次: 最近视频课 / 最近作答的题 ---- */
+  // 最近在看 = 记录时间最新的课, 不排除已看完的(重看也要能接上); 题组类似取最近作答
   let lastL=null,lastLT=0;
   for(const [k,c] of Object.entries(REC.course||{}))
-    if(c.at&&c.at>lastLT&&!c.done&&c.pos>10){lastLT=c.at;lastL=k;}
+    if(c.at&&c.at>lastLT){lastLT=c.at;lastL=k;}
   let lastQ=null,lastT=0;
   for(const [k,a] of scopedEntries(REC.attempts))
     if(a.last&&a.last>lastT){lastT=a.last;lastQ=k;}
+  // 视频与题取"更近"的那个做主卡, 另一个做副卡; 都没有则给引导
   let ch='';
   if(lastL){
     const cp=REC.course[lastL];
-    ch+=`<div class="cont"><span class="pill t">视频课</span>
-      <div class="ct2"><b>${esc(lessonTitle(lastL))}</b><span>${cp.done?'已看完':'看到 '+fmt(cp.pos||0)}</span></div>
-      <button data-go="course/${encodeURIComponent(lastL)}">${cp.done?'重温':'继续看'} →</button></div>`;
+    const watching=lastLT>=lastT;
+    ch+=`<div class="cont${watching?'':' dim'}"><span class="pill t">视频课</span>
+      <div class="ct2"><b>${esc(lessonTitle(lastL))}</b><span>${cp.done&&!watching?'已看完':'看到 '+fmt(cp.pos||0)}</span></div>
+      <button data-go="course/${encodeURIComponent(lastL)}">${cp.done&&!watching?'重温':'继续看'} →</button></div>`;
   }
   if(lastQ){
     const [qs,subj]=lastQ.split('/');
@@ -1612,12 +1615,13 @@ function renderCourse(){
   }
   renderCourseNav(); renderCourseMain();
 }
+function courseSeriesName(n){ return String(n||'').replace(/新D方/g,'新东方'); }
 function renderCourseNav(){
   updateCourseCount();
   let h='';
   for(const s of (COURSES&&COURSES.series)||[]){
     const list=s.courses||[];
-    h+=`<div class="csg"><div class="csg-h"><b>${esc(s.name)}</b><span>${esc(s.note||'')}</span></div>`;
+    h+=`<div class="csg"><div class="csg-h"><b>${esc(courseSeriesName(s.name))}</b><span>${esc(courseSeriesName(s.note||''))}</span></div>`;
     for(const c of list){
       const cd=(c.lessons||[]).filter(l=>REC.course[l.id]&&REC.course[l.id].done).length;
       const tot=c.lesson_count||0, open=!!csExp[c.id];
