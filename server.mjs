@@ -95,7 +95,7 @@ const AI_CACHE = new Map();          // qid -> 解析文本（L1 内存）
 const AI_CACHE_MAX = 300;
 // 解析版本号：v2 = 注入官方听力转写 + 防编造提示词。旧条目缺 v，
 // 可据此识别"升级前生成的旧解析"（GET 返回 legacy 清单，供批量重生成）。
-const AI_V = 2;
+const AI_V = 3;   // v3 = 听力转写同时下发到面板展示
 // L2 永久缓存：records 卷里的 ai-explanations.json，随容器更新保留——
 // 一道题生成过解析就是这道题的固定解析，不再重复扣费。
 const AI_STORE_FILE = path.join(RECORDS_DIR, 'ai-explanations.json');
@@ -239,6 +239,7 @@ async function aiExplain(qidStr, force) {
     kind: q.kind, title: q.title || '', passage: q.passage || '', stem: q.stem || '',
     options: q.options || {}, prompt: q.prompt || '', body: q.body || '',
     answer: q.answer || q.reference || '', mine, noMaterial,
+    transcript,
   };
   AI_STORE[qidStr] = { text, q: qPub, at: Date.now(), v: AI_V };
   aiStoreSave();

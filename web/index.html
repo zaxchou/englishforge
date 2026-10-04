@@ -51,6 +51,7 @@ video.tfl{width:100%;background:#161616;border-radius:var(--r);aspect-ratio:16/9
 .ai-q .k{font-size:11px;color:#6b7d67;letter-spacing:.06em;margin-bottom:3px}
 .ai-passage{max-height:180px;overflow-y:auto;background:#f7faf1;border-radius:4px;
   padding:8px 12px;white-space:pre-wrap;line-height:1.75}
+.ai-transcript{font-family:Consolas,"Microsoft YaHei",monospace;font-size:12.5px;line-height:1.85}
 .ai-opts{display:flex;flex-direction:column;gap:4px}
 .ai-opt{display:flex;gap:8px;align-items:baseline;padding:4px 8px;border-radius:3px;background:#f7faf1}
 .ai-opt b{font-family:Georgia,serif;color:var(--t2)}
@@ -325,6 +326,7 @@ function aiPanelRender(ex) {
   const q = ex.q || {};
   let h = '<div class="ai-head"><span>AI 助教解析' + (ex.cached ? ' · 已生成' : '') + '</span>'
     + '<button class="ai-regen" type="button">重新生成</button></div>';
+  if (q.transcript) h += '<div class="ai-q"><div class="k">听力原文（官方 Transcript · 只在这里展示，练习时不显示）</div><div class="ai-passage ai-transcript">' + esc(q.transcript) + '</div></div>';
   if (q.passage) h += '<div class="ai-q"><div class="k">材料</div><div class="ai-passage">' + esc(q.passage) + '</div></div>';
   if (q.stem) h += '<div class="ai-q"><div class="k">题干</div><div>' + esc(q.stem) + '</div></div>';
   if (q.prompt || q.body) h += '<div class="ai-q"><div class="k">任务</div><div class="ai-passage">' + esc((q.prompt + '\n' + q.body).trim()) + '</div></div>';

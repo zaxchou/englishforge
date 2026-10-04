@@ -79,7 +79,8 @@ def extract_one(set_id: str) -> int:
         head = sec.strip().split("\n", 1)
         if not head:
             continue
-        hm = re.match(r"Module\s+(\d)\s*(?:Q(\d+)[-–]Q?(\d+))?", head[0].strip())
+        # 标题可能带前缀（"Listening Module 1 - ..."），用 search 不锚定行首
+        hm = re.search(r"Module\s+(\d)\s*(?:Q(\d+)[-–]Q?(\d+))?", head[0].strip())
         if not hm:
             continue
         mod = int(hm.group(1))
