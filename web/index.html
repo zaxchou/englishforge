@@ -110,12 +110,12 @@ details.ai-tsec[open] summary{margin-bottom:8px}
 <div class="top">
   <div class="topin">
     <div class="desk-brand"><span class="brand">TOEFL<span class="brand-lab">Lab</span><span class="brand-dot">.</span></span><span class="brand-caption">个人练习空间</span></div>
-    <div class="nav"><span class="nav-label">学习</span>
+    <div class="nav">
       <button class="on" data-v="home">首页</button>
       <button data-v="drill">专项训练</button>
       <button data-v="sets">整套练习</button>
       <button data-v="course">视频课</button>
-      <span class="nav-label second">回顾</span><button data-v="review">错题本</button>
+      <button data-v="review">错题本</button>
       <button data-v="stats">数据分析</button>
     </div>
   </div>
@@ -1174,7 +1174,7 @@ function renderQ(){
             <p>已自动开始播放；若浏览器未出声，请点上方播放键。</p></div>`;
         } else {
           const response=/choose the best response/i.test(r.q.stem);
-          h+=`<div class="listening-guide"><b>${response?'听一句话，选择最合适的回应':'听对话或讲座，回答问题'}</b><p>${response?'听清对方说的话，再从 A–D 选择你会怎样回应。选项不是录音的逐字稿，不需要与录音说同一句话。':'依据录音回答当前问题。相邻几道题可能共用同一段录音，请注意题号和录音范围。'}</p><p>选择后点“确认答案”，确认后不能回改，系统自动进入下一题（正式考试规则）。</p></div>`;
+          h+=`<div class="listening-guide"><b>${response?'听一句话，选择最合适的回应':'听对话或讲座，回答问题'}</b><p>${response?'听清对方说的话，再从 A–D 选择你会怎样回应。选项不是录音的逐字稿，不需要与录音说同一句话。':'依据录音回答当前问题。相邻几道题可能共用同一段录音，请注意题号和录音范围。'}</p><p>选择后点“确认答案”，确认后不能回改，点「下一题」继续（与正式考试一致：手动前进、不可回看）。</p></div>`;
         }
       }
       if(!gate)'ABCD'.split('').forEach(k=>{const v=r.q.options[k];if(v==null)return;let cls='opt';const rightK=answerKeyOf(r.q);if(S.revealed){if(k===rightK)cls+=' right';else if(k===S.sel)cls+=' wrong';}else if(k===S.sel)cls+=' sel';h+=`<div class="${cls}" data-k="${k}" role="button" tabindex="0" aria-pressed="${S.sel===k}" aria-disabled="${S.revealed}"><span class="ol">${k}</span><span>${esc(v)}</span></div>`;});
@@ -1364,7 +1364,6 @@ function recordChoice(){
   renderFB([{label:'你的答案',v:S.sel?(S.sel+' · '+r.q.options[S.sel]):'—',cls:ok?'ok':'bad'},
             {label:'正确答案',v:rightK+' · '+r.q.options[rightK],cls:'right'}],
     ok, 'Q'+r.q.no, null, r.q.qid);
-  if(r.subj==='listening') autoNext(6);   // 正式考试规则: 确认后自动进入下一题
   showSourceReference(r.q.source_reference);
 }
 function recordFill(){
@@ -1435,19 +1434,7 @@ function showSubmitted(msg){
   const ref=curRef().it?.reference_lines;if(ref?.length)$('d-fb').insertAdjacentHTML('beforeend',`<details class="handout"><summary>对照原资料范文（不是评分结果）</summary><div style="white-space:pre-wrap;line-height:1.8">${esc(ref.join('\n\n'))}</div></details>`);
   $('d-next').textContent='下一题';
 }
-let NEXT_T=null;
-function autoNext(sec){
-  // 正式考试规则: 倒计时直接显示在「下一题」按钮上, 点按钮立即走
-  if(NEXT_T){clearInterval(NEXT_T);NEXT_T=null;}
-  const btn=$('d-next');
-  let left=sec;
-  const tick=()=>{
-    if(left<=0){ clearInterval(NEXT_T);NEXT_T=null; nextQ(); return; }
-    btn.textContent='下一题 · '+left+'s';
-    left--;
-  };
-  tick(); NEXT_T=setInterval(tick,1000);
-}
+let NEXT_T=null;   // 已停用自动下一题; 清理引用保留
 function renderFB(rows, ok, noLabel, heading, aiQid){
   const secs=Math.max(0,Math.round(qUsedSec()));
   // 答对时「你的答案」与「正确答案」必然相同 → 合并为一行, 不重复展示
