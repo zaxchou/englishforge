@@ -72,6 +72,31 @@ video.tfl{width:100%;background:#161616;border-radius:var(--r);aspect-ratio:16/9
 details.handout{margin-top:12px}
 details.handout summary{cursor:pointer;user-select:none}
 details.handout summary:hover{color:var(--t1)}
+/* 解析面板: 本题还原 + 材料折叠区(音频内嵌折叠条) */
+.ai-stem{font-size:14px;color:var(--t1);line-height:1.6;margin:2px 0 8px}
+.ai-opt.mine{background:#fbeeec}
+.ai-opt .tg.ok{color:#226b4b}
+.ai-opt .tg.bad{color:var(--bad)}
+.ai-ans{display:flex;gap:8px;align-items:baseline;font-size:13px;margin:3px 0;flex-wrap:wrap}
+.ai-ans .k2{color:#6b7d67;font-size:11px;flex-shrink:0}
+.ai-ans b.mine-b{color:var(--bad);word-break:break-all}
+details.ai-tsec{margin:10px 0 0;padding-top:10px;border-top:1px dashed #d5dfc8}
+details.ai-tsec summary{list-style:none;cursor:pointer;user-select:none;display:flex;
+  align-items:center;gap:8px;font-size:12px;color:#6b7d67}
+details.ai-tsec summary::-webkit-details-marker{display:none}
+details.ai-tsec summary:hover{color:#305540}
+details.ai-tsec .ar{display:inline-block;font-style:normal;transition:transform .15s;font-size:10px}
+details.ai-tsec[open] .ar{transform:rotate(90deg)}
+details.ai-tsec[open] summary{margin-bottom:8px}
+.ai-player{display:inline-flex;align-items:center;gap:7px;margin-left:auto}
+.ai-player .ap-play{width:26px;height:26px;border-radius:50%;border:1px solid #b9c9ab;
+  background:#f4f8ec;color:#305540;font-size:10px;cursor:pointer;line-height:1;padding:0;
+  display:inline-flex;align-items:center;justify-content:center;min-height:0}
+.ai-player .ap-play:hover{background:#e8efdf}
+.ai-player .ap-track{width:110px;height:3px;background:#dbe3cd;border-radius:2px;overflow:hidden;display:block}
+.ai-player .ap-track i{display:block;height:100%;width:0;background:#66856a}
+.ai-player .ap-time{font-size:11px;color:#7a8a74;font-variant-numeric:tabular-nums;white-space:nowrap}
+@media(max-width:600px){.ai-player .ap-track{width:70px}}
 '/* 听力正式考试模式: 听音门 + 自动下一题倒计时 */
 .listen-gate{margin:14px 0 6px;padding:18px 22px;background:#eef3e6;border:1px solid #d5dfc8;
   border-radius:4px;text-align:center;color:var(--t2);font-size:14px;line-height:1.9}
@@ -333,32 +358,88 @@ function aiPanelRender(ex) {
   const q = ex.q || {};
   let h = '<div class="ai-head"><span>AI 助教解析' + (ex.cached ? ' · 已生成' : '') + '</span>'
     + '<button class="ai-regen" type="button">重新生成</button></div>';
-  if (q.transcript) h += '<div class="ai-q"><div class="k">听力原文（官方 Transcript · 只在这里展示，练习时不显示）</div><div class="ai-passage ai-transcript">' + esc(q.transcript) + '</div></div>';
-  if (q.passage) h += '<div class="ai-q"><div class="k">材料</div><div class="ai-passage">' + esc(q.passage) + '</div></div>';
-  if (q.stem) h += '<div class="ai-q"><div class="k">题干</div><div>' + esc(q.stem) + '</div></div>';
-  if (q.prompt || q.body) h += '<div class="ai-q"><div class="k">任务</div><div class="ai-passage">' + esc((q.prompt + '\n' + q.body).trim()) + '</div></div>';
-  if (q.options && Object.keys(q.options).length) {
-    const key = /^[A-Da-d]$/.test(String(q.answer).trim()) ? String(q.answer).trim().toUpperCase() : '';
-    h += '<div class="ai-q"><div class="k">选项</div><div class="ai-opts">' +
-      Object.entries(q.options).map(([k, v]) =>
-        '<div class="ai-opt' + (k === key ? ' right' : '') + '"><b>' + k + '</b><span>' + esc(v) + '</span>' +
-        (k === key ? '<i>✓ 正确答案</i>' : '') + '</div>').join('') + '</div></div>';
-  } else if (q.answer) {
-    h += '<div class="ai-q"><div class="k">正确答案</div><div><b>' + esc(q.answer) + '</b>' +
-      (q.mine ? '<span class="ai-mine">　你当时填了 ' + esc(q.mine) + '</span>' : '') + '</div></div>';
-  }
-  if (q.mine && q.options && Object.keys(q.options).length)
-    h += '<div class="ai-q"><div class="k">你当时的错选</div><div><b>' + esc(q.mine) + '</b></div></div>';
+  // 阅读顺序 = 推理顺序: 结论(主角)先行, 依据在后
   if (q.noMaterial) h += '<div class="ai-note">听力原文尚未接入，以下分析基于题干与选项逻辑。</div>';
   h += ex.text.split(/\n+/).map(l => '<p>' + esc(l) + '</p>').join('');
+  // 本题还原: 题干 + 选项(正确/你的错选都标在选项行上, 不再单列"错选"块)
+  const hasOpts = q.options && Object.keys(q.options).length;
+  const key = /^[A-Da-d]$/.test(String(q.answer || '').trim()) ? String(q.answer).trim().toUpperCase() : '';
+  const mineKeys = (key && q.mine ? String(q.mine).toUpperCase().match(/\b[A-D]\b/g) : null) || [];
+  h += '<div class="ai-q"><div class="k">本题</div>';
+  if (q.stem) h += '<div class="ai-stem">' + esc(q.stem) + '</div>';
+  if (hasOpts) {
+    h += '<div class="ai-opts">' + Object.entries(q.options).map(([k, v]) => {
+      const isKey = k === key, isMine = mineKeys.includes(k);
+      const tag = isKey ? '<i class="tg ok">✓ 正确答案</i>' : (isMine ? '<i class="tg bad">✗ 你当时错选</i>' : '');
+      return '<div class="ai-opt' + (isKey ? ' right' : (isMine ? ' mine' : '')) + '"><b>' + k + '</b><span>' + esc(v) + '</span>' + tag + '</div>';
+    }).join('') + '</div>';
+  } else {
+    if (q.answer) h += '<div class="ai-ans"><span class="k2">正确答案</span><b>' + esc(q.answer) + '</b></div>';
+    if (q.mine) h += '<div class="ai-ans"><span class="k2">你当时填的</span><b class="mine-b">' + esc(q.mine) + '</b></div>';
+  }
+  if (q.prompt || q.body) h += '<div class="ai-passage">' + esc((q.prompt + '\n' + q.body).trim()) + '</div>';
+  h += '</div>';
+  // 材料区: 音频(听力求线后注入) + 原文, 折叠收起——它长, 但不该把分析挤走
+  const matText = q.transcript || q.passage || '';
+  if (matText) {
+    const label = q.transcript ? '听力原文（官方 Transcript · 练习时不显示）' : '材料原文';
+    h += '<details class="ai-tsec"><summary><i class="ar">▸</i><span class="t">' + esc(label) + '</span><span class="ai-player-slot"></span></summary>'
+      + '<div class="ai-passage' + (q.transcript ? ' ai-transcript' : '') + '">' + esc(matText) + '</div></details>';
+  }
   return h;
+}
+/* 听力解析面板: 把本题原音频做成迷你播放器, 注入材料折叠条右侧。
+   复习场景允许拖动/重听(不是考试模式); 全局同时只播一个。 */
+async function wireAiAudio(qidStr, panel) {
+  const slot = panel.querySelector('.ai-player-slot');
+  if (!slot) return;
+  const [set, subj, mk, type, noS] = qidStr.split('/');
+  if (subj !== 'listening') { slot.remove(); return; }
+  let rel = '';
+  try {
+    const n = await normSet(set);
+    const sub = n.subjects[subj];
+    const no = Number(noS);
+    if (sub && sub.modules) {
+      outer: for (const mod of sub.modules) {
+        if (mod.mk !== mk) continue;
+        for (const g of mod.groups) {
+          const qs = g.type === 'fill' ? g.parsed : g.questions;
+          const q = qs.find(x => String(x.no) === String(no));
+          if (q) { rel = (q.audio || g.audio || ''); break outer; }
+        }
+      }
+    }
+  } catch (e) {}
+  rel = String(rel).split('\\').join('/');
+  if (!rel) { slot.remove(); return; }
+  const src = '/media/set/' + encodeURIComponent(set) + '/' + rel;
+  slot.innerHTML = '<span class="ai-player"><button type="button" class="ap-play" aria-label="播放/暂停本题原音频">▶</button>'
+    + '<span class="ap-track"><i></i></span><span class="ap-time">--:-- / --:--</span></span>'
+    + '<audio class="ai-audio" preload="metadata" src="' + src + '"></audio>';
+  const au = slot.querySelector('audio'), btn = slot.querySelector('.ap-play'),
+        bar = slot.querySelector('.ap-track i'), tm = slot.querySelector('.ap-time');
+  btn.onclick = async e => {
+    e.preventDefault(); e.stopPropagation();   // 在 summary 上, 别触发折叠
+    document.querySelectorAll('.ai-audio').forEach(x => { if (x !== au) x.pause(); });
+    if (au.paused) { try { await au.play(); } catch (err) { tm.textContent = '音频加载失败'; } }
+    else au.pause();
+  };
+  au.onplay = () => { btn.textContent = '⏸'; };
+  au.onpause = () => { btn.textContent = '▶'; };
+  au.onloadedmetadata = () => { tm.textContent = fmt(0) + ' / ' + fmt(au.duration); };
+  au.ontimeupdate = () => {
+    if (au.duration) bar.style.width = (au.currentTime / au.duration * 100) + '%';
+    tm.textContent = fmt(au.currentTime) + ' / ' + fmt(au.duration || 0);
+  };
 }
 async function aiExplainToggle(qid, panel, btn) {
   if (!panel) return;
-  if (!panel.hidden) { panel.hidden = true; if (btn) { btn.disabled = false; aiSyncBtn(qid, btn); } return; }
+  if (!panel.hidden) { const a=panel.querySelector('.ai-audio'); if(a) a.pause();
+    panel.hidden = true; if (btn) { btn.disabled = false; aiSyncBtn(qid, btn); } return; }
   panel.hidden = false;
   panel.scrollIntoView({ block: 'nearest', behavior: 'smooth' });   // 面板可能在视口外, 不滚过去就像"没反应"
-  if (AI_EXPLAIN_CACHE[qid]) { panel.innerHTML = AI_EXPLAIN_CACHE[qid]; wireAiRegen(qid, panel, btn); return; }
+  if (AI_EXPLAIN_CACHE[qid]) { panel.innerHTML = AI_EXPLAIN_CACHE[qid]; wireAiRegen(qid, panel, btn); wireAiAudio(qid, panel); return; }
   if (btn) { btn.disabled = true; btn.innerHTML = '分析中…'; }
   panel.innerHTML = '<div class="ai-note ai-loading">AI 分析中，约需 2~4 秒…</div>';
   try {
@@ -370,7 +451,7 @@ async function aiExplainToggle(qid, panel, btn) {
   } catch (e) {
     panel.innerHTML = '<div class="ai-note">' + esc(e.message || '解析失败，稍后再试') + '</div>';
   } finally { if (btn) { btn.disabled = false; aiSyncBtn(qid, btn); } }
-  wireAiRegen(qid, panel, btn);
+  wireAiRegen(qid, panel, btn); wireAiAudio(qid, panel);
 }
 /* 重新生成: force 绕过两层缓存覆盖旧解析（解析升级后按需刷新单题） */
 function wireAiRegen(qid, panel, btn) {
@@ -390,7 +471,7 @@ function wireAiRegen(qid, panel, btn) {
     } catch (e) {
       panel.innerHTML = '<div class="ai-note">' + esc(e.message || '解析失败，稍后再试') + '</div>';
     } finally { if (btn) { btn.disabled = false; aiSyncBtn(qid, btn); } }
-    wireAiRegen(qid, panel, btn);
+    wireAiRegen(qid, panel, btn); wireAiAudio(qid, panel);
   };
 }
 
