@@ -35,12 +35,33 @@
 .hslide .tx{font-size:14px;color:var(--t2);line-height:1.7;white-space:pre-wrap}
 .audioerr{font-size:12px;color:var(--bad);margin-top:6px}
 video.tfl{width:100%;background:#161616;border-radius:var(--r);aspect-ratio:16/9;display:block}
-/* AI 助教解析面板（错题本） */
+/* AI 助教解析面板（错题本 + 做题判分后共用） */
 .ai-explain{margin:0 0 10px 24px;padding:12px 16px;background:#eef3e6;
   border-left:3px solid #66856a;border-radius:4px;font-size:13px;line-height:1.8;color:var(--t2)}
+#d-fb .ai-explain{margin:12px 0 0}
 .ai-explain p{margin:4px 0}
 .ai-explain .ai-head{font-size:11px;letter-spacing:.08em;color:#4d7a5f;font-weight:600;margin-bottom:4px}
 .ai-note{color:var(--t3);font-size:13px}
+.ai-q{margin:8px 0;padding-top:8px;border-top:1px dashed #d5dfc8}
+.ai-q .k{font-size:11px;color:#6b7d67;letter-spacing:.06em;margin-bottom:3px}
+.ai-passage{max-height:180px;overflow-y:auto;background:#f7faf1;border-radius:4px;
+  padding:8px 12px;white-space:pre-wrap;line-height:1.75}
+.ai-opts{display:flex;flex-direction:column;gap:4px}
+.ai-opt{display:flex;gap:8px;align-items:baseline;padding:4px 8px;border-radius:3px;background:#f7faf1}
+.ai-opt b{font-family:Georgia,serif;color:var(--t2)}
+.ai-opt.right{background:#e3efdb}
+.ai-opt.right b{color:#226b4b}
+.ai-opt i{margin-left:auto;font-style:normal;font-size:11px;color:#226b4b;white-space:nowrap}
+.ai-mine{color:var(--bad);font-size:12px}
+.ai-loading{animation:aipulse 1.2s ease-in-out infinite}
+@keyframes aipulse{0%,100%{opacity:1}50%{opacity:.45}}
+.ai-bar{display:flex;align-items:center;gap:10px;margin:10px 0 4px 24px}
+#d-fb .ai-bar{margin:10px 0 4px}
+.ai-bar button{border:1px solid #b9c9ab;background:#f4f8ec;color:#305540;
+  border-radius:4px;padding:8px 14px;font-size:13px}
+.ai-bar button:hover{background:#e8efdf}
+.ai-bar button:disabled{opacity:.55;cursor:default}
+.ai-tip{font-size:11px;color:var(--t3)}
 </style>
 </head>
 <body>
@@ -267,6 +288,48 @@ async function api(path, opts) {
 async function loadSet(id) {
   if (!SETCACHE[id]) SETCACHE[id] = api('/api/set/' + encodeURIComponent(id)).catch(e=>{delete SETCACHE[id];throw e;});
   return SETCACHE[id];
+}
+
+/* ---------- AI 助教解析（错题本 + 做题判分后共用）----------
+   生成过的解析在服务端永久落盘（records 卷），这里只是会话内缓存。 */
+const AI_EXPLAIN_CACHE = {};
+function aiPanelRender(ex) {
+  const q = ex.q || {};
+  let h = '<div class="ai-head">AI 助教解析' + (ex.cached ? ' · 已生成' : '') + '</div>';
+  if (q.passage) h += '<div class="ai-q"><div class="k">材料</div><div class="ai-passage">' + esc(q.passage) + '</div></div>';
+  if (q.stem) h += '<div class="ai-q"><div class="k">题干</div><div>' + esc(q.stem) + '</div></div>';
+  if (q.prompt || q.body) h += '<div class="ai-q"><div class="k">任务</div><div class="ai-passage">' + esc((q.prompt + '\n' + q.body).trim()) + '</div></div>';
+  if (q.options && Object.keys(q.options).length) {
+    const key = /^[A-Da-d]$/.test(String(q.answer).trim()) ? String(q.answer).trim().toUpperCase() : '';
+    h += '<div class="ai-q"><div class="k">选项</div><div class="ai-opts">' +
+      Object.entries(q.options).map(([k, v]) =>
+        '<div class="ai-opt' + (k === key ? ' right' : '') + '"><b>' + k + '</b><span>' + esc(v) + '</span>' +
+        (k === key ? '<i>✓ 正确答案</i>' : '') + '</div>').join('') + '</div></div>';
+  } else if (q.answer) {
+    h += '<div class="ai-q"><div class="k">正确答案</div><div><b>' + esc(q.answer) + '</b>' +
+      (q.mine ? '<span class="ai-mine">　你当时填了 ' + esc(q.mine) + '</span>' : '') + '</div></div>';
+  }
+  if (q.mine && q.options && Object.keys(q.options).length)
+    h += '<div class="ai-q"><div class="k">你当时的错选</div><div><b>' + esc(q.mine) + '</b></div></div>';
+  if (q.noMaterial) h += '<div class="ai-note">听力原文尚未接入，以下分析基于题干与选项逻辑。</div>';
+  h += ex.text.split(/\n+/).map(l => '<p>' + esc(l) + '</p>').join('');
+  return h;
+}
+async function aiExplainToggle(qid, panel, btn) {
+  if (!panel) return;
+  if (!panel.hidden) { panel.hidden = true; if (btn) btn.disabled = false; return; }
+  panel.hidden = false;
+  if (AI_EXPLAIN_CACHE[qid]) { panel.innerHTML = AI_EXPLAIN_CACHE[qid]; return; }
+  if (btn) btn.disabled = true;
+  panel.innerHTML = '<div class="ai-note ai-loading">AI 分析中，约需 2~4 秒…</div>';
+  try {
+    const r = await api('/api/ai/explain', { method: 'POST',
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ qid }) });
+    AI_EXPLAIN_CACHE[qid] = aiPanelRender(r);
+    panel.innerHTML = AI_EXPLAIN_CACHE[qid];
+  } catch (e) {
+    panel.innerHTML = '<div class="ai-note">' + esc(e.message || '解析失败，稍后再试') + '</div>';
+  } finally { if (btn) btn.disabled = false; }
 }
 
 /* ---------- 学习记录（服务端唯一真源） ---------- */
@@ -1044,7 +1107,7 @@ function recordChoice(){
   renderQ();
   renderFB([{label:'你的答案',v:S.sel?(S.sel+' · '+r.q.options[S.sel]):'—',cls:ok?'ok':'bad'},
             {label:'正确答案',v:rightK+' · '+r.q.options[rightK],cls:'right'}],
-    ok, 'Q'+r.q.no);
+    ok, 'Q'+r.q.no, null, r.q.qid);
   showSourceReference(r.q.source_reference);
 }
 function recordFill(){
@@ -1065,7 +1128,10 @@ function recordFill(){
   });
   const nJudge=g.parsed.filter(q=>q.answer).length;
   const allOk=nJudge>0&&nOk===nJudge;
-  renderFB(rows.length?rows:[{label:'填空',v:nOk+' / '+nJudge+' 空'+(nJudge<g.parsed.length?'（'+(g.parsed.length-nJudge)+' 空无官方答案）':''),cls:allOk?'ok':'bad'}], allOk, 'Q'+g.key);
+  // AI 解析选第一个做错的空; 全对时给第一空(核对思路); 有空缺官方答案则不给
+  const aiQ=g.parsed.some(q=>!q.answer)?null
+    :(g.parsed.find((q,i)=>!fillIsCorrect(q,S.fillVals[i]))||g.parsed[0]);
+  renderFB(rows.length?rows:[{label:'填空',v:nOk+' / '+nJudge+' 空'+(nJudge<g.parsed.length?'（'+(g.parsed.length-nJudge)+' 空无官方答案）':''),cls:allOk?'ok':'bad'}], allOk, 'Q'+g.key, null, aiQ&&aiQ.qid);
   renderQbar();
 }
 function submitOpen(){
@@ -1084,7 +1150,7 @@ function submitOpen(){
       const ok=sentenceNorm(sentence)===sentenceNorm(r.it.reference_answer);
       recAttempt({qid:r.it.qid,set:r.set,subj:r.subj,mk:r.mk,gkey:'-'},ok,sentence,qUsedSec());
       S.answerSec=qUsedSec();S.revealed=true;
-      renderFB([{label:'你的句子',v:sentence,cls:ok?'ok':'bad'},{label:'原资料参考',v:r.it.reference_answer,cls:'right'}],ok,'Q'+r.it.no,ok?'符合参考答案':'未匹配参考答案');
+      renderFB([{label:'你的句子',v:sentence,cls:ok?'ok':'bad'},{label:'原资料参考',v:r.it.reference_answer,cls:'right'}],ok,'Q'+r.it.no,ok?'符合参考答案':'未匹配参考答案',r.it.qid);
       $('d-fb').insertAdjacentHTML('beforeend',`<div class="qd">按本题词库、固定词及原资料参考判定，忽略大小写与句末标点；不代表其他表达都存在语法错误。来源：${esc(r.it.reference_source)}</div>`);
       renderQbar();
     }else{
@@ -1112,7 +1178,7 @@ function showSubmitted(msg){
   const ref=curRef().it?.reference_lines;if(ref?.length)$('d-fb').insertAdjacentHTML('beforeend',`<details class="handout"><summary>对照原资料范文（不是评分结果）</summary><div style="white-space:pre-wrap;line-height:1.8">${esc(ref.join('\n\n'))}</div></details>`);
   $('d-next').textContent='下一题';
 }
-function renderFB(rows, ok, noLabel, heading){
+function renderFB(rows, ok, noLabel, heading, aiQid){
   const secs=Math.max(0,Math.round(qUsedSec()));
   $('d-fb').innerHTML=`<div class="fb ${ok?'ok':'bad'}">
     <div class="h"><span class="ic">${ok?'✓':'×'}</span>
@@ -1122,7 +1188,11 @@ function renderFB(rows, ok, noLabel, heading){
       `<div class="r"><span class="k">${esc(x.label)}</span>
         <span class="v ${x.cls==='right'?'right':(x.cls==='ok'?'mine ok':(x.cls==='na'?'':'mine bad'))}" ${x.cls==='na'?'style="color:var(--t2)"':''}>${esc(x.v)}</span></div>`).join('')}</div>
     ${ok?'':`<div class="tagrow"><span class="lb">已收入错题本</span>
-      <span class="tag">1 天后复习</span></div>`}</div>`;
+      <span class="tag">1 天后复习</span></div>`}</div>
+    ${aiQid?`<div class="ai-explain" hidden></div>
+    <div class="ai-bar"><button class="ai-trigger" data-fb-ai="${esc(aiQid)}">AI解析</button><span class="ai-tip">按本题材料与题干生成解析（对错都可看，蒙对的也值得核对思路）</span></div>`:''}`;
+  const trig=$('d-fb').querySelector('[data-fb-ai]');
+  if(trig) trig.onclick=()=>aiExplainToggle(trig.dataset.fbAi, trig.closest('.ai-bar').previousElementSibling, trig);
   $('d-next').textContent='下一题';
 }
 function nextQ(){
@@ -1478,26 +1548,9 @@ async function renderReview(){
       await openQuestion(b.dataset.redo);
     };
   });
-  // AI 解析: 即点即出, 前端按 qid 缓存(服务端也缓存, 重复点不重复扣费)
-  const AI_CACHE = {};
+  // AI 解析: 即点即用, 生成过的解析服务端永久保存, 重复点不重复扣费
   $('rv-list').querySelectorAll('[data-ai]').forEach(b=>{
-    b.onclick=async()=>{
-      const k=b.dataset.ai, p=b.closest('.witem').nextElementSibling;
-      if(!p || !p.classList.contains('ai-explain')) return;
-      if(!p.hidden){ p.hidden=true; return; }
-      p.hidden=false;
-      if(AI_CACHE[k]){ p.innerHTML=AI_CACHE[k]; return; }
-      p.innerHTML='<div class="ai-note">AI 分析中…</div>';
-      try{
-        const r=await api('/api/ai/explain',{method:'POST',
-          headers:{'Content-Type':'application/json'},body:JSON.stringify({qid:k})});
-        AI_CACHE[k]='<div class="ai-head">AI 助教解析'+(r.cached?' · 已缓存':'')+'</div>'
-          +r.text.split(/\n+/).map(l=>`<p>${esc(l)}</p>`).join('');
-        p.innerHTML=AI_CACHE[k];
-      }catch(e){
-        p.innerHTML='<div class="ai-note">'+esc(e.message||'解析失败')+'</div>';
-      }
-    };
+    b.onclick=()=>aiExplainToggle(b.dataset.ai, b.closest('.witem').nextElementSibling, b);
   });
   $('rv-list').querySelectorAll('[data-clear]').forEach(b=>{
     b.onclick=()=>{ const m=REC.mistakes[b.dataset.clear];

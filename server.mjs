@@ -91,8 +91,19 @@ const AI_CFG = {
   base: (process.env.TFL_AI_BASE_URL || 'https://api.deepseek.com').replace(/\/+$/, ''),
   model: process.env.TFL_AI_MODEL || 'deepseek-chat',
 };
-const AI_CACHE = new Map();          // qid -> 解析文本（服务端也缓存，防重复扣费）
+const AI_CACHE = new Map();          // qid -> 解析文本（L1 内存）
 const AI_CACHE_MAX = 300;
+// L2 永久缓存：records 卷里的 ai-explanations.json，随容器更新保留——
+// 一道题生成过解析就是这道题的固定解析，不再重复扣费。
+const AI_STORE_FILE = path.join(RECORDS_DIR, 'ai-explanations.json');
+let AI_STORE = {};
+try { AI_STORE = JSON.parse(fs.readFileSync(AI_STORE_FILE, 'utf8')).items || {}; } catch (e) {}
+function aiStoreSave() {
+  try {
+    fs.mkdirSync(RECORDS_DIR, { recursive: true });
+    fs.writeFileSync(AI_STORE_FILE, JSON.stringify({ version: 1, items: AI_STORE }));
+  } catch (e) { console.error('[ai-store]', e.message); }
+}
 
 /* qid(set/subj/mk/type/no) → 题面。与 web/normSet 同一套定位逻辑（duplicate module 的
    mk 加 pN、fill 用 q_range 起点、mc 用 answers 里非 fill 项）。只读题面，不改数据。 */
@@ -151,7 +162,15 @@ async function aiExplain(qidStr) {
   if (!Number.isInteger(no)) throw new Error('bad qid');
   if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(set) || !/^(listening|reading|writing|speaking)$/.test(subj)
       || !/^[\w.+-]+$/.test(mk) || !/^[\w]+$/.test(type)) throw new Error('bad qid');
-  if (AI_CACHE.has(qidStr)) return { text: AI_CACHE.get(qidStr), cached: true };
+  if (AI_CACHE.has(qidStr)) {
+    return { text: AI_CACHE.get(qidStr), cached: true, q: (AI_STORE[qidStr] && AI_STORE[qidStr].q) || undefined };
+  }
+  if (AI_STORE[qidStr]) {
+    const hit = AI_STORE[qidStr];
+    if (AI_CACHE.size >= AI_CACHE_MAX) AI_CACHE.delete(AI_CACHE.keys().next().value);
+    AI_CACHE.set(qidStr, hit.text);
+    return { text: hit.text, cached: true, q: hit.q };
+  }
   const q = findQuestion(set, subj, mk, type, no);
   if (!q) throw new Error('question not found');
   // 学生当时的错误答案（不是最近一次答案——可能已订正）
@@ -196,9 +215,16 @@ async function aiExplain(qidStr) {
   const j = await r.json();
   const text = j.choices?.[0]?.message?.content?.trim();
   if (!text) throw new Error('AI 未返回内容');
+  const qPub = {
+    kind: q.kind, title: q.title || '', passage: q.passage || '', stem: q.stem || '',
+    options: q.options || {}, prompt: q.prompt || '', body: q.body || '',
+    answer: q.answer || q.reference || '', mine, noMaterial,
+  };
+  AI_STORE[qidStr] = { text, q: qPub, at: Date.now() };
+  aiStoreSave();
   if (AI_CACHE.size >= AI_CACHE_MAX) AI_CACHE.delete(AI_CACHE.keys().next().value);
   AI_CACHE.set(qidStr, text);
-  return { text, cached: false };
+  return { text, cached: false, q: qPub };
 }
 
 /* ---------- 题库目录（启动时缓存） ---------- */
