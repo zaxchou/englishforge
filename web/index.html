@@ -61,10 +61,8 @@ video.tfl{width:100%;background:#161616;border-radius:var(--r);aspect-ratio:16/9
 .ai-mine{color:var(--bad);font-size:12px}
 .ai-loading{animation:aipulse 1.2s ease-in-out infinite}
 @keyframes aipulse{0%,100%{opacity:1}50%{opacity:.45}}
-'.ai-tip{font-size:11px;color:var(--t3)}
-/* 判分反馈卡内动作行: AI解析入口收进卡内, 不再漂浮在卡外 */
-.fb-ops{display:flex;align-items:center;gap:10px;margin-top:12px;
-  padding-top:12px;border-top:1px solid var(--line)}
+'/* 判分反馈卡内动作行: AI解析入口收进卡内, 不再漂浮在卡外 */
+.fb-ops{display:flex;align-items:center;margin-top:14px}
 .fb-ops .op-ai{min-height:34px;padding:0 14px;font-size:13px}
 .fb .okmark{font-style:normal;font-size:11px;color:var(--ok);background:#e7f0e0;
   border:1px solid #b9d3c0;border-radius:8px;padding:1px 8px;margin-left:8px;
@@ -1379,7 +1377,7 @@ function renderFB(rows, ok, noLabel, heading, aiQid){
     ${body}
     ${ok?'':`<div class="tagrow"><span class="lb">已收入错题本</span>
       <span class="tag">1 天后复习</span></div>`}
-    ${aiQid?`<div class="fb-ops"><button type="button" class="op-ai${AI_HAVE_SET.has(aiQid)?' have':''}" data-fb-ai="${esc(aiQid)}" title="${AI_HAVE_SET.has(aiQid)?'已生成解析，点击秒开':'生成 AI 助教解析（约 2~4 秒）'}">AI解析</button><span class="ai-tip">对错都可看 · 蒙对的也值得核对思路</span></div>`:''}</div>
+    ${aiQid?`<div class="fb-ops"><button type="button" class="op-ai${AI_HAVE_SET.has(aiQid)?' have':''}" data-fb-ai="${esc(aiQid)}" title="${AI_HAVE_SET.has(aiQid)?'已生成解析，点击秒开':'生成 AI 助教解析（约 2~4 秒）'}">AI解析</button></div>`:''}</div>
     ${aiQid?`<div class="ai-explain" hidden></div>`:''}`;
   const trig=$('d-fb').querySelector('[data-fb-ai]');
   if(trig) trig.onclick=()=>aiExplainToggle(trig.dataset.fbAi, trig.closest('.fb').nextElementSibling, trig);
