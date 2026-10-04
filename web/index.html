@@ -758,7 +758,7 @@ function tReset(){ if(TICK) clearInterval(TICK); TICK=null;
 let lastNav='home';
 function go(v){
   const isTask=(v==='do');
-  if(!isTask) {checkpointCourse(true);lastNav=v; if(TICK) {TACC=usedSec();QACC=qUsedSec();clearInterval(TICK);TICK=null;} STU=false; $('d-audio').pause();const cv=$('cs-video');if(cv)cv.pause();} else if(S && !TICK && !T_PAUSED) tStart();
+  if(!isTask) {checkpointCourse(true);lastNav=v; if(TICK) {TACC=usedSec();QACC=qUsedSec();clearInterval(TICK);TICK=null;} STU=false; $('d-audio').pause();const cv=$('cs-video');if(cv)cv.pause();document.querySelectorAll('.ai-audio').forEach(a=>a.pause());} else if(S && !TICK && !T_PAUSED) tStart();
   document.querySelectorAll('.nav button').forEach(x=>x.classList.toggle('on',x.dataset.v===v));
   document.querySelectorAll('.view').forEach(x=>x.classList.remove('on'));
   $('v-'+v).classList.add('on');
@@ -1244,7 +1244,13 @@ function startTaskTimer(r){
       if(left<=0){
         stopTaskTimer();
         if(ta) ta.disabled=true;
-        if(!S.revealed){ showSubmitted('官方本题时限（10:00）已到，作答已锁定并提交。'); }
+        if(!S.revealed){
+          // 与手动提交同一条记录路径: 官方时间到即收卷, 空白也如实记录(不判分)
+          const txt=ta?ta.value.trim():'';
+          setWritingDraft(r.it.qid, txt, true);
+          recAttempt({qid:r.it.qid,set:r.set,subj:r.subj,mk:r.mk,gkey:'-'}, null, txt, qUsedSec());
+          showSubmitted(txt?'官方本题时限（10:00）已到，作答已锁定并提交。':'官方本题时限（10:00）已到，未作答，已按空白收卷。');
+        }
         return;
       }
       left--;
@@ -1336,18 +1342,16 @@ function groupRange(ix){
 }
 function simCanJump(ix){
   if(!S.sim) return true;
-  const cur=S.refs[S.i], dst=S.refs[ix], [cmin,cmax]=groupRange(S.i);
-  if(cur.subj==='listening') return ix>=cmin&&ix<=cmax;      // 听力: 只能在当前组内
-  if(cur.subj==='reading')   return ix>=cmin;                 // 阅读: 组内自由, 不能回上一组
-  return true;
+  const [cmin]=groupRange(S.i);
+  // 统一规则: 不能回看当前组之前的任何题(官方核心=不可回看);
+  // 向前自由——含跨科目前进(离开听力节去阅读是单向的官方节转换)。
+  return ix>=cmin;
 }
 function jumpToQuestion(ix){
   if(!S||!S.refs[ix])return;
   if(ix===S.i){$('d-body').scrollIntoView({block:'start'});return;}
   if(!simCanJump(ix)){
-    alert(S.refs[S.i].subj==='listening'
-      ?'正式考试规则：听力逐题作答，进入下一题后不能返回。'
-      :'正式考试规则：阅读进入下一篇文章后，不能返回前面的文章。');
+    alert('正式考试规则：不能返回已经过的部分（听力逐题锁定；阅读进入下一篇后不可回看）。');
     return;
   }
   saveQuestionDraft();
