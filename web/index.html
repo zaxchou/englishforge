@@ -383,7 +383,8 @@ function aiPanelRender(ex) {
   const matText = q.transcript || q.passage || '';
   if (matText) {
     const label = q.transcript ? '听力原文（官方 Transcript · 练习时不显示）' : '材料原文';
-    h += '<details class="ai-tsec"><summary><i class="ar">▸</i><span class="t">' + esc(label) + '</span><span class="ai-player-slot"></span></summary>'
+    // 默认展开: 用户要的是原文可见, 折叠会让人以为丢了; 分析已在前, 展开不挤走主角
+    h += '<details class="ai-tsec" open><summary><i class="ar">▸</i><span class="t">' + esc(label) + '</span><span class="ai-player-slot"></span></summary>'
       + '<div class="ai-passage' + (q.transcript ? ' ai-transcript' : '') + '">' + esc(matText) + '</div></details>';
   }
   return h;
