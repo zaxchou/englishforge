@@ -40,7 +40,12 @@ video.tfl{width:100%;background:#161616;border-radius:var(--r);aspect-ratio:16/9
   border-left:3px solid #66856a;border-radius:4px;font-size:13px;line-height:1.8;color:var(--t2)}
 #d-fb .ai-explain{margin:12px 0 0}
 .ai-explain p{margin:4px 0}
-.ai-explain .ai-head{font-size:11px;letter-spacing:.08em;color:#4d7a5f;font-weight:600;margin-bottom:4px}
+.ai-explain .ai-head{font-size:11px;letter-spacing:.08em;color:#4d7a5f;font-weight:600;margin-bottom:4px;
+  display:flex;align-items:center;gap:8px}
+.ai-explain .ai-regen{margin-left:auto;background:none;border:none;padding:2px 4px;cursor:pointer;
+  font-size:11px;color:#6b8a75;text-decoration:underline;text-underline-offset:3px;letter-spacing:0}
+.ai-explain .ai-regen:hover{color:#305540}
+.ai-explain .ai-regen:disabled{opacity:.5;cursor:default;text-decoration:none}
 .ai-note{color:var(--t3);font-size:13px}
 .ai-q{margin:8px 0;padding-top:8px;border-top:1px dashed #d5dfc8}
 .ai-q .k{font-size:11px;color:#6b7d67;letter-spacing:.06em;margin-bottom:3px}
@@ -318,7 +323,8 @@ function aiBtnInner(qid) {
 }
 function aiPanelRender(ex) {
   const q = ex.q || {};
-  let h = '<div class="ai-head">AI 助教解析' + (ex.cached ? ' · 已生成' : '') + '</div>';
+  let h = '<div class="ai-head"><span>AI 助教解析' + (ex.cached ? ' · 已生成' : '') + '</span>'
+    + '<button class="ai-regen" type="button">重新生成</button></div>';
   if (q.passage) h += '<div class="ai-q"><div class="k">材料</div><div class="ai-passage">' + esc(q.passage) + '</div></div>';
   if (q.stem) h += '<div class="ai-q"><div class="k">题干</div><div>' + esc(q.stem) + '</div></div>';
   if (q.prompt || q.body) h += '<div class="ai-q"><div class="k">任务</div><div class="ai-passage">' + esc((q.prompt + '\n' + q.body).trim()) + '</div></div>';
@@ -343,7 +349,7 @@ async function aiExplainToggle(qid, panel, btn) {
   if (!panel.hidden) { panel.hidden = true; if (btn) { btn.disabled = false; btn.innerHTML = aiBtnInner(qid); } return; }
   panel.hidden = false;
   panel.scrollIntoView({ block: 'nearest', behavior: 'smooth' });   // 面板可能在视口外, 不滚过去就像"没反应"
-  if (AI_EXPLAIN_CACHE[qid]) { panel.innerHTML = AI_EXPLAIN_CACHE[qid]; return; }
+  if (AI_EXPLAIN_CACHE[qid]) { panel.innerHTML = AI_EXPLAIN_CACHE[qid]; wireAiRegen(qid, panel, btn); return; }
   if (btn) { btn.disabled = true; btn.innerHTML = '分析中…'; }
   panel.innerHTML = '<div class="ai-note ai-loading">AI 分析中，约需 2~4 秒…</div>';
   try {
@@ -355,6 +361,28 @@ async function aiExplainToggle(qid, panel, btn) {
   } catch (e) {
     panel.innerHTML = '<div class="ai-note">' + esc(e.message || '解析失败，稍后再试') + '</div>';
   } finally { if (btn) { btn.disabled = false; btn.innerHTML = aiBtnInner(qid); } }
+  wireAiRegen(qid, panel, btn);
+}
+/* 重新生成: force 绕过两层缓存覆盖旧解析（解析升级后按需刷新单题） */
+function wireAiRegen(qid, panel, btn) {
+  const link = panel.querySelector('.ai-regen');
+  if (!link) return;
+  link.onclick = async () => {
+    if (!confirm('重新生成会覆盖当前解析（调用一次 AI，约 2~4 秒）。继续？')) return;
+    link.disabled = true; link.textContent = '生成中…';
+    if (btn) { btn.disabled = true; btn.innerHTML = '分析中…'; }
+    panel.innerHTML = '<div class="ai-note ai-loading">AI 重新分析中，约需 2~4 秒…</div>';
+    try {
+      const r = await api('/api/ai/explain', { method: 'POST',
+        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ qid, force: true }) });
+      AI_EXPLAIN_CACHE[qid] = aiPanelRender(r);
+      panel.innerHTML = AI_EXPLAIN_CACHE[qid];
+      (await aiHave()).add(qid);
+    } catch (e) {
+      panel.innerHTML = '<div class="ai-note">' + esc(e.message || '解析失败，稍后再试') + '</div>';
+    } finally { if (btn) { btn.disabled = false; btn.innerHTML = aiBtnInner(qid); } }
+    wireAiRegen(qid, panel, btn);
+  };
 }
 
 /* ---------- 学习记录（服务端唯一真源） ---------- */

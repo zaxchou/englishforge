@@ -93,6 +93,9 @@ const AI_CFG = {
 };
 const AI_CACHE = new Map();          // qid -> 解析文本（L1 内存）
 const AI_CACHE_MAX = 300;
+// 解析版本号：v2 = 注入官方听力转写 + 防编造提示词。旧条目缺 v，
+// 可据此识别"升级前生成的旧解析"（GET 返回 legacy 清单，供批量重生成）。
+const AI_V = 2;
 // L2 永久缓存：records 卷里的 ai-explanations.json，随容器更新保留——
 // 一道题生成过解析就是这道题的固定解析，不再重复扣费。
 const AI_STORE_FILE = path.join(RECORDS_DIR, 'ai-explanations.json');
@@ -157,7 +160,7 @@ function findQuestion(set, subj, mk, type, no) {
   return null;
 }
 
-async function aiExplain(qidStr) {
+async function aiExplain(qidStr, force) {
   const parts = String(qidStr || '').split('/');
   if (parts.length !== 5) throw new Error('bad qid');
   const [set, subj, mk, type, noS] = parts;
@@ -165,14 +168,16 @@ async function aiExplain(qidStr) {
   if (!Number.isInteger(no)) throw new Error('bad qid');
   if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(set) || !/^(listening|reading|writing|speaking)$/.test(subj)
       || !/^[\w.+-]+$/.test(mk) || !/^[\w]+$/.test(type)) throw new Error('bad qid');
-  if (AI_CACHE.has(qidStr)) {
-    return { text: AI_CACHE.get(qidStr), cached: true, q: (AI_STORE[qidStr] && AI_STORE[qidStr].q) || undefined };
-  }
-  if (AI_STORE[qidStr]) {
-    const hit = AI_STORE[qidStr];
-    if (AI_CACHE.size >= AI_CACHE_MAX) AI_CACHE.delete(AI_CACHE.keys().next().value);
-    AI_CACHE.set(qidStr, hit.text);
-    return { text: hit.text, cached: true, q: hit.q };
+  if (!force) {
+    if (AI_CACHE.has(qidStr)) {
+      return { text: AI_CACHE.get(qidStr), cached: true, q: (AI_STORE[qidStr] && AI_STORE[qidStr].q) || undefined };
+    }
+    if (AI_STORE[qidStr]) {
+      const hit = AI_STORE[qidStr];
+      if (AI_CACHE.size >= AI_CACHE_MAX) AI_CACHE.delete(AI_CACHE.keys().next().value);
+      AI_CACHE.set(qidStr, hit.text);
+      return { text: hit.text, cached: true, q: hit.q };
+    }
   }
   const q = findQuestion(set, subj, mk, type, no);
   if (!q) throw new Error('question not found');
@@ -235,7 +240,7 @@ async function aiExplain(qidStr) {
     options: q.options || {}, prompt: q.prompt || '', body: q.body || '',
     answer: q.answer || q.reference || '', mine, noMaterial,
   };
-  AI_STORE[qidStr] = { text, q: qPub, at: Date.now() };
+  AI_STORE[qidStr] = { text, q: qPub, at: Date.now(), v: AI_V };
   aiStoreSave();
   if (AI_CACHE.size >= AI_CACHE_MAX) AI_CACHE.delete(AI_CACHE.keys().next().value);
   AI_CACHE.set(qidStr, text);
@@ -501,13 +506,17 @@ const handler = async (req, res) => {
     if (p === '/api/ai/explain') {
       const origin = req.headers.origin;
       if (origin && origin !== `http://${req.headers.host}` && origin !== `https://${req.headers.host}`) return sendJSON(res, 403, { error: 'cross-origin rejected' });
-      if (req.method === 'GET') return sendJSON(res, 200, { ok: true, qids: Object.keys(AI_STORE) });
+      if (req.method === 'GET') return sendJSON(res, 200, {
+        ok: true,
+        qids: Object.keys(AI_STORE),
+        legacy: Object.keys(AI_STORE).filter(q => !AI_STORE[q].v),   // 旧版本生成的解析（升级后可重生成）
+      });
       if (req.method !== 'POST') return sendJSON(res, 405, { error: 'method' });
       if (!AI_CFG.key) return sendJSON(res, 503, { error: 'AI 未配置（服务端缺少 TFL_AI_KEY）' });
       const body = await readBody(req);
       let inc; try { inc = JSON.parse(body.toString('utf8') || '{}'); } catch (e) { return sendJSON(res, 400, { error: 'bad json' }); }
       try {
-        const out = await aiExplain(inc.qid);
+        const out = await aiExplain(inc.qid, !!inc.force);
         return sendJSON(res, 200, { ok: true, ...out });
       } catch (e) {
         const code = /^bad qid|not found/.test(e.message) ? 400 : 502;
