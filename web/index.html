@@ -61,7 +61,7 @@ video.tfl{width:100%;background:#161616;border-radius:var(--r);aspect-ratio:16/9
 .ai-mine{color:var(--bad);font-size:12px}
 .ai-loading{animation:aipulse 1.2s ease-in-out infinite}
 @keyframes aipulse{0%,100%{opacity:1}50%{opacity:.45}}
-'/* 判分反馈卡内动作行: AI解析入口收进卡内, 不再漂浮在卡外 */
+/* 判分反馈卡内动作行: AI解析入口收进卡内, 不再漂浮在卡外 */
 .fb-ops{display:flex;align-items:center;margin-top:14px}
 .fb-ops .op-ai{min-height:34px;padding:0 14px;font-size:13px}
 .fb .okmark{font-style:normal;font-size:11px;color:var(--ok);background:#e7f0e0;
@@ -127,19 +127,19 @@ details.ai-tsec[open] summary{margin-bottom:8px}
 <div class="view on" id="v-home">
   <header class="lead"><div class="desk-kicker">TOEFL · 听 / 读 / 写 / 说</div>
     <h1>开始今天的练习<span class="heading-dot">.</span></h1>
-    <p id="home-sub">选择一科，开始这一组练习；进度自动保存。</p></header>
-  <section class="notebook"><div class="bookhead"><span>专项训练</span><span>四科 · 按题型进入</span></div>
-    <article class="part"><span class="num">01</span><div><strong>听力 <em>Listening</em></strong><p>听辨信息与说话意图</p></div><button data-drill="listening">开始听力 →</button></article>
-    <article class="part"><span class="num">02</span><div><strong>阅读 <em>Reading</em></strong><p>读清材料与逻辑关系</p></div><button data-drill="reading">开始阅读 →</button></article>
-    <article class="part"><span class="num">03</span><div><strong>写作 <em>Writing</em></strong><p>组织句子与完整回应</p></div><button data-drill="writing">开始写作 →</button></article>
-    <article class="part"><span class="num">04</span><div><strong>口语 <em>Speaking</em></strong><p>把理解变成口头表达</p></div><button data-drill="speaking">开始口语 →</button></article>
-    <div class="bookfoot"><span>独立作答</span><i>→</i><span>对照答案</span><i>→</i><span>整理错题</span></div></section>
-  <section class="resources"><h2>其他学习入口</h2>
-    <div class="resource"><b>整套练习</b><span id="res-sets">题库加载中…</span><button data-go="sets">浏览套题 ↗</button></div>
-    <div class="resource"><b>视频与讲义</b><span id="res-courses">课程加载中…</span><button data-go="course">打开课程 ↗</button></div>
-    <div class="resource"><b>错题与复盘</b><span>回到做错的地方，重新理解</span><button data-go="review">打开错题本 ↗</button></div>
-    <div class="resource" id="res-continue" style="display:none"><b>继续上次</b><span id="res-continue-txt"></span><button id="res-continue-btn">继续 ↗</button></div>
-  </section>
+    <p id="home-sub">加载中…</p></header>
+  <section class="controw" id="hm-continue"></section>
+  <section class="card hprog"><div class="phead"><div class="l"><b>专项训练 · 四科进度</b></div>
+    <div class="r"><span id="hm-prog-ct"></span></div></div>
+    <div id="hm-subjects"></div></section>
+  <div class="hm-cols">
+    <section class="card"><div class="phead"><div class="l"><b>错题本</b></div><div class="r"><span id="hm-rv-ct"></span></div></div>
+      <div class="hm-mini" id="hm-review"></div></section>
+    <section class="card"><div class="phead"><div class="l"><b>视频课</b></div><div class="r"><span id="hm-cs-ct"></span></div></div>
+      <div class="hm-mini" id="hm-course"></div></section>
+  </div>
+  <section class="card"><div class="phead"><div class="l"><b>学习数据</b></div><div class="r"><span>近 14 天</span></div></div>
+    <div class="hm-mini" id="hm-stats"></div></section>
 </div>
 
 <!-- ============ 专项训练 ============ -->
@@ -808,31 +808,116 @@ function lessonTitle(lid){
 }
 function renderHome(){
   const sets=CATALOK();
-  const nSets=sets.length;
-  const totQ=sets.reduce((a,s)=>a+s.total_q,0);
-  $('res-sets').textContent=nSets+' 套四科素材 · 已录入 '+totQ+' 项 · 部分题型待支持';
-  let nL=0,nC=0;
-  ((COURSES&&COURSES.series)||[]).forEach(s=>(s.courses||[]).forEach(c=>{nL+=c.lesson_count||0;nC++;}));
-  $('res-courses').textContent=nC+' 门课 · '+nL+' 节 · 配讲义';
+  const st=REC.study||{};
+  const hasMeta=(st.days>1)||(st.today>60);
+  $('home-sub').innerHTML=hasMeta
+    ?'继续上次的进度，或挑一科练几题。<span class="sub-meta">'+esc((st.days>1?('连续学习 '+st.days+' 天 · '):'')+'今日已学 '+fmt(st.today||0))+'</span>'
+    :'从下面选一科开始，进度会自动保存。';
+
+  /* ---- 继续上次: 最近视频课 / 最近作答的题 ---- */
+  let lastL=null,lastLT=0;
+  for(const [k,c] of Object.entries(REC.course||{}))
+    if(c.at&&c.at>lastLT&&!c.done&&c.pos>10){lastLT=c.at;lastL=k;}
   let lastQ=null,lastT=0;
   for(const [k,a] of scopedEntries(REC.attempts))
     if(a.last&&a.last>lastT){lastT=a.last;lastQ=k;}
-  let lastL=null,lastLT=0;
-  for(const [k,d] of scopedEntries(REC.drafts)) if(d.updated>lastT){lastT=d.updated;lastQ=k;}
-  for(const [k,w] of scopedEntries(REC.writing)) if(w.updated>lastT){lastT=w.updated;lastQ=k;}
-  for(const [k,c] of Object.entries(REC.course||{}))
-    if(c.at&&c.at>lastLT){lastLT=c.at;lastL=k;}
-  if(lastL&&lastLT>=lastT){
-    $('res-continue').style.display='';
-    const cp=REC.course[lastL]||{};
-    $('res-continue-txt').textContent='上次看到 '+lessonTitle(lastL)+
-      (cp.pos>10&&!cp.done?('（看到 '+fmt(cp.pos)+'，进去接着放）'):(cp.done?'（已看完）':''));
-    $('res-continue-btn').onclick=()=>nav('course/'+encodeURIComponent(lastL));
-  } else if(lastQ){
-    $('res-continue').style.display='';
-    $('res-continue-txt').textContent='最近练习 '+lastQ.split('/').slice(0,2).join(' · ');
-    $('res-continue-btn').onclick=()=>openQuestion(lastQ);
-  } else $('res-continue').style.display='none';
+  let ch='';
+  if(lastL){
+    const cp=REC.course[lastL];
+    ch+=`<div class="cont"><span class="pill t">视频课</span>
+      <div class="ct2"><b>${esc(lessonTitle(lastL))}</b><span>${cp.done?'已看完':'看到 '+fmt(cp.pos||0)}</span></div>
+      <button data-go="course/${encodeURIComponent(lastL)}">${cp.done?'重温':'继续看'} →</button></div>`;
+  }
+  if(lastQ){
+    const [qs,subj]=lastQ.split('/');
+    ch+=`<div class="cont"><span class="pill t">专项训练</span>
+      <div class="ct2"><b>${SUBN[subj]||subj}</b><span>${esc(qs)} · 上次练到 Q${esc(lastQ.split('/')[4])}</span></div>
+      <button data-q="${esc(lastQ)}">继续练 →</button></div>`;
+  }
+  $('hm-continue').innerHTML=ch||'<div class="cont empty2">还没有学习记录——从下面的四科里挑一科开始，或去视频课看看。</div>';
+  $('hm-continue').querySelectorAll('[data-go]').forEach(b=>{b.onclick=()=>nav(b.dataset.go);});
+  $('hm-continue').querySelectorAll('[data-q]').forEach(b=>{b.onclick=()=>openQuestion(b.dataset.q);});
+
+  /* ---- 四科进度: 主角表 ---- */
+  const tot={listening:0,reading:0,writing:0,speaking:0};
+  sets.forEach(s=>{for(const [k,v] of Object.entries(s.subjects||{})) if(k in tot) tot[k]+=v.q||0;});
+  const done={},right={},wrongIn={};
+  for(const [k,a] of scopedEntries(REC.attempts)){
+    const sj=k.split('/')[1];
+    if(!(sj in tot)) continue;
+    if(a.st==='done'||a.st==='wrong'){done[sj]=(done[sj]||0)+1;right[sj]=(right[sj]||0)+(a.st==='done'?1:0);}
+  }
+  for(const [k,m] of scopedEntries(REC.mistakes)) if(!m.cleared) wrongIn[k.split('/')[1]]=(wrongIn[k.split('/')[1]]||0)+1;
+  let ix=0, doneAny=0;
+  let hsub='';
+  for(const sj of ['listening','reading','writing','speaking']){
+    ix++;
+    const t=tot[sj], d=done[sj]||0, r=d?(right[sj]||0):0, w=wrongIn[sj]||0;
+    doneAny+=d;
+    const pct=t?Math.round(d/t*100):0;
+    const barW=d?Math.max(pct,3):0;   // 刚起步也要看得见(最小 3%), 与未开始区分
+    const acc=d?Math.round(r/d*100):null;
+    hsub+=`<article class="srow2${d?'':' zero'}" data-subj="${sj}">
+      <span class="num">0${ix}</span>
+      <div class="si"><strong>${SUBN[sj]}</strong>
+        <div class="pb2"><i style="width:${barW}%"></i></div>
+        <p>已练 ${d}/${t} 题${acc!=null?'<span class="p-acc"> · 正确率 '+acc+'%</span>':''}${w?' · 错题在册 '+w:''}</p></div>
+      ${acc!=null?`<span class="acc2"><b>${acc}%</b><span>正确率</span></span>`:'<span class="acc2 acc-empty">—</span>'}
+      <button data-drill2="${sj}">${d?(pct>=100?'重练':'继续'):'开始'} →</button></article>`;
+  }
+  $('hm-subjects').innerHTML=hsub;
+  $('hm-prog-ct').textContent='四科共 '+doneAny+' 题有作答';
+  $('hm-subjects').querySelectorAll('[data-drill2]').forEach(b=>{
+    b.onclick=()=>nav('drill/'+b.dataset.drill2);
+  });
+  $('hm-subjects').querySelectorAll('.srow2').forEach(row=>{
+    row.onclick=e=>{ if(e.target.closest('button')) return; nav('drill/'+row.dataset.subj); };
+  });
+
+  /* ---- 错题本 / 视频课 待办 ---- */
+  const ms=scopedEntries(REC.mistakes).filter(([,m])=>!m.cleared);
+  const dueN=ms.filter(([,m])=>(m.due||0)<=Date.now()).length;
+  $('hm-rv-ct').textContent=dueN?('今日到期 '+dueN+' 题'):'今日无到期';
+  $('hm-review').innerHTML=`<div class="mini"><div class="mv${dueN?'':' zero'}">${dueN||ms.length||'0'}</div>
+      <div class="mk">${ms.length?('题在册 · 最早 '+Math.max(1,Math.ceil((Math.min(...ms.map(([,m])=>m.due||Date.now()))-Date.now())/864e5))+' 天后复习'):'还没有错题'}</div>
+      <button data-go="review">${ms.length?'去复习 →':'查看 →'}</button></div>`;
+  let nL=0,nC=0,nWatched=0;
+  ((COURSES&&COURSES.series)||[]).forEach(s=>(s.courses||[]).forEach(c=>{nL+=c.lesson_count||0;nC++;}));
+  nWatched=Object.values(REC.course||{}).filter(c=>c.done).length;
+  $('hm-cs-ct').textContent='共 '+nL+' 节 · '+nC+' 门课';
+  $('hm-course').innerHTML=`<div class="mini"><div class="mv">${nWatched}</div>
+      <div class="mk">节已看完 · 配讲义</div>
+      <button data-go="course">去学习 →</button></div>`;
+  $('hm-review').querySelectorAll('[data-go]').forEach(b=>{b.onclick=()=>nav(b.dataset.go);});
+  $('hm-course').querySelectorAll('[data-go]').forEach(b=>{b.onclick=()=>nav(b.dataset.go);});
+
+  /* ---- 学习数据摘要 ---- */
+  const atts=scopedEntries(REC.attempts);
+  let nA=0,nR=0;
+  atts.forEach(([,a])=>{nA+=(a.n||0);nR+=(a.right||0);});
+  const qSec=Object.keys(REC.qtimes||{}).length?Object.values(REC.qtimes||{}).reduce((a,b)=>a+b,0):0;
+  const days=new Array(14).fill(0),daysBad=new Array(14).fill(0);
+  const today=new Date(); today.setHours(0,0,0,0);
+  for(const [,a] of atts) for(const hh of (a.history||[])){
+    const dd=new Date(hh.t); dd.setHours(0,0,0,0);
+    const ix2=13-Math.round((today-dd)/864e5);
+    if(ix2>=0&&ix2<14){days[ix2]++; if(hh.ok===false)daysBad[ix2]++;}
+  }
+  const mxD=Math.max(...days,1);
+  $('hm-stats').innerHTML=`<div class="hm-statgrid">
+    <div class="hm-bars"><div class="hm-legend"><span><i class="lg-ok"></i>作答</span><span><i class="lg-bad"></i>错题</span></div><div class="daily">${days.map((nn,i)=>{
+      const z=nn===0,h=nn/mxD*100;
+      return `<div class="dcol${z?' z':''}" title="${nn} 题">${z?'<i class="stub"></i>':
+        `<div class="st" style="height:${(h*(nn-daysBad[i])/Math.max(1,nn)).toFixed(0)}%"></div>
+         <div class="wr" style="height:${(h*daysBad[i]/Math.max(1,nn)).toFixed(0)}%"></div>`}</div>`;
+    }).join('')}</div><div class="dlab">${days.map((_,i)=>`<span>${i+1}</span>`).join('')}</div></div>
+    <div class="hm-nums">
+      <div class="n"><b>${nA}</b><span>累计作答</span></div>
+      <div class="n"><b>${nA?Math.round(nR/Math.max(1,nR+(nA-nR))*100)+'%':'—'}</b><span>正确率</span></div>
+      <div class="n"><b>${(st.total||0)>=3600?((st.total||0)/3600).toFixed(1)+'h':fmt(st.total||0)}</b><span>总时长</span></div>
+    </div></div>
+    <button class="hm-more" data-go="stats">完整数据分析 →</button>`;
+  $('hm-stats').querySelectorAll('[data-go]').forEach(b=>{b.onclick=()=>nav(b.dataset.go);});
 }
 
 /* ---------- 专项训练 ----------
