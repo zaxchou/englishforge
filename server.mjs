@@ -113,7 +113,9 @@ function findQuestion(set, subj, mk, type, no) {
   catch (e) { return null; }
   const sub = j.subjects && j.subjects[subj];
   if (!sub) return null;
-  if (sub.modules) {
+  const modNo = /^m(\d+)/.exec(mk);
+  if (sub.modules && modNo) {
+    const mod = Number(modNo[1]);
     for (let i = 0; i < sub.modules.length; i++) {
       const m = sub.modules[i];
       const dupM = sub.modules.filter(x => x.module === m.module).length > 1;
@@ -134,7 +136,8 @@ function findQuestion(set, subj, mk, type, no) {
           if (q) {
             const a = (j.answers?.[subj]?.[amk] || []).find(x => x.kind !== 'fill' && x.q === no);
             return { kind: 'mc', set, subj, no, passage: g.passage || '', title: g.title || '',
-                     stem: q.stem || '', options: q.options || {}, answer: (a && a.a) || q.answer || '' };
+                     stem: q.stem || '', options: q.options || {}, answer: (a && a.a) || q.answer || '',
+                     _audio: q.audio || g.audio || '' };
           }
         }
       }
@@ -179,8 +182,20 @@ async function aiExplain(qidStr) {
     ? [...new Set(att.history.filter(h => h.ok === false).map(h => String(h.answer || '').slice(0, 80)))]
     : [];
   const mine = wrongs.join(' / ');
-  const noMaterial = !(q.passage || '').trim() && !(q.prompt || '').trim();
+  // 官方听力转写（Answers.docx 的 Listening Transcript, 管线预提取对齐到音频文件）:
+  // 只注入 AI 解析, 不在练习界面显示。
+  let transcript = '';
+  if (subj === 'listening') {
+    try {
+      const tp = JSON.parse(fs.readFileSync(path.join(BUILD_DIR, 'transcripts', set + '.json'), 'utf8'));
+      const rel = String(q._audio || '').split('\\').join('/').split('/').pop();
+      const hit = rel && tp.audios && tp.audios[rel];
+      if (hit && hit.lines && hit.lines.length) transcript = hit.lines.join('\n').slice(0, 4000);
+    } catch (e) {}
+  }
+  const noMaterial = !(q.passage || '').trim() && !(q.prompt || '').trim() && !transcript;
   const lines = [];
+  if (transcript) lines.push('[听力原文（官方 Transcript，说话人已标注）]\n' + transcript);
   if (q.passage) lines.push('[材料]\n' + String(q.passage).slice(0, 4000));
   if (q.title) lines.push('[材料标题] ' + q.title);
   if (q.prompt || q.body) lines.push('[任务说明]\n' + ((q.prompt + '\n' + (q.body || '')).slice(0, 1500)));
