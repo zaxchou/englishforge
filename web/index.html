@@ -62,8 +62,15 @@ video.tfl{width:100%;background:#161616;border-radius:var(--r);aspect-ratio:16/9
 .ai-bar button:hover{background:#e8efdf}
 .ai-bar button:disabled{opacity:.55;cursor:default}
 '.ai-tip{font-size:11px;color:var(--t3)}
-.ai-have{font-style:normal;font-size:10px;color:#4d7a5f;background:#e3efdb;
+'.ai-have{font-style:normal;font-size:10px;color:#4d7a5f;background:#e3efdb;
   border-radius:8px;padding:1px 6px;margin-left:5px;vertical-align:1px}
+/* 听力正式考试模式: 听音门 + 自动下一题倒计时 */
+.listen-gate{margin:14px 0 6px;padding:18px 22px;background:#eef3e6;border:1px solid #d5dfc8;
+  border-radius:4px;text-align:center;color:var(--t2);font-size:14px;line-height:1.9}
+.listen-gate b{font-size:16px;color:var(--t1)}
+.listen-gate p{margin:6px 0 0}
+.autonext{margin-top:12px;padding:8px 12px;background:#f4f8ec;border:1px dashed #b9c9ab;
+  border-radius:4px;font-size:12px;color:#4d7a5f;font-variant-numeric:tabular-nums}
 .caveat-strip{margin:10px 0 14px;padding:10px 14px;background:var(--warnbg,#fdf3e0);
   border:1px solid var(--warnln,#e0c9a0);border-left:3px solid #b8863b;border-radius:4px;
   font-size:13px;line-height:1.7;color:#7a5b23}
@@ -896,6 +903,7 @@ function renderQ(){
   $('d-kind').textContent=SUBN[r.subj]+' · '+(moduleNo?'第 '+moduleNo+' 模块 · '+(r.q?'第 '+r.q.no+' 题':'填词 '+r.gkey):(r.task?.title||SUBN[r.subj]));
   $('d-cnt').textContent='本轮 '+(S.i+1)+' / '+S.refs.length;
   $('d-fb').innerHTML='';
+  if(NEXT_T){clearInterval(NEXT_T);NEXT_T=null;}
   $('d-next').textContent='确认答案'; $('d-next').className='pri';
   const key=(r.q||r.it)?.qid||[r.set,r.subj,r.mk,'fill',r.gkey].join('/');
   if(S.timedKey!==key){S.timedKey=key;S.startTs=Date.now();QACC=0;Q0=Date.now();S.answerSec=null;const draft=REC.drafts?.[key];if(draft&&!S.revealed){S.sel=draft.sel??null;S.fillVals={...draft.fillVals};S.slots={...draft.slots};}}
@@ -911,6 +919,19 @@ function renderQ(){
     au.playbackRate=auRate;
     $('d-prog').style.width='0%'; $('d-time').textContent='00:00 / --:--';
     $('d-play-ic').innerHTML='<path d="M3 2 L9 6 L3 10 Z" fill="#1C1C1A"/>';
+    // ---- 听力正式考试模式: 只播一遍, 播完才出题, 不可拖拽/倍速/回上一题 ----
+    S.audioDone=S.audioDone||{};
+    const isListen=r.subj==='listening';
+    const played=!!S.audioDone[src];
+    const answeredQ=!!(r.q&&REC.attempts[r.q.qid]);
+    window.__needListen=isListen&&r.kind==='choice'&&!S.revealed&&!answeredQ&&!played;
+    $('d-rate').style.display=isListen?'none':'';
+    $('d-track').style.pointerEvents=isListen?'none':'';
+    $('d-track').title=isListen?'正式考试模式：不可拖动进度':'点击跳转';
+    $('d-play').disabled=isListen&&played;
+    $('d-play').title=isListen?(played?'正式考试模式：每段录音只播一遍':'播放（只播一遍，结束后显示题目）'):'播放/暂停';
+    $('d-prev').style.display=isListen?'none':'';
+    if(window.__needListen&&au.paused) au.play().catch(()=>{});
     const mode=$('d-amode');
     if(mode){
       const whole=!!(r.group?.audio_module_level||r.it?.audio_module_level);
@@ -919,7 +940,11 @@ function renderQ(){
       mode.firstElementChild.textContent = whole?'整段 · 未分段':shared.length>1?'共用录音 · 题 '+shared[0]+'–'+shared.at(-1):r.q?'本题录音 · 题 '+r.q.no:'本题录音';
       mode.title = whole?'素材只有整段录音、无题级切点，如实整段播放，不伪造题级片段':shared.length>1?'这些题使用同一段录音；换题时录音内容保持相同，可以继续听或拖回重听':'当前题目对应的录音';
     }
-  } else {ab.style.display='none';$('d-audio').pause();$('d-audio').removeAttribute('src');$('d-audio').load();}
+  } else {
+    ab.style.display='none';$('d-audio').pause();$('d-audio').removeAttribute('src');$('d-audio').load();
+    window.__needListen=false;
+    $('d-rate').style.display='';$('d-track').style.pointerEvents='';$('d-prev').style.display='';
+  }
   let h='';
   if(r.kind==='choice'){
     const selection=r.q.interaction==='sentence_select';
@@ -934,13 +959,20 @@ function renderQ(){
       });
     }else{
       if(r.group.passage&&r.group.passage.length>10&&r.group.kind!=='listening_segment')h+=`<div class="passage">${esc(r.group.passage)}</div>`;
-      h+=`<div class="qt">Q${r.q.no}. ${esc(r.q.stem)}</div>`;
+      const gate=!!window.__needListen;
+      if(!gate)h+=`<div class="qt">Q${r.q.no}. ${esc(r.q.stem)}</div>`;
       if(r.subj==='listening'){
-        const response=/choose the best response/i.test(r.q.stem);
-        h+=`<div class="listening-guide"><b>${response?'听一句话，选择最合适的回应':'听对话或讲座，回答问题'}</b><p>${response?'先点上方播放，听清对方说的话，再从 A–D 选择你会怎样回应。选项不是录音的逐字稿，不需要与录音说同一句话。':'先点上方播放，再依据录音回答当前问题。相邻几道题可能共用同一段录音，请注意题号和录音范围。'}</p><p>选择后点“确认答案”查看结果，再点“下一题”继续。</p></div>`;
         if(r.q.audio_caveat) h+=`<div class="caveat-strip">⚠ ${esc(r.q.audio_caveat)}</div>`;
+        if(gate){
+          h+=`<div class="listen-gate"><b>🎧 听音阶段（正式考试规则）</b>
+            <p>本段录音<b>只播放一遍</b>，播放期间不显示题目；录音结束后才会出现题干和选项。</p>
+            <p>已自动开始播放；若浏览器未出声，请点上方播放键。</p></div>`;
+        } else {
+          const response=/choose the best response/i.test(r.q.stem);
+          h+=`<div class="listening-guide"><b>${response?'听一句话，选择最合适的回应':'听对话或讲座，回答问题'}</b><p>${response?'听清对方说的话，再从 A–D 选择你会怎样回应。选项不是录音的逐字稿，不需要与录音说同一句话。':'依据录音回答当前问题。相邻几道题可能共用同一段录音，请注意题号和录音范围。'}</p><p>选择后点“确认答案”，确认后不能回改，系统自动进入下一题（正式考试规则）。</p></div>`;
+        }
       }
-      'ABCD'.split('').forEach(k=>{const v=r.q.options[k];if(v==null)return;let cls='opt';const rightK=answerKeyOf(r.q);if(S.revealed){if(k===rightK)cls+=' right';else if(k===S.sel)cls+=' wrong';}else if(k===S.sel)cls+=' sel';h+=`<div class="${cls}" data-k="${k}" role="button" tabindex="0" aria-pressed="${S.sel===k}" aria-disabled="${S.revealed}"><span class="ol">${k}</span><span>${esc(v)}</span></div>`;});
+      if(!gate)'ABCD'.split('').forEach(k=>{const v=r.q.options[k];if(v==null)return;let cls='opt';const rightK=answerKeyOf(r.q);if(S.revealed){if(k===rightK)cls+=' right';else if(k===S.sel)cls+=' wrong';}else if(k===S.sel)cls+=' sel';h+=`<div class="${cls}" data-k="${k}" role="button" tabindex="0" aria-pressed="${S.sel===k}" aria-disabled="${S.revealed}"><span class="ol">${k}</span><span>${esc(v)}</span></div>`;});
     }
   } else if(r.kind==='fill'){
     const g=r.group;
@@ -1127,6 +1159,7 @@ function recordChoice(){
   renderFB([{label:'你的答案',v:S.sel?(S.sel+' · '+r.q.options[S.sel]):'—',cls:ok?'ok':'bad'},
             {label:'正确答案',v:rightK+' · '+r.q.options[rightK],cls:'right'}],
     ok, 'Q'+r.q.no, null, r.q.qid);
+  if(r.subj==='listening') autoNext(6);   // 正式考试规则: 确认后自动进入下一题
   showSourceReference(r.q.source_reference);
 }
 function recordFill(){
@@ -1197,8 +1230,21 @@ function showSubmitted(msg){
   const ref=curRef().it?.reference_lines;if(ref?.length)$('d-fb').insertAdjacentHTML('beforeend',`<details class="handout"><summary>对照原资料范文（不是评分结果）</summary><div style="white-space:pre-wrap;line-height:1.8">${esc(ref.join('\n\n'))}</div></details>`);
   $('d-next').textContent='下一题';
 }
-function renderFB(rows, ok, noLabel, heading, aiQid){
-  const secs=Math.max(0,Math.round(qUsedSec()));
+let NEXT_T=null;
+function autoNext(sec){
+  if(NEXT_T){clearInterval(NEXT_T);NEXT_T=null;}
+  let left=sec;
+  const el=document.createElement('div'); el.className='autonext';
+  const host=$('d-fb').querySelector('.fb')||$('d-fb');
+  host.appendChild(el);
+  const tick=()=>{
+    if(left<=0){ clearInterval(NEXT_T);NEXT_T=null; nextQ(); return; }
+    el.textContent='正式考试规则：'+left+' 秒后自动进入下一题（点「下一题」可立即走）';
+    left--;
+  };
+  tick(); NEXT_T=setInterval(tick,1000);
+}
+function renderFB(rows, ok, noLabel, heading, aiQid){  const secs=Math.max(0,Math.round(qUsedSec()));
   $('d-fb').innerHTML=`<div class="fb ${ok?'ok':'bad'}">
     <div class="h"><span class="ic">${ok?'✓':'×'}</span>
       <span class="tt">${esc(heading||(ok?'答对':'答错'))}</span>
@@ -1248,8 +1294,13 @@ $('d-audio').addEventListener('timeupdate',()=>{
   $('d-prog').style.width=(au.currentTime/au.duration*100)+'%';
   $('d-time').textContent=fmt(au.currentTime)+' / '+fmt(au.duration);
 });
-$('d-audio').addEventListener('ended',()=>{ $('d-prog').style.width='0%'; });
+$('d-audio').addEventListener('ended',()=>{
+  const wasListening=S&&curRef()&&curRef().subj==='listening';
+  if(wasListening&&S.audioDone){ S.audioDone[$('d-audio').getAttribute('src')]=true; renderQ(); return; }
+  $('d-prog').style.width='0%';
+});
 $('d-track').onclick=e=>{
+  if(S&&curRef()&&curRef().subj==='listening') return;   // 正式考试模式: 不可拖动进度
   const au=$('d-audio'); if(!au.duration) return;
   const rect=e.currentTarget.getBoundingClientRect();
   au.currentTime=Math.max(0,Math.min(au.duration,(e.clientX-rect.left)/rect.width*au.duration));
@@ -1279,7 +1330,7 @@ $('d-reset').onclick=async function(){
   if(!confirm('清空本组全部作答记录（含用时与错题），重新开始？')) return;
   qids.forEach(k=>{ delete REC.attempts[k]; delete REC.qtimes[k]; delete REC.mistakes[k]; delete REC.writing[k];delete (REC.drafts||{})[k]; });
   recSave();
-  S.i=0; S.sel=null; S.revealed=false; S.fillVals={}; S.slots={};
+  S.i=0; S.sel=null; S.revealed=false; S.fillVals={}; S.slots={}; S.audioDone={};
   S.timedKey=null;tReset();tStart();STU=true;renderQ();
 };
 $('d-pause').onclick=tPause;
