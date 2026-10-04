@@ -74,6 +74,130 @@ try {
   console.warn('[server] manifest 读取失败，/media/set 不可用:', e.message);
 }
 
+/* ---------- AI 助教配置（错题解析）----------
+   密钥只走环境变量；本地开发可放 .env.local（已 gitignore），生产由 compose 注入。
+   默认 DeepSeek deepseek-chat：非思考模式、即点即出，符合「关闭思考、速度优先」。 */
+try {
+  const envLocal = path.join(__dirname, '.env.local');
+  if (fs.existsSync(envLocal)) {
+    for (const line of fs.readFileSync(envLocal, 'utf8').split(/\r?\n/)) {
+      const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/);
+      if (m && process.env[m[1]] === undefined) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '');
+    }
+  }
+} catch (e) {}
+const AI_CFG = {
+  key: process.env.TFL_AI_KEY || '',
+  base: (process.env.TFL_AI_BASE_URL || 'https://api.deepseek.com').replace(/\/+$/, ''),
+  model: process.env.TFL_AI_MODEL || 'deepseek-chat',
+};
+const AI_CACHE = new Map();          // qid -> 解析文本（服务端也缓存，防重复扣费）
+const AI_CACHE_MAX = 300;
+
+/* qid(set/subj/mk/type/no) → 题面。与 web/normSet 同一套定位逻辑（duplicate module 的
+   mk 加 pN、fill 用 q_range 起点、mc 用 answers 里非 fill 项）。只读题面，不改数据。 */
+function findQuestion(set, subj, mk, type, no) {
+  let j;
+  try { j = JSON.parse(fs.readFileSync(path.join(DATA_DIR, set, set + '.json'), 'utf8')); }
+  catch (e) { return null; }
+  const sub = j.subjects && j.subjects[subj];
+  if (!sub) return null;
+  if (sub.modules) {
+    for (let i = 0; i < sub.modules.length; i++) {
+      const m = sub.modules[i];
+      const dupM = sub.modules.filter(x => x.module === m.module).length > 1;
+      const mk2 = 'm' + m.module + (dupM ? 'p' + (m.part || i + 1) : '');
+      if (mk2 !== mk) continue;
+      const amk = 'module' + m.module;
+      for (const g of (m.groups || [])) {
+        if (type === 'fill' && g.kind === 'fill_in_blank') {
+          const qStart = parseInt(String(g.q_range || '1').split('-')[0], 10) || 1;
+          const ansList = (g.answers && g.answers.length ? g.answers :
+            (j.answers?.[subj]?.[amk] || []).filter(a => a.kind === 'fill'));
+          const a = ansList.find(x => (x.q != null ? x.q : x.no) === no);
+          if (a || (no >= qStart && no < qStart + String(g.passage || '').split(/(?:\s+_)+/).length))
+            return { kind: 'fill', set, subj, no, passage: g.passage || '', title: g.title || '',
+                     answer: a ? a.a : '' };
+        } else if (type !== 'fill') {
+          const q = (g.questions || []).find(x => x.no === no);
+          if (q) {
+            const a = (j.answers?.[subj]?.[amk] || []).find(x => x.kind !== 'fill' && x.q === no);
+            return { kind: 'mc', set, subj, no, passage: g.passage || '', title: g.title || '',
+                     stem: q.stem || '', options: q.options || {}, answer: (a && a.a) || q.answer || '' };
+          }
+        }
+      }
+    }
+    return null;
+  }
+  if (sub.tasks) {
+    for (const t of sub.tasks) {
+      const typeMap = { sentence_construction: 'sentence', email: 'email', academic_discussion: 'discussion', TASK1: 's1', TASK2: 's2' };
+      const rawKey = t.type || t.task || 'task';
+      const tk = (typeMap[rawKey] || String(rawKey).toLowerCase());
+      if (tk !== type) continue;
+      return { kind: 'task', set, subj, no, prompt: (t.prompt_lines || []).join('\n'), body: (t.body || []).join('\n'),
+               reference: t.reference_answer || '' };
+    }
+  }
+  return null;
+}
+
+async function aiExplain(qidStr) {
+  const parts = String(qidStr || '').split('/');
+  if (parts.length !== 5) throw new Error('bad qid');
+  const [set, subj, mk, type, noS] = parts;
+  const no = Number(noS);
+  if (!Number.isInteger(no)) throw new Error('bad qid');
+  if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(set) || !/^(listening|reading|writing|speaking)$/.test(subj)
+      || !/^[\w.+-]+$/.test(mk) || !/^[\w]+$/.test(type)) throw new Error('bad qid');
+  if (AI_CACHE.has(qidStr)) return { text: AI_CACHE.get(qidStr), cached: true };
+  const q = findQuestion(set, subj, mk, type, no);
+  if (!q) throw new Error('question not found');
+  // 学生当时的错误答案（不是最近一次答案——可能已订正）
+  const att = RECORDS.attempts && RECORDS.attempts[qidStr];
+  const wrongs = att && Array.isArray(att.history)
+    ? [...new Set(att.history.filter(h => h.ok === false).map(h => String(h.answer || '').slice(0, 80)))]
+    : [];
+  const mine = wrongs.join(' / ');
+  const noMaterial = !(q.passage || '').trim() && !(q.prompt || '').trim();
+  const lines = [];
+  if (q.passage) lines.push('[材料]\n' + String(q.passage).slice(0, 4000));
+  if (q.title) lines.push('[材料标题] ' + q.title);
+  if (q.prompt || q.body) lines.push('[任务说明]\n' + ((q.prompt + '\n' + (q.body || '')).slice(0, 1500)));
+  if (q.stem) lines.push('[题干] ' + q.stem);
+  if (q.options && Object.keys(q.options).length)
+    lines.push('[选项]\n' + Object.entries(q.options).map(([k, v]) => k + '. ' + v).join('\n'));
+  if (q.kind === 'fill') lines.push('[该空所在句的填空形式] 见材料下划线处，第 ' + no + ' 空');
+  lines.push('[正确答案] ' + (q.answer || q.reference || '（官方未提供）'));
+  if (mine) lines.push('[学生当时的错误答案] ' + mine + (att && att.st === 'done' ? '（后来已订正，但请按当时错选来讲解错因）' : ''));
+  if (noMaterial) lines.push('（注意：本题为听力题，对话原文尚未接入，只能基于题干与选项逻辑分析，如信息不足请直说。）');
+  const sys = '你是托福助教。用中文解释这道题：先一句话给出本题考查点，再说正确答案为什么对'
+    + '（引用材料里的关键短语作为依据），最后指出学生错选错在哪里。'
+    + '总共不超过 180 字，分 2-3 小段纯文本，不要逐项翻译选项，不要客套话。'
+    + (q.kind === 'fill' ? ' 这是词库填空题：从语法搭配和上下文语义解释该空为什么填这个词。' : '');
+  const r = await fetch(AI_CFG.base + '/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + AI_CFG.key },
+    body: JSON.stringify({
+      model: AI_CFG.model,
+      messages: [{ role: 'system', content: sys }, { role: 'user', content: lines.join('\n\n') }],
+      max_tokens: 500, temperature: 0.2, stream: false,
+    }),
+    signal: AbortSignal.timeout(30000),
+  });
+  if (!r.ok) {
+    const t = await r.text().catch(() => '');
+    throw new Error('AI 接口 ' + r.status + (t ? ': ' + t.slice(0, 120) : ''));
+  }
+  const j = await r.json();
+  const text = j.choices?.[0]?.message?.content?.trim();
+  if (!text) throw new Error('AI 未返回内容');
+  if (AI_CACHE.size >= AI_CACHE_MAX) AI_CACHE.delete(AI_CACHE.keys().next().value);
+  AI_CACHE.set(qidStr, text);
+  return { text, cached: false };
+}
+
 /* ---------- 题库目录（启动时缓存） ---------- */
 function fillCount(g) {
   const text=String(g.passage||'').replace(/▢/g,'_').replace(/([A-Za-z'’\-])(_+)/g,(m,c,u)=>c+' '+u.split('').join(' '));
@@ -327,6 +451,23 @@ const handler = async (req, res) => {
         return sendJSON(res, 200, { ok: true, revision:RECORDS.revision, saved_at: RECORDS.saved_at });
       }
       return sendJSON(res, 405, { error: 'method' });
+    }
+
+    /* ---- API: AI 助教错题解析 ---- */
+    if (p === '/api/ai/explain') {
+      if (req.method !== 'POST') return sendJSON(res, 405, { error: 'method' });
+      const origin = req.headers.origin;
+      if (origin && origin !== `http://${req.headers.host}` && origin !== `https://${req.headers.host}`) return sendJSON(res, 403, { error: 'cross-origin rejected' });
+      if (!AI_CFG.key) return sendJSON(res, 503, { error: 'AI 未配置（服务端缺少 TFL_AI_KEY）' });
+      const body = await readBody(req);
+      let inc; try { inc = JSON.parse(body.toString('utf8') || '{}'); } catch (e) { return sendJSON(res, 400, { error: 'bad json' }); }
+      try {
+        const out = await aiExplain(inc.qid);
+        return sendJSON(res, 200, { ok: true, ...out });
+      } catch (e) {
+        const code = /^bad qid|not found/.test(e.message) ? 400 : 502;
+        return sendJSON(res, code, { error: e.message });
+      }
     }
 
     /* ---- 媒体: 真题素材（按套题映射回源目录） ---- */

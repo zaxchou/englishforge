@@ -32,3 +32,6 @@ HANDOFF-v2.md
 HANDOFF-交接.md
 README-v2.md
 README-入口.md
+
+# ---- AI 助教密钥（本地开发用；绝不入库）----
+.env.local
