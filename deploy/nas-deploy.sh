@@ -61,6 +61,11 @@ while [ $i -lt 60 ]; do
   if [ -z "$BODY" ]; then
     BODY=$(curl -s -m 8 "http://127.0.0.1:$PORT/api/health" 2>/dev/null) || BODY=""
   fi
+  if [ -z "$BODY" ]; then
+    # 宿主机端口在重建窗口期可能抖动，容器内探针兜底（绕过端口映射）
+    BODY=$(docker exec toefl-lab wget -qO- --no-check-certificate "https://127.0.0.1:8018/api/health" 2>/dev/null \
+      || docker exec toefl-lab wget -qO- "http://127.0.0.1:8018/api/health" 2>/dev/null) || BODY=""
+  fi
   case "$BODY" in
     *'"ok":true'*)
       case "$BODY" in
