@@ -1601,16 +1601,24 @@ async function renderReview(){
   await aiHave();   // 已生成清单, 按钮上标「已生成」
   const items=await Promise.all(ms.map(async([k,m])=>{
     const stem=await stemOf(k);
+    // 主角=题干; 材料名/题干拆开: "材料 · 题干" → 材料进元数据行
+    let main=stem, material='';
+    const sep=stem.indexOf(' · ');
+    if(sep>0){ material=stem.slice(0,sep); main=stem.slice(sep+3); }
     const due=m.due||0;
     const col=due<=Date.now()?'var(--bad)':(due<=Date.now()+3*864e5?'var(--warn)':'var(--ok)');
     const dt=due<=Date.now()?'今天该复习':'距复习 '+Math.max(1,Math.ceil((due-Date.now())/864e5))+' 天';
-    return `<div class="witem"><div class="bar" style="background:${col}"></div>
-      <div class="c"><div class="q">${esc(stem.slice(0,80))}</div>
-        <div class="m">${esc(k)} · 错 ${m.n_wrong||1} 次</div></div>
-      <div class="due" style="color:${col}">${dt}</div>
-      <button data-ai="${esc(k)}">${aiBtnInner(k)}</button>
-      <button data-redo="${esc(k)}">重做</button>
-      <button data-clear="${esc(k)}">不再训练</button></div>
+    const [set,subj]=k.split('/');
+    return `<div class="witem" style="border-left:3px solid ${col}">
+      <div class="c">
+        <div class="q" title="${esc(main)}">${esc(main)}</div>
+        <div class="m"><span class="m-src">${esc(material||SUBN[subj]||'')}</span>${material?' · ':''}${esc('错 '+(m.n_wrong||1)+' 次')} · <span class="m-due" style="color:${col}">${esc(dt)}</span><span class="m-qid">${esc(k)}</span></div>
+      </div>
+      <div class="ops">
+        <button class="op-ai${AI_HAVE_SET.has(k)?' have':''}" data-ai="${esc(k)}" title="${AI_HAVE_SET.has(k)?'已生成解析，点击秒开':'生成 AI 助教解析（约 2~4 秒）'}">AI解析</button>
+        <button class="op-redo" data-redo="${esc(k)}" title="进入本题重做">重做</button>
+        <button class="op-clear" data-clear="${esc(k)}" title="移出错题本，不再安排复习">不再训练</button>
+      </div></div>
     <div class="ai-explain" hidden></div>`;
   }));
   $('rv-list').innerHTML=items.join('');

@@ -599,3 +599,33 @@ body,button,input,textarea,.brand,.brand span,.lead h1,.pt,.part strong,.part em
   .brand{font-size:22px}
   .brand-caption{margin-top:0}
 }
+
+
+/* ==== style block 10: 错题本条目层级 ====
+   主角=题干（可两行）；元数据（来源/错次/到期/qid）退后；动作分主次
+   （重做=主、AI解析=次、不再训练=ghost）；到期状态一条线（左缘色条）+元数据行末文字。 */
+#rv-list .witem{display:flex;align-items:center;gap:14px;padding:13px 18px 13px 15px}
+#rv-list .witem .c{flex:1;min-width:0}
+#rv-list .witem .q{font-size:15px;font-weight:500;color:var(--t1);line-height:1.5;
+  margin-bottom:3px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+  overflow:hidden;text-overflow:ellipsis;white-space:normal;word-break:break-word}
+#rv-list .witem .m{font-size:12px;color:var(--t3);line-height:1.6;
+  display:flex;align-items:baseline;gap:6px;flex-wrap:wrap}
+#rv-list .witem .m-src{color:var(--t2)}
+#rv-list .witem .m-due{font-variant-numeric:tabular-nums}
+#rv-list .witem .m-qid{font-size:11px;color:var(--t3);opacity:.6;font-family:Consolas,monospace}
+#rv-list .witem .ops{display:flex;align-items:center;gap:8px;flex-shrink:0}
+#rv-list .witem .ops button{min-height:36px;border-radius:4px;font-size:13px}
+#rv-list .op-redo{background:var(--ink,#294f3b);color:#fff;border-color:transparent;font-weight:500}
+#rv-list .op-redo:hover{filter:brightness(1.08)}
+#rv-list .op-ai{background:var(--card);border:1px solid var(--line2);color:var(--t2);position:relative}
+#rv-list .op-ai:hover{border-color:#b9c9ab;color:#305540;background:#f4f8ec}
+#rv-list .op-ai.have::after{content:"";position:absolute;top:5px;right:5px;width:6px;height:6px;
+  border-radius:50%;background:#66856a}
+#rv-list .op-clear{background:none;border:none;color:var(--t3);min-height:32px;padding:4px 8px}
+#rv-list .op-clear:hover{color:var(--bad)}
+@media(max-width:700px){
+  #rv-list .witem{flex-wrap:wrap}
+  #rv-list .witem .ops{flex-basis:100%;justify-content:flex-end;padding-top:2px}
+  #rv-list .witem .q{-webkit-line-clamp:2}
+}
