@@ -61,22 +61,22 @@ video.tfl{width:100%;background:#161616;border-radius:var(--r);aspect-ratio:16/9
 .ai-mine{color:var(--bad);font-size:12px}
 .ai-loading{animation:aipulse 1.2s ease-in-out infinite}
 @keyframes aipulse{0%,100%{opacity:1}50%{opacity:.45}}
-.ai-bar{display:flex;align-items:center;gap:10px;margin:10px 0 4px 24px}
-#d-fb .ai-bar{margin:10px 0 4px}
-.ai-bar button{border:1px solid #b9c9ab;background:#f4f8ec;color:#305540;
-  border-radius:4px;padding:8px 14px;font-size:13px}
-.ai-bar button:hover{background:#e8efdf}
-.ai-bar button:disabled{opacity:.55;cursor:default}
 '.ai-tip{font-size:11px;color:var(--t3)}
-'.ai-have{font-style:normal;font-size:10px;color:#4d7a5f;background:#e3efdb;
-  border-radius:8px;padding:1px 6px;margin-left:5px;vertical-align:1px}
-/* 听力正式考试模式: 听音门 + 自动下一题倒计时 */
+/* 判分反馈卡内动作行: AI解析入口收进卡内, 不再漂浮在卡外 */
+.fb-ops{display:flex;align-items:center;gap:10px;margin-top:12px;
+  padding-top:12px;border-top:1px solid var(--line)}
+.fb-ops .op-ai{min-height:34px;padding:0 14px;font-size:13px}
+.fb .okmark{font-style:normal;font-size:11px;color:var(--ok);background:#e7f0e0;
+  border:1px solid #b9d3c0;border-radius:8px;padding:1px 8px;margin-left:8px;
+  vertical-align:1px;white-space:nowrap}
+details.handout{margin-top:12px}
+details.handout summary{cursor:pointer;user-select:none}
+details.handout summary:hover{color:var(--t1)}
+'/* 听力正式考试模式: 听音门 + 自动下一题倒计时 */
 .listen-gate{margin:14px 0 6px;padding:18px 22px;background:#eef3e6;border:1px solid #d5dfc8;
   border-radius:4px;text-align:center;color:var(--t2);font-size:14px;line-height:1.9}
 .listen-gate b{font-size:16px;color:var(--t1)}
 .listen-gate p{margin:6px 0 0}
-.autonext{margin-top:12px;padding:8px 12px;background:#f4f8ec;border:1px dashed #b9c9ab;
-  border-radius:4px;font-size:12px;color:#4d7a5f;font-variant-numeric:tabular-nums}
 .caveat-strip{margin:10px 0 14px;padding:10px 14px;background:var(--warnbg,#fdf3e0);
   border:1px solid var(--warnln,#e0c9a0);border-left:3px solid #b8863b;border-radius:4px;
   font-size:13px;line-height:1.7;color:#7a5b23}
@@ -320,7 +320,14 @@ function aiHave() {
   return _aiHaveP;
 }
 function aiBtnInner(qid) {
-  return 'AI解析' + (AI_HAVE_SET.has(qid) ? '<i class="ai-have">已生成</i>' : '');
+  // 「已生成」用按钮右上角绿点(.op-ai.have::after)表达, 不再用文字徽标
+  return 'AI解析';
+}
+function aiSyncBtn(qid, btn) {
+  if (!btn) return;
+  btn.innerHTML = aiBtnInner(qid);
+  btn.classList.toggle('have', AI_HAVE_SET.has(qid));
+  btn.title = AI_HAVE_SET.has(qid) ? '已生成解析，点击秒开' : '生成 AI 助教解析（约 2~4 秒）';
 }
 function aiPanelRender(ex) {
   const q = ex.q || {};
@@ -348,7 +355,7 @@ function aiPanelRender(ex) {
 }
 async function aiExplainToggle(qid, panel, btn) {
   if (!panel) return;
-  if (!panel.hidden) { panel.hidden = true; if (btn) { btn.disabled = false; btn.innerHTML = aiBtnInner(qid); } return; }
+  if (!panel.hidden) { panel.hidden = true; if (btn) { btn.disabled = false; aiSyncBtn(qid, btn); } return; }
   panel.hidden = false;
   panel.scrollIntoView({ block: 'nearest', behavior: 'smooth' });   // 面板可能在视口外, 不滚过去就像"没反应"
   if (AI_EXPLAIN_CACHE[qid]) { panel.innerHTML = AI_EXPLAIN_CACHE[qid]; wireAiRegen(qid, panel, btn); return; }
@@ -362,7 +369,7 @@ async function aiExplainToggle(qid, panel, btn) {
     (await aiHave()).add(qid);
   } catch (e) {
     panel.innerHTML = '<div class="ai-note">' + esc(e.message || '解析失败，稍后再试') + '</div>';
-  } finally { if (btn) { btn.disabled = false; btn.innerHTML = aiBtnInner(qid); } }
+  } finally { if (btn) { btn.disabled = false; aiSyncBtn(qid, btn); } }
   wireAiRegen(qid, panel, btn);
 }
 /* 重新生成: force 绕过两层缓存覆盖旧解析（解析升级后按需刷新单题） */
@@ -382,7 +389,7 @@ function wireAiRegen(qid, panel, btn) {
       (await aiHave()).add(qid);
     } catch (e) {
       panel.innerHTML = '<div class="ai-note">' + esc(e.message || '解析失败，稍后再试') + '</div>';
-    } finally { if (btn) { btn.disabled = false; btn.innerHTML = aiBtnInner(qid); } }
+    } finally { if (btn) { btn.disabled = false; aiSyncBtn(qid, btn); } }
     wireAiRegen(qid, panel, btn);
   };
 }
@@ -1262,35 +1269,42 @@ function showSubmitted(msg){
 }
 let NEXT_T=null;
 function autoNext(sec){
+  // 正式考试规则: 倒计时直接显示在「下一题」按钮上, 点按钮立即走
   if(NEXT_T){clearInterval(NEXT_T);NEXT_T=null;}
+  const btn=$('d-next');
   let left=sec;
-  const el=document.createElement('div'); el.className='autonext';
-  const host=$('d-fb').querySelector('.fb')||$('d-fb');
-  host.appendChild(el);
   const tick=()=>{
     if(left<=0){ clearInterval(NEXT_T);NEXT_T=null; nextQ(); return; }
-    el.textContent='正式考试规则：'+left+' 秒后自动进入下一题（点「下一题」可立即走）';
+    btn.textContent='下一题 · '+left+'s';
     left--;
   };
   tick(); NEXT_T=setInterval(tick,1000);
 }
-function renderFB(rows, ok, noLabel, heading, aiQid){  const secs=Math.max(0,Math.round(qUsedSec()));
+function renderFB(rows, ok, noLabel, heading, aiQid){
+  const secs=Math.max(0,Math.round(qUsedSec()));
+  // 答对时「你的答案」与「正确答案」必然相同 → 合并为一行, 不重复展示
+  const same=ok&&rows.length===2&&rows[0].v===rows[1].v&&rows[1].cls==='right';
+  const body=same
+    ?`<div class="cmp2"><div class="r"><span class="k">你的答案</span>
+        <span class="v mine ok">${esc(rows[0].v)}<i class="okmark">正确</i></span></div></div>`
+    :`<div class="cmp2">${rows.map(x=>
+      `<div class="r"><span class="k">${esc(x.label)}</span>
+        <span class="v ${x.cls==='right'?'right':(x.cls==='ok'?'mine ok':(x.cls==='na'?'':'mine bad'))}" ${x.cls==='na'?'style="color:var(--t2)"':''}>${esc(x.v)}</span></div>`).join('')}</div>`;
   $('d-fb').innerHTML=`<div class="fb ${ok?'ok':'bad'}">
     <div class="h"><span class="ic">${ok?'✓':'×'}</span>
       <span class="tt">${esc(heading||(ok?'答对':'答错'))}</span>
       <span class="qn2">${esc(S.title)} · ${esc(String(noLabel))} · ${secs}s</span></div>
-    <div class="cmp2">${rows.map(x=>
-      `<div class="r"><span class="k">${esc(x.label)}</span>
-        <span class="v ${x.cls==='right'?'right':(x.cls==='ok'?'mine ok':(x.cls==='na'?'':'mine bad'))}" ${x.cls==='na'?'style="color:var(--t2)"':''}>${esc(x.v)}</span></div>`).join('')}</div>
+    ${body}
     ${ok?'':`<div class="tagrow"><span class="lb">已收入错题本</span>
-      <span class="tag">1 天后复习</span></div>`}</div>
-    ${aiQid?`<div class="ai-explain" hidden></div>
-    <div class="ai-bar"><button class="ai-trigger" data-fb-ai="${esc(aiQid)}">${aiBtnInner(aiQid)}</button><span class="ai-tip">按本题材料与题干生成解析（对错都可看，蒙对的也值得核对思路）</span></div>`:''}`;
+      <span class="tag">1 天后复习</span></div>`}
+    ${aiQid?`<div class="fb-ops"><button type="button" class="op-ai${AI_HAVE_SET.has(aiQid)?' have':''}" data-fb-ai="${esc(aiQid)}" title="${AI_HAVE_SET.has(aiQid)?'已生成解析，点击秒开':'生成 AI 助教解析（约 2~4 秒）'}">AI解析</button><span class="ai-tip">对错都可看 · 蒙对的也值得核对思路</span></div>`:''}</div>
+    ${aiQid?`<div class="ai-explain" hidden></div>`:''}`;
   const trig=$('d-fb').querySelector('[data-fb-ai]');
-  if(trig) trig.onclick=()=>aiExplainToggle(trig.dataset.fbAi, trig.closest('.ai-bar').previousElementSibling, trig);
+  if(trig) trig.onclick=()=>aiExplainToggle(trig.dataset.fbAi, trig.closest('.fb').nextElementSibling, trig);
   $('d-next').textContent='下一题';
 }
 function nextQ(){
+  if(NEXT_T){clearInterval(NEXT_T);NEXT_T=null;}
   if(S.i<S.refs.length-1){ S.i++; S.sel=null; S.revealed=false; S.fillVals={}; S.slots={}; renderQ(); }
   else finishSession();
 }

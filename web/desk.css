@@ -618,9 +618,9 @@ body,button,input,textarea,.brand,.brand span,.lead h1,.pt,.part strong,.part em
 #rv-list .witem .ops button{min-height:36px;border-radius:4px;font-size:13px}
 #rv-list .op-redo{background:var(--ink,#294f3b);color:#fff;border-color:transparent;font-weight:500}
 #rv-list .op-redo:hover{filter:brightness(1.08)}
-#rv-list .op-ai{background:var(--card);border:1px solid var(--line2);color:var(--t2);position:relative}
-#rv-list .op-ai:hover{border-color:#b9c9ab;color:#305540;background:#f4f8ec}
-#rv-list .op-ai.have::after{content:"";position:absolute;top:5px;right:5px;width:6px;height:6px;
+.op-ai{background:var(--card);border:1px solid var(--line2);color:var(--t2);position:relative}
+.op-ai:hover{border-color:#b9c9ab;color:#305540;background:#f4f8ec}
+.op-ai.have::after{content:"";position:absolute;top:5px;right:5px;width:6px;height:6px;
   border-radius:50%;background:#66856a}
 #rv-list .op-clear{background:none;border:none;color:var(--t3);min-height:32px;padding:4px 8px}
 #rv-list .op-clear:hover{color:var(--bad)}
