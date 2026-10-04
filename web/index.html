@@ -1051,7 +1051,7 @@ async function enterSet(id){
     for(const t of s.tasks) for(const it of t.items)
       refs.push({kind:subj==='writing'?'write':'speak',set:id,subj,mk:t.key,task:t,it});
   }
-  startSession({title:id+' · 整套', subj:'listening', refs});
+  startSession({title:id+' · 整套', subj:'listening', refs, sim:true});
 }
 async function openQuestion(key){
   const [set,subj,mk,type,no]=key.split('/');
@@ -1108,6 +1108,7 @@ function renderQ(){
   $('d-kind').textContent=SUBN[r.subj]+' · '+(moduleNo?'第 '+moduleNo+' 模块 · '+(r.q?'第 '+r.q.no+' 题':'填词 '+r.gkey):(r.task?.title||SUBN[r.subj]));
   $('d-cnt').textContent='本轮 '+(S.i+1)+' / '+S.refs.length;
   $('d-fb').innerHTML='';
+  stopTaskTimer();
   if(NEXT_T){clearInterval(NEXT_T);NEXT_T=null;}
   $('d-next').textContent='确认答案'; $('d-next').className='pri';
   const key=(r.q||r.it)?.qid||[r.set,r.subj,r.mk,'fill',r.gkey].join('/');
@@ -1198,7 +1199,9 @@ function renderQ(){
         h+=`<div class="passage" style="padding:10px 14px">${it.body.map(esc).join('<br>')}</div>`;
       if(r.task?.kind==='discussion'&&it.body&&it.body.length)
         h+=`<div class="passage">${esc(it.body.join('\n\n'))}</div>`;
-      h+=`<textarea id="d-wr" placeholder="在这里作答…">${esc(draftOf(r))}</textarea>`;
+      h+=`<textarea id="d-wr" placeholder="在这里作答…">${esc(draftOf(r))}</textarea>
+      <div class="task-timer"><span class="tt-lab">本题剩余</span> <span class="tt-val" id="d-task-t">--:--</span>
+      <span class="wc" id="d-wordc">0 词</span></div>`;
     }
   } else if(r.kind==='speak'){
     h+=`<div class="qt">Speaking · 第 ${r.it.no} 题</div>`;
@@ -1211,6 +1214,8 @@ function renderQ(){
     if(!r.it.audio) h+=`<div class="na-box">${esc(r.it.audio_issue||'本题没有可确认对应的口语录音。')} · 可读题、保存笔记；听后复述训练暂不可用。</div>`;
     h+=`<div class="na-box">录音、上传与保存<b class="avail-no">本批未接入</b>（当前为静态资料与练习工具）。
       现在可以先听音频、看题；把要说的要点写下来会被保存。</div>
+      <div class="task-timer"><span class="tt-lab" id="d-sp-phase">准备</span> <span class="tt-val" id="d-task-t">--:--</span>
+      <span class="wc">正式考试此时自动录音、到时自动停（本批未接入录音）</span></div>
       <textarea id="d-wr" placeholder="（可选）先写下你想说的要点…" style="margin-top:10px">${esc(draftOf(r))}</textarea>`;
   }
   $('d-body').innerHTML=h;
@@ -1219,7 +1224,47 @@ function renderQ(){
   if(r.kind==='choice'&&r.subj==='listening'&&!r.q.audio&&!r.group.audio){$('d-body').insertAdjacentHTML('beforeend','<div class="na-box">源资料缺少听力音频，本题只供预览，暂不能进行听力练习。不会以其他科音频替代，也不计为完成。</div>');$('d-body').querySelectorAll('.opt').forEach(el=>{el.onclick=null;el.setAttribute('aria-disabled','true');});$('d-next').textContent='下一题';}
   if(r.kind==='choice'&&Object.keys(r.q.options).length<2){$('d-body').insertAdjacentHTML('beforeend','<div class="na-box">该题缺少选择项，或需要句子定位/插入交互；本轮暂不能在页面作答。不会自动判分或计为完成。</div>');$('d-next').textContent='下一题';}
   renderQbar();
+  startTaskTimer(r);
   tStep();
+}
+/* ===== 官方节奏计时器: 写作任务(Academic Discussion 10:00, 到时锁定并自动提交) /
+   口语(独立 15s 备考→45s 作答; 综合 30s→60s; 录音未接入, 只模拟时间节奏) ===== */
+let TASK_T=null;
+function stopTaskTimer(){ if(TASK_T){clearInterval(TASK_T);TASK_T=null;} }
+function startTaskTimer(r){
+  stopTaskTimer();
+  const box=document.getElementById('d-task-t'); if(!box) return;
+  if(r.kind==='write'&&(r.task?.kind==='email'||r.task?.kind==='discussion')){
+    const LIMIT=10*60; let left=LIMIT;
+    const wordc=document.getElementById('d-wordc'), ta=document.getElementById('d-wr');
+    const count=()=>{ if(wordc&&ta) wordc.textContent=(ta.value.trim()?ta.value.trim().split(/\s+/).length:0)+' 词'; };
+    count(); if(ta) ta.oninput=()=>{ setWritingDraft(r.it.qid, ta.value, false); count(); };
+    const tick=()=>{
+      box.textContent=fmt(left);
+      if(left<=0){
+        stopTaskTimer();
+        if(ta) ta.disabled=true;
+        if(!S.revealed){ showSubmitted('官方本题时限（10:00）已到，作答已锁定并提交。'); }
+        return;
+      }
+      left--;
+    };
+    tick(); TASK_T=setInterval(tick,1000);
+  } else if(r.kind==='speak'){
+    const independent=(String(r.it.no)==='1'&&r.mk==='s1');
+    const PREP=independent?15:30, ANS=independent?45:60;
+    let phase='prep', left=PREP;
+    const ph=document.getElementById('d-sp-phase'), ta=document.getElementById('d-wr');
+    const tick=()=>{
+      box.textContent='0:'+String(left).padStart(2,'0');
+      if(left<=0){
+        if(phase==='prep'){ phase='answer'; left=ANS; if(ph) ph.textContent='作答'; if(ta) ta.placeholder='（可选）记要点… 正式考试此时开始自动录音'; }
+        else { stopTaskTimer(); box.textContent='时间到'; return; }
+      }
+      left--;
+    };
+    tick(); TASK_T=setInterval(tick,1000);
+  }
 }
 function saveQuestionDraft(){
   if(!S || S.revealed || !S.timedKey) return;
@@ -1279,9 +1324,32 @@ function wireQ(){
     ta.oninput=()=>{ setWritingDraft(r.it.qid, ta.value, false); };
   }
 }
+/* 整卷模拟(sim)下的官方导航规则:
+   听力=线性, 不能回看任何已答过的题(官方: 进入下一题即锁定);
+   阅读=同组内可自由回跳改答案, 进入下一组(下一篇)后不能回。 */
+function groupRange(ix){
+  const r=S.refs[ix], key=r.mk+':'+(r.gkey||r.mk);
+  let min=ix,max=ix;
+  while(min>0){const p=S.refs[min-1];if(p.mk+':'+(p.gkey||p.mk)===key&&p.subj===r.subj)min--;else break;}
+  while(max<S.refs.length-1){const n=S.refs[max+1];if(n.mk+':'+(n.gkey||n.mk)===key&&n.subj===r.subj)max++;else break;}
+  return [min,max];
+}
+function simCanJump(ix){
+  if(!S.sim) return true;
+  const cur=S.refs[S.i], dst=S.refs[ix], [cmin,cmax]=groupRange(S.i);
+  if(cur.subj==='listening') return ix>=cmin&&ix<=cmax;      // 听力: 只能在当前组内
+  if(cur.subj==='reading')   return ix>=cmin;                 // 阅读: 组内自由, 不能回上一组
+  return true;
+}
 function jumpToQuestion(ix){
   if(!S||!S.refs[ix])return;
   if(ix===S.i){$('d-body').scrollIntoView({block:'start'});return;}
+  if(!simCanJump(ix)){
+    alert(S.refs[S.i].subj==='listening'
+      ?'正式考试规则：听力逐题作答，进入下一题后不能返回。'
+      :'正式考试规则：阅读进入下一篇文章后，不能返回前面的文章。');
+    return;
+  }
   saveQuestionDraft();
   S.subjectPositions=S.subjectPositions||{};S.subjectPositions[curRef().subj]=S.i;
   $('d-audio').pause();
@@ -1417,6 +1485,7 @@ function submitOpen(){
     return;
   }
   const txt=ta?ta.value.trim():'';
+  stopTaskTimer();
   if(!txt){ alert(r.kind==='write'?'先写点内容再提交':'口语录音未接入，提交需要文字要点'); return; }
   setWritingDraft(r.it.qid, txt, true);
   recAttempt({qid:r.it.qid,set:r.set,subj:r.subj,mk:r.mk,gkey:'-'}, null, txt, qUsedSec());
@@ -1464,6 +1533,7 @@ function nextQ(){
   else finishSession();
 }
 function finishSession(){
+  stopTaskTimer();
   const done=S.refs.filter(r=>{
     if(r.kind==='fill') return r.group.parsed.length>0&&r.group.parsed.every(q=>REC.attempts[q.qid]);
     const a=REC.attempts[r.q?r.q.qid:r.it.qid];
@@ -1513,7 +1583,7 @@ $('d-next').onclick=()=>{
   if($('d-next').textContent==='重新开始'){ tReset();tStart();STU=true;S.timedKey=null;S.i=0;S.sel=null;S.revealed=false;S.fillVals={};S.slots={};renderQ(); return; }
   confirmQ();
 };
-$('d-prev').onclick=()=>{ if(!S||S.i<=0) return; S.i--; S.sel=null; S.revealed=false; S.fillVals={}; S.slots={}; renderQ(); };
+$('d-prev').onclick=()=>{ if(!S||S.i<=0) return; if(!simCanJump(S.i-1)){alert('正式考试规则：进入下一篇文章后，不能返回前面的文章。');return;} S.i--; S.sel=null; S.revealed=false; S.fillVals={}; S.slots={}; renderQ(); };
 $('d-skip').onclick=()=>{ if(!S||S.i>=S.refs.length-1) return; S.i++; S.sel=null; S.revealed=false; S.fillVals={}; S.slots={}; renderQ(); };
 // 重置本组: 清掉该组每道题的作答/用时/错题记录（草稿一并清），立即落盘
 $('d-reset').onclick=async function(){
@@ -1977,3 +2047,7 @@ boot();
 
 
 
+<style>.task-timer{display:flex;align-items:baseline;gap:10px;margin-top:8px;font-size:12px;color:var(--t3);flex-wrap:wrap}
+.task-timer .tt-lab{color:#6b7d67;letter-spacing:.06em}
+.task-timer .tt-val{font-family:Georgia,serif;font-size:18px;color:var(--t1);font-variant-numeric:tabular-nums}
+.task-timer .wc{font-size:11px;color:var(--t3)}</style>
