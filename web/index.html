@@ -62,6 +62,9 @@ video.tfl{width:100%;background:#161616;border-radius:var(--r);aspect-ratio:16/9
 .ai-bar button:hover{background:#e8efdf}
 .ai-bar button:disabled{opacity:.55;cursor:default}
 .ai-tip{font-size:11px;color:var(--t3)}
+.caveat-strip{margin:10px 0 14px;padding:10px 14px;background:var(--warnbg,#fdf3e0);
+  border:1px solid var(--warnln,#e0c9a0);border-left:3px solid #b8863b;border-radius:4px;
+  font-size:13px;line-height:1.7;color:#7a5b23}
 </style>
 </head>
 <body>
@@ -507,7 +510,7 @@ async function normSet(id) {
             (duplicateModule?[]:((j.answers?.[subj]?.[amk])||[])).filter(a => a.kind !== 'fill').forEach(a => { amap[a.q] = a.a; });
             gr.questions = (g.questions||[]).map(q => ({
               qid: qid(id, subj, mk, 'mc', q.no), no: q.no, stem: q.stem || '',
-              options: q.options || {}, audio: q.audio || '', answer: amap[q.no] || null, interaction:q.interaction||'', selection_paragraph:q.selection_paragraph||0, source_reference:q.source_reference||null }));
+              options: q.options || {}, audio: q.audio || '', answer: amap[q.no] || null, interaction:q.interaction||'', selection_paragraph:q.selection_paragraph||0, source_reference:q.source_reference||null, audio_caveat:q.audio_caveat||'' }));
           }
           groups.push(gr);
         }
@@ -920,6 +923,7 @@ function renderQ(){
       if(r.subj==='listening'){
         const response=/choose the best response/i.test(r.q.stem);
         h+=`<div class="listening-guide"><b>${response?'听一句话，选择最合适的回应':'听对话或讲座，回答问题'}</b><p>${response?'先点上方播放，听清对方说的话，再从 A–D 选择你会怎样回应。选项不是录音的逐字稿，不需要与录音说同一句话。':'先点上方播放，再依据录音回答当前问题。相邻几道题可能共用同一段录音，请注意题号和录音范围。'}</p><p>选择后点“确认答案”查看结果，再点“下一题”继续。</p></div>`;
+        if(r.q.audio_caveat) h+=`<div class="caveat-strip">⚠ ${esc(r.q.audio_caveat)}</div>`;
       }
       'ABCD'.split('').forEach(k=>{const v=r.q.options[k];if(v==null)return;let cls='opt';const rightK=answerKeyOf(r.q);if(S.revealed){if(k===rightK)cls+=' right';else if(k===S.sel)cls+=' wrong';}else if(k===S.sel)cls+=' sel';h+=`<div class="${cls}" data-k="${k}" role="button" tabindex="0" aria-pressed="${S.sel===k}" aria-disabled="${S.revealed}"><span class="ol">${k}</span><span>${esc(v)}</span></div>`;});
     }
