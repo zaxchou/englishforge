@@ -1,0 +1,1614 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" type="image/png" sizes="32x32" href="/icon-32.png">
+<link rel="icon" type="image/png" sizes="96x96" href="/icon-96.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<title>TOEFL Lab · 托福自学练习</title>
+<link rel="stylesheet" href="desk.css">
+<style>
+/* 应用层补充样式（视觉基线在 desk.css，不改它的既有规则） */
+.fillrun{display:inline-flex;align-items:baseline;gap:2px;white-space:nowrap}
+.fillrun .clue{font-weight:600;color:var(--t1)}
+.fillrun input{border:none;border-bottom:1.5px solid var(--line2);background:transparent;
+  font:inherit;color:var(--t1);padding:0 1px;text-align:center;border-radius:0}
+.fillrun input:focus{outline:none;border-bottom-color:var(--acc)}
+.fillrun.ok input{border-bottom-color:var(--ok);color:var(--ok)}
+.fillrun.bad input{border-bottom-color:var(--bad);color:var(--bad);text-decoration:line-through}
+.fillrun .fix{font-size:12px;color:var(--ok);margin-left:4px}
+.passage{font-size:16px;line-height:2.0;padding:14px 16px;background:var(--sunk);
+  border-radius:var(--rs);margin-bottom:16px;white-space:pre-wrap}
+.wb-chip{display:inline-block;font-size:14px;padding:4px 12px;margin:0 6px 6px 0;
+  border:1px solid var(--line2);border-radius:4px;background:var(--card);cursor:pointer}
+.wb-chip:hover{background:var(--hover)}
+.wb-chip.used{opacity:.35;pointer-events:none}
+.slotline{font-size:18px;line-height:2.2;margin:10px 0 16px}
+.slotline .slot{display:inline-block;min-width:5ch;border-bottom:1.5px solid var(--line2);
+  text-align:center;cursor:pointer;color:var(--t1)}
+.na-box{border:1px dashed var(--line2);border-radius:var(--rs);padding:14px 16px;
+  color:var(--t2);font-size:14px;line-height:1.7;margin-top:14px}
+.avail-no{color:var(--warn)}
+.hslide{border-top:1px solid var(--line);padding:10px 0}
+.hslide .pg{font-size:11px;color:var(--t3);margin-bottom:4px}
+.hslide .tx{font-size:14px;color:var(--t2);line-height:1.7;white-space:pre-wrap}
+.audioerr{font-size:12px;color:var(--bad);margin-top:6px}
+video.tfl{width:100%;background:#161616;border-radius:var(--r);aspect-ratio:16/9;display:block}
+</style>
+</head>
+<body>
+
+<div class="top">
+  <div class="topin">
+    <div class="desk-brand"><span class="brand">TOEFL<span class="brand-lab">Lab</span><span class="brand-dot">.</span></span><span class="brand-caption">个人练习空间</span></div>
+    <div class="nav"><span class="nav-label">学习</span>
+      <button class="on" data-v="home">首页</button>
+      <button data-v="drill">专项训练</button>
+      <button data-v="sets">整套练习</button>
+      <button data-v="course">视频课</button>
+      <span class="nav-label second">回顾</span><button data-v="review">错题本</button>
+      <button data-v="stats">数据分析</button>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+
+<!-- ============ 研读桌（首页） ============ -->
+<div class="view on" id="v-home">
+  <header class="lead"><div class="desk-kicker">TOEFL · 听 / 读 / 写 / 说</div>
+    <h1>开始今天的练习<span class="heading-dot">.</span></h1>
+    <p id="home-sub">选择一科，开始这一组练习；进度自动保存。</p></header>
+  <section class="notebook"><div class="bookhead"><span>专项训练</span><span>四科 · 按题型进入</span></div>
+    <article class="part"><span class="num">01</span><div><strong>听力 <em>Listening</em></strong><p>听辨信息与说话意图</p></div><button data-drill="listening">开始听力 →</button></article>
+    <article class="part"><span class="num">02</span><div><strong>阅读 <em>Reading</em></strong><p>读清材料与逻辑关系</p></div><button data-drill="reading">开始阅读 →</button></article>
+    <article class="part"><span class="num">03</span><div><strong>写作 <em>Writing</em></strong><p>组织句子与完整回应</p></div><button data-drill="writing">开始写作 →</button></article>
+    <article class="part"><span class="num">04</span><div><strong>口语 <em>Speaking</em></strong><p>把理解变成口头表达</p></div><button data-drill="speaking">开始口语 →</button></article>
+    <div class="bookfoot"><span>独立作答</span><i>→</i><span>对照答案</span><i>→</i><span>整理错题</span></div></section>
+  <section class="resources"><h2>其他学习入口</h2>
+    <div class="resource"><b>整套练习</b><span id="res-sets">题库加载中…</span><button data-go="sets">浏览套题 ↗</button></div>
+    <div class="resource"><b>视频与讲义</b><span id="res-courses">课程加载中…</span><button data-go="course">打开课程 ↗</button></div>
+    <div class="resource"><b>错题与复盘</b><span>回到做错的地方，重新理解</span><button data-go="review">打开错题本 ↗</button></div>
+    <div class="resource" id="res-continue" style="display:none"><b>继续上次</b><span id="res-continue-txt"></span><button id="res-continue-btn">继续 ↗</button></div>
+  </section>
+</div>
+
+<!-- ============ 专项训练 ============ -->
+<div class="view" id="v-drill">
+  <div class="bhead"><h2 class="pt">专项训练</h2><span class="ct" id="dr-ct"></span></div>
+  <p class="sub">按科目 → 按题组（题组来自真实套题，模块/题型/题号独立记录）</p>
+  <div class="seg" id="dr-seg"><span class="thumb"></span>
+    <button class="on" data-s="listening">听力</button>
+    <button data-s="reading">阅读</button>
+    <button data-s="writing">写作</button>
+    <button data-s="speaking">口语</button>
+  </div>
+  <div id="dr-body"></div>
+</div>
+
+<!-- ============ 整套 ============ -->
+<div class="view" id="v-sets">
+  <div class="bhead"><h2 class="pt">整套练习</h2><span class="ct" id="sets-ct"></span></div>
+  <p class="sub" id="sets-sub">按顺序作答，中途退出进度保留</p>
+  <div class="seg" id="sets-filter"><span class="thumb"></span>
+    <button class="on" data-f="all">全部</button>
+    <button data-f="todo">未开始</button>
+    <button data-f="doing">进行中</button>
+    <button data-f="done">已完成</button>
+  </div>
+  <div class="card slist" id="sets"></div>
+</div>
+
+<!-- ============ 做题（任务页, 不占主导航） ============ -->
+<div class="view" id="v-do">
+  <div class="ctx">
+    <button class="bk" id="d-back">← 返回</button>
+    <span class="c1" id="d-set">—</span>
+    <span class="c2" id="d-kind">—</span>
+    <span class="sp" id="d-cnt">—</span>
+  </div>
+  <div class="card" style="overflow:hidden">
+    <nav id="d-subjects" aria-label="切换练习科目"></nav>
+    <button class="mobile-outline" id="d-outline" aria-expanded="false" aria-controls="d-qbar">题目目录 <span>展开 / 收起</span></button>
+    <div id="d-qbar"></div>
+    <div class="tbar">
+      <div class="tleft"><span class="tlab">本组已用</span><span class="tval" id="d-elapsed">00:00</span></div>
+      <div class="tmid"><span class="tlab">本题用时</span><span class="tval sm" id="d-qtime">00:00</span></div>
+      <div class="tright">
+        <span class="tlab" id="d-tlimit-lab">参考剩余</span>
+        <span class="tval" id="d-left">--:--</span>
+        <button class="tpause" id="d-pause">暂停</button>
+      </div>
+      <div class="tfull"><i id="d-tfull"></i></div>
+    </div>
+    <div class="ab" id="d-ab" style="display:none">
+      <button class="play" id="d-play" aria-label="播放/暂停">
+        <svg id="d-play-ic" width="11" height="11" viewBox="0 0 12 12"><path d="M3 2 L9 6 L3 10 Z" fill="#1C1C1A"/></svg>
+      </button>
+      <div class="tr" id="d-track" title="点击跳转">
+        <div class="tb"><i id="d-prog"></i></div>
+        <div class="tm" id="d-time">00:00 / 00:00</div>
+      </div>
+      <button class="rate" id="d-rate">×1.0</button>
+      <span class="audio-mode" id="d-amode" style="display:none"><span>整段 · 未分段</span></span>
+    </div>
+    <audio id="d-audio" preload="metadata"></audio>
+    <div class="qb" id="d-body"></div>
+    <div id="d-fb"></div>
+    <div class="pfoot">
+      <button id="d-reset">重置本组</button><button id="d-skip">跳过</button>
+      <div style="display:flex;gap:7px">
+        <button id="d-prev">上一题</button>
+        <button class="pri" id="d-next">确认答案</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 视频课 ============ -->
+<div class="view" id="v-course">
+  <div class="bhead"><h2 class="pt">视频课</h2><span class="ct" id="cs-ct"></span></div>
+  <p class="sub">选择课节，配合讲义学习，再练对应题</p>
+  <div class="csplit">
+    <aside class="csnav" id="cs-nav"></aside>
+    <section class="csmain" id="cs-main"></section>
+  </div>
+</div>
+
+<!-- ============ 错题本 ============ -->
+<div class="view" id="v-review">
+  <div class="bhead"><h2 class="pt">错题本</h2><span class="ct" id="rv-ct"></span></div>
+  <p class="sub">复习间隔 1 / 3 / 7 / 14 天（固定节奏，不是对所有题最优的结论）· 也可以直接勾选「不再训练」</p>
+  <div class="stats" id="rv-stats"></div>
+  <div class="card" style="overflow:hidden">
+    <div class="phead"><div class="l"><b>待复习</b></div><div class="r"><span id="rv-due"></span></div></div>
+    <div id="rv-list"></div>
+  </div>
+</div>
+
+<!-- ============ 分析 ============ -->
+<div class="view" id="v-stats">
+  <div class="card" style="padding:var(--s4);margin-bottom:var(--s3)">
+    <div class="bhead" style="margin-bottom:var(--s4)"><h2 class="pt">总览</h2><span class="ct" id="ov-ct"></span></div>
+    <div class="ov" id="st-ov"></div>
+  </div>
+  <div class="cols">
+    <div class="card" style="padding:var(--s4)">
+      <div class="bhead"><h2 class="pt">学习时长</h2><span class="ct" id="st-ct2"></span></div>
+      <p class="sub">做题计时 + 视频课观看，记录保存在本机服务</p>
+      <div id="st-time"></div>
+    </div>
+    <div class="card" style="padding:var(--s4)">
+      <div class="bhead"><h2 class="pt">每题用时</h2><span class="ct" id="st-qt-ct"></span></div>
+      <p class="sub">横线为参考用时，超线说明要提速</p>
+      <div id="st-qtime"></div>
+    </div>
+  </div>
+  <div class="cols">
+    <div class="card" style="padding:var(--s4)">
+      <div class="bhead"><h2 class="pt">每日题量</h2><span class="ct">近 14 天</span></div>
+      <p class="sub">柱高为当天作答题数，深色段为答错</p>
+      <div id="st-daily"></div>
+    </div>
+    <div class="card" style="padding:var(--s4)">
+      <div class="bhead"><h2 class="pt">科目进度</h2><span class="ct" id="st-subj-ct"></span></div>
+      <p class="sub">按四科统计已做 / 做错 / 未做（分母为题库实际题量）</p>
+      <div id="st-mastery"></div>
+    </div>
+  </div>
+  <div class="card" style="padding:var(--s4);margin-bottom:var(--s3)">
+    <div class="bhead"><h2 class="pt">错题分布</h2><span class="ct" id="st-weak-ct"></span></div>
+    <p class="sub">当前错题本中的题，按套题与科目聚合</p>
+    <div id="st-weak"></div>
+  </div>
+  <div class="card" style="padding:var(--s4)">
+    <div class="bhead"><h2 class="pt">AI 复盘记录</h2><span class="ct" id="ai-ct"></span></div>
+    <p class="sub" id="ai-sub">针对每次作答的个人复盘</p>
+    <div id="st-ai"></div>
+  </div>
+</div>
+
+</div>
+
+<script>
+'use strict';
+/* ============================================================
+   TOEFL Lab · 研读桌正式版
+   设计基线: web/design-exploration/desk-refined.html（CSS 在 desk.css）
+   数据: 全部真实 —— 题库 data 目录下各套 JSON（经 /api/set）、课程 build/courses/、
+         学习记录 records/records.json（经 /api/records，服务端持久化）。
+   没有演示种子：进度、错题、统计都从真实记录计算，空白就是 0。
+   ============================================================ */
+
+/* ---------- 小工具 ---------- */
+const $ = id => document.getElementById(id);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g,
+  c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt = s => { s = Math.max(0, Math.round(s)); const m = Math.floor(s/60), x = s%60;
+  return String(m).padStart(2,'0') + ':' + String(x).padStart(2,'0'); };
+const SUBN = {listening:'听力', reading:'阅读', writing:'写作', speaking:'口语'};
+const sentenceNorm = s => (String(s||'').toLowerCase().replace(/[‘’]/g,"'").match(/[a-z0-9]+(?:'[a-z0-9]+)*/g)||[]).join(' ');
+const normAns = s => String(s == null ? '' : s).trim().toLowerCase()
+  .replace(/[.,!?;:"'’”]/g,'').replace(/\s+/g,' ');
+/* 选择题判分: 官方答案是字母 → 比字母; 是整句（部分官方键直接给陈述句）→
+   按选项文本比对。返回正确选项字母; 无法映射时返回 null。 */
+function fillIsCorrect(q,v){ return normAns(v)===normAns(q.answer) || normAns((q.clue||'')+String(v||''))===normAns(q.answer); }
+function answerKeyOf(q){
+  const a=String(q.answer==null?'':q.answer).trim();
+  if(/^[A-Da-d]$/.test(a)) return a.toUpperCase();
+  const na=normAns(a);
+  if(!na) return null;
+  for(const k of ['A','B','C','D']){
+    const v=q.options[k];
+    if(v!=null && normAns(v)===na) return k;
+  }
+  return null;
+}
+
+/* ---------- 服务端数据 ---------- */
+let CATALOG = null, COURSES = null, CURATED = {};
+const SETCACHE = {};
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  if (!r.ok) throw new Error(path + ' -> ' + r.status);
+  return r.json();
+}
+async function loadSet(id) {
+  if (!SETCACHE[id]) SETCACHE[id] = api('/api/set/' + encodeURIComponent(id)).catch(e=>{delete SETCACHE[id];throw e;});
+  return SETCACHE[id];
+}
+
+/* ---------- 学习记录（服务端唯一真源） ---------- */
+let REC = {attempts:{}, qtimes:{}, mistakes:{}, course:{}, study:{}, writing:{}, drafts:{}, feedback:[]};
+let recT = null, recDirty = false, recReady = false, recSaving = false;
+let recBase = null, recEpoch = 0;
+const recClone = x => JSON.parse(JSON.stringify(x));
+function saveStatus(msg) {
+  let el = $('save-status');
+  if (!el) { el = document.createElement('div'); el.id='save-status'; el.setAttribute('role','status');
+    el.style.cssText='position:fixed;bottom:12px;right:12px;z-index:999;background:#fff;padding:12px;border:1px solid #c88;max-width:380px';
+    document.body.appendChild(el); }
+  el.replaceChildren(document.createTextNode(msg+' '));
+  if(msg) {
+    const exp=document.createElement('button'); exp.textContent='导出未保存记录';
+    exp.onclick=()=>{const url=URL.createObjectURL(new Blob([JSON.stringify(REC)],{type:'application/json'}));
+      const a=document.createElement('a');a.href=url;a.download='toefl-records-backup.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
+    const retry=document.createElement('button');retry.textContent='重试保存';retry.onclick=flushRecords;
+    el.append(exp,retry);
+  }
+  el.hidden=!msg;
+}
+function recSave() {
+  recDirty=true; recEpoch++; clearTimeout(recT);
+  recT=setTimeout(flushRecords,400);
+}
+// Three-way merge only non-conflicting fields. Same-field conflicts retain local work and ask for recovery.
+function mergeRemote(remote) {
+  const merged=recClone(remote), base=recBase||{};
+  for(const field of ['attempts','qtimes','mistakes','course','study','writing','drafts']) {
+    const l=REC[field]||{}, b=base[field]||{}, r=remote[field]||{};
+    merged[field]={...r};
+    for(const key of new Set([...Object.keys(b),...Object.keys(l)])) {
+      const ls=JSON.stringify(l[key]),bs=JSON.stringify(b[key]),rs=JSON.stringify(r[key]);
+      if(ls===bs) continue;
+      if(rs!==bs && rs!==ls) throw new Error('多窗口记录冲突：请导出当前记录后再刷新合并');
+      if(key in l) merged[field][key]=l[key]; else delete merged[field][key];
+    }
+  }
+  if(JSON.stringify(REC.feedback)!==JSON.stringify(base.feedback)) {
+    if(JSON.stringify(remote.feedback)!==JSON.stringify(base.feedback)) throw new Error('复盘记录冲突');
+    merged.feedback=recClone(REC.feedback);
+  }
+  return merged;
+}
+async function flushRecords() {
+  if(!recDirty || recSaving) return;
+  if(!recReady) {saveStatus('记录尚未读取成功，暂不覆盖服务端；请导出当前记录备份');return;}
+  recSaving=true;
+  try {
+    const snapshot=recClone(REC), epoch=recEpoch;
+    snapshot.revision=recBase?.revision||0;
+    const r=await fetch('/api/records',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(snapshot)});
+    if(r.status===409) {
+      const remote=await api('/api/records');
+      const merged=mergeRemote(remote); REC=merged;recBase=recClone(remote);
+      recSaving=false;return await flushRecords();
+    }
+    if(!r.ok) throw new Error('保存失败（'+r.status+'），记录仍在本页');
+    const ack=await r.json();
+    recBase={...snapshot,revision:ack.revision,saved_at:ack.saved_at};
+    REC.revision=ack.revision;REC.saved_at=ack.saved_at;
+    recDirty=recEpoch!==epoch;saveStatus('');
+    if(recDirty) recT=setTimeout(flushRecords,400);
+  } catch(e) {saveStatus(e.message);} finally {recSaving=false;}
+}
+async function recResync() {
+  if(recDirty || recSaving) return;
+  const epoch=recEpoch;
+  try {const j=await api('/api/records');
+    if(recDirty || recSaving || recEpoch!==epoch) return;
+    REC=Object.assign(REC,j);recBase=recClone(REC);recReady=true;
+    refreshCurrent();
+  }catch(e){saveStatus('无法同步学习记录；本页记录已保留');}
+}
+function refreshCurrent(){
+  if(!CATALOG) return;
+  renderHome();
+  const v=(location.hash||'#/home').split('/')[1];
+  if(v==='drill')renderDrill();if(v==='sets')renderSets();if(v==='stats')renderStats();if(v==='review')renderReview();
+}
+window.addEventListener('focus',recResync);
+document.addEventListener('visibilitychange',()=>{
+  if(document.hidden) {checkpointCourse();if(recDirty)flushRecords();} else recResync();
+});
+window.addEventListener('beforeunload',e=>{
+  checkpointCourse();
+  if(!recDirty) return;
+  // A beacon cannot report a conflict/disk error; keep a visible unload guard for unsaved work.
+  if(recReady && !recSaving) navigator.sendBeacon('/api/records',new Blob([JSON.stringify({...REC,revision:recBase?.revision||0})],{type:'application/json'}));
+  e.preventDefault();e.returnValue='学习记录尚未保存';
+});
+function studyTick(sec) {
+  recDirty=true;recEpoch++;
+  const S = REC.study = REC.study || {};
+  const now=new Date(); const d=[now.getFullYear(),String(now.getMonth()+1).padStart(2,'0'),String(now.getDate()).padStart(2,'0')].join('-');
+  if (S.day !== d) {
+    S.days = (S.day && d === new Date(Date.parse(S.day)+864e5).toISOString().slice(0,10)) ? (S.days||0)+1 : 1;
+    S.day = d; S.today = 0;
+  }
+  S.today = (S.today||0) + sec; S.total = (S.total||0) + sec;
+}
+
+/* ---------- 题库适配层 ----------
+   身份: qid = <set>/<subject>/<moduleKey>/<type>/<no>
+   听力 m1/m2；阅读 m1/m2（choice 与 fill 分型）；写作 sentence/email/discussion；
+   口语 s1/s2。同号不同模块/题型绝不串题。 */
+function qid(set, subj, mk, type, no) { return [set, subj, mk, type, no].join('/'); }
+function parseFillPassage(passage) {
+  // 两种空格形态: ASCII 下划线 "los _ _ _" 与 OCR 方块 ▢（图片版 03-15 等）。
+  // 统一成 _, 并把紧贴形式 "spe___" 拆开; 线索字母与格数原样保留。
+  passage = String(passage || '').replace(/▢/g, '_')
+    .replace(/([A-Za-z'’\-])(_+)/g, (m, c, us) => c + ' ' + us.split('').join(' '));
+  const parts = [], blanks = [];
+  const re = /([A-Za-z'’\-]*)((?:\s+_)+)/g;
+  let last = 0, m;
+  while ((m = re.exec(passage))) {
+    if (m.index > last) parts.push({t: passage.slice(last, m.index)});
+    blanks.push({clue: m[1], width: (m[2].match(/_/g)||[]).length});
+    parts.push({blank: blanks.length - 1});
+    last = re.lastIndex;
+  }
+  if (last < passage.length) parts.push({t: passage.slice(last)});
+  // 清掉解析残 residue 的孤立下划线（真正的空都已捕获为 blank 段）
+  parts.forEach(p => { if (p.t != null) p.t = p.t.replace(/_+/g, ''); });
+  return {parts, blanks};
+}
+function speakingAudioIssue(ref,task,no){
+  if(!ref)return '';
+  const low=ref.toLowerCase();
+  if(/listening|听力/.test(low)&&!/speaking|口语/.test(low))return '引用了另一科音频，已停止播放';
+  const m=low.match(/speaking_(listen_repeat|take_interview)_q0*(\d+)(?:\D|$)/);
+  if(m){const kind={TASK1:'listen_repeat',TASK2:'take_interview'}[task];
+    if(kind&&kind!==m[1])return '口语任务类型与音频不符，已停止播放';
+    if(Number(m[2])!==Number(no))return '口语题号与音频不符，已停止播放';}
+  return '';
+}
+/* 把一套题库 JSON 归一化为统一导航结构（缓存） */
+const NORM = {};
+async function normSet(id) {
+  if (NORM[id]) return NORM[id];
+  const j = await loadSet(id);
+  const n = {id, subjects:{}};
+  for (const [subj, sub] of Object.entries(j.subjects || {})) {
+    if(sub.blocked_reason){n.subjects[subj]={modules:[],tasks:[],blocked_reason:sub.blocked_reason};continue;}
+    if (sub.modules) {
+      const mods = [];
+      for (const [mi,m] of sub.modules.entries()) {
+        const duplicateModule=sub.modules.filter(x=>x.module===m.module).length>1;
+        const mk = 'm' + m.module + (duplicateModule?'p'+(m.part||mi+1):'');
+        const amk = 'module' + m.module;   // JSON 里答案键是 module1/module2
+        const groups = [];
+        for (const g of (m.groups||[])) {
+          const gkey = String(g.q_range || ('g' + (groups.length+1)));
+          const gr = {key:gkey, kind:g.kind||'', title:g.title||'', passage:g.passage||'',
+                      source:g.source||g.passage_source||'', passage_paragraphs:g.passage_paragraphs||[], questions:[],
+                      audio:g.audio||'', audio_module_level:!!g.audio_module_level};
+          if (g.kind === 'fill_in_blank') {
+            const {parts, blanks} = parseFillPassage(g.passage || '');
+            const ansList = (g.answers && g.answers.length ? g.answers :
+              ((j.answers?.[subj]?.[amk])||[]).filter(a => a.kind === 'fill'));
+            gr.type = 'fill';
+            gr.parts = parts; gr.blanks = blanks;
+            gr.q_start = parseInt(gkey.split('-')[0], 10) || 1;
+            gr.complete = blanks.length > 0 && ansList.length > 0 && blanks.length - ansList.length <= 2;
+            gr.answerMap = {};
+            ansList.forEach(a => { gr.answerMap[a.q != null ? a.q : a.no] = a.a; });
+            gr.parsed = blanks.map((b,i) => ({
+              qid: qid(id, subj, mk, 'fill', gr.q_start + i),
+              no: gr.q_start + i,
+              answer: gr.answerMap[gr.q_start + i] || '', clue: b.clue, width: b.width }));
+          } else {
+            gr.type = 'mc';
+            const amap = {};
+            (duplicateModule?[]:((j.answers?.[subj]?.[amk])||[])).filter(a => a.kind !== 'fill').forEach(a => { amap[a.q] = a.a; });
+            gr.questions = (g.questions||[]).map(q => ({
+              qid: qid(id, subj, mk, 'mc', q.no), no: q.no, stem: q.stem || '',
+              options: q.options || {}, audio: q.audio || '', answer: amap[q.no] || null, interaction:q.interaction||'', selection_paragraph:q.selection_paragraph||0, source_reference:q.source_reference||null }));
+          }
+          groups.push(gr);
+        }
+        mods.push({module:m.module, mk, groups});
+      }
+      n.subjects[subj] = {modules: mods, tasks: []};
+    } else if (sub.tasks) {
+      const tasks = [];
+      for (const t of sub.tasks) {
+        const typeMap = {sentence_construction:'sentence', email:'email',
+                         academic_discussion:'discussion', TASK1:'s1', TASK2:'s2'};
+        const rawKey=t.type||t.task||'task',same=sub.tasks.filter(x=>(x.type||x.task||'task')===rawKey);
+        const tk=(typeMap[rawKey]||String(rawKey).toLowerCase())+(same.length>1?'p'+(same.indexOf(t)+1):'');
+        const taskKind=typeMap[rawKey]||String(rawKey).toLowerCase();
+        let rawItems = (t.items || t.sentences || []);
+        // email / academic_discussion 的题面在任务级 prompt_lines/body，没有逐条 items —— 补一个虚拟条目
+        if(!rawItems.length && ((t.prompt_lines&&t.prompt_lines.length)||(t.body&&t.body.length)))
+          rawItems = [{no: 1}];
+        const items = rawItems.map(it => ({
+          qid: qid(id, subj, tk, tk, it.no), no: it.no,
+          prompt: it.prompt || it.context || '', context: it.context || '',
+          response_slots: it.response_slots || '', word_bank: it.word_bank || [], reference_answer:it.reference_answer||'', reference_verified:!!it.reference_verified, reference_source:it.reference_source||'',
+          prompt_lines: t.prompt_lines || [], body: t.body || [], reference_lines:t.reference_lines||[],
+          audio_evidence:it.audio_evidence||null, audio_cue:it.audio_cue??null, prompt_source:it.prompt_source||'', audio: speakingAudioIssue(it.audio,t.task,it.no)?'':(it.audio || ''), audio_module_level:!!it.audio_module_level, audio_issue:speakingAudioIssue(it.audio,t.task,it.no)||it.audio_issue||'', response: it.response || '' }));
+        tasks.push({key: tk,kind:taskKind, title: t.title || t.task || t.type || '',instructions:t.instructions?.length?t.instructions:([t.instruction,t.note].filter(Boolean)), material_note:t.material_note||'', items});
+      }
+      n.subjects[subj] = {modules: [], tasks};
+    }
+  }
+  NORM[id] = n;
+  return n;
+}
+
+/* ---------- 记录写入 ---------- */
+function recAttempt(ref, ok, answer, secs) {
+  const k = ref.qid;
+  const a = REC.attempts[k] = REC.attempts[k] || {st:'doing', n:0, right:0, history:[]};
+  a.n++; a.last = Date.now(); a.last_answer = answer;
+  a.history.push({t: Date.now(), answer, ok: ok === null ? null : ok === true, secs: Math.round(secs)});
+  if (ok === true) { a.right++; a.st = 'done'; }
+  else if (ok === false) a.st = 'wrong';
+  else a.st = 'submitted';   // 已提交但未判定，不能称通过
+  REC.qtimes[k] = (REC.qtimes[k]||0) + Math.round(secs);
+  const m = REC.mistakes[k];
+  if (ok === false) {
+    REC.mistakes[k] = (m && !m.cleared) ?
+      {...m, n_wrong: (m.n_wrong||0)+1, stage: 0, due: Date.now()+864e5, last: Date.now(),
+       set: ref.set, subj: ref.subj, mk: ref.mk, gkey: ref.gkey} :
+      {n_wrong: 1, stage: 0, added: Date.now(), due: Date.now()+864e5, last: Date.now(),
+       set: ref.set, subj: ref.subj, mk: ref.mk, gkey: ref.gkey};
+  } else if (ok === true && m && !m.cleared && Date.now() >= m.due) {
+    // 复习答对：按 3/7/14 天推进；14 天后再答对才移出
+    const next = [3,7,14][m.stage] || 14;
+    m.stage = (m.stage||0) + 1;
+    if (m.stage >= 4) m.cleared = true;
+    else m.due = Date.now() + next*864e5;
+    m.last = Date.now();
+  }
+  recSave();
+}
+function setWritingDraft(qidKey, text, submitted) {
+  const w = REC.writing[qidKey] = REC.writing[qidKey] || {text:'', updated:0, submitted:false};
+  w.text = text; w.updated = Date.now();
+  if (submitted !== undefined) w.submitted = submitted;
+  recSave();
+}
+
+/* ---------- 计时（时间上限为参考值，未按官方 2026 版核验） ----------
+   累计器制：暂停把已用时长冻结进 TACC/QACC，恢复不清零；
+   暂停期间重渲染也不会让计时继续走。 */
+const TLIMITS = {listening:{m:75,lab:'听力'}, reading:{m:60,lab:'阅读'},
+                 writing:{m:30,lab:'写作'}, speaking:{m:20,lab:'口语'}};
+let TICK=null, T0=0, Q0=0, T_PAUSED=false, STU=false, TACC=0, QACC=0;
+function usedSec(){ return TACC + (T_PAUSED?0:(Date.now()-T0)/1000); }
+function qUsedSec(){ if(S?.revealed&&S.answerSec!=null)return S.answerSec;return QACC + (T_PAUSED?0:(Date.now()-Q0)/1000); }
+function tStart(){ if(TICK) return; T0=Date.now(); Q0=Date.now(); T_PAUSED=false;
+  TICK=setInterval(()=>{ tStep(); if(STU&&!document.hidden){studyTick(1);if((REC.study.total||0)%5===0)recSave();} },1000); }
+function tStep(){
+  if(!S||T_PAUSED) return;
+  const used=usedSec(), q=qUsedSec();
+  const lim=TLIMITS[S.subj]||{m:60,lab:''};
+  const sectionUsed=(S.subjectSeconds?.[S.subj]||0)+Math.max(0,used-(S.subjectStart||0));
+  const left=lim.m*60-sectionUsed, pct=Math.min(100,sectionUsed/(lim.m*60)*100);
+  const el=$('d-elapsed'),qt=$('d-qtime'),le=$('d-left'),tf=$('d-tfull');
+  if(el) el.textContent=fmt(used);
+  if(qt) qt.textContent=fmt(q);
+  if(le){ le.textContent=left>0?fmt(left):'超时';
+    le.className='tval'+(left<120?' bad':(left<600?' warn':'')); }
+  if(tf){ tf.style.width=pct+'%'; tf.className=pct>90?'bad':(pct>70?'warn':''); }
+  const lab=$('d-tlimit-lab'); if(lab) lab.textContent=lim.lab+'参考剩余';
+}
+function tPause(){ const b=$('d-pause'); if(!b||!S) return;
+  if(!T_PAUSED){
+    TACC=usedSec(); QACC=qUsedSec();
+    T_PAUSED=true; b.textContent='继续'; $('d-audio').pause();
+    if(TICK){ clearInterval(TICK); TICK=null; }
+  } else {
+    T0=Date.now(); Q0=Date.now(); T_PAUSED=false; b.textContent='暂停';
+    tStart();
+  } }
+function tReset(){ if(TICK) clearInterval(TICK); TICK=null;
+  TACC=0; QACC=0; T_PAUSED=false;
+  const b=$('d-pause'); if(b) b.textContent='暂停'; }
+
+/* ---------- 视图切换（带 hash 定位） ---------- */
+let lastNav='home';
+function go(v){
+  const isTask=(v==='do');
+  if(!isTask) {checkpointCourse(true);lastNav=v; if(TICK) {TACC=usedSec();QACC=qUsedSec();clearInterval(TICK);TICK=null;} STU=false; $('d-audio').pause();const cv=$('cs-video');if(cv)cv.pause();} else if(S && !TICK && !T_PAUSED) tStart();
+  document.querySelectorAll('.nav button').forEach(x=>x.classList.toggle('on',x.dataset.v===v));
+  document.querySelectorAll('.view').forEach(x=>x.classList.remove('on'));
+  $('v-'+v).classList.add('on');
+  document.querySelectorAll('.seg').forEach(moveThumb);
+  if(v==='home') renderHome();
+  if(v==='drill') renderDrill();
+  if(v==='sets') renderSets();
+  if(v==='course') renderCourse();
+  if(v==='review') renderReview();
+  if(v==='stats') renderStats();
+  window.scrollTo(0,0);
+}
+function nav(v){
+  const h='#/'+v;
+  // 同 hash 也要手动路由（做题会话占位 #/do 时返回，hash 必有变化；
+  // 但从 #/sets 进会话再返回 #/sets 这类场景，hash 不变就不触发事件）
+  if(location.hash===h){ route(); } else location.hash=h;
+}
+function route(){
+  const h=(location.hash||'#/home').replace(/^#\//,'');
+  const [v,arg]=h.split('/');
+  if(v==='do'){ if(!S) go('home'); else go('do'); return; }   // 做题会话不外链；无会话回首页
+  if(['home','drill','sets','course','review','stats'].includes(v)){
+    if(v==='drill'&&arg&&SUBN[arg]) drillTab(arg);
+    if(v==='course'&&arg){ go('course'); setTimeout(()=>openLessonById(decodeURIComponent(arg)),80); return; }
+    go(v);
+  } else go('home');
+}
+window.addEventListener('hashchange',route);
+window.goBack=function(){ nav(lastNav||'home'); };
+document.querySelectorAll('.nav button').forEach(b=>{ b.onclick=()=>nav(b.dataset.v); });
+function moveThumb(seg){
+  const on=seg.querySelector('button.on'), th=seg.querySelector('.thumb');
+  if(!on||!th) return;
+  th.style.left=on.offsetLeft+'px'; th.style.width=on.offsetWidth+'px';
+}
+
+/* ---------- 首页 ---------- */
+const STUDY_SCOPE=new Set(["2026-03-15", "2026-06-07", "2026-06-08", "2026-06-10", "2026-06-22", "2026-06-24", "2026-07-04", "2026-07-11", "2026-07-13", "2026-07-25", "2026-08-12"]);
+function CATALOK(){ return ((CATALOG&&CATALOG.sets)||[]).filter(s=>STUDY_SCOPE.has(s.id)); }
+function scopedEntries(map){const ids=new Set(CATALOK().map(s=>s.id));return Object.entries(map||{}).filter(([k])=>ids.has(k.split('/')[0]));}
+function localDay(date=new Date()){return [date.getFullYear(),String(date.getMonth()+1).padStart(2,'0'),String(date.getDate()).padStart(2,'0')].join('-');}
+function lessonTitle(lid){
+  for(const s of (COURSES&&COURSES.series)||[]) for(const c of (s.courses||[]))
+    for(const l of (c.lessons||[])) if(l.id===lid) return l.title;
+  return lid;
+}
+function renderHome(){
+  const sets=CATALOK();
+  const nSets=sets.length;
+  const totQ=sets.reduce((a,s)=>a+s.total_q,0);
+  $('res-sets').textContent=nSets+' 套四科素材 · 已录入 '+totQ+' 项 · 部分题型待支持';
+  let nL=0,nC=0;
+  ((COURSES&&COURSES.series)||[]).forEach(s=>(s.courses||[]).forEach(c=>{nL+=c.lesson_count||0;nC++;}));
+  $('res-courses').textContent=nC+' 门课 · '+nL+' 节 · 配讲义';
+  let lastQ=null,lastT=0;
+  for(const [k,a] of scopedEntries(REC.attempts))
+    if(a.last&&a.last>lastT){lastT=a.last;lastQ=k;}
+  let lastL=null,lastLT=0;
+  for(const [k,d] of scopedEntries(REC.drafts)) if(d.updated>lastT){lastT=d.updated;lastQ=k;}
+  for(const [k,w] of scopedEntries(REC.writing)) if(w.updated>lastT){lastT=w.updated;lastQ=k;}
+  for(const [k,c] of Object.entries(REC.course||{}))
+    if(c.at&&c.at>lastLT){lastLT=c.at;lastL=k;}
+  if(lastL&&lastLT>=lastT){
+    $('res-continue').style.display='';
+    const cp=REC.course[lastL]||{};
+    $('res-continue-txt').textContent='上次看到 '+lessonTitle(lastL)+
+      (cp.pos>10&&!cp.done?('（看到 '+fmt(cp.pos)+'，进去接着放）'):(cp.done?'（已看完）':''));
+    $('res-continue-btn').onclick=()=>nav('course/'+encodeURIComponent(lastL));
+  } else if(lastQ){
+    $('res-continue').style.display='';
+    $('res-continue-txt').textContent='最近练习 '+lastQ.split('/').slice(0,2).join(' · ');
+    $('res-continue-btn').onclick=()=>openQuestion(lastQ);
+  } else $('res-continue').style.display='none';
+}
+
+/* ---------- 专项训练 ----------
+   题组列表来自 /api/catalog 的 outline（服务端启动时已读好），
+   切科目是纯本地计算、瞬时完成；点进题组才按需加载那一套 JSON。 */
+let drillSubj='listening';
+function drillRows(setId){
+  const s=CATALOK().find(x=>x.id===setId);
+  const sub=s&&s.subjects[drillSubj];
+  if(!sub||!sub.outline) return [];
+  const out=[];
+  for(const m of sub.outline.modules){
+    const mk='m'+m.m;
+    for(const g of m.groups){
+      let done=0, wrong=0;
+      const start=parseInt(g.key.split('-')[0],10)||1;
+      for(let i=0;i<g.n;i++){
+        const a=REC.attempts[qid(setId,drillSubj,mk,g.type,start+i)];
+        if(a){ if(a.st==='wrong') wrong++; else done++; }
+      }
+      const label=(g.type==='fill'?'填空 · ':'')+(g.title||('Q'+g.key))+`（M${m.m}）`;
+      out.push({enc:[setId,drillSubj,mk,g.key].join('|'),set:setId,
+        label:label.slice(0,60),n:g.n,done,wrong,notice:g.missing_audio?'缺少听力音频 · 仅预览':''});
+    }
+  }
+  for(const t of sub.outline.tasks){
+    let done=0, wrong=0, unjudged=0;
+    for(let i=1;i<=t.n;i++){
+      const a=REC.attempts[qid(setId,drillSubj,t.key,t.key,i)];
+      if(a){ if(a.st==='wrong') wrong++; else done++; if(a.st==='submitted')unjudged++; }
+    }
+    out.push({enc:[setId,drillSubj,t.key,'-'].join('|'),set:setId,
+      label:(t.title||t.key),n:t.n,done,wrong,unjudged,notice:t.missing_audio?'缺少口语音频 · 仅题面/笔记':t.material_note?'源资料存在重复 · 可重练':t.whole_audio?'整段口语录音 · 未分段':''});
+  }
+  return out;
+}
+function renderDrill(){
+  const body=$('dr-body');
+  const sets=CATALOK().filter(s=>s.total_q>0&&(s.subjects[drillSubj]&&s.subjects[drillSubj].q>0));
+  const items=sets.flatMap(s=>drillRows(s.id)).filter(Boolean);
+  if(!items.length){ body.innerHTML='<div class="empty">该科暂无可做题组</div>'; return; }
+  const totN=items.reduce((a,x)=>a+x.n,0);
+  const doneN=items.reduce((a,x)=>a+x.done+x.wrong,0);
+  const wrongN=items.reduce((a,x)=>a+x.wrong,0);
+  let h=`<div class="ov" style="margin-bottom:var(--s3)">
+    <div class="ovc"><div class="k">题组</div><div class="v">${items.length}</div><div class="d">共 ${totN} 题</div></div>
+    <div class="ovc"><div class="k">已作答</div><div class="v">${doneN}</div><div class="d">占 ${totN?Math.round(doneN/totN*100):0}%</div></div>
+    <div class="ovc"><div class="k">做错</div><div class="v">${wrongN}</div><div class="d">${wrongN?'已进错题本':'无'}</div></div>
+    <div class="ovc"><div class="k">套题</div><div class="v">${sets.length}</div><div class="d">${SUBN[drillSubj]}可用</div></div></div>`;
+  h+='<div class="card" style="overflow:hidden"><div class="phead"><div class="l"><b>按题组挑</b></div>'+
+     '<div class="r"><span>'+items.length+' 组</span></div></div>'+
+     items.map(x=>`<div class="trow" data-ref="${esc(x.enc)}">
+      <span class="n">${x.n}</span>
+      <div class="t"><b>${esc(x.label)}</b><span>${esc(x.set)} · ${x.done||x.wrong?(x.unjudged===x.done+x.wrong?`已提交 ${x.unjudged} 份（未判分）`:`已作答 ${x.done+x.wrong} / 未匹配或错 ${x.wrong}${x.unjudged?' / 未判分 '+x.unjudged:''}`):'未开始'}${x.notice?' · '+esc(x.notice):''}</span></div>
+      <div class="pbar"><div class="b"><i style="width:${x.n?Math.round((x.done+x.wrong)/x.n*100):0}%"></i></div>
+        <div class="s">${x.n?Math.round((x.done+x.wrong)/x.n*100):0}%</div></div></div>`).join('')+
+     '</div>';
+  body.innerHTML=h;
+  body.querySelectorAll('.trow').forEach(t=>{
+    t.onclick=()=>{ const [set,subj,mk,gk]=t.dataset.ref.split('|');
+      if(gk==='-'&&(subj==='writing'||subj==='speaking')) enterTask(set,subj,mk);
+      else enterGroup(set,subj,mk,gk); };
+  });
+}
+window.drillTab=function(s){
+  drillSubj=s;
+  document.querySelectorAll('#dr-seg button').forEach(b=>b.classList.toggle('on',b.dataset.s===s));
+  renderDrill();
+  moveThumb($('dr-seg'));
+};
+document.querySelectorAll('#dr-seg button').forEach(b=>{ b.onclick=()=>drillTab(b.dataset.s); });
+document.querySelectorAll('[data-drill]').forEach(b=>{ b.onclick=()=>{ drillSubj=b.dataset.drill; nav('drill/'+b.dataset.drill); }; });
+document.querySelectorAll('[data-go]').forEach(b=>{ b.onclick=()=>nav(b.dataset.go); });
+
+/* ---------- 整套 ---------- */
+let setFilterF='all';
+function setStat(s){
+  let d=0; const pre=s.id+'/';
+  for(const [k,a] of Object.entries(REC.attempts||{})){
+    if(k.startsWith(pre)) d++;
+  }
+  return {d,t:s.total_q};
+}
+function renderSets(){
+  const sets=CATALOK().filter(s=>s.total_q>0);
+  const list=sets.filter(s=>{
+    const st=setStat(s);
+    if(setFilterF==='done') return st.t&&st.d>=st.t;
+    if(setFilterF==='doing') return st.d>0&&st.d<st.t;
+    if(setFilterF==='todo') return st.d===0;
+    return true;
+  });
+  $('sets').innerHTML=list.map(s=>{
+    const st=setStat(s);
+    const pct=st.t?Math.min(100,Math.round(st.d/st.t*100)):0;
+    const tag=st.t&&st.d>=st.t?['done','已完成']:(st.d>0?['doing','进行中']:['','未开始']);
+    const cells=Object.entries(s.subjects||{}).filter(([k,v])=>v.q||v.blocked_reason)
+      .map(([k,v])=>v.blocked_reason?`<span class="c unavailable" title="${esc(v.blocked_reason)}"><i></i>${SUBN[k]||k} 暂不可练</span>`:`<span class="c ${s.grade==='A'?'full':'part'}"><i></i>${SUBN[k]||k} ${v.q}</span>`).join('');
+    return `<div class="srow" data-set="${esc(s.id)}">
+      <span class="id">${esc(s.id)}</span>
+      <span class="stag ${tag[0]}">${s.grade==='A'?'素材 A':(s.grade||'—')}</span>
+      <span class="sp4">${cells}</span>
+      <span class="pct">${pct}%</span></div>`;
+  }).join('')||'<div class="empty">没有符合筛选条件的套题</div>';
+  $('sets').querySelectorAll('.srow').forEach(r=>{
+    r.onclick=()=>enterSet(r.dataset.set);
+  });
+  $('sets-ct').textContent=list.length+' / '+sets.length+' 套';
+  $('sets-sub').textContent=sets.filter(s=>s.grade==='A').length+' 套四科素材 · 不等于全题型可在线练习 · 时间上限为参考值（未按官方 2026 版核验）· 中途退出进度保留';
+}
+document.querySelectorAll('#sets-filter button').forEach(b=>{
+  b.onclick=()=>{ setFilterF=b.dataset.f;
+    document.querySelectorAll('#sets-filter button').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on'); renderSets(); moveThumb($('sets-filter')); };
+});
+
+/* ---------- 做题会话 ---------- */
+let S=null;
+async function enterSet(id){
+  const n=await normSet(id);
+  const refs=[];
+  for(const subj of ['listening','reading','writing','speaking']){
+    const s=n.subjects[subj]; if(!s||s.blocked_reason) continue;
+    for(const m of s.modules) for(const g of m.groups){
+      if(g.type==='fill') refs.push({kind:'fill',set:id,subj,mk:m.mk,gkey:g.key,group:g});
+      else g.questions.forEach(q=>refs.push({kind:'choice',set:id,subj,mk:m.mk,gkey:g.key,group:g,q}));
+    }
+    for(const t of s.tasks) for(const it of t.items)
+      refs.push({kind:subj==='writing'?'write':'speak',set:id,subj,mk:t.key,task:t,it});
+  }
+  startSession({title:id+' · 整套', subj:'listening', refs});
+}
+async function openQuestion(key){
+  const [set,subj,mk,type,no]=key.split('/');
+  const n=await normSet(set),sub=n.subjects[subj];
+  if(!sub){saveStatus('原题暂不可用，作答记录仍保留');return;}
+  if(sub.modules?.length){
+    const mod=sub.modules.find(x=>x.mk===mk);
+    const group=mod?.groups.find(g=>g.key===no&&g.type===type||(g.type==='fill'?g.parsed:g.questions).some(q=>q.qid===key));
+    if(!group){saveStatus('原题暂不可用，作答记录仍保留');return;}
+    await enterGroup(set,subj,mk,group.key);
+    if(type!=='fill'){S.i=Math.max(0,S.refs.findIndex(r=>r.q?.qid===key));renderQ();}
+    else {const ix=group.parsed.findIndex(q=>q.qid===key);if(ix>=0)document.querySelector('#d-fill input[data-b="'+ix+'"]')?.focus();}
+  }else{
+    const task=sub.tasks?.find(t=>t.key===mk);
+    if(!task){saveStatus('原任务暂不可用，作答记录仍保留');return;}
+    await enterTask(set,subj,mk);
+    S.i=Math.max(0,S.refs.findIndex(r=>r.it?.qid===key));renderQ();
+  }
+}
+async function enterGroup(set,subj,mk,gk){
+  const n=await normSet(set);
+  const mod=n.subjects[subj]&&n.subjects[subj].modules.find(x=>x.mk===mk);
+  if(!mod){ alert('题组不存在'); return; }
+  const g=mod.groups.find(x=>x.key===gk);
+  if(!g){ alert('题组不存在'); return; }
+  const refs=[];
+  if(g.type==='fill') refs.push({kind:'fill',set,subj,mk,gkey:g.key,group:g});
+  else g.questions.forEach(q=>refs.push({kind:'choice',set,subj,mk,gkey:g.key,group:g,q}));
+  const label=(g.title||('Q'+g.key));
+  startSession({title:set+' · '+SUBN[subj]+' · '+label, subj, refs});
+}
+async function enterTask(set,subj,taskKey){
+  const n=await normSet(set);
+  const refs=[];
+  if(n.subjects[subj]?.blocked_reason){alert(n.subjects[subj].blocked_reason);return;}
+  for(const t of n.subjects[subj].tasks.filter(t=>!taskKey||t.key===taskKey)) for(const it of t.items)
+    refs.push({kind:subj==='writing'?'write':'speak',set,subj,mk:t.key,task:t,it});
+  startSession({title:set+' · '+SUBN[subj], subj, refs});
+}
+function startSession(o){
+  if(!o.refs.length){ alert('该题组没有可做的题'); return; }
+  S={...o, i:0, sel:null, revealed:false, fillVals:{}, slots:{}, startTs:Date.now(),subjectSeconds:{},subjectStart:0};
+  lastNav=lastNav||'home';
+  if(location.hash!=='#/do') location.hash='#/do';   // 会话占位 hash，返回时必有变化
+  tReset(); tStart(); go('do'); renderQ(); STU=true;   // 计时先起, 再渲染（renderQ 内会刷计时显示, T0 必须已就位）
+}
+function curRef(){ return S.refs[S.i]; }
+function renderQ(){
+  const r=curRef();
+  S.subjectPositions=S.subjectPositions||{};S.subjectPositions[r.subj]=S.i;
+  if(S.subj!==r.subj){S.subjectSeconds=S.subjectSeconds||{};S.subjectSeconds[S.subj]=(S.subjectSeconds[S.subj]||0)+Math.max(0,usedSec()-(S.subjectStart||0));S.subjectStart=usedSec();S.subj=r.subj;}
+  $('d-set').textContent=r.set;
+  const moduleNo=r.mk.match(/^m(\d+)/)?.[1];
+  $('d-kind').textContent=SUBN[r.subj]+' · '+(moduleNo?'第 '+moduleNo+' 模块 · '+(r.q?'第 '+r.q.no+' 题':'填词 '+r.gkey):(r.task?.title||SUBN[r.subj]));
+  $('d-cnt').textContent='本轮 '+(S.i+1)+' / '+S.refs.length;
+  $('d-fb').innerHTML='';
+  $('d-next').textContent='确认答案'; $('d-next').className='pri';
+  const key=(r.q||r.it)?.qid||[r.set,r.subj,r.mk,'fill',r.gkey].join('/');
+  if(S.timedKey!==key){S.timedKey=key;S.startTs=Date.now();QACC=0;Q0=Date.now();S.answerSec=null;const draft=REC.drafts?.[key];if(draft&&!S.revealed){S.sel=draft.sel??null;S.fillVals={...draft.fillVals};S.slots={...draft.slots};}}
+  const ab=$('d-ab');
+  const audioUrl = (r.kind==='choice'&&r.q.audio) || (r.kind==='speak'&&r.it.audio);
+  const noQA = r.kind==='choice' && r.group.questions && r.group.questions.every(q=>!q.audio);
+  const modAudio = !audioUrl && noQA && r.group.audio;   // 题无逐题音频, 用组级音频
+  if(audioUrl || modAudio){
+    const rel=(audioUrl ? (r.kind==='choice'?r.q.audio:r.it.audio) : r.group.audio).split('\\').join('/');
+    ab.style.display='';
+    const au=$('d-audio'),src='/media/set/'+encodeURIComponent(r.set)+'/'+rel;
+    if(au.getAttribute('src')!==src) au.src=src;
+    au.playbackRate=auRate;
+    $('d-prog').style.width='0%'; $('d-time').textContent='00:00 / --:--';
+    $('d-play-ic').innerHTML='<path d="M3 2 L9 6 L3 10 Z" fill="#1C1C1A"/>';
+    const mode=$('d-amode');
+    if(mode){
+      const whole=!!(r.group?.audio_module_level||r.it?.audio_module_level);
+      const shared=r.subj==='listening'?(r.group.questions||[]).filter(q=>(q.audio||r.group.audio)=== (r.q.audio||r.group.audio)).map(q=>q.no):[];
+      mode.style.display = '';
+      mode.firstElementChild.textContent = whole?'整段 · 未分段':shared.length>1?'共用录音 · 题 '+shared[0]+'–'+shared.at(-1):r.q?'本题录音 · 题 '+r.q.no:'本题录音';
+      mode.title = whole?'素材只有整段录音、无题级切点，如实整段播放，不伪造题级片段':shared.length>1?'这些题使用同一段录音；换题时录音内容保持相同，可以继续听或拖回重听':'当前题目对应的录音';
+    }
+  } else {ab.style.display='none';$('d-audio').pause();$('d-audio').removeAttribute('src');$('d-audio').load();}
+  let h='';
+  if(r.kind==='choice'){
+    const selection=r.q.interaction==='sentence_select';
+    if(selection){
+      h+=`<div class="qt">Q${r.q.no}. ${esc(r.q.stem.replace(/\s*Selected sentence:[\s_]*$/i,''))}</div><div class="qd">直接选择第 ${r.q.selection_paragraph} 段中的完整句子；提交前不显示参考答案。</div>`;
+      r.group.passage_paragraphs.forEach((text,index)=>{
+        h+=`<div class="qd">第 ${index+1} 段</div><div class="passage">`;
+        if(index+1===r.q.selection_paragraph){
+          Object.entries(r.q.options).forEach(([k,v])=>{let cls='opt';const rightK=answerKeyOf(r.q);if(S.revealed){if(k===rightK)cls+=' right';else if(k===S.sel)cls+=' wrong';}else if(k===S.sel)cls+=' sel';h+=`<div class="${cls}" data-k="${k}" role="button" tabindex="0" aria-pressed="${S.sel===k}" aria-disabled="${S.revealed}"><span>${esc(v)}</span></div>`;});
+        }else h+=esc(text);
+        h+='</div>';
+      });
+    }else{
+      if(r.group.passage&&r.group.passage.length>10&&r.group.kind!=='listening_segment')h+=`<div class="passage">${esc(r.group.passage)}</div>`;
+      h+=`<div class="qt">Q${r.q.no}. ${esc(r.q.stem)}</div>`;
+      if(r.subj==='listening'){
+        const response=/choose the best response/i.test(r.q.stem);
+        h+=`<div class="listening-guide"><b>${response?'听一句话，选择最合适的回应':'听对话或讲座，回答问题'}</b><p>${response?'先点上方播放，听清对方说的话，再从 A–D 选择你会怎样回应。选项不是录音的逐字稿，不需要与录音说同一句话。':'先点上方播放，再依据录音回答当前问题。相邻几道题可能共用同一段录音，请注意题号和录音范围。'}</p><p>选择后点“确认答案”查看结果，再点“下一题”继续。</p></div>`;
+      }
+      'ABCD'.split('').forEach(k=>{const v=r.q.options[k];if(v==null)return;let cls='opt';const rightK=answerKeyOf(r.q);if(S.revealed){if(k===rightK)cls+=' right';else if(k===S.sel)cls+=' wrong';}else if(k===S.sel)cls+=' sel';h+=`<div class="${cls}" data-k="${k}" role="button" tabindex="0" aria-pressed="${S.sel===k}" aria-disabled="${S.revealed}"><span class="ol">${k}</span><span>${esc(v)}</span></div>`;});
+    }
+  } else if(r.kind==='fill'){
+    const g=r.group;
+    h+=`<div class="qt">Complete the Words（Q${esc(g.key)}）</div>
+        <div class="qd">只输入空格中缺少的字母（也兼容完整单词）；每空一题，回车可提交。</div>
+        <div class="passage" id="d-fill"></div>`;
+  } else if(r.kind==='write'){
+    const t=r.task,it=r.it;
+    h+=`<div class="qt">${esc(t.title||SUBN[r.subj])} · 第 ${it.no} 题</div>`;
+    if(r.task?.kind==='sentence'){
+      h+=`<div class="qd">${esc(it.prompt)}</div>
+          <div class="slotline" id="d-slots"></div>
+          <div class="qd">词库（点击放入，点已填的格子撤回）：</div>
+          <div id="d-wb"></div>`;
+    } else {
+      (it.prompt_lines||[]).forEach(l=>h+=`<div class="qd">${esc(l)}</div>`);
+      if(r.task?.kind==='email'&&it.body&&it.body.length)
+        h+=`<div class="passage" style="padding:10px 14px">${it.body.map(esc).join('<br>')}</div>`;
+      if(r.task?.kind==='discussion'&&it.body&&it.body.length)
+        h+=`<div class="passage">${esc(it.body.join('\n\n'))}</div>`;
+      h+=`<textarea id="d-wr" placeholder="在这里作答…">${esc(draftOf(r))}</textarea>`;
+    }
+  } else if(r.kind==='speak'){
+    h+=`<div class="qt">Speaking · 第 ${r.it.no} 题</div>`;
+    (r.task.instructions||[]).forEach(l=>h+=`<div class="qd">${esc(l)}</div>`);
+    if(r.task.material_note) h+=`<div class="na-box">${esc(r.task.material_note)}</div>`;
+    if(r.it.prompt) h+=`<div class="qd">${esc(r.it.prompt)}</div>`;
+    if(r.it.prompt_source)h+=`<div class="qd">${esc(r.it.prompt_source)}</div>`;
+    if(r.it.audio_evidence)h+=`<div class="na-box">${esc(r.it.audio_evidence.scope)}。依据：${esc(r.it.audio_evidence.method)}；尚未人工逐题核验。</div>`;
+    if(r.it.audio&&Number.isFinite(r.it.audio_cue))h+=`<button class="sm" id="d-source-cue">跳到本题附近 ${fmt(r.it.audio_cue)}（ASR 定位）</button>`;
+    if(!r.it.audio) h+=`<div class="na-box">${esc(r.it.audio_issue||'本题没有可确认对应的口语录音。')} · 可读题、保存笔记；听后复述训练暂不可用。</div>`;
+    h+=`<div class="na-box">录音、上传与保存<b class="avail-no">本批未接入</b>（当前为静态资料与练习工具）。
+      现在可以先听音频、看题；把要说的要点写下来会被保存。</div>
+      <textarea id="d-wr" placeholder="（可选）先写下你想说的要点…" style="margin-top:10px">${esc(draftOf(r))}</textarea>`;
+  }
+  $('d-body').innerHTML=h;
+  wireQ();
+  const cueButton=$('d-source-cue');if(cueButton)cueButton.onclick=()=>{const au=$('d-audio');const seek=()=>{if(S&&curRef()?.it?.qid===r.it.qid&&$('v-do').classList.contains('on'))au.currentTime=r.it.audio_cue;};if(au.readyState>=1)seek();else au.addEventListener('loadedmetadata',seek,{once:true});};
+  if(r.kind==='choice'&&r.subj==='listening'&&!r.q.audio&&!r.group.audio){$('d-body').insertAdjacentHTML('beforeend','<div class="na-box">源资料缺少听力音频，本题只供预览，暂不能进行听力练习。不会以其他科音频替代，也不计为完成。</div>');$('d-body').querySelectorAll('.opt').forEach(el=>{el.onclick=null;el.setAttribute('aria-disabled','true');});$('d-next').textContent='下一题';}
+  if(r.kind==='choice'&&Object.keys(r.q.options).length<2){$('d-body').insertAdjacentHTML('beforeend','<div class="na-box">该题缺少选择项，或需要句子定位/插入交互；本轮暂不能在页面作答。不会自动判分或计为完成。</div>');$('d-next').textContent='下一题';}
+  renderQbar();
+  tStep();
+}
+function saveQuestionDraft(){
+  if(!S || S.revealed || !S.timedKey) return;
+  REC.drafts=REC.drafts||{};
+  REC.drafts[S.timedKey]={sel:S.sel,fillVals:{...S.fillVals},slots:{...S.slots},updated:Date.now()};recSave();
+}
+function draftOf(r){ const w=REC.writing&&REC.writing[r.it.qid]; return w?w.text:''; }
+function wireQ(){
+  const r=curRef();
+  if(r.kind==='choice'){
+    $('d-body').querySelectorAll('.opt').forEach(o=>{
+      o.onclick=()=>{ if(S.revealed) return; S.sel=o.dataset.k;saveQuestionDraft(); renderQ(); };
+    });
+  } else if(r.kind==='fill'){
+    const g=r.group, host=$('d-fill');
+    host.innerHTML=g.parts.map(p=>{
+      if(p.t!=null) return esc(p.t);
+      const b=g.blanks[p.blank], q=g.parsed[p.blank];
+      const v=S.fillVals[p.blank]!=null?S.fillVals[p.blank]:'';
+      const marked=S.revealed?(q.answer?(fillIsCorrect(q,v)?'ok':'bad'):''):'';
+      // 原题的格数提示: 每格一个可视单元格(竖线分隔), 一格≈1.9ch
+      const w=Math.max(1,Math.min(12,b.width||1));
+      const cw=(w*1.9);
+      const cells=`repeating-linear-gradient(90deg,transparent 0,transparent calc(${(100/w).toFixed(2)}% - 1px),var(--line2) calc(${(100/w).toFixed(2)}% - 1px),var(--line2) ${(100/w).toFixed(2)}%)`;
+      return `<span class="fillrun ${marked}" data-b="${p.blank}"><span class="clue">${esc(b.clue)}</span>`+
+        `<input data-b="${p.blank}" aria-label="Q${q.no}，线索 ${esc(b.clue)}，补 ${w} 个字母" style="width:${cw}ch;background-image:${cells}" title="${w} 个字母格" value="${esc(v)}" autocomplete="off" spellcheck="false">`+
+        (S.revealed&&marked==='bad'?`<span class="fix">${esc(q.answer)}</span>`:'')+`</span>`;
+    }).join('');
+    host.querySelectorAll('input').forEach(inp=>{
+      inp.disabled=S.revealed; inp.oninput=()=>{ S.fillVals[inp.dataset.b]=inp.value;saveQuestionDraft(); };
+      inp.onkeydown=e=>{ if(e.key==='Enter'){ e.preventDefault(); confirmQ(); } };
+    });
+  } else if(r.kind==='write'&&r.task?.kind==='sentence'){
+    const it=r.it;
+    const nSlots=(it.response_slots.match(/_{3,}/g)||[]).length;
+    const host=$('d-slots');
+    let html=it.response_slots.split(/_{3,}/).map((seg,ix)=>{
+      const v=S.slots[ix-1]||'';
+      return (ix?`<span class="slot" data-s="${ix-1}" role="button" tabindex="0" aria-label="第 ${ix} 个词块">${esc(v)||'&nbsp;&nbsp;&nbsp;'}</span>`:'')+esc(seg);
+    }).join('');
+    host.innerHTML=html;
+    $('d-wb').innerHTML=it.word_bank.map((w,i)=>{const used=Object.values(S.slots).filter(x=>x===w).length,ordinal=it.word_bank.slice(0,i).filter(x=>x===w).length;return `<span class="wb-chip ${ordinal<used?'used':''}" data-w="${esc(w)}" role="button" tabindex="0" aria-disabled="${ordinal<used}">${esc(w)}</span>`;}).join('');
+    host.querySelectorAll('.slot').forEach(sl=>{
+      sl.onclick=()=>{ if(S.revealed)return;delete S.slots[sl.dataset.s];saveQuestionDraft(); renderQ(); };
+    });
+    $('d-wb').querySelectorAll('.wb-chip').forEach(ch=>{
+      ch.onclick=()=>{
+        if(S.revealed)return;
+        const w=ch.dataset.w;
+        if(ch.classList.contains('used')||Object.values(S.slots).filter(x=>x===w).length>=it.word_bank.filter(x=>x===w).length) return;
+        for(let i=0;i<nSlots;i++) if(!S.slots[i]){ S.slots[i]=w; break; }
+        saveQuestionDraft();renderQ();
+      };
+    });
+  } else if($('d-wr')){
+    const ta=$('d-wr');
+    ta.oninput=()=>{ setWritingDraft(r.it.qid, ta.value, false); };
+  }
+}
+function jumpToQuestion(ix){
+  if(!S||!S.refs[ix])return;
+  if(ix===S.i){$('d-body').scrollIntoView({block:'start'});return;}
+  saveQuestionDraft();
+  S.subjectPositions=S.subjectPositions||{};S.subjectPositions[curRef().subj]=S.i;
+  $('d-audio').pause();
+  S.i=ix;S.sel=null;S.revealed=false;S.fillVals={};S.slots={};renderQ();
+}
+function renderQbar(){
+  const subjects=[...new Set(S.refs.map(r=>r.subj))];
+  $('d-subjects').innerHTML=subjects.map(sub=>`<button data-subject="${sub}" class="${sub===curRef().subj?'on':''}" aria-pressed="${sub===curRef().subj}">${SUBN[sub]}</button>`).join('')+'<span>点科目切换题目；点下方题号定位</span>';
+  $('d-subjects').querySelectorAll('button').forEach(button=>button.onclick=()=>{const sub=button.dataset.subject;if(curRef().subj===sub)return;const ix=S.subjectPositions?.[sub]??S.refs.findIndex(r=>r.subj===sub);jumpToQuestion(ix);});
+  const groups=[];
+  S.refs.forEach((r,ix)=>{
+    if(r.subj!==curRef().subj)return;
+    const gk=r.mk+':'+(r.gkey||r.mk);
+    let g=groups.find(x=>x.gk===gk&&x.subj===r.subj);
+    if(!g){g={gk,subj:r.subj,kind:r.kind,items:[]};groups.push(g);}g.items.push(ix);
+  });
+  $('d-qbar').innerHTML=groups.map((g,gi)=>{
+    const first=S.refs[g.items[0]],moduleNo=first.mk.match(/^m(\d+)/)?.[1];
+    const numbers=g.items.map(ix=>S.refs[ix].q?.no||S.refs[ix].it?.no).filter(Boolean);
+    const range=first.kind==='fill'?first.gkey:(numbers[0]===numbers.at(-1)?String(numbers[0]):numbers[0]+'–'+numbers.at(-1));
+    const label=moduleNo?'第 '+moduleNo+' 模块 · '+(first.kind==='fill'?'填词 ':'题 ')+range:(first.task?.title||SUBN[g.subj]);
+    let cells='',doneN=0;const totalN=g.items.reduce((n,ix)=>n+(S.refs[ix].kind==='fill'?S.refs[ix].group.parsed.length:1),0);
+    g.items.forEach(ix=>{
+      const r=S.refs[ix];let st='';
+      if(r.kind==='fill'){const answered=r.group.parsed.filter(q=>REC.attempts[q.qid]);doneN+=answered.length;st=answered.length===r.group.parsed.length&&answered.length?(answered.some(q=>REC.attempts[q.qid].st==='wrong')?'wrong':'done'):'';}
+      else{const attempt=REC.attempts[r.q?.qid||r.it?.qid];if(attempt){st=attempt.st==='wrong'?'wrong':'done';doneN++;}}
+      const number=r.q?.no||r.it?.no||r.gkey;
+      cells+=`<button class="qn ${st}${ix===S.i?' cur':''}" data-ix="${ix}" title="${SUBN[r.subj]} ${moduleNo?'第 '+moduleNo+' 模块 · ':''}题 ${number}">${esc(number)}</button>`;
+    });
+    const open=g.items.includes(S.i);
+    return `<div class="qgrp ${open?'open':''}"><div class="qgh"><button class="qgh-enter" data-first="${g.items[0]}"><b>${esc(label)}</b><span>进入该组 →</span></button><span class="sm">已答 ${doneN}/${totalN}</span><button class="qgh-toggle" aria-label="展开或收起${esc(label)}题号" aria-expanded="${open}">目录 ${open?'收起':'展开'}</button></div><div class="qgs">${cells}</div></div>`;
+  }).join('');
+  $('d-qbar').querySelectorAll('.qn').forEach(button=>button.onclick=()=>jumpToQuestion(+button.dataset.ix));
+  $('d-qbar').querySelectorAll('.qgh-enter').forEach(button=>button.onclick=()=>jumpToQuestion(+button.dataset.first));
+  $('d-qbar').querySelectorAll('.qgh-toggle').forEach(button=>button.onclick=()=>{const open=button.closest('.qgrp').classList.toggle('open');button.setAttribute('aria-expanded',String(open));button.textContent='目录 '+(open?'收起':'展开');});
+}
+/* 确认 / 判分 */
+function confirmQ(){
+  const r=curRef();
+  if(r.kind==='choice'){
+    if(r.subj==='listening'&&!r.q.audio&&!r.group.audio){nextQ();return;}
+    if(S.sel==null) return;
+    if(!S.revealed){ S.answerSec=qUsedSec();S.revealed=true; recordChoice(); return; }
+    nextQ();
+  } else if(r.kind==='fill'){
+    const g=r.group;
+    if(S.revealed){nextQ();return;}
+    if(!g.complete){
+      $('d-fb').innerHTML='<div class="na-box">该组空格与答案条目数不一致（解析不完整），没有判分依据 —— 不虚构对错。</div>';
+      $('d-next').textContent='下一题';
+      return;
+    }
+    recordFill();
+  } else {
+    if(S.revealed){nextQ();return;}
+    submitOpen();
+  }
+}
+function recordChoice(){
+  const r=curRef(), secs=qUsedSec();
+  if(r.q.answer==null){
+    recAttempt({qid:r.q.qid,set:r.set,subj:r.subj,mk:r.mk,gkey:r.gkey}, null, S.sel, secs);
+    $('d-fb').innerHTML='<div class="na-box">该题缺官方答案，没有判分依据 —— 不虚构对错。作答已保存。</div>';
+    $('d-next').textContent='下一题';
+    renderQbar();
+    return;
+  }
+  const rightK=answerKeyOf(r.q);
+  if(!rightK){
+    // 官方答案是整句但与选项文本对不上（解析截断/素材异常）：不虚构对错
+    recAttempt({qid:r.q.qid,set:r.set,subj:r.subj,mk:r.mk,gkey:r.gkey}, null, S.sel, secs);
+    $('d-fb').innerHTML='<div class="na-box">该题官方答案是陈述句、无法可靠对应到选项，已记录作答但不判分（不虚构对错）。</div>';
+    $('d-next').textContent='下一题';
+    renderQbar();
+    return;
+  }
+  const ok=S.sel===rightK;
+  recAttempt({qid:r.q.qid,set:r.set,subj:r.subj,mk:r.mk,gkey:r.gkey}, ok, S.sel, secs);
+  renderQ();
+  renderFB([{label:'你的答案',v:S.sel?(S.sel+' · '+r.q.options[S.sel]):'—',cls:ok?'ok':'bad'},
+            {label:'正确答案',v:rightK+' · '+r.q.options[rightK],cls:'right'}],
+    ok, 'Q'+r.q.no);
+  showSourceReference(r.q.source_reference);
+}
+function recordFill(){
+  const r=curRef(), g=r.group, secs=qUsedSec();
+  const rows=[]; let nOk=0;
+  S.answerSec=qUsedSec();S.revealed=true; wireQ();
+  g.parsed.forEach((q,i)=>{
+    const v=S.fillVals[i]!=null?S.fillVals[i]:'';
+    if(!q.answer){
+      recAttempt({qid:q.qid,set:r.set,subj:r.subj,mk:r.mk,gkey:r.gkey}, null, v, secs/Math.max(1,g.parsed.length));
+      rows.push({label:'Q'+q.no, v:'素材缺官方答案，不作判分（已记录你的作答）', cls:'na'});
+      return;
+    }
+    const ok=fillIsCorrect(q,v);
+    if(ok) nOk++;
+    recAttempt({qid:q.qid,set:r.set,subj:r.subj,mk:r.mk,gkey:r.gkey}, ok, v, secs/Math.max(1,g.parsed.length));
+    if(!ok) rows.push({label:'Q'+q.no, v:'你填「'+(v||'空')+'」→ 正确 '+q.answer+'（线索 '+q.clue+'）', cls:'bad'});
+  });
+  const nJudge=g.parsed.filter(q=>q.answer).length;
+  const allOk=nJudge>0&&nOk===nJudge;
+  renderFB(rows.length?rows:[{label:'填空',v:nOk+' / '+nJudge+' 空'+(nJudge<g.parsed.length?'（'+(g.parsed.length-nJudge)+' 空无官方答案）':''),cls:allOk?'ok':'bad'}], allOk, 'Q'+g.key);
+  renderQbar();
+}
+function submitOpen(){
+  const r=curRef();
+  const ta=$('d-wr');
+  if(r.task?.kind==='sentence'){
+    const nSlots=(r.it.response_slots.match(/_{3,}/g)||[]).length;
+    const assembled=[];
+    for(let i=0;i<nSlots;i++){
+      if(!S.slots[i]){ alert('还有空位没填词'); return; }
+      assembled.push(S.slots[i]);
+    }
+    const sentence=r.it.response_slots.split(/_{3,}/).map((seg,ix)=>(ix?assembled[ix-1]:'')+seg).join('');
+    setWritingDraft(r.it.qid,sentence,true);
+    if(r.it.reference_verified&&r.it.reference_answer){
+      const ok=sentenceNorm(sentence)===sentenceNorm(r.it.reference_answer);
+      recAttempt({qid:r.it.qid,set:r.set,subj:r.subj,mk:r.mk,gkey:'-'},ok,sentence,qUsedSec());
+      S.answerSec=qUsedSec();S.revealed=true;
+      renderFB([{label:'你的句子',v:sentence,cls:ok?'ok':'bad'},{label:'原资料参考',v:r.it.reference_answer,cls:'right'}],ok,'Q'+r.it.no,ok?'符合参考答案':'未匹配参考答案');
+      $('d-fb').insertAdjacentHTML('beforeend',`<div class="qd">按本题词库、固定词及原资料参考判定，忽略大小写与句末标点；不代表其他表达都存在语法错误。来源：${esc(r.it.reference_source)}</div>`);
+      renderQbar();
+    }else{
+      recAttempt({qid:r.it.qid,set:r.set,subj:r.subj,mk:r.mk,gkey:'-'},null,sentence,qUsedSec());
+      showSubmitted('句子已保存；没有核验通过的逐题参考，暂不判分。');
+      if(r.it.reference_answer)$('d-fb').insertAdjacentHTML('beforeend',`<div class="na-box">原资料参考与本题词库或固定词未对应，只供核对：${esc(r.it.reference_answer)}</div>`);
+    }
+    return;
+  }
+  const txt=ta?ta.value.trim():'';
+  if(!txt){ alert(r.kind==='write'?'先写点内容再提交':'口语录音未接入，提交需要文字要点'); return; }
+  setWritingDraft(r.it.qid, txt, true);
+  recAttempt({qid:r.it.qid,set:r.set,subj:r.subj,mk:r.mk,gkey:'-'}, null, txt, qUsedSec());
+  showSubmitted('已保存你的文字作答，未判分；可以对照原资料自行复盘。');
+}
+function showSourceReference(ref){
+  if(!ref||!S.revealed)return;
+  $('d-fb').insertAdjacentHTML('beforeend',`<details class="handout"><summary>${esc(ref.title)}</summary><div class="qd">来源：${esc(ref.source)} · 本地资料原文，非 AI 解释；尚未逐段试听认证。</div><div style="white-space:pre-wrap;line-height:1.8">${esc(ref.text)}</div></details>`);
+}
+function showSubmitted(msg){
+  S.answerSec=qUsedSec();S.revealed=true;
+  $('d-fb').innerHTML=`<div class="fb ok"><div class="h"><span class="ic">✓</span>
+    <span class="tt">已提交</span></div>
+    <div class="cmp2"><div class="r"><span class="v" style="color:var(--t2)">${esc(msg)}</span></div></div></div>`;
+  const ref=curRef().it?.reference_lines;if(ref?.length)$('d-fb').insertAdjacentHTML('beforeend',`<details class="handout"><summary>对照原资料范文（不是评分结果）</summary><div style="white-space:pre-wrap;line-height:1.8">${esc(ref.join('\n\n'))}</div></details>`);
+  $('d-next').textContent='下一题';
+}
+function renderFB(rows, ok, noLabel, heading){
+  const secs=Math.max(0,Math.round(qUsedSec()));
+  $('d-fb').innerHTML=`<div class="fb ${ok?'ok':'bad'}">
+    <div class="h"><span class="ic">${ok?'✓':'×'}</span>
+      <span class="tt">${esc(heading||(ok?'答对':'答错'))}</span>
+      <span class="qn2">${esc(S.title)} · ${esc(String(noLabel))} · ${secs}s</span></div>
+    <div class="cmp2">${rows.map(x=>
+      `<div class="r"><span class="k">${esc(x.label)}</span>
+        <span class="v ${x.cls==='right'?'right':(x.cls==='ok'?'mine ok':(x.cls==='na'?'':'mine bad'))}" ${x.cls==='na'?'style="color:var(--t2)"':''}>${esc(x.v)}</span></div>`).join('')}</div>
+    ${ok?'':`<div class="tagrow"><span class="lb">已收入错题本</span>
+      <span class="tag">1 天后复习</span></div>`}</div>`;
+  $('d-next').textContent='下一题';
+}
+function nextQ(){
+  if(S.i<S.refs.length-1){ S.i++; S.sel=null; S.revealed=false; S.fillVals={}; S.slots={}; renderQ(); }
+  else finishSession();
+}
+function finishSession(){
+  const done=S.refs.filter(r=>{
+    if(r.kind==='fill') return r.group.parsed.length>0&&r.group.parsed.every(q=>REC.attempts[q.qid]);
+    const a=REC.attempts[r.q?r.q.qid:r.it.qid];
+    return !!a;
+  }).length;
+  $('d-fb').innerHTML=`<div class="fb ok"><div class="h"><span class="ic">✓</span>
+    <span class="tt">本次练习结束</span></div>
+    <div class="cmp2"><div class="r"><span class="v" style="color:var(--t2)">${done} / ${S.refs.length} 项有作答记录，错题已进错题本。刷新或关机后记录仍在。</span></div></div></div>`;
+  TACC=usedSec();QACC=qUsedSec();if(TICK)clearInterval(TICK);TICK=null;STU=false;
+  $('d-next').textContent='重新开始';
+}
+/* 音频控制 */
+const RATES=[1.0,1.25,1.5,2.0,0.75];
+let auRate=1.0, auRateIx=0;
+$('d-play').onclick=()=>{
+  const au=$('d-audio'); if(!au.src) return;
+  if(au.paused) au.play().catch(()=>{
+    $('d-ab').querySelector('.audioerr')&&$('d-ab').querySelector('.audioerr').remove();
+    $('d-ab').insertAdjacentHTML('beforeend','<div class="audioerr">音频加载失败（文件缺失或网络盘未响应）</div>');
+  });
+  else au.pause();
+};
+$('d-audio').addEventListener('play',()=>{ $('d-play-ic').innerHTML='<rect x="2.5" y="2" width="2.6" height="8" fill="#1C1C1A"/><rect x="6.9" y="2" width="2.6" height="8" fill="#1C1C1A"/>'; });
+$('d-audio').addEventListener('pause',()=>{ $('d-play-ic').innerHTML='<path d="M3 2 L9 6 L3 10 Z" fill="#1C1C1A"/>'; });
+$('d-audio').addEventListener('timeupdate',()=>{
+  const au=$('d-audio'); if(!au.duration) return;
+  $('d-prog').style.width=(au.currentTime/au.duration*100)+'%';
+  $('d-time').textContent=fmt(au.currentTime)+' / '+fmt(au.duration);
+});
+$('d-audio').addEventListener('ended',()=>{ $('d-prog').style.width='0%'; });
+$('d-track').onclick=e=>{
+  const au=$('d-audio'); if(!au.duration) return;
+  const rect=e.currentTarget.getBoundingClientRect();
+  au.currentTime=Math.max(0,Math.min(au.duration,(e.clientX-rect.left)/rect.width*au.duration));
+};
+$('d-rate').onclick=()=>{ auRateIx=(auRateIx+1)%RATES.length; auRate=RATES[auRateIx];
+  $('d-audio').playbackRate=auRate; $('d-rate').textContent='×'+auRate; };
+/* 底部按钮 */
+$('d-next').onclick=()=>{
+  if(!S) return;
+  if($('d-next').textContent==='下一题'){ nextQ(); return; }
+  if($('d-next').textContent==='重新开始'){ tReset();tStart();STU=true;S.timedKey=null;S.i=0;S.sel=null;S.revealed=false;S.fillVals={};S.slots={};renderQ(); return; }
+  confirmQ();
+};
+$('d-prev').onclick=()=>{ if(!S||S.i<=0) return; S.i--; S.sel=null; S.revealed=false; S.fillVals={}; S.slots={}; renderQ(); };
+$('d-skip').onclick=()=>{ if(!S||S.i>=S.refs.length-1) return; S.i++; S.sel=null; S.revealed=false; S.fillVals={}; S.slots={}; renderQ(); };
+// 重置本组: 清掉该组每道题的作答/用时/错题记录（草稿一并清），立即落盘
+$('d-reset').onclick=async function(){
+  if(!S) return;
+  const qids=[];
+  S.refs.filter(r=>r.kind==='fill').forEach(r=>{delete (REC.drafts||{})[[r.set,r.subj,r.mk,'fill',r.gkey].join('/')];});
+  S.refs.forEach(r=>{
+    if(r.kind==='fill'){ r.group.parsed.forEach(q=>qids.push(q.qid)); }
+    else if(r.q) qids.push(r.q.qid);
+    else if(r.it) qids.push(r.it.qid);
+  });
+  if(!qids.length) return;
+  if(!confirm('清空本组全部作答记录（含用时与错题），重新开始？')) return;
+  qids.forEach(k=>{ delete REC.attempts[k]; delete REC.qtimes[k]; delete REC.mistakes[k]; delete REC.writing[k];delete (REC.drafts||{})[k]; });
+  recSave();
+  S.i=0; S.sel=null; S.revealed=false; S.fillVals={}; S.slots={};
+  S.timedKey=null;tReset();tStart();STU=true;renderQ();
+};
+$('d-pause').onclick=tPause;
+$('d-back').onclick=goBack;
+$('d-outline').onclick=function(){
+  $('v-do').classList.toggle('outline-open');
+  this.setAttribute('aria-expanded',$('v-do').classList.contains('outline-open'));
+};
+
+/* ---------- 视频课（真实素材） ---------- */
+let csSel={c:null,l:null}, csExp={};
+let currentVideoCheckpoint=null;
+function checkpointCourse(pause=false){if(currentVideoCheckpoint)currentVideoCheckpoint(pause);}
+function updateCourseCount(){const lessons=((COURSES&&COURSES.series)||[]).flatMap(s=>s.courses||[]).flatMap(c=>c.lessons||[]);$('cs-ct').textContent=lessons.filter(l=>REC.course[l.id]?.done).length+' / '+lessons.length+' 节';}
+function courseFind(lid){
+  for(const s of (COURSES&&COURSES.series)||[]) for(const c of (s.courses||[]))
+    for(let li=0;li<(c.lessons||[]).length;li++) if(c.lessons[li].id===lid) return {s,c,ix:li};
+  return null;
+}
+window.openLessonById=function(lid){
+  const f=courseFind(lid); if(!f) return;
+  csSel={c:f.c.id,l:f.ix}; csExp[f.c.id]=true;
+  renderCourseNav(); renderCourseMain();
+};
+function courseById(cid){
+  return ((COURSES&&COURSES.series)||[]).flatMap(s=>s.courses||[]).find(x=>x.id===cid);
+}
+window.openCourse=function(cid){
+  const c=courseById(cid); if(!c) return;
+  const opening=!csExp[cid]; csExp[cid]=opening;
+  if(opening&&csSel.c!==cid){
+    let next=0;
+    for(let i=0;i<c.lessons.length;i++){
+      const p=REC.course[c.lessons[i].id];
+      if(!(p&&p.done)){ next=i; break; }
+    }
+    csSel={c:cid,l:next};
+  }
+  renderCourseNav(); renderCourseMain();
+};
+window.openLesson=function(cid,ix){ csSel={c:cid,l:ix}; csExp[cid]=true; renderCourseNav(); renderCourseMain(); };
+window.csDone=function(cid,ix){
+  const c=courseById(cid); if(!c) return;
+  const l=c.lessons[ix]; if(!l) return;
+  const p=REC.course[l.id];
+  checkpointCourse();
+  REC.course[l.id]={...REC.course[l.id],done:!(p&&p.done),at:Date.now()};
+  recSave(); renderCourseNav(); renderCourseMain();
+};
+function renderCourse(){
+  const t=((COURSES&&COURSES.series)||[]).reduce((a,s)=>a+(s.courses||[]).reduce((b,c)=>b+(c.lesson_count||0),0),0);
+  const d=Object.values(REC.course||{}).filter(x=>x.done).length;
+  $('cs-ct').textContent=d+' / '+t+' 节';
+  if(csSel.c==null){
+    // 继续上次: 优先跳到最近观看的课节 (含未看完的), 没有记录才选第一个未看完的
+    let lastLid=null, lastT=0;
+    for(const [lid,c] of Object.entries(REC.course||{})){
+      if(c.at&&c.at>lastT&&courseFind(lid)){ lastT=c.at; lastLid=lid; }
+    }
+    if(lastLid){
+      const f=courseFind(lastLid);
+      csSel={c:f.c.id,l:f.ix}; csExp[f.c.id]=true;
+    } else {
+      outer: for(const s of (COURSES&&COURSES.series)||[]) for(const c of (s.courses||[]))
+        for(let i=0;i<(c.lessons||[]).length;i++){
+          const p=REC.course[c.lessons[i].id];
+          if(!(p&&p.done)){ csSel={c:c.id,l:i}; csExp[c.id]=true; break outer; }
+        }
+    }
+  }
+  renderCourseNav(); renderCourseMain();
+}
+function renderCourseNav(){
+  updateCourseCount();
+  let h='';
+  for(const s of (COURSES&&COURSES.series)||[]){
+    const list=s.courses||[];
+    h+=`<div class="csg"><div class="csg-h"><b>${esc(s.name)}</b><span>${esc(s.note||'')}</span></div>`;
+    for(const c of list){
+      const cd=(c.lessons||[]).filter(l=>REC.course[l.id]&&REC.course[l.id].done).length;
+      const tot=c.lesson_count||0, open=!!csExp[c.id];
+      h+=`<div class="csi ${open?'open':''}" data-cid="${esc(c.id)}">
+        <span class="no">${c.no!=null?c.no:'·'}</span>
+        <div class="t"><b>${esc(c.title)}${c.unit?' · '+esc(c.unit):''}</b>
+          <span>${esc(c.teacher||'')} · ${tot} 节</span></div>
+        <div class="pg"><span class="pb"><i style="width:${tot?Math.round(cd/tot*100):0}%"></i></span>
+          <span class="pn ${cd===tot&&tot?'full':''}">${cd}/${tot}</span></div></div>`;
+      if(open){
+        c.lessons.forEach((l,li)=>{
+          const done=REC.course[l.id]&&REC.course[l.id].done;
+          const on=(csSel.c===c.id&&csSel.l===li);
+          h+=`<div class="cli${done?' done':''}${on?' on':''}" data-cid="${esc(c.id)}" data-ix="${li}">
+            <span class="st"><i></i></span><span class="lt">${esc(l.title)}</span>
+            <span class="ld">${l.duration_sec?fmt(l.duration_sec):'—'}</span></div>`;
+        });
+      }
+    }
+    h+='</div>';
+  }
+  const el=$('cs-nav'); el.innerHTML=h;
+  el.querySelectorAll('.csi').forEach(x=>x.onclick=()=>openCourse(x.dataset.cid));
+  el.querySelectorAll('.cli').forEach(x=>x.onclick=()=>openLesson(x.dataset.cid,+x.dataset.ix));
+  const active=el.querySelector('.cli.on');
+  if(active){
+    const navRect=el.getBoundingClientRect(),itemRect=active.getBoundingClientRect();
+    const itemTop=el.scrollTop+(itemRect.top-navRect.top);
+    const itemBottom=itemTop+active.offsetHeight;
+    if(itemTop<el.scrollTop||itemBottom>el.scrollTop+el.clientHeight){
+      el.scrollTop=Math.max(0,itemTop-(el.clientHeight-active.offsetHeight)/2);
+    }
+  }
+}
+function renderCourseMain(){
+  checkpointCourse(true);currentVideoCheckpoint=null;
+  const el=$('cs-main');
+  const c=courseById(csSel.c);
+  if(!c||!c.lessons.length){ el.innerHTML='<div class="card" style="padding:32px;text-align:center">从左侧选一节开始</div>'; return; }
+  const l=c.lessons[Math.max(0,Math.min(csSel.l==null?0:csSel.l,c.lessons.length-1))];
+  const p=REC.course[l.id]||{};
+  const cur=CURATED[l.id];
+  const originals=l.handout?[{file:l.handout_file||'原讲义',url:l.handout}]:(c.handout_pdfs||[]).map(file=>({file,url:l.video.slice(0,l.video.lastIndexOf('/')+1)+encodeURIComponent(file)}));
+  el.innerHTML=`<div class="cs-stick">
+    <div class="csp-meta"><h3>${esc(l.title)}</h3>
+      <span class="src">${esc(c.title)} · 第 ${csSel.l+1}/${c.lessons.length} 节</span>
+      ${cur&&cur.notes_verified?'<span class="chip a">讲义已核读</span>':''}</div>
+    <video class="tfl" id="cs-video" controls preload="metadata" src="${esc(l.video)}"></video>
+    <div class="na-box" id="cs-vnote" style="display:none"></div>
+    <div class="csqline"><span>本节</span>
+      <span class="pill ${p.done?'q':'t'}">${p.done?'已看完':'未看完'}</span>
+      ${(!p.done&&p.pos>10)?`<span class="pill">上次看到 ${fmt(p.pos)} · 已自动定位</span>`:''}
+      <span style="flex:1"></span>
+      <button onclick="csDone('${esc(c.id)}',${csSel.l})">${p.done?'取消看完':'标记看完'}</button></div>
+    ${cur?.notes_verified&&cur.key_points?.length?`<div class="handout" style="margin:18px 0"><h5>本节学习提示</h5><ul>${cur.key_points.map(point=>`<li style="margin:8px 0;line-height:1.7">${esc(point)}</li>`).join('')}</ul><p style="font-size:12px;color:var(--t2)">依据讲义整理，不是老师逐字原话。来源：${esc(cur.notes_source||'课程讲义')}</p></div>`:''}
+    ${originals.length?`<div class="handout" id="cs-original"><h5>原版讲义（保留图表与排版）</h5>${originals.map(x=>`<p><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.file)}</a></p>`).join('')}</div>`:''}
+    <div class="csbelow">
+      <div class="handout" id="cs-handout"><h5>讲义 <span class="tag-src">${esc(l.handout_file||(c.handout_pdfs||[]).join(' / ')||'—')}</span></h5>
+        <p>讲义文本加载中…</p></div>
+      <div class="linkbar" id="cs-link"></div>
+    </div></div>`;
+  const v=$('cs-video');
+  v.addEventListener('error',()=>{
+    const nn=$('cs-vnote');
+    nn.style.display='';
+    nn.innerHTML='浏览器无法播放该文件（格式或编码不支持，源文件为 .'+esc((l.video_file||'').split('.').pop())+'）。'+
+      '需要转码生成项目内衍生文件才能播放——本批未做，源素材保持只读未动。';
+  });
+  v.addEventListener('loadedmetadata',()=>{ if(p.pos&&p.pos<v.duration-5) v.currentTime=p.pos; });
+  let lastSavedPos=p.pos??null,played=false;
+  const savePosition=(pause=false)=>{if(pause&&!v.paused)v.pause();const pos=v.currentTime;if(Number.isFinite(pos)&&(v.readyState>=1||pos>0)&&pos!==lastSavedPos&&(pos>0||played)){lastSavedPos=pos;REC.course[l.id]={...REC.course[l.id],pos,at:Date.now()};recSave();}};
+  currentVideoCheckpoint=savePosition;
+  v.addEventListener('pause',()=>savePosition());v.addEventListener('ended',()=>savePosition());
+  let posT=0;
+  v.addEventListener('timeupdate',()=>{
+    const now=Date.now();
+    if(now-posT>5000){ posT=now;savePosition(); }
+  });
+  STU=!v.paused;
+  v.addEventListener('play',()=>{if(!TICK)TICK=setInterval(()=>{if(STU&&!document.hidden){studyTick(1);if((REC.study.total||0)%5===0)recSave();}},1000);});
+  v.addEventListener('play',()=>{played=true;STU=true;}); v.addEventListener('pause',()=>STU=false);
+  const hand=$('cs-handout');
+  const notesIds=(c.notes_ids||[]).includes(l.id)?[l.id]:(c.notes_ids||[]);
+  if((c.notes_ids||[]).length||l.handout_file){
+    Promise.all((notesIds.length?notesIds:c.notes_ids||[]).map(id=>
+      api('/api/handout/'+encodeURIComponent(id)).catch(()=>null))).then(async list=>{
+      if(!hand.isConnected)return;
+      const notes=list.filter(Boolean);
+      const pages=notes.flatMap(x=>(x.pages||[]).map(pg=>({...pg,source_file:x.source_file||x.id}))).filter(pg=>pg.text&&pg.text.trim());
+      if(pages.length){
+        const show=pages.slice(0,8);
+        hand.innerHTML=`<h5>讲义文本 <span class="tag-src">提取自源文件 · 共 ${pages.length} 页/张 · 保留来源页</span></h5>`+
+          show.map(pg=>`<div class="hslide"><div class="pg">${esc(pg.source_file||'')} · 第 ${pg.page} 页</div><div class="tx">${esc(pg.text.slice(0,600))}${pg.text.length>600?'…':''}</div></div>`).join('')+
+          (pages.length>show.length||show.some(pg=>pg.text.length>600)?`<div style="padding-top:10px"><button id="cs-hmore">展开完整讲义（${pages.length} 页）</button></div>`:'');
+        const more=hand.querySelector('#cs-hmore');
+        if(more) more.onclick=()=>{
+          hand.innerHTML=`<h5>讲义文本 <span class="tag-src">共 ${pages.length} 页/张</span></h5>`+
+            pages.map(pg=>`<div class="hslide"><div class="pg">${esc(pg.source_file||'')} · 第 ${pg.page} 页</div><div class="tx">${esc(pg.text)}</div></div>`).join('');
+        };
+        return;
+      }
+      // 文字层为空 → 图片版讲义：展示抽出的页图
+      const nSlides=notes.reduce((a,x)=>a+(x.slide_images||0),0);
+      if(nSlides){
+        const nid=notes[0].id;
+        const exts=await Promise.all(Array.from({length:nSlides},(_,i)=>
+          new Promise(res=>{ const im=new Image();
+            im.onload=()=>res('s'+String(i+1).padStart(2,'0')+'.jpg');
+            im.onerror=()=>res(null);
+            im.src='/media/slides/'+encodeURIComponent(nid)+'/s'+String(i+1).padStart(2,'0')+'.jpg';
+          })));
+        if(!hand.isConnected)return;
+        const ok=exts.filter(Boolean);
+        if(ok.length){
+          hand.innerHTML=`<h5>讲义页图 <span class="tag-src">图片版讲义（视频截图帧）· 共 ${ok.length} 页 · 来源 ${esc(notes[0].source_file)}</span></h5>`+
+            ok.slice(0,4).map(f=>`<div class="hslide"><div class="pg">第 ${parseInt(f.slice(1,3),10)} 页</div>
+              <img loading="lazy" style="max-width:100%;border:1px solid var(--line);border-radius:4px" src="/media/slides/${encodeURIComponent(nid)}/${f}" alt="讲义第 ${parseInt(f.slice(1,3),10)} 页"></div>`).join('')+
+            (ok.length>4?`<div style="padding-top:10px"><button id="cs-hmore">展开其余 ${ok.length-4} 页</button></div>`:'');
+          const more=hand.querySelector('#cs-hmore');
+          if(more) more.onclick=()=>{
+            hand.innerHTML=`<h5>讲义页图 <span class="tag-src">共 ${ok.length} 页</span></h5>`+
+              ok.map(f=>`<div class="hslide"><div class="pg">第 ${parseInt(f.slice(1,3),10)} 页</div>
+                <img loading="lazy" style="max-width:100%;border:1px solid var(--line);border-radius:4px" src="/media/slides/${encodeURIComponent(nid)}/${f}" alt="讲义第 ${parseInt(f.slice(1,3),10)} 页"></div>`).join('');
+          };
+          return;
+        }
+      }
+      hand.querySelector('p').textContent='讲义为图片版且页图未抽取（重跑 pipeline/scan_courses.py 可生成）。';
+    });
+  } else {
+    hand.querySelector('p').textContent='该课暂无讲义文本。';
+  }
+  const link=$('cs-link');
+  if(cur&&cur.practice){
+    link.innerHTML=`<span class="k">看完练</span><b>${esc(cur.practice.label)}</b>
+      <span style="font-size:12px;color:var(--t2)">${esc(cur.why||'')}</span>
+      <button class="pri" id="cs-goquiz">练这组 →</button>`;
+    $('cs-goquiz').onclick=async()=>{
+      const pr=cur.practice;
+      if(pr.subject==='writing'||pr.subject==='speaking') await enterTask(pr.set,pr.subject);
+      else await enterGroup(pr.set,pr.subject,'m'+pr.module,pr.group);
+    };
+  } else {
+    link.innerHTML=`<span class="k" style="color:var(--t2)">本节暂无指定题组（方法课后去「${SUBN[c.subject]||'专项'}」按题型挑题）</span>
+      <button onclick="location.hash='#/drill/${esc(c.subject)}'">去专项 →</button>`;
+  }
+}
+
+/* ---------- 错题本（真实记录） ---------- */
+const STEM_CACHE={};
+async function stemOf(qidKey){
+  if(STEM_CACHE[qidKey]) return STEM_CACHE[qidKey];
+  const [set,subj,mk,type,no]=qidKey.split('/');
+  try{
+    const n=await normSet(set);
+    const s=n.subjects[subj]; if(!s) return qidKey;
+    let label=qidKey;
+    if(s.modules?.length){
+      const mod=s.modules.find(x=>x.mk===mk);
+      if(mod) for(const g of mod.groups){
+        const qs=g.type==='fill'?g.parsed:g.questions;
+        const q=qs.find(x=>String(x.no)===String(no));
+        if(q){ label=(g.type==='fill'?('填空 Q'+q.no+'（线索 '+q.clue+'）'):((g.title||('Q'+g.key))+' · '+(q.stem||''))); break; }
+      }
+    } else {
+      const t=s.tasks.find(x=>x.key===mk);
+      if(t){ const it=t.items.find(x=>String(x.no)===String(no));
+        label=(t.title||mk)+' · '+(it?(it.prompt||it.context||('第'+it.no+'题')):''); }
+    }
+    STEM_CACHE[qidKey]=label; return label;
+  }catch(e){ return qidKey; }
+}
+async function renderReview(){
+  const ms=scopedEntries(REC.mistakes).filter(([,m])=>!m.cleared);
+  const dueN=ms.filter(([,m])=>(m.due||0)<=Date.now()).length;
+  $('rv-stats').innerHTML=[
+    ['错题总数',ms.length,''],
+    ['今日到期',dueN,dueN?'warn':''],
+    ['已移出训练',scopedEntries(REC.mistakes).filter(([,m])=>m.cleared).length,''],
+    ['累计作答',scopedEntries(REC.attempts).reduce((a,[,x])=>a+(x.n||0),0),''],
+  ].map(([k,v,c])=>`<div class="wk"><div class="k" style="font-size:12px;color:var(--t2)">${k}</div>
+    <div style="font-size:20px;font-weight:500;line-height:1.2${c==='warn'?';color:var(--warn)':''}">${v}</div></div>`).join('');
+  $('rv-due').textContent=dueN?('今天 '+dueN+' 题到期'):'';
+  $('rv-ct').textContent=ms.length+' 题 · 今日 '+dueN;
+  if(!ms.length){
+    $('rv-list').innerHTML='<div class="empty">还没有错题。做题答错会自动进这里。</div>';
+    return;
+  }
+  ms.sort((a,b)=>(a[1].due||0)-(b[1].due||0));
+  const items=await Promise.all(ms.map(async([k,m])=>{
+    const stem=await stemOf(k);
+    const due=m.due||0;
+    const col=due<=Date.now()?'var(--bad)':(due<=Date.now()+3*864e5?'var(--warn)':'var(--ok)');
+    const dt=due<=Date.now()?'今天该复习':'距复习 '+Math.max(1,Math.ceil((due-Date.now())/864e5))+' 天';
+    return `<div class="witem"><div class="bar" style="background:${col}"></div>
+      <div class="c"><div class="q">${esc(stem.slice(0,80))}</div>
+        <div class="m">${esc(k)} · 错 ${m.n_wrong||1} 次</div></div>
+      <div class="due" style="color:${col}">${dt}</div>
+      <button data-redo="${esc(k)}">重做</button>
+      <button data-clear="${esc(k)}">不再训练</button></div>`;
+  }));
+  $('rv-list').innerHTML=items.join('');
+  $('rv-list').querySelectorAll('[data-redo]').forEach(b=>{
+    b.onclick=async()=>{
+      await openQuestion(b.dataset.redo);
+    };
+  });
+  $('rv-list').querySelectorAll('[data-clear]').forEach(b=>{
+    b.onclick=()=>{ const m=REC.mistakes[b.dataset.clear];
+      if(m){ m.cleared=true; m.cleared_at=Date.now(); recSave(); renderReview(); } };
+  });
+}
+
+/* ---------- 数据分析（全部由真实记录计算） ---------- */
+function renderStats(){
+  const atts=scopedEntries(REC.attempts);
+  let n=0,right=0;
+  let judged=0;
+  atts.forEach(([,a])=>{ n+=(a.n||0); for(const h of a.history||[]) {if(h.ok===true){right++;judged++;}else if(h.ok===false)judged++;} });
+  const wrong=judged-right;
+  const attempted=atts.length;
+  const grand=CATALOK().reduce((a,s)=>a+s.total_q,0);
+  const acc=judged?Math.round(right/Math.max(1,right+wrong)*100):0;
+  $('st-ov').innerHTML=[
+    ['累计作答',n,attempted+' 道题有记录',''],
+    ['正确率',judged?acc+'%':'—',judged?(acc>=75?'保持':'继续加油'):'暂无已判分作答',''],
+    ['错题在册',scopedEntries(REC.mistakes).filter(([,m])=>!m.cleared).length,'待复习',''],
+    ['未开始',Math.max(0,grand-attempted),'题库共 '+grand+' 题',''],
+  ].map(([k,v,d,c])=>`<div class="ovc"><div class="k">${k}</div>
+    <div class="v">${v}</div><div class="d ${c}">${d}</div></div>`).join('');
+  $('ov-ct').textContent=attempted+' / '+grand+' 题有记录';
+  const st=REC.study||{};
+  const qSec=scopedEntries(REC.qtimes).reduce((a,[,b])=>a+b,0);
+  const todaySec=st.day===localDay()?(st.today||0):0;
+  $('st-ct2').textContent='今日 '+fmt(todaySec);
+  $('st-time').innerHTML=`<div class="ov" style="grid-template-columns:repeat(3,1fr)">
+    <div class="ovc"><div class="k">做题计时</div><div class="v">${Math.round(qSec/60)}m</div><div class="d">累计每题用时</div></div>
+    <div class="ovc"><div class="k">今日</div><div class="v">${fmt(todaySec)}</div><div class="d">含视频课</div></div>
+    <div class="ovc"><div class="k">累计</div><div class="v">${Math.round((st.total||0)/3600)}h</div><div class="d">连续 ${st.days||0} 天</div></div></div>`;
+  const bySub={};
+  for(const [k,a] of atts){
+    const s=k.split('/')[1];
+    for(const h of a.history||[]) if(Number.isFinite(h.secs)) (bySub[s]=bySub[s]||[]).push(h.secs);
+  }
+  const SUG={listening:20,reading:45,writing:180,speaking:45};
+  const rows=Object.keys(bySub).filter(s=>bySub[s].length).map(s=>{
+    const a=bySub[s],avg=Math.round(a.reduce((x,y)=>x+y,0)/a.length);
+    return {s,avg,n:a.length,sug:SUG[s]};
+  });
+  $('st-qt-ct').textContent=scopedEntries(REC.qtimes).length+' 题有计时';
+  $('st-qtime').innerHTML=rows.length?rows.map(r=>{
+    const over=r.avg>r.sug;
+    const mx=Math.max(r.avg,r.sug);
+    return `<div style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px">
+        <span>${SUBN[r.s]||r.s} <span style="color:var(--t3)">${r.n} 次作答</span></span>
+        <span style="color:${over?'var(--bad)':'var(--ok)'}">均 ${r.avg}s / 参考 ${r.sug}s</span></div>
+      <div style="position:relative;height:14px;background:var(--sunk);border-radius:3px">
+        <div style="position:absolute;left:${(r.sug/mx*100).toFixed(0)}%;top:-2px;bottom:-2px;width:1.5px;background:var(--t3)"></div>
+        <div style="position:absolute;left:0;top:0;bottom:0;width:${(r.avg/mx*100).toFixed(0)}%;background:${over?'var(--bad)':'var(--ok)'};border-radius:3px"></div></div></div>`;
+  }).join(''):'<div class="empty" style="padding:32px 0">做题后这里显示每题用时</div>';
+  const days=new Array(14).fill(0), daysBad=new Array(14).fill(0);
+  const today=new Date(); today.setHours(0,0,0,0);
+  for(const [,a] of atts) for(const h of (a.history||[])){
+    const d=new Date(h.t); d.setHours(0,0,0,0);
+    const ix=13-Math.round((today-d)/864e5);
+    if(ix>=0&&ix<14){ days[ix]++; if(h.ok===false) daysBad[ix]++; }
+  }
+  const mxD=Math.max(...days,1);
+  $('st-daily').innerHTML=`<div class="daily">${days.map((nn,i)=>{
+    const z=nn===0,h=nn/mxD*100;
+    return `<div class="dcol${z?' z':''}" title="${nn} 题">${z?'':
+      `<div class="st" style="height:${(h*(nn-daysBad[i])/Math.max(1,nn)).toFixed(0)}%"></div>
+       <div class="wr" style="height:${(h*daysBad[i]/Math.max(1,nn)).toFixed(0)}%"></div>`}</div>`;
+  }).join('')}</div>
+  <div class="dlab">${days.map((nn,i)=>`<span>${i+1}</span>`).join('')}</div>
+  <div style="font-size:12px;color:var(--t2);margin-top:8px">14 天共 ${days.reduce((a,b)=>a+b,0)} 题</div>`;
+  const subjTot={};
+  CATALOK().forEach(s=>{ for(const [k,vv] of Object.entries(s.subjects||{})) subjTot[k]=(subjTot[k]||0)+vv.q; });
+  const subjCnt={};
+  for(const [k,a] of atts){
+    const s=k.split('/')[1]; subjCnt[s]=subjCnt[s]||{done:0,wrong:0};
+    if(a.st==='done'||a.st==='submitted') subjCnt[s].done++; else if(a.st==='wrong') subjCnt[s].wrong++;
+  }
+  $('st-subj-ct').textContent=Object.keys(subjTot).length+' 科';
+  $('st-mastery').innerHTML=Object.keys(SUBN).map(s=>{
+    const t=subjTot[s]||0, c=subjCnt[s]||{done:0,wrong:0};
+    const todo=Math.max(0,t-c.done-c.wrong);
+    const w=t?100/t:0;
+    return `<div class="mrow"><span class="nm">${SUBN[s]}</span>
+      <span class="bar"><i class="a" style="width:${(c.done*w).toFixed(1)}%"></i>
+        <i class="b" style="width:${(c.wrong*w).toFixed(1)}%"></i>
+        <i class="c" style="width:${(todo*w).toFixed(1)}%"></i></span>
+      <span class="n">${c.done} / ${c.wrong} / ${todo}</span></div>`;
+  }).join('')+`<div class="lgd">
+    <span><i style="background:var(--ok)"></i>已提交（含待批改） ${Object.values(subjCnt).reduce((a,x)=>a+x.done,0)}</span>
+    <span><i style="background:var(--bad)"></i>最近做错 ${Object.values(subjCnt).reduce((a,x)=>a+x.wrong,0)}</span>
+    <span><i style="background:var(--line2);opacity:.35"></i>未做</span></div>`;
+  const ms=scopedEntries(REC.mistakes).filter(([,m])=>!m.cleared);
+  const byG={};
+  ms.forEach(([k,m])=>{
+    const [set,subj]=k.split('/');
+    const g=set+' · '+(SUBN[subj]||subj)+(m.gkey?(' · Q'+m.gkey):'');
+    byG[g]=(byG[g]||0)+1;
+  });
+  $('st-weak-ct').textContent=ms.length+' 题';
+  const mxG=Math.max(1,...Object.values(byG));
+  $('st-weak').innerHTML=ms.length?Object.entries(byG).sort((a,b)=>b[1]-a[1]).map(([g,nn])=>
+    `<div class="weak"><div class="r"><span>${esc(g)}</span>
+      <span style="color:var(--t2)">${nn} 道错题</span></div>
+      <div class="b"><i style="width:${(nn/mxG*100).toFixed(0)}%;background:var(--bad)"></i></div></div>`).join('')
+    :'<div class="empty">没有在册错题</div>';
+  $('ai-ct').textContent='未接入';
+  $('st-ai').innerHTML='<div class="empty">AI 复盘尚未接入（需要先配置模型）。做题与记录不受影响；接入后这里显示针对每次作答的复盘。</div>';
+}
+
+document.addEventListener('keydown',e=>{
+  if((e.key==='Enter'||e.key===' ')&&e.target.matches('[role="button"]')){e.preventDefault();e.target.click();}
+});
+const audioTrack=$('d-track');audioTrack.tabIndex=0;audioTrack.setAttribute('role','slider');audioTrack.setAttribute('aria-label','音频播放位置');audioTrack.setAttribute('aria-valuemin','0');
+audioTrack.addEventListener('keydown',e=>{const a=$('d-audio');if(!a.duration)return;
+  if(['ArrowLeft','ArrowRight','Home','End'].includes(e.key)){e.preventDefault();a.currentTime=e.key==='Home'?0:e.key==='End'?a.duration:Math.max(0,Math.min(a.duration,a.currentTime+(e.key==='ArrowRight'?5:-5)));}
+});
+$('d-audio').addEventListener('timeupdate',()=>{const a=$('d-audio');audioTrack.setAttribute('aria-valuemax',String(Math.round(a.duration||0)));audioTrack.setAttribute('aria-valuenow',String(Math.round(a.currentTime)));});
+/* ---------- 启动 ---------- */
+async function boot(){
+  try{
+    const [cat,courses,recs,curated]=await Promise.all([
+      api('/api/catalog'), api('/api/courses'),
+      api('/api/records'),
+      fetch('curated.json').then(r=>r.json()).catch(()=>({})),
+    ]);
+    CATALOG=cat; COURSES=courses; CURATED=curated&&curated.lessons?curated.lessons:(curated||{});
+    REC=Object.assign(REC,recs);recBase=recClone(REC);recReady=true;
+    renderHome();
+    route();
+    document.querySelectorAll('.seg').forEach(moveThumb);
+  }catch(e){
+    document.body.insertAdjacentHTML('beforeend',
+      `<div style="position:fixed;left:0;right:0;bottom:0;background:var(--badbg);border-top:1px solid var(--badln);padding:10px 18px;font-size:13px;color:var(--bad);z-index:99">
+        服务连接失败：请用 <b>node server.mjs</b> 启动本地服务后打开 http://localhost:8018 （直接双击 HTML 无法访问题库、媒体与保存记录）。${esc(e.message)}</div>`);
+  }
+}
+window.addEventListener('resize',()=>document.querySelectorAll('.seg').forEach(moveThumb));
+boot();
+</script>
+</body>
+</html>
+
+
+
+
+

@@ -1,0 +1,34 @@
+# ---- 内容不出库（公开仓库只含代码）----
+# data/ build/ 是从个人持有的真题素材（ETS 等）加工出的题库与溯源图，
+# 课程素材同理（vince/新D方）。这些只存在于本地/NAS，绝不进公开仓库。
+data/
+build/
+docs/
+records/
+releases/
+skills/
+deploy/production/
+deploy/seed-records.json
+
+# ---- 原型与设计探索稿（内嵌真实题面数据）----
+web/prototype-workbuddy.html
+web/design-exploration/
+
+# ---- 审计证据与本地笔记 ----
+pipeline/static-*.json
+pipeline/material-notes.json
+**/__pycache__/
+
+# ---- 运行/临时产物 ----
+*.log
+*.bak
+server.log
+server-review*.log
+.DS_Store
+
+# ---- 过时的本地交接文档（内容已由 docs/ 账本取代，不进公开仓库）----
+HANDOFF.md
+HANDOFF-v2.md
+HANDOFF-交接.md
+README-v2.md
+README-入口.md

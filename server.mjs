@@ -1,0 +1,410 @@
+#!/usr/bin/env node
+/* ============================================================
+   TOEFL Lab 本地服务入口
+   ------------------------------------------------------------
+   同源提供：
+     /                    web/ 静态页（正式入口 web/index.html）
+     /api/catalog         题库目录（真实统计，来自 data 目录下各套 JSON）
+     /api/set/<id>        单套结构化题库 JSON
+     /api/courses         课程目录（build/courses/catalog.json，scan_courses.py 产物）
+     /api/handout/<id>    单课讲义提取文本
+     /media/set/<id>/...  真题音频（从源素材目录映射，只读，支持 Range）
+     /media/vince/...     vince 课程 mp4 / pptx（只读）
+     /media/ndf/<dir>/... 新D方课程 mov / pdf（只读）
+     /api/records         GET 学习记录 / POST 合并保存（持久化到 records/）
+   ------------------------------------------------------------
+   约束：
+   - 源素材目录只读；本服务器对它们只做读。
+   - 源素材路径只在服务端使用，绝不下发给浏览器（页面只见 /media/...）。
+   - 学习记录持久化目录 records/ 与可再生目录 build/ 分离。
+   - 素材根可被 --root / TFL_ROOT 覆盖（Windows 映射盘与 NAS 挂载兼容）。
+   ============================================================ */
+import http from 'node:http';
+import https from 'node:https';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+/* ---------- 参数 ---------- */
+const argv = process.argv.slice(2);
+function argOf(name, dflt) {
+  const i = argv.indexOf(name);
+  return i >= 0 && argv[i + 1] ? argv[i + 1] : dflt;
+}
+const PORT = Number(argOf('--port', process.env.TFL_PORT || 8018));
+const WEB_DIR = path.resolve(__dirname, argOf('--web', 'web'));
+const DATA_DIR = path.resolve(__dirname, argOf('--data', 'data'));
+const BUILD_DIR = path.resolve(__dirname, argOf('--build', 'build'));
+const RECORDS_DIR = path.resolve(__dirname, argOf('--records', 'records'));
+// 兄弟素材基目录：默认项目上一级（vince托福课 / 新D方 / 819新托福真题持续更新 都在那一层）。
+// NAS 容器里代码在 /app，素材挂载在别处 → 用 TFL_SIBLING_ROOT 指到挂载点，路径逻辑不变。
+const SIB = process.env.TFL_SIBLING_ROOT
+  ? path.resolve(process.env.TFL_SIBLING_ROOT)
+  : path.resolve(__dirname, '..');
+// 素材根：默认取兄弟基目录下的 819新托福真题持续更新
+const SOURCE_ROOT = path.resolve(
+  SIB,
+  argOf('--root', process.env.TFL_ROOT || '819新托福真题持续更新')
+);
+
+/* ---------- 套题 → 源目录映射（build/manifest.json） ---------- */
+let SET_DIRS = {};           // set_id -> 源目录绝对路径
+try {
+  const mf = JSON.parse(fs.readFileSync(path.join(BUILD_DIR, 'manifest.json'), 'utf8'));
+  const sets = Array.isArray(mf) ? mf.sets : mf.sets || [];
+  for (const s of sets) {
+    // TFL_SET_ROOTS_FROM_DIR=1（NAS 容器）：manifest 的 abs_dir 是生成机的 Windows 绝对路径，
+    // 跨机无意义 → 一律按 SOURCE_ROOT + dir 重建；dir 里的分隔符可能混 \ /，统一拆开重拼。
+    if (process.env.TFL_SET_ROOTS_FROM_DIR === '1') {
+      if (!s.dir) continue;
+      SET_DIRS[s.set_id] = path.join(SOURCE_ROOT, ...String(s.dir).split(/[\\/]+/).filter(Boolean));
+      continue;
+    }
+    let d = s.abs_dir || (s.dir ? path.join(s.root || '', s.dir) : null);
+    if (!d) continue;
+    if (s.root && SOURCE_ROOT && path.resolve(s.root) !== path.resolve(SOURCE_ROOT)) {
+      // root 被覆盖时，按相对目录重新拼接
+      d = path.join(SOURCE_ROOT, s.dir || '');
+    }
+    SET_DIRS[s.set_id] = d;
+  }
+} catch (e) {
+  console.warn('[server] manifest 读取失败，/media/set 不可用:', e.message);
+}
+
+/* ---------- 题库目录（启动时缓存） ---------- */
+function fillCount(g) {
+  const text=String(g.passage||'').replace(/▢/g,'_').replace(/([A-Za-z'’\-])(_+)/g,(m,c,u)=>c+' '+u.split('').join(' '));
+  return [...text.matchAll(/([A-Za-z'’\-]*)((?:\s+_)+)/g)].length;
+}
+function moduleKey(sub,m,index) {return String(m.module)+(sub.modules.filter(x=>x.module===m.module).length>1?'p'+(m.part||index+1):'');}
+function subjectStats(sub) {
+  // 与 audit.py 同口径：听力/阅读按题计，写/说按任务内条目计
+  const out = { q: 0, audio: 0 };
+  if(sub.blocked_reason) return {...out,blocked_reason:sub.blocked_reason};
+  const mods = sub.modules || [];
+  for (const m of mods) for (const g of m.groups || []) {
+    if(g.kind==='fill_in_blank') out.q += fillCount(g);
+    else for (const q of g.questions || []) { out.q++; if (q.audio) out.audio++; }
+  }
+  for (const t of sub.tasks || []) {
+    const items = t.items || t.sentences || [];
+    out.q += items.length || ((t.prompt_lines?.length || t.body?.length) ? 1 : 0);
+    for (const it of items) if (it.audio) out.audio++;
+  }
+  return out;
+}
+const TASK_KEYS = {sentence_construction:'sentence',academic_discussion:'discussion',TASK1:'s1',TASK2:'s2'};
+function taskKey(sub,t,index) {
+  const raw=t.type||t.task||'task';const key=TASK_KEYS[raw]||String(raw).toLowerCase();
+  const same=sub.tasks.filter(x=>(x.type||x.task||'task')===raw);
+  return key+(same.length>1?'p'+(same.indexOf(t)+1):'');
+}
+function buildCatalog() {
+  const list = [];
+  let audit = null;
+  try { audit = JSON.parse(fs.readFileSync(path.join(BUILD_DIR, 'audit.json'), 'utf8')); } catch (e) {}
+  const grades = {};
+  if (audit) for (const s of audit.sets || []) grades[s.set_id] = s;
+  let dirs;
+  try { dirs = fs.readdirSync(DATA_DIR, { withFileTypes: true }); } catch (e) { dirs = []; }
+  for (const d of dirs) {
+    if (!d.isDirectory() || d.name.startsWith('_')) continue;
+    const jp = path.join(DATA_DIR, d.name, d.name + '.json');
+    if (!fs.existsSync(jp)) continue;
+    try {
+      const j = JSON.parse(fs.readFileSync(jp, 'utf8'));
+      const subjects = {};
+      let total = 0, audio = 0, ans = 0;
+      for (const [name, sub] of Object.entries(j.subjects || {})) {
+        const st = subjectStats(sub);
+        // 题组概要（题组列表/每题数）—— 专项训练页据此即时切换，
+        // 不必为切个科目拉全部套题 JSON。qid 可由 (set,subj,mk,type,no) 构造。
+        const outline = {modules: [], tasks: []};
+        for (const [mi,m] of (sub.blocked_reason?[]:(sub.modules || [])).entries()) {
+          outline.modules.push({
+            m: moduleKey(sub,m,mi),
+            groups: (m.groups || []).map(g => ({
+              key: String(g.q_range || ''),
+              kind: g.kind || '', title: g.title || '',
+              missing_audio:name==='listening'&&(g.questions||[]).some(q=>!q.audio&&!g.audio),
+              type: g.kind === 'fill_in_blank' ? 'fill' : 'mc',
+              n: g.kind === 'fill_in_blank'
+                ? fillCount(g)
+                : (g.questions || []).length,
+            })).filter(g => g.n > 0),
+          });
+        }
+        for (const t of (sub.blocked_reason?[]:sub.tasks || [])) {
+          const items = t.items || t.sentences || [];
+          // email/学术讨论的题面在任务级 prompt_lines/body —— 算一个任务级条目
+          const n = items.length ||
+            ((t.prompt_lines && t.prompt_lines.length) || (t.body && t.body.length) ? 1 : 0);
+          if (n) outline.tasks.push({
+            key: taskKey(sub,t), title: t.title || (t.task==='TASK1'?'Listen and Repeat':t.task==='TASK2'?'Take an Interview':''), n,
+            missing_audio:name==='speaking'&&items.some(it=>!it.audio),
+            whole_audio:items.some(it=>it.audio_module_level), material_note:t.material_note||'',
+          });
+        }
+        st.outline = outline;
+        subjects[name] = st;
+        total += st.q; audio += st.audio;
+      }
+      for (const arr of Object.values(j.answers || {}))
+        for (const m of Object.values(arr)) ans += m.length;
+      const g = grades[d.name] || {};
+      list.push({
+        id: d.name, total_q: total, audio_refs: audio, answers: ans,
+        subjects, grade: Object.values(subjects).some(s=>s.blocked_reason)?'C':(g.grade || null),
+        audio_links: g.audio_links ?? null,
+      });
+    } catch (e) {
+      console.warn('[server] 套题读取失败:', d.name, e.message);
+    }
+  }
+  list.sort((a, b) => a.id.localeCompare(b.id));
+  return list;
+}
+const CATALOG = buildCatalog();
+const SET_INDEX = Object.fromEntries(CATALOG.map(s => [s.id, s]));
+
+/* ---------- 课程目录（scan_courses.py 产物） ---------- */
+let COURSES = null;
+function loadCourses() {
+  if (COURSES) return COURSES;
+  try {
+    COURSES = JSON.parse(fs.readFileSync(path.join(BUILD_DIR, 'courses', 'catalog.json'), 'utf8'));
+  } catch (e) {
+    COURSES = { series: [], note: '课程目录尚未生成：先跑 pipeline/scan_courses.py' };
+  }
+  return COURSES;
+}
+
+/* ---------- 学习记录（records/records.json，服务端唯一真源） ---------- */
+const RECORDS_FILE = path.join(RECORDS_DIR, 'records.json');
+let RECORDS = { version: 1, attempts: {}, course: {}, study: {}, qtimes: {}, mistakes: {}, feedback: [], saved_at: null };
+function recordsLoad() {
+  try {
+    const j = JSON.parse(fs.readFileSync(RECORDS_FILE, 'utf8'));
+    if(!j || typeof j!=='object' || Array.isArray(j)) throw new Error('invalid records schema');
+    RECORDS = { ...RECORDS, ...j };
+    for(const [qid,a] of Object.entries(RECORDS.attempts || {})) {
+      if(['writing','speaking'].includes(qid.split('/')[1])) {
+        a.st='submitted';a.right=0;
+        for(const h of a.history || []) h.ok=null;
+      }
+    }
+    RECORDS.drafts=RECORDS.drafts||{};
+  } catch (e) { if (e.code !== 'ENOENT') throw new Error('学习记录无法读取；为防止覆盖已停止启动: ' + e.message); }
+}
+// Persist before acknowledging: a failed disk write must not become a successful save.
+function recordsSave(next) {
+  fs.mkdirSync(RECORDS_DIR, { recursive: true });
+  const tmp = RECORDS_FILE + '.tmp';
+  const fd = fs.openSync(tmp, 'w');
+  try { fs.writeFileSync(fd, JSON.stringify(next)); fs.fsyncSync(fd); }
+  finally { fs.closeSync(fd); }
+  if (fs.existsSync(RECORDS_FILE)) fs.copyFileSync(RECORDS_FILE, RECORDS_FILE + '.bak');
+  fs.renameSync(tmp, RECORDS_FILE);
+}
+function nextRecords(incoming) {
+  if (!incoming || typeof incoming !== 'object' || Array.isArray(incoming)) throw new Error('invalid records');
+  const next = {...RECORDS};
+  for (const k of ['attempts', 'qtimes', 'mistakes', 'course', 'study', 'writing', 'drafts']) {
+    if (k === 'drafts' && !incoming[k]) {next[k]={};continue;}
+    if (!incoming[k] || typeof incoming[k] !== 'object' || Array.isArray(incoming[k])) throw new Error('invalid ' + k);
+    next[k] = incoming[k];
+  }
+  if (!Array.isArray(incoming.feedback)) throw new Error('invalid feedback');
+  next.feedback = incoming.feedback;
+  next.revision = (RECORDS.revision || 0) + 1;
+  next.saved_at = new Date().toISOString();
+  return next;
+}
+recordsLoad();
+
+/* ---------- HTTP 基础 ---------- */
+const MIME = {
+  '.html': 'text/html; charset=utf-8', '.md': 'text/plain; charset=utf-8',
+  '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
+  '.mjs': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8',
+  '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.svg': 'image/svg+xml',
+  '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4', '.wav': 'audio/wav',
+  '.mp4': 'video/mp4', '.mov': 'video/quicktime', '.webm': 'video/webm',
+  '.pdf': 'application/pdf', '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+};
+function sendJSON(res, code, obj) {
+  const body = JSON.stringify(obj);
+  res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+  res.end(body);
+}
+function readBody(req, limit = 20 * 1024 * 1024) {
+  return new Promise((resolve, reject) => {
+    const chunks = []; let n = 0;
+    req.on('data', c => { n += c.length; if (n > limit) { reject(new Error('body too large')); req.destroy(); } else chunks.push(c); });
+    req.on('end', () => resolve(Buffer.concat(chunks)));
+    req.on('error', reject);
+  });
+}
+// 媒体文件：支持 Range（音频 seek / 视频拖动必需）
+function sendFile(req, res, absPath) {
+  let st;
+  try { st = fs.statSync(absPath); } catch (e) { return sendJSON(res, 404, { error: 'not found' }); }
+  if (!st.isFile()) return sendJSON(res, 404, { error: 'not found' });
+  const type = MIME[path.extname(absPath).toLowerCase()] || 'application/octet-stream';
+  const range = req.headers.range;
+  const common = { 'Content-Type': type, 'Accept-Ranges': 'bytes', 'Cache-Control': 'no-cache' };
+  if (range) {
+    const m = /^bytes=(\d*)-(\d*)$/.exec(range);
+    let start, end;
+    if (m && m[1]) { start = Number(m[1]); end = m[2] ? Number(m[2]) : st.size - 1; }
+    else if (m && m[2]) { const tail = Number(m[2]); start = Math.max(0, st.size - tail); end = st.size - 1; }
+    if (!m || (!m[1] && !m[2]) || !Number.isSafeInteger(start) || !Number.isSafeInteger(end) ||
+        start < 0 || start >= st.size || end < start) {
+      res.writeHead(416, {...common, 'Content-Range': `bytes */${st.size}`}); return res.end();
+    }
+    end = Math.min(end, st.size - 1);
+    res.writeHead(206, { ...common, 'Content-Range': `bytes ${start}-${end}/${st.size}`, 'Content-Length': end - start + 1 });
+    const stream = fs.createReadStream(absPath, { start, end });
+    stream.on('error', () => res.destroy()); res.on('close', () => stream.destroy()); stream.pipe(res);
+  } else {
+    res.writeHead(200, { ...common, 'Content-Length': st.size });
+    const stream = fs.createReadStream(absPath); stream.on('error', () => res.destroy()); res.on('close', () => stream.destroy()); stream.pipe(res);
+  }
+}
+// 只允许白名单扩展名出媒体路由
+const MEDIA_EXT = new Set(['.mp3', '.m4a', '.wav', '.mp4', '.mov', '.webm', '.pdf', '.pptx', '.jpg', '.png']);
+
+/* ---------- 路由 ---------- */
+const VERSION = (() => {
+  try { return fs.readFileSync(path.join(__dirname, 'VERSION'), 'utf8').trim(); }
+  catch (e) { return 'dev'; }
+})();
+
+const handler = async (req, res) => {
+  try {
+    const url = new URL(req.url, `http://localhost:${PORT}`);
+    const p = decodeURIComponent(url.pathname);
+
+    /* ---- API: 目录 ---- */
+    if (p === '/api/health') return sendJSON(res, 200, { ok: true, version: VERSION });
+    if (p === '/api/catalog') return sendJSON(res, 200, { sets: CATALOG, source_root_configured: SET_DIRS && Object.keys(SET_DIRS).length > 0 });
+    const mSet = p.match(/^\/api\/set\/(.+)$/);
+    if (mSet) {
+      const id = mSet[1];
+      if (!Object.hasOwn(SET_INDEX,id)) return sendJSON(res, 400, { error: 'bad set id' });
+      const jp = path.join(DATA_DIR, id, id + '.json');
+      try { return sendJSON(res, 200, JSON.parse(fs.readFileSync(jp, 'utf8'))); }
+      catch (e) { return sendJSON(res, 404, { error: 'set not found' }); }
+    }
+    if (p === '/api/courses') return sendJSON(res, 200, loadCourses());
+    const mHand = p.match(/^\/api\/handout\/(.+)$/);
+    if (mHand) {
+      const notesDir = path.join(BUILD_DIR, 'courses', 'notes');
+      const id = mHand[1];
+      if (!/^[\w.\-]+$/.test(id) || id.includes('..')) return sendJSON(res, 400, { error: 'bad id' });
+      try {
+        return sendJSON(res, 200, JSON.parse(fs.readFileSync(path.join(notesDir, id + '.json'), 'utf8')));
+      } catch (e) { return sendJSON(res, 404, { error: 'handout not extracted' }); }
+    }
+
+    /* ---- API: 学习记录 ---- */
+    if (p === '/api/records') {
+      if (req.method === 'GET') return sendJSON(res, 200, RECORDS);
+      if (req.method === 'POST') {
+        const origin=req.headers.origin;
+        if(origin && origin !== `http://${req.headers.host}` && origin !== `https://${req.headers.host}`) return sendJSON(res,403,{error:'cross-origin write rejected'});
+        if(!(req.headers['content-type']||'').toLowerCase().startsWith('application/json')) return sendJSON(res,415,{error:'application/json required'});
+        const body = await readBody(req);
+        let inc; try { inc = JSON.parse(body.toString('utf8') || '{}'); } catch (e) { return sendJSON(res, 400, { error: 'bad json' }); }
+        if (inc?.revision !== (RECORDS.revision || 0)) return sendJSON(res, 409, {error:'records conflict', revision:RECORDS.revision || 0});
+        let next;
+        try { next = nextRecords(inc); } catch (e) { return sendJSON(res, 400, {error:e.message}); }
+        try { recordsSave(next); } catch (e) { console.error('[records]',e.message); return sendJSON(res, 503, {error:'records not persisted'}); }
+        RECORDS = next;
+        return sendJSON(res, 200, { ok: true, revision:RECORDS.revision, saved_at: RECORDS.saved_at });
+      }
+      return sendJSON(res, 405, { error: 'method' });
+    }
+
+    /* ---- 媒体: 真题素材（按套题映射回源目录） ---- */
+    const mMedia = p.match(/^\/media\/set\/([^/]+)\/(.+)$/);
+    if (mMedia) {
+      const setId = mMedia[1], rel = mMedia[2];
+      const dir = SET_DIRS[setId];
+      if (!dir) return sendJSON(res, 404, { error: 'set source dir not configured' });
+      const abs = path.normalize(path.join(dir, rel));
+      if (!abs.startsWith(path.normalize(dir) + path.sep) && abs !== path.normalize(dir))
+        return sendJSON(res, 400, { error: 'bad path' });
+      if (!MEDIA_EXT.has(path.extname(abs).toLowerCase())) return sendJSON(res, 403, { error: 'ext not allowed' });
+      return sendFile(req, res, abs);
+    }
+    /* ---- 媒体: vince 课 ---- */
+    const mVince = p.match(/^\/media\/vince\/(.+)$/);
+    if (mVince) {
+      const dir = path.resolve(SIB, 'vince托福课');
+      const abs = path.normalize(path.join(dir, mVince[1]));
+      if (!abs.startsWith(path.normalize(dir) + path.sep)) return sendJSON(res, 400, { error: 'bad path' });
+      if (!MEDIA_EXT.has(path.extname(abs).toLowerCase())) return sendJSON(res, 403, { error: 'ext not allowed' });
+      return sendFile(req, res, abs);
+    }
+    /* ---- 媒体: 新D方课 ---- */
+    const mNdf = p.match(/^\/media\/ndf\/([^/]+)\/(.+)$/);
+    if (mNdf) {
+      const base = path.resolve(SIB, '新D方', '新D方新托福全套');
+      const dir = path.normalize(path.join(base, mNdf[1]));
+      if (!dir.startsWith(path.normalize(base) + path.sep)) return sendJSON(res, 400, { error: 'bad course dir' });
+      const abs = path.normalize(path.join(dir, mNdf[2]));
+      if (!abs.startsWith(dir + path.sep)) return sendJSON(res, 400, { error: 'bad path' });
+      if (!MEDIA_EXT.has(path.extname(abs).toLowerCase())) return sendJSON(res, 403, { error: 'ext not allowed' });
+      return sendFile(req, res, abs);
+    }
+
+    /* ---- 媒体: 课程讲义页图（scan_courses.py 从图片版 PPTX 抽出的截图帧） ---- */
+    const mSlides = p.match(/^\/media\/slides\/([\w.\-]+)\/([\w.\-]+)$/);
+    if (mSlides) {
+      const dir = path.join(BUILD_DIR, 'courses', 'slide_images', mSlides[1]);
+      const abs = path.normalize(path.join(dir, mSlides[2]));
+      if (!abs.startsWith(path.normalize(dir) + path.sep)) return sendJSON(res, 400, { error: 'bad path' });
+      if (!/\.(jpg|jpeg|png)$/i.test(abs)) return sendJSON(res, 403, { error: 'ext not allowed' });
+      return sendFile(req, res, abs);
+    }
+
+    /* ---- 静态页 ---- */
+    let rel = p === '/' ? '/index.html' : p;
+    const abs = path.normalize(path.join(WEB_DIR, rel));
+    if (!abs.startsWith(path.normalize(WEB_DIR) + path.sep) && abs !== path.normalize(path.join(WEB_DIR, 'index.html')))
+      return sendJSON(res, 400, { error: 'bad path' });
+    if (fs.existsSync(abs) && fs.statSync(abs).isFile()) return sendFile(req, res, abs);
+    sendJSON(res, 404, { error: 'not found', path: p });
+  } catch (e) {
+    console.error('[server]', e);
+    try { sendJSON(res, 500, { error: 'internal' }); } catch (_) {}
+  }
+};
+
+// TLS（自签）：TFL_TLS_KEY/TFL_TLS_CERT 指向 pem 文件时走 https——
+// 局域网明文 http 下浏览器禁用麦克风，后续口语录音（MediaRecorder）必须 secure context。
+// 证书缺失/读失败回退 http，不让部署被证书问题卡死。
+let tlsOpt = null;
+if (process.env.TFL_TLS_KEY && process.env.TFL_TLS_CERT) {
+  try {
+    tlsOpt = {
+      key: fs.readFileSync(process.env.TFL_TLS_KEY),
+      cert: fs.readFileSync(process.env.TFL_TLS_CERT),
+    };
+  } catch (e) {
+    console.warn('[server] TLS 证书读取失败，回退 http:', e.message);
+    tlsOpt = null;
+  }
+}
+const httpServer = tlsOpt ? https.createServer(tlsOpt, handler) : http.createServer(handler);
+httpServer.listen(PORT, () => {
+  console.log(`[toefl-lab] ${tlsOpt ? 'https' : 'http'}://localhost:${PORT}  (v${VERSION})`);
+  console.log(`  web:      ${WEB_DIR}`);
+  console.log(`  data:     ${DATA_DIR} (${CATALOG.length} 套)`);
+  console.log(`  records:  ${RECORDS_FILE}`);
+  console.log(`  source:   ${SOURCE_ROOT} (${Object.keys(SET_DIRS).length} 套已映射, 只读)`);
+});

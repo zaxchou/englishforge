@@ -1,0 +1,241 @@
+
+
+<div class="top">
+  <div class="topin">
+    <div class="desk-brand"><span class="brand">TOEFL<span>Lab.</span></span><span class="brand-caption">个人研读空间</span></div>
+    <div class="nav"><span class="nav-label">学习</span>
+      <button class="on" data-v="home">研读桌</button>
+      <button data-v="drill">专项训练</button>
+      <button data-v="sets">整套练习</button>
+      <button data-v="course">视频课</button>
+      <span class="nav-label second">回顾</span><button data-v="review">错题本</button>
+      <button data-v="stats">数据分析</button>
+    </div>
+  </div>
+</div>
+
+<div class="wrap">
+
+<!-- ============ 开始（双入口） ============ -->
+<div class="view on" id="v-home"><header class="lead"><div class="desk-kicker">TOEFL · 听 / 读 / 写 / 说</div><h1>我的研读桌<span class="heading-dot">.</span></h1><p>选择一科，开始这一组练习。</p></header><section class="notebook"><div class="bookhead"><span>专项练习</span><span>四科 · 按题型进入</span></div><article class="part"><span class="num">01</span><div><strong>听力 <em>Listening</em></strong><p>听辨信息与说话意图</p></div><button onclick="startDrill('listening')">开始听力 →</button></article><article class="part"><span class="num">02</span><div><strong>阅读 <em>Reading</em></strong><p>读清材料与逻辑关系</p></div><button onclick="startDrill('reading')">开始阅读 →</button></article><article class="part"><span class="num">03</span><div><strong>写作 <em>Writing</em></strong><p>组织句子与完整回应</p></div><button onclick="startDrill('writing')">开始写作 →</button></article><article class="part"><span class="num">04</span><div><strong>口语 <em>Speaking</em></strong><p>把理解变成口头表达</p></div><button onclick="startDrill('speaking')">开始口语 →</button></article><div class="bookfoot"><span>独立作答</span><i>→</i><span>对照答案</span><i>→</i><span>整理错题</span></div></section><section class="resources"><h2>其他学习入口</h2><div class="resource"><b>整套练习</b><span>11 套完整题库 · 按套题组织</span><button onclick="go('sets')">浏览套题 ↗</button></div><div class="resource"><b>视频与讲义</b><span>先学方法，再回到练习</span><button onclick="go('course')">打开课程 ↗</button></div><div class="resource"><b>错题与复盘</b><span>回到做错的地方，重新理解</span><button onclick="go('review')">打开错题本 ↗</button></div></section></div>
+<!-- ============ 专项训练 ============ -->
+<div class="view" id="v-drill">
+  <div class="bhead"><h2 class="pt">专项训练</h2><span class="ct" id="dr-ct"></span></div>
+  <p class="sub">按科目 → 按题型</p>
+
+  <div class="seg" id="dr-seg"><span class="thumb"></span>
+    <button class="on" data-s="listening" onclick="drillTab('listening')">听力</button>
+    <button data-s="reading" onclick="drillTab('reading')">阅读</button>
+    <button data-s="writing" onclick="drillTab('writing')">写作</button>
+    <button data-s="speaking" onclick="drillTab('speaking')">口语</button>
+  </div>
+
+  <div id="dr-body"></div>
+</div>
+
+<!-- ============ 整套 ============ -->
+<div class="view" id="v-sets">
+  <div class="bhead"><h2 class="pt">整套练习</h2><span class="ct" id="sets-ct"></span></div>
+  <p class="sub">11 套完整 · 88 题每套 · 按顺序作答，中途退出进度保留</p>
+  <div class="seg" id="sets-filter"><span class="thumb"></span>
+    <button class="on" onclick="setFilter('all',this)">全部</button>
+    <button onclick="setFilter('todo',this)">未开始</button>
+    <button onclick="setFilter('doing',this)">进行中</button>
+    <button onclick="setFilter('done',this)">已完成</button>
+  </div>
+  <div class="card slist" id="sets"></div>
+</div>
+
+<!-- ============ 做题（任务页, 不占主导航） ============ -->
+<div class="view" id="v-do">
+  <div class="ctx">
+    <button class="bk" onclick="goBack()">← 返回</button>
+    <span class="c1" id="d-set">—</span>
+    <span class="c2" id="d-kind">听力</span>
+    <span class="sp" id="d-cnt">1 / 14</span>
+  </div>
+  <div class="card" style="overflow:hidden">
+    <button class="mobile-outline" onclick="document.getElementById('v-do').classList.toggle('outline-open');this.setAttribute('aria-expanded',document.getElementById('v-do').classList.contains('outline-open'))" aria-expanded="false" aria-controls="d-qbar">题目目录 <span>展开 / 收起</span></button><div id="d-qbar"></div>
+
+    <div class="tbar">
+      <div class="tleft">
+        <span class="tlab">本套已用</span>
+        <span class="tval" id="d-elapsed">00:00</span>
+      </div>
+      <div class="tmid">
+        <span class="tlab">本题用时</span>
+        <span class="tval sm" id="d-qtime">00:00</span>
+      </div>
+      <div class="tright">
+        <span class="tlab" id="d-tlimit-lab">剩余</span>
+        <span class="tval" id="d-left">--:--</span>
+        <button class="tpause" id="d-pause">暂停</button>
+      </div>
+      <div class="tfull"><i id="d-tfull"></i></div>
+    </div>
+
+    <div class="ab">
+      <button class="play" id="d-play">
+        <svg width="11" height="11" viewBox="0 0 12 12"><path d="M3 2 L9 6 L3 10 Z" fill="#1C1C1A"/></svg>
+      </button>
+      <div class="tr">
+        <div class="tb"><i id="d-prog"></i></div>
+        <div class="tm" id="d-time">00:00 / 00:08</div>
+      </div>
+      <span class="rate">×1.0</span>
+    </div>
+
+    <div class="qb" id="d-body"></div>
+
+    <div id="d-fb"></div><div class="pfoot">
+      <button id="d-skip">跳过</button>
+      <div style="display:flex;gap:7px">
+        <button id="d-prev">上一题</button>
+        <button class="pri" id="d-next">确认并继续</button>
+      </div>
+    </div>
+  </div>
+  
+</div>
+
+<!-- ============ 口语 / 写作 ============ -->
+<div class="view" id="v-write">
+  <div style="display:flex;gap:7px;margin-bottom:14px">
+    <button class="on" id="t-sp" onclick="tab('sp')">口语</button>
+    <button id="t-wr" onclick="tab('wr')">写作</button>
+  </div>
+
+  <!-- 口语 -->
+  <div id="p-sp">
+    <div class="ctx">
+      <button class="bk" onclick="goBack()">← 返回</button>
+      <span class="c1">2026-07-04</span>
+      <span class="c2">Speaking · Task 2</span>
+      <span class="sp">4 / 4</span>
+    </div>
+    <div class="card" style="overflow:hidden">
+      <div class="qb">
+        <div class="qt">How do you engage in any artistic activities?</div>
+        <div class="qd">说说你参与过什么艺术活动。准备 15 秒，回答 45 秒。</div>
+        <div class="rec">
+          <button class="rbtn" id="sp-rec">
+            <svg width="15" height="15" viewBox="0 0 16 16"><rect x="5" y="2" width="6" height="8" rx="3" fill="#fff"/><path d="M4 7.5a4 4 0 0 0 8 0" stroke="#fff" stroke-width="1.4" fill="none" stroke-linecap="round"/><path d="M8 11.5V14" stroke="#fff" stroke-width="1.4" stroke-linecap="round"/></svg>
+          </button>
+          <div style="flex:1;min-width:0">
+            <div class="wave" id="sp-wave"></div>
+            <div style="font-size:11px;color:var(--t3);margin-top:5px;font-variant-numeric:tabular-nums" id="sp-tm">00:00 / 目标 45 秒</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:7px;margin-top:12px">
+          <button id="sp-play" disabled>回放录音</button>
+          <button class="pri" id="sp-ai" disabled>提交批改</button>
+        </div>
+      </div>
+    </div>
+    <div id="sp-out" style="margin-top:11px"></div>
+  </div>
+
+  <!-- 写作 -->
+  <div id="p-wr" style="display:none">
+    <div class="ctx">
+      <button class="bk" onclick="goBack()">← 返回</button>
+      <span class="c1">2026-06-24</span>
+      <span class="c2">Writing · Write an Email</span>
+      <span class="sp" id="wr-cnt">0 词</span>
+    </div>
+    <div class="card" style="overflow:hidden">
+      <div class="qb">
+        <div class="qt">Write an email to Ms. Clark, the print shop manager.</div>
+        <div class="qd">Describe the event and its importance · Ask about printing services · Inquire about costs and turnaround time</div>
+        <textarea id="wr-tx" style="width:100%;min-height:150px;padding:11px 13px;border:.5px solid var(--line2);border-radius:var(--rs);resize:vertical;line-height:1.7" placeholder="在这里作答…"></textarea>
+        <div style="display:flex;gap:7px;margin-top:11px">
+          <button class="pri" id="wr-ai">提交批改</button>
+          <button id="wr-samp">填入示例</button>
+        </div>
+      </div>
+    </div>
+    <div id="wr-out" style="margin-top:11px"></div>
+  </div>
+</div>
+
+<!-- ============ 视频课（与真题分开，讲义联动 + 关联练题） ============ -->
+<div class="view" id="v-course">
+  <div class="bhead"><h2 class="pt">视频课</h2><span class="ct" id="cs-ct"></span></div>
+  <p class="sub">选择课节，配合讲义学习，再练对应题</p>
+  <div class="csplit">
+    <aside class="csnav" id="cs-nav"></aside>
+    <section class="csmain" id="cs-main"></section>
+  </div>
+</div>
+
+<!-- ============ 错题本 ============ -->
+<div class="view" id="v-review">
+  <div class="bhead"><h2 class="pt">错题本</h2><span class="ct" id="rv-ct"></span></div>
+  <p class="sub">按遗忘曲线排序 · 1 / 3 / 7 / 14 天 · 答对一次即移出</p>
+  <div class="stats" id="rv-stats"></div>
+  <div class="card" style="overflow:hidden">
+    <div class="phead">
+      <div class="l"><b>待复习</b></div>
+      <div class="r"><span id="rv-due"></span></div>
+    </div>
+    <div id="rv-list"></div>
+  </div>
+</div>
+
+<!-- ============ 分析 ============ -->
+<div class="view" id="v-stats">
+  <div class="card" style="padding:var(--s4);margin-bottom:var(--s3)">
+    <div class="bhead" style="margin-bottom:var(--s4)">
+      <h2 class="pt">总览</h2>
+      <span class="ct" id="ov-ct"></span>
+    </div>
+    <div class="ov" id="st-ov"></div>
+  </div>
+
+  <div class="cols">
+    <div class="card" style="padding:var(--s4)">
+      <div class="bhead"><h2 class="pt">学习时长</h2><span class="ct" id="st-ct2"></span></div>
+      <p class="sub">做题计时 + 视频课观看，累计到本地</p>
+      <div id="st-time"></div>
+    </div>
+    <div class="card" style="padding:var(--s4)">
+      <div class="bhead"><h2 class="pt">每题用时</h2><span class="ct" id="st-qt-ct"></span></div>
+      <p class="sub">横线为建议用时，超线说明要提速</p>
+      <div id="st-qtime"></div>
+    </div>
+  </div>
+
+  <div class="cols">
+    <div class="card" style="padding:var(--s4)">
+      <div class="bhead"><h2 class="pt">正确率趋势</h2><span class="ct">近 8 周</span></div>
+      <p class="sub">每周综合正确率，含全部四科</p>
+      <div id="st-trend"></div>
+    </div>
+    <div class="card" style="padding:var(--s4)">
+      <div class="bhead"><h2 class="pt">每日题量</h2><span class="ct">近 14 天</span></div>
+      <p class="sub">柱高为当天做题数，浅色段为正确部分</p>
+      <div id="st-daily"></div>
+    </div>
+  </div>
+
+  <div class="card" style="padding:var(--s4);margin-bottom:var(--s3)">
+    <div class="bhead"><h2 class="pt">掌握分布</h2><span class="ct" id="st-ct"></span></div>
+    <p class="sub">按题型统计已掌握 / 做错 / 未做</p>
+    <div id="st-mastery"></div>
+  </div>
+
+  <div class="card" style="padding:var(--s4);margin-bottom:var(--s3)">
+    <div class="bhead"><h2 class="pt">薄弱点</h2><span class="ct">6 类</span></div>
+    <p class="sub">按题型聚合错题，正确率低于 75% 的会置顶</p>
+    <div id="st-weak"></div>
+  </div>
+
+  <div class="card" style="padding:var(--s4)">
+    <div class="bhead"><h2 class="pt">AI 批改记录</h2><span class="ct" id="ai-ct"></span></div>
+    <p class="sub">按 ETS 官方评分维度给分</p>
+    <div id="st-ai"></div>
+  </div>
+</div>
+
+</div>
+

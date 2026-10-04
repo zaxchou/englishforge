@@ -1,0 +1,24 @@
+{
+  "updated": "2026-10-04",
+  "note": "人工核读的教学映射。文件名只能生成目录，教学映射一律在这里手工标注；未经核读的课不出现在这里。practice 是『按题型配套』，不声称与视频同一材料。",
+  "lessons": {
+    "vince-4-l1": {
+      "notes_verified": true,
+      "notes_source": "4.阅读 学术阅读1_20260224121329.pptx（32 页截图版讲义，实际抽读 s01/s04/s08/s14/s22）",
+      "key_points": [
+        "新 2026 版托福阅读的学术阅读是约 200 词的短节选（s08：Short excerpts - about 200 words long），不是长文章",
+        "读完整句再判断关系：s14 的 But 引出另一层益处；extend far beyond 是谓语表达，说明树木的益处不止身体健康和环境。不要把这个词块机械当成转折连接词。",
+        "读转折词（However）前先预测：作者接下来会展开对比还是举例（s22：Make predictions，预测 'contrast between Mars and the Earth'）",
+        "细节题按 'According to the passage' 回原文定位，选项常是原文字面改写，警惕张冠李戴（s14 例：public health 对应 absorbing pollutants）"
+      ],
+      "practice": {
+        "set": "2026-06-07",
+        "subject": "reading",
+        "module": 1,
+        "group": "31-35",
+        "label": "学术阅读 · Free Will and Determinism（Q31-35，5 题）"
+      },
+      "why": "vince 学术阅读1 讲短节选读法与细节/推断题；06-07 学术阅读组是同题型的 200 词左右学术节选 + 细节/句间关系/词义题。按题型配套练习，不是同一篇文章。"
+    }
+  }
+}
