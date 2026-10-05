@@ -803,10 +803,18 @@ function route(){
 window.addEventListener('hashchange',route);
 window.goBack=function(){ nav(lastNav||'home'); };
 document.querySelectorAll('.nav button').forEach(b=>{ b.onclick=()=>nav(b.dataset.v); });
-document.getElementById('sb-toggle').onclick=()=>{
+const sbToggle=document.getElementById('sb-toggle');
+sbToggle.onclick=()=>{
   const min=document.documentElement.classList.toggle('sb-min');
+  document.querySelector('.top').classList.remove('sb-open');
   try{localStorage.setItem('tfl-sb',min?'min':'full')}catch(e){}
 };
+sbToggle.addEventListener('pointerenter',()=>{
+  if(document.documentElement.classList.contains('sb-min')) document.querySelector('.top').classList.add('sb-open');
+});
+sbToggle.addEventListener('pointerleave',()=>{
+  document.querySelector('.top').classList.remove('sb-open');
+});
 function moveThumb(seg){
   const on=seg.querySelector('button.on'), th=seg.querySelector('.thumb');
   if(!on||!th) return;
