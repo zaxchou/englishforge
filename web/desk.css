@@ -552,13 +552,7 @@ body,button,input,textarea,.brand,.brand span,.lead h1,.pt,.part strong,.part em
   .mrow .nm{width:64px}
   .mrow .n{width:76px}
 }
-/* 数据分析「学习时长」卡: 内联 repeat(3,1fr) 的 .ov 值(如 17:30)不可断行,
-   320px 时把卡片最小内容宽度撑到 292 -> 覆盖为 2 列/1 列 */
-@media(max-width:480px){
-  #st-time .ov{grid-template-columns:repeat(2,1fr)!important}
-}
 @media(max-width:360px){
-  #st-time .ov{grid-template-columns:1fr!important}
   .ovc .v{font-size:22px}
 }
 /* Audio metadata is not a home-page subject card. */
@@ -743,4 +737,101 @@ body,button,input,textarea,.brand,.brand span,.lead h1,.pt,.part strong,.part em
   .handout-scroll .handout{padding:12px 14px 16px}
   .cs-act{flex-wrap:wrap}
   .cs-act .pri{width:100%}
+}
+
+/* ==== style block 14: 数据分析页 ====
+   主角=判分正确率(hero 卡: Georgia 大数字 + 对/错分段条) → 弱点(错题分布/每题用时,
+   行可点、中位数、只认有效计时) → 节奏与覆盖(真实日期轴/科目进度行可点)。
+   复用首页词汇: Georgia 数字、hm-legend、stub 零日线; 不新造设计系统。 */
+.st-card{padding:22px 24px}
+.st-hero{display:flex;align-items:flex-end;gap:26px 44px;flex-wrap:wrap;padding:24px 28px;margin-bottom:16px}
+.st-acc{flex:1;min-width:250px}
+.st-acc .k{font-size:12px;color:var(--t2)}
+.st-acc .v{font-family:Georgia,serif;font-size:58px;line-height:1.05;font-weight:400;
+  color:var(--t1);font-variant-numeric:tabular-nums}
+.st-acc .v small{font-size:26px;color:var(--t2);margin-left:2px}
+.st-acc .split{display:flex;height:10px;background:var(--sunk);border-radius:3px;
+  overflow:hidden;margin:12px 0 8px;max-width:430px}
+.st-acc .split i{display:block;height:100%}
+.st-acc .split .ok{background:var(--ok)}
+.st-acc .split .bad{background:var(--bad)}
+.st-acc .d{font-size:12px;color:var(--t3);font-variant-numeric:tabular-nums}
+.st-side{display:flex;gap:30px;align-items:flex-end;flex-wrap:wrap}
+.st-side .n{min-width:60px}
+.st-side .n b{display:block;font-family:Georgia,serif;font-size:27px;font-weight:400;
+  line-height:1.15;color:var(--t1);font-variant-numeric:tabular-nums}
+.st-side .n span{font-size:11px;color:var(--t3);white-space:nowrap}
+.st-side button{border:0;background:none;border-bottom:1px solid var(--acc);border-radius:0;
+  font-size:13px;color:#305540;padding:2px 0;min-height:32px;white-space:nowrap;margin-bottom:2px}
+.st-side button:hover{color:#1f402b;background:none}
+/* 错题分布行: 可点 → 错题本 */
+.wkrow{padding:11px 10px;margin:0 -10px;border-radius:4px;cursor:pointer;transition:background .12s}
+.wkrow:hover{background:var(--hover)}
+.wkrow .r{display:flex;justify-content:space-between;gap:12px;font-size:14px;margin-bottom:6px}
+.wkrow .r .t{min-width:0;overflow-wrap:anywhere}
+.wkrow .r .n{color:var(--t2);font-variant-numeric:tabular-nums;flex-shrink:0}
+.wkrow .b{height:6px;background:var(--sunk);border-radius:3px;overflow:hidden}
+.wkrow .b i{display:block;height:100%;background:var(--bad);border-radius:3px}
+.st-more{display:block;margin:12px 0 0;border:0;background:none;min-height:32px;
+  font-size:12px;color:#52674a;padding:0;cursor:pointer}
+.st-more:hover{text-decoration:underline;text-underline-offset:4px;color:#21492f}
+/* 每题用时: 中位数 vs 参考线 */
+.qrow{margin-bottom:14px}
+.qrow .r{display:flex;justify-content:space-between;gap:10px;font-size:12px;margin-bottom:5px}
+.qrow .r .s i{font-style:normal;color:var(--t3)}
+.qrow .r .v{color:var(--t2);font-variant-numeric:tabular-nums}
+.qrow .r .v.over{color:var(--bad)}
+.qrow .b{position:relative;height:8px;background:var(--sunk);border-radius:3px;overflow:hidden}
+.qrow .b i{position:absolute;left:0;top:0;bottom:0;border-radius:3px}
+.qrow .b i.ok{background:var(--ok)} .qrow .b i.bad{background:var(--bad)}
+.qrow .b em{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--t2);border-radius:1px}
+/* 每日题量: 真实日期轴, 今天高亮 */
+#st-daily .daily{height:96px}
+#st-daily .dlab span.today{color:#315a47;font-weight:600}
+.st-card .hm-legend .lg-ok{background:var(--ok)}
+.hm-legend .lg-none{background:var(--line2)}
+/* 科目进度行: 可点 → 专项 */
+.mrow.link{cursor:pointer;border-radius:4px;margin:0 -10px;padding:12px 10px;transition:background .12s}
+.mrow.link:hover{background:var(--hover)}
+.mrow .n2{width:96px;text-align:right;flex-shrink:0}
+.mrow .n2 b{display:block;font-family:Georgia,serif;font-size:20px;font-weight:400;
+  color:var(--t1);line-height:1.1;font-variant-numeric:tabular-nums}
+.mrow .n2 b i{font-style:normal;font-size:12px;color:var(--t3)}
+.mrow .n2 span{font-size:11px;color:var(--t3);white-space:nowrap}
+@media(max-width:560px){
+  .st-hero{padding:18px 16px;gap:20px 28px}
+  .st-acc .v{font-size:46px}
+  .st-side{gap:22px}
+  .mrow.link{margin:0 -6px;padding:12px 6px}
+  .mrow .n2{width:84px}
+}
+
+/* --- block 14 补充: 评审轮修正 ---
+   卡内填空: 作答节奏图沉底(轴贴卡底) / 错题卡链接钉底 / 每题用时四科全列(样本不足=静音行);
+   错题分布条按在册总数归一 + 悬停箭头; 参考线轨道留 15% 头部空间不再贴端点。 */
+.st-card{display:flex;flex-direction:column}
+.st-card .bhead{flex-shrink:0}
+#st-daily{flex:1;display:flex;flex-direction:column;justify-content:flex-end}
+#st-daily .note{margin:10px 0 0}
+.st-card .st-more{margin-top:auto;padding-top:12px}
+.qrow.mute .r .v{color:var(--t3)}
+.qrow .b i.zero{background:var(--line2)}
+.qrow .note{margin:6px 0 0}
+.wkrow .n .go{color:#8a9684;opacity:0;transition:opacity .12s}
+.wkrow:hover .n .go{opacity:1}
+@media(max-width:560px){
+  #v-stats .bhead{flex-wrap:wrap;row-gap:2px}
+  #v-stats .bhead .ct{flex-basis:100%}
+}
+/* --- block 14 补充 2: 二轮评审收尾 ---
+   图例钉卡顶(图表沉底, 中部留白不再显得随意); 窄屏导航两缘渐隐提示可横向滚动;
+   hero 数字组在 390px 收紧半档。 */
+#st-daily .hm-legend{margin-bottom:auto;padding-bottom:10px}
+@media(max-width:700px){
+  .nav{-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 28px,#000 calc(100% - 28px),transparent 100%);
+       mask-image:linear-gradient(90deg,transparent 0,#000 28px,#000 calc(100% - 28px),transparent 100%)}
+}
+@media(max-width:400px){
+  .st-side{gap:18px}
+  .st-side .n b{font-size:24px}
 }

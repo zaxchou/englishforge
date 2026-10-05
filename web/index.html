@@ -237,43 +237,45 @@ details.ai-tsec[open] summary{margin-bottom:8px}
 
 <!-- ============ 分析 ============ -->
 <div class="view" id="v-stats">
-  <div class="card" style="padding:var(--s4);margin-bottom:var(--s3)">
-    <div class="bhead" style="margin-bottom:var(--s4)"><h2 class="pt">总览</h2><span class="ct" id="ov-ct"></span></div>
-    <div class="ov" id="st-ov"></div>
-  </div>
-  <div class="cols">
-    <div class="card" style="padding:var(--s4)">
-      <div class="bhead"><h2 class="pt">学习时长</h2><span class="ct" id="st-ct2"></span></div>
-      <p class="sub">做题计时 + 视频课观看，记录保存在本机服务</p>
-      <div id="st-time"></div>
+  <div class="bhead"><h2 class="pt">数据分析</h2><span class="ct" id="st-ct"></span></div>
+  <p class="sub">全部由本机保存的真实作答记录计算</p>
+  <section class="card st-hero">
+    <div class="st-acc">
+      <div class="k">判分正确率</div>
+      <div class="v" id="st-acc-v">—</div>
+      <div class="split" id="st-acc-split"></div>
+      <div class="d" id="st-acc-d">暂无已判分的作答</div>
     </div>
-    <div class="card" style="padding:var(--s4)">
+    <div class="st-side">
+      <div class="n"><b id="st-today">—</b><span>今日学习</span></div>
+      <div class="n"><b id="st-total">—</b><span>累计学习</span></div>
+      <div class="n"><b id="st-streak">—</b><span>连续学习天数</span></div>
+      <div class="n"><b id="st-mist">—</b><span id="st-mist-l">待复习</span></div>
+      <button id="st-go-review">去复习 →</button>
+    </div>
+  </section>
+  <div class="cols">
+    <div class="card st-card">
+      <div class="bhead"><h2 class="pt">错题分布</h2><span class="ct" id="st-weak-ct"></span></div>
+      <div id="st-weak"></div>
+      <button class="st-more" id="st-weak-go">打开错题本 →</button>
+    </div>
+    <div class="card st-card">
       <div class="bhead"><h2 class="pt">每题用时</h2><span class="ct" id="st-qt-ct"></span></div>
-      <p class="sub">横线为参考用时，超线说明要提速</p>
       <div id="st-qtime"></div>
     </div>
   </div>
   <div class="cols">
-    <div class="card" style="padding:var(--s4)">
-      <div class="bhead"><h2 class="pt">每日题量</h2><span class="ct">近 14 天</span></div>
-      <p class="sub">柱高为当天作答题数，深色段为答错</p>
+    <div class="card st-card">
+      <div class="bhead"><h2 class="pt">作答节奏</h2><span class="ct" id="st-daily-ct">近 14 天</span></div>
       <div id="st-daily"></div>
+      <p class="note">柱图含全部作答动作（含写作提交这类未判分）；看视频课计入学习时长与连续天数，不产生柱。</p>
     </div>
-    <div class="card" style="padding:var(--s4)">
+    <div class="card st-card">
       <div class="bhead"><h2 class="pt">科目进度</h2><span class="ct" id="st-subj-ct"></span></div>
-      <p class="sub">按四科统计已做 / 做错 / 未做（分母为题库实际题量）</p>
       <div id="st-mastery"></div>
+      <p class="note">点一行进入对应科目的专项训练</p>
     </div>
-  </div>
-  <div class="card" style="padding:var(--s4);margin-bottom:var(--s3)">
-    <div class="bhead"><h2 class="pt">错题分布</h2><span class="ct" id="st-weak-ct"></span></div>
-    <p class="sub">当前错题本中的题，按套题与科目聚合</p>
-    <div id="st-weak"></div>
-  </div>
-  <div class="card" style="padding:var(--s4)">
-    <div class="bhead"><h2 class="pt">AI 复盘记录</h2><span class="ct" id="ai-ct"></span></div>
-    <p class="sub" id="ai-sub">针对每次作答的个人复盘</p>
-    <div id="st-ai"></div>
   </div>
 </div>
 
@@ -760,6 +762,8 @@ function go(v){
   const isTask=(v==='do');
   if(!isTask) {checkpointCourse(true);lastNav=v; if(TICK) {TACC=usedSec();QACC=qUsedSec();clearInterval(TICK);TICK=null;} STU=false; $('d-audio').pause();const cv=$('cs-video');if(cv)cv.pause();document.querySelectorAll('.ai-audio').forEach(a=>a.pause());} else if(S && !TICK && !T_PAUSED) tStart();
   document.querySelectorAll('.nav button').forEach(x=>x.classList.toggle('on',x.dataset.v===v));
+  const navOn=document.querySelector('.nav button.on');   // 窄屏导航横向滚动时, 当前项要滚入视野
+  if(navOn&&navOn.scrollIntoView) navOn.scrollIntoView({block:'nearest',inline:'center'});
   document.querySelectorAll('.view').forEach(x=>x.classList.remove('on'));
   $('v-'+v).classList.add('on');
   document.querySelectorAll('.seg').forEach(moveThumb);
@@ -1928,54 +1932,72 @@ async function renderReview(){
   });
 }
 
-/* ---------- 数据分析（全部由真实记录计算） ---------- */
+/* ---------- 数据分析（全部由真实记录计算） ----------
+   hero=判分正确率(对/错分段条) + 学习投入 + 错题入口;
+   弱点区(错题分布/每题用时, 中位数、只认有效计时) → 节奏与覆盖(真实日期轴/科目进度)。 */
 function renderStats(){
   const atts=scopedEntries(REC.attempts);
-  let n=0,right=0;
-  let judged=0;
-  atts.forEach(([,a])=>{ n+=(a.n||0); for(const h of a.history||[]) {if(h.ok===true){right++;judged++;}else if(h.ok===false)judged++;} });
-  const wrong=judged-right;
-  const attempted=atts.length;
+  let judged=0,right=0;
+  atts.forEach(([,a])=>{ for(const h of a.history||[]){ if(h.ok===true){right++;judged++;} else if(h.ok===false)judged++; } });
+  const wrong=judged-right, attempted=atts.length;
   const grand=CATALOK().reduce((a,s)=>a+s.total_q,0);
-  const acc=judged?Math.round(right/Math.max(1,right+wrong)*100):0;
-  $('st-ov').innerHTML=[
-    ['累计作答',n,attempted+' 道题有记录',''],
-    ['正确率',judged?acc+'%':'—',judged?(acc>=75?'保持':'继续加油'):'暂无已判分作答',''],
-    ['错题在册',scopedEntries(REC.mistakes).filter(([,m])=>!m.cleared).length,'待复习',''],
-    ['未开始',Math.max(0,grand-attempted),'题库共 '+grand+' 题',''],
-  ].map(([k,v,d,c])=>`<div class="ovc"><div class="k">${k}</div>
-    <div class="v">${v}</div><div class="d ${c}">${d}</div></div>`).join('');
-  $('ov-ct').textContent=attempted+' / '+grand+' 题有记录';
+  const acc=judged?Math.round(right/judged*100):0;
+  const msAll=scopedEntries(REC.mistakes).filter(([,m])=>!m.cleared);
+  $('st-ct').textContent='已练 '+attempted+' 组 · 题库共 '+grand+' 题';
+  /* hero */
+  $('st-acc-v').innerHTML=judged?acc+'<small>%</small>':'—';
+  $('st-acc-split').innerHTML=judged
+    ?`<i class="ok" style="width:${(right/judged*100).toFixed(1)}%"></i><i class="bad" style="width:${(wrong/judged*100).toFixed(1)}%"></i>`:'';
+  $('st-acc-d').textContent=judged?`对 ${right} 次 · 错 ${wrong} 次 · 共判分 ${judged} 次`:'暂无已判分的作答';
   const st=REC.study||{};
-  const qSec=scopedEntries(REC.qtimes).reduce((a,[,b])=>a+b,0);
   const todaySec=st.day===localDay()?(st.today||0):0;
-  $('st-ct2').textContent='今日 '+fmt(todaySec);
-  $('st-time').innerHTML=`<div class="ov" style="grid-template-columns:repeat(3,1fr)">
-    <div class="ovc"><div class="k">做题计时</div><div class="v">${Math.round(qSec/60)}m</div><div class="d">累计每题用时</div></div>
-    <div class="ovc"><div class="k">今日</div><div class="v">${fmt(todaySec)}</div><div class="d">含视频课</div></div>
-    <div class="ovc"><div class="k">累计</div><div class="v">${Math.round((st.total||0)/3600)}h</div><div class="d">连续 ${st.days||0} 天</div></div></div>`;
-  const bySub={};
-  for(const [k,a] of atts){
-    const s=k.split('/')[1];
-    for(const h of a.history||[]) if(Number.isFinite(h.secs)) (bySub[s]=bySub[s]||[]).push(h.secs);
-  }
-  const SUG={listening:20,reading:45,writing:180,speaking:45};
-  const rows=Object.keys(bySub).filter(s=>bySub[s].length).map(s=>{
-    const a=bySub[s],avg=Math.round(a.reduce((x,y)=>x+y,0)/a.length);
-    return {s,avg,n:a.length,sug:SUG[s]};
+  $('st-today').textContent=fmt(todaySec);
+  $('st-total').textContent=(st.total||0)>=3600?((st.total||0)/3600).toFixed(1)+'h':fmt(st.total||0);
+  $('st-streak').textContent=String(st.days||0);
+  const dueN=msAll.filter(([,m])=>(m.due||0)<=Date.now()).length;
+  $('st-mist').textContent=String(msAll.length);
+  $('st-mist-l').textContent=dueN?('今日到期 '+dueN+' 题'):'待复习';
+  $('st-go-review').style.display=msAll.length?'':'none';
+  $('st-go-review').onclick=()=>nav('review');
+  /* 错题分布: 行可点 → 错题本 */
+  const byG={};
+  msAll.forEach(([k,m])=>{
+    const [set,subj]=k.split('/');
+    const g=set+' · '+(SUBN[subj]||subj)+(m.gkey?(' · Q'+m.gkey):'');
+    byG[g]=(byG[g]||0)+1;
   });
-  $('st-qt-ct').textContent=scopedEntries(REC.qtimes).length+' 题有计时';
-  $('st-qtime').innerHTML=rows.length?rows.map(r=>{
-    const over=r.avg>r.sug;
-    const mx=Math.max(r.avg,r.sug);
-    return `<div style="margin-bottom:12px">
-      <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px">
-        <span>${SUBN[r.s]||r.s} <span style="color:var(--t3)">${r.n} 次作答</span></span>
-        <span style="color:${over?'var(--bad)':'var(--ok)'}">均 ${r.avg}s / 参考 ${r.sug}s</span></div>
-      <div style="position:relative;height:14px;background:var(--sunk);border-radius:3px">
-        <div style="position:absolute;left:${(r.sug/mx*100).toFixed(0)}%;top:-2px;bottom:-2px;width:1.5px;background:var(--t3)"></div>
-        <div style="position:absolute;left:0;top:0;bottom:0;width:${(r.avg/mx*100).toFixed(0)}%;background:${over?'var(--bad)':'var(--ok)'};border-radius:3px"></div></div></div>`;
-  }).join(''):'<div class="empty" style="padding:32px 0">做题后这里显示每题用时</div>';
+  $('st-weak-ct').textContent=msAll.length?('在册 '+msAll.length+' 道'):'';
+  const mxG=Math.max(1,msAll.length);   // 按在册总数归一: 条宽=该组占在册比例, 不会被读成 100%
+  $('st-weak').innerHTML=msAll.length?Object.entries(byG).sort((a,b)=>b[1]-a[1]).map(([g,nn])=>
+    `<div class="wkrow" data-go="review" title="打开错题本"><div class="r"><span class="t">${esc(g)}</span>
+      <span class="n">${nn} 道<span class="go"> →</span></span></div>
+      <div class="b"><i style="width:${(nn/mxG*100).toFixed(0)}%"></i></div></div>`).join('')
+    :'<div class="empty">没有在册错题</div>';
+  $('st-weak-go').style.display=msAll.length?'':'none';
+  $('st-weak-go').onclick=()=>nav('review');
+  $('st-weak').querySelectorAll('[data-go]').forEach(el=>{el.onclick=()=>nav('review');});
+  /* 每题用时: 中位数, 只认有效计时(>0), 每科至少 3 次才统计 */
+  const SUG={listening:20,reading:45,writing:180,speaking:45};
+  const bySub={};
+  for(const [k,a] of atts) for(const h of a.history||[])
+    if(Number.isFinite(h.secs)&&h.secs>0) (bySub[k.split('/')[1]]=bySub[k.split('/')[1]]||[]).push(h.secs);
+  const qtRows=Object.keys(SUG).map(s=>({s,v:(bySub[s]||[]).slice().sort((a,b)=>a-b)}));
+  const qtAll=qtRows.reduce((a,r)=>a+r.v.length,0);
+  $('st-qt-ct').textContent=qtAll?(qtAll+' 条有效计时'):'';
+  $('st-qtime').innerHTML=qtRows.map(r=>{
+    if(r.v.length<3){   // 样本不足也占一行, 诚实标注而不是藏掉
+      return `<div class="qrow mute"><div class="r"><span class="s">${SUBN[r.s]} <i>${r.v.length?('有效 '+r.v.length+' 次'):'无计时'}</i></span>
+        <span class="v">样本不足</span></div>
+        <div class="b"><i class="zero" style="width:0"></i></div></div>`;
+    }
+    const med=Math.round(r.v[Math.floor((r.v.length-1)/2)]);
+    const sug=SUG[r.s], over=med>sug;
+    const mx=Math.max(med,sug)*1.15;   // 参考线永不出现在轨道尽头冒充端点
+    return `<div class="qrow" title="中位 ${med}s，参考 ${sug}s"><div class="r"><span class="s">${SUBN[r.s]} <i>有效 ${r.v.length} 次</i></span>
+      <span class="v${over?' over':''}">中位 ${med}s / 参考 ${sug}s</span></div>
+      <div class="b"><i class="${over?'bad':'ok'}" style="width:${Math.max(2,med/mx*100).toFixed(0)}%"></i><em style="left:${(sug/mx*100).toFixed(0)}%"></em></div></div>`;
+  }).join('')+'<p class="note">有效计时 = 记录到的大于 0 的单题用时；重做的快速作答会让数值偏快。</p>';
+  /* 每日题量: 真实日期轴 */
   const days=new Array(14).fill(0), daysBad=new Array(14).fill(0);
   const today=new Date(); today.setHours(0,0,0,0);
   for(const [,a] of atts) for(const h of (a.history||[])){
@@ -1984,51 +2006,45 @@ function renderStats(){
     if(ix>=0&&ix<14){ days[ix]++; if(h.ok===false) daysBad[ix]++; }
   }
   const mxD=Math.max(...days,1);
-  $('st-daily').innerHTML=`<div class="daily">${days.map((nn,i)=>{
-    const z=nn===0,h=nn/mxD*100;
-    return `<div class="dcol${z?' z':''}" title="${nn} 题">${z?'':
-      `<div class="st" style="height:${(h*(nn-daysBad[i])/Math.max(1,nn)).toFixed(0)}%"></div>
-       <div class="wr" style="height:${(h*daysBad[i]/Math.max(1,nn)).toFixed(0)}%"></div>`}</div>`;
-  }).join('')}</div>
-  <div class="dlab">${days.map((nn,i)=>`<span>${i+1}</span>`).join('')}</div>
-  <div style="font-size:12px;color:var(--t2);margin-top:8px">14 天共 ${days.reduce((a,b)=>a+b,0)} 题</div>`;
+  const n14=days.reduce((a,b)=>a+b,0);
+  $('st-daily-ct').textContent='近 14 天 · '+n14+' 次作答'+(n14?(' · 单日峰值 '+mxD):'');
+  $('st-daily').innerHTML=`<div class="hm-legend"><span><i class="lg-ok"></i>作答</span><span><i class="lg-bad"></i>错题</span></div>
+    <div class="daily">${days.map((nn,i)=>{
+      const dt=new Date(today.getTime()-(13-i)*864e5);
+      const z=nn===0,h=nn/mxD*100;
+      return `<div class="dcol${z?' z':''}" title="${dt.getMonth()+1}.${dt.getDate()} · ${nn} 次">${z?'<i class="stub"></i>':
+        `<div class="st" style="height:${(h*(nn-daysBad[i])/Math.max(1,nn)).toFixed(0)}%"></div>
+         <div class="wr" style="height:${(h*daysBad[i]/Math.max(1,nn)).toFixed(0)}%"></div>`}</div>`;
+    }).join('')}</div>
+    <div class="dlab">${days.map((_,i)=>{
+      const dt=new Date(today.getTime()-(13-i)*864e5);
+      return `<span class="${i===13?'today':''}">${i%2===1?(dt.getMonth()+1)+'.'+dt.getDate():''}</span>`;
+    }).join('')}</div>`;
+  /* 科目进度: 行可点 → 专项。行尾=该科判分正确率, 不与错题在册(题)混用口径 */
   const subjTot={};
   CATALOK().forEach(s=>{ for(const [k,vv] of Object.entries(s.subjects||{})) subjTot[k]=(subjTot[k]||0)+vv.q; });
-  const subjCnt={};
+  const subjCnt={},subjAcc={};
   for(const [k,a] of atts){
     const s=k.split('/')[1]; subjCnt[s]=subjCnt[s]||{done:0,wrong:0};
     if(a.st==='done'||a.st==='submitted') subjCnt[s].done++; else if(a.st==='wrong') subjCnt[s].wrong++;
+    for(const h of a.history||[]){ if(h.ok===true){subjAcc[s]=subjAcc[s]||[0,0];subjAcc[s][0]++;subjAcc[s][1]++;} else if(h.ok===false){subjAcc[s]=subjAcc[s]||[0,0];subjAcc[s][1]++;} }
   }
-  $('st-subj-ct').textContent=Object.keys(subjTot).length+' 科';
+  const doneAll=Object.keys(SUBN).reduce((a,s)=>a+(subjCnt[s]?subjCnt[s].done+subjCnt[s].wrong:0),0);
+  $('st-subj-ct').textContent='四科已练 '+doneAll+' 组';
   $('st-mastery').innerHTML=Object.keys(SUBN).map(s=>{
     const t=subjTot[s]||0, c=subjCnt[s]||{done:0,wrong:0};
-    const todo=Math.max(0,t-c.done-c.wrong);
     const w=t?100/t:0;
-    return `<div class="mrow"><span class="nm">${SUBN[s]}</span>
-      <span class="bar"><i class="a" style="width:${(c.done*w).toFixed(1)}%"></i>
-        <i class="b" style="width:${(c.wrong*w).toFixed(1)}%"></i>
-        <i class="c" style="width:${(todo*w).toFixed(1)}%"></i></span>
-      <span class="n">${c.done} / ${c.wrong} / ${todo}</span></div>`;
-  }).join('')+`<div class="lgd">
-    <span><i style="background:var(--ok)"></i>已提交（含待批改） ${Object.values(subjCnt).reduce((a,x)=>a+x.done,0)}</span>
-    <span><i style="background:var(--bad)"></i>最近做错 ${Object.values(subjCnt).reduce((a,x)=>a+x.wrong,0)}</span>
-    <span><i style="background:var(--line2);opacity:.35"></i>未做</span></div>`;
-  const ms=scopedEntries(REC.mistakes).filter(([,m])=>!m.cleared);
-  const byG={};
-  ms.forEach(([k,m])=>{
-    const [set,subj]=k.split('/');
-    const g=set+' · '+(SUBN[subj]||subj)+(m.gkey?(' · Q'+m.gkey):'');
-    byG[g]=(byG[g]||0)+1;
-  });
-  $('st-weak-ct').textContent=ms.length+' 题';
-  const mxG=Math.max(1,...Object.values(byG));
-  $('st-weak').innerHTML=ms.length?Object.entries(byG).sort((a,b)=>b[1]-a[1]).map(([g,nn])=>
-    `<div class="weak"><div class="r"><span>${esc(g)}</span>
-      <span style="color:var(--t2)">${nn} 道错题</span></div>
-      <div class="b"><i style="width:${(nn/mxG*100).toFixed(0)}%;background:var(--bad)"></i></div></div>`).join('')
-    :'<div class="empty">没有在册错题</div>';
-  $('ai-ct').textContent='未接入';
-  $('st-ai').innerHTML='<div class="empty">AI 复盘尚未接入（需要先配置模型）。做题与记录不受影响；接入后这里显示针对每次作答的复盘。</div>';
+    const wa=c.done?Math.max(c.done*w,1.5):0;    // 刚起步也要看得见(与首页一致), 未做段吸收
+    const wb=c.wrong?Math.max(c.wrong*w,1.2):0;
+    const wc=Math.max(0,100-wa-wb);
+    const accS=subjAcc[s]&&subjAcc[s][1]?Math.round(subjAcc[s][0]/subjAcc[s][1]*100)+'%':'—';
+    return `<div class="mrow link" data-subj="${s}" title="进入${SUBN[s]}专项训练"><span class="nm">${SUBN[s]}</span>
+      <span class="bar"><i class="a" style="width:${wa.toFixed(1)}%"></i>
+        <i class="b" style="width:${wb.toFixed(1)}%"></i>
+        <i class="c" style="width:${wc.toFixed(1)}%"></i></span>
+      <span class="n2"><b>${c.done+c.wrong}<i>/${t}</i></b><span>正确率 ${accS}</span></span></div>`;
+  }).join('')+`<div class="hm-legend" style="margin-top:10px"><span><i class="lg-ok"></i>已完成</span><span><i class="lg-bad"></i>最近做错</span><span><i class="lg-none"></i>未做</span></div>`;
+  $('st-mastery').querySelectorAll('[data-subj]').forEach(el=>{el.onclick=()=>nav('drill/'+el.dataset.subj);});
 }
 
 document.addEventListener('keydown',e=>{
