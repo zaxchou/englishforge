@@ -809,12 +809,11 @@ sbToggle.onclick=()=>{
   document.querySelector('.top').classList.remove('sb-open');
   try{localStorage.setItem('tfl-sb',min?'min':'full')}catch(e){}
 };
+const sbTop=document.querySelector('.top');
 sbToggle.addEventListener('pointerenter',()=>{
-  if(document.documentElement.classList.contains('sb-min')) document.querySelector('.top').classList.add('sb-open');
+  if(document.documentElement.classList.contains('sb-min')) sbTop.classList.add('sb-open');
 });
-sbToggle.addEventListener('pointerleave',()=>{
-  document.querySelector('.top').classList.remove('sb-open');
-});
+sbTop.addEventListener('pointerleave',()=>{ sbTop.classList.remove('sb-open'); });
 function moveThumb(seg){
   const on=seg.querySelector('button.on'), th=seg.querySelector('.thumb');
   if(!on||!th) return;

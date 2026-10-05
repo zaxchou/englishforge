@@ -943,29 +943,32 @@ body.vfull .cs-status button:hover{background:#28392d;border-color:#4d6350}
 
 @media(max-width:700px){.sb-toggle{display:none}}
 @media(min-width:701px){
-  /* 折叠交互模型: 悬停"折叠按钮"才展开(不是整个轨道); 展开时内容区不挪位(浮层);
-     图标列恒定不动(左缘 22px), 展开只是文字向右延展 → 两态图标垂直/水平坐标一致 */
-  html.sb-min .top{width:64px;z-index:800;transition:width .18s ease,box-shadow .18s ease;position:relative}
+  /* 折叠交互模型(r5 重写): .top 保持基础 fixed(勿写 position——relative 会把侧栏拽进文档流,
+     把内容区整体推下去); 悬停"折叠按钮"=浮层展开, 鼠标在侧栏内不收回;
+     两态同坐标: 按钮/品牌/图标列全部正常流+固定行高, 展开只是变宽+文字显示 */
+  html.sb-min .top{width:64px;z-index:800;transition:width .18s ease,box-shadow .18s ease}
   html.sb-min .top.sb-open{width:232px;box-shadow:10px 0 28px rgba(20,35,25,.10)}
-  html.sb-min .topin{padding:22px 8px 28px;gap:20px;position:relative}
-  /* 悬停展开: 按钮坐标两态完全一致(不挪位→无 pointerleave 抖动), 展开时图标转 180° */
-  html.sb-min .sb-toggle{align-self:center;margin:0 0 2px;width:48px;height:44px;
-    position:absolute;top:16px;left:8px;z-index:3}
+  html.sb-min .topin{padding:16px 8px 24px;gap:0}
+  html.sb-min .sb-toggle{display:flex;align-items:center;justify-content:center;align-self:flex-start;
+    width:48px;height:44px;margin:0 auto 6px;border-radius:4px}
+  html.sb-min .top.sb-open .sb-toggle{margin:0 0 6px}   /* 坐标不变: align-self 钉死左侧, 不被基础 flex-end 拉去右缘 */
+  html.sb-min .sb-toggle svg{transition:transform .18s}
   html.sb-min .top.sb-open .sb-toggle svg{transform:scaleX(-1)}
-  html.sb-min .desk-brand{padding-left:0;text-align:center;position:absolute;top:74px;left:0;width:48px}
-  html.sb-min .brand{font-size:19px;letter-spacing:-.5px}
-  html.sb-min .top.sb-open .desk-brand{text-align:left;padding-left:22px;width:auto}
+  html.sb-min .desk-brand{padding:0;width:48px;height:56px;text-align:center}
+  html.sb-min .brand{font-size:19px;letter-spacing:-.5px;line-height:30px}
+  html.sb-min .brand-caption{line-height:18px;margin-top:2px}
+  html.sb-min .top.sb-open .desk-brand{width:auto;text-align:left;padding-left:15px}
   html.sb-min .brand-oefl,html.sb-min .brand-lab,html.sb-min .brand-caption{display:none}
   html.sb-min .top.sb-open .brand-oefl,
-  html.sb-min .top.sb-open .brand-lab,
-  html.sb-min .top.sb-open .brand-caption{display:initial}
+  html.sb-min .top.sb-open .brand-lab{display:inline}
   html.sb-min .top.sb-open .brand-caption{display:block}
+  html.sb-min .nav{margin-top:14px}
   html.sb-min .nav button{padding:11px 0;justify-content:center;gap:0}
-  html.sb-min .top.sb-open .nav button{padding:11px 14px;justify-content:flex-start;gap:10px}
+  html.sb-min .top.sb-open .nav button{padding:11px 15px;justify-content:flex-start;gap:10px}
   html.sb-min .nav .nv-t{display:none}
   html.sb-min .top.sb-open .nav .nv-t{display:inline}
   html.sb-min .wrap{margin-left:64px;max-width:1240px;padding:40px 48px 54px}
-}
+
 @media(min-width:1101px){
   html.sb-min .wrap{margin-left:max(64px,calc((100% - 1240px)/2))}
 }
