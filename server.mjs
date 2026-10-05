@@ -346,12 +346,89 @@ const SET_INDEX = Object.fromEntries(CATALOG.map(s => [s.id, s]));
 
 /* ---------- 课程目录（scan_courses.py 产物） ---------- */
 let COURSES = null;
+/* 视频时长: 管线在 catalog 里留了 duration_sec 槽位但为 null（源只读、无 ffprobe 依赖），
+   这里零依赖解析 mp4/mov 容器的 moov→mvhd（vince mp4 与新D方 mov 同为 ISO-BMFF 家族）。 */
+const DUR_MEMO = new Map();
+function videoAbsFromUrl(u) {
+  const s = String(u || '');
+  const dec = x => { try { return decodeURIComponent(x); } catch { return x; } };
+  let m = s.match(/^\/media\/vince\/(.+)$/);
+  if (m) return path.join(SIB, 'vince托福课', dec(m[1]));
+  m = s.match(/^\/media\/ndf\/([^/]+)\/(.+)$/);
+  if (m) return path.join(SIB, '新D方', '新D方新托福全套', dec(m[1]), dec(m[2]));
+  return null;
+}
+function mvhdSeconds(buf) {
+  let off = 0;
+  while (off + 8 <= buf.length) {
+    let size = buf.readUInt32BE(off);
+    const type = buf.toString('latin1', off + 4, off + 8);
+    let hdr = 8;
+    if (size === 1) {
+      if (off + 16 > buf.length) return null;
+      size = Number(buf.readBigUInt64BE(off + 8)); hdr = 16;
+    }
+    if (size < hdr) return null;
+    if (type === 'mvhd') {
+      const b = off + hdr, ver = buf[b];
+      if (ver === 1 && b + 28 <= buf.length) {
+        const ts = buf.readUInt32BE(b + 20);
+        return ts ? Number(buf.readBigUInt64BE(b + 24)) / ts : null;
+      }
+      if (b + 20 <= buf.length) {
+        const ts = buf.readUInt32BE(b + 12);
+        return ts ? buf.readUInt32BE(b + 16) / ts : null;
+      }
+      return null;
+    }
+    off += size;
+  }
+  return null;
+}
+function videoDurationSec(fp) {
+  if (DUR_MEMO.has(fp)) return DUR_MEMO.get(fp);
+  let sec = null, fd = null;
+  try {
+    fd = fs.openSync(fp, 'r');
+    const size = fs.fstatSync(fd).size;
+    let off = 0;
+    for (let guard = 0; guard < 64; guard++) {          // 顶层 box 链: ftyp/free/mdat(跳过)/moov
+      const head = Buffer.alloc(16);
+      if (fs.readSync(fd, head, 0, 16, off) < 8) break;
+      let bsize = head.readUInt32BE(0);
+      const btype = head.toString('latin1', 4, 8);
+      let bhdr = 8;
+      if (bsize === 1) { bsize = Number(head.readBigUInt64BE(8)); bhdr = 16; }
+      else if (bsize === 0) bsize = size - off;         // 0 = 延伸到文件尾
+      if (bsize < bhdr) break;
+      if (btype === 'moov') {                            // mvhd 是 moov 首子盒; 读盒体(跳过自身 8/16 字节头)
+        const len = Math.min(bsize - bhdr, 64 * 1024);
+        const buf = Buffer.alloc(len);
+        fs.readSync(fd, buf, 0, len, off + bhdr);
+        sec = mvhdSeconds(buf);
+        break;
+      }
+      off += bsize;
+    }
+  } catch { /* 读不出保持 null, 前端如实显示 — */ }
+  finally { if (fd != null) { try { fs.closeSync(fd); } catch {} } }
+  DUR_MEMO.set(fp, sec);
+  return sec;
+}
 function loadCourses() {
   if (COURSES) return COURSES;
   try {
     COURSES = JSON.parse(fs.readFileSync(path.join(BUILD_DIR, 'courses', 'catalog.json'), 'utf8'));
   } catch (e) {
     COURSES = { series: [], note: '课程目录尚未生成：先跑 pipeline/scan_courses.py' };
+  }
+  if (COURSES && COURSES.series) {
+    for (const s of COURSES.series) for (const c of s.courses || []) for (const l of c.lessons || []) {
+      if (l.duration_sec == null) {
+        const sec = videoDurationSec(videoAbsFromUrl(l.video));
+        if (Number.isFinite(sec) && sec > 0) l.duration_sec = Math.round(sec);
+      }
+    }
   }
   return COURSES;
 }

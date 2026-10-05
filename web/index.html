@@ -298,6 +298,9 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g,
   c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt = s => { s = Math.max(0, Math.round(s)); const m = Math.floor(s/60), x = s%60;
   return String(m).padStart(2,'0') + ':' + String(x).padStart(2,'0'); };
+const fmtDur = s => { s = Math.round(s||0); if (s < 3600) return fmt(s);
+  const h = Math.floor(s/3600), m = Math.floor(s%3600/60), x = s%60;
+  return h + ':' + String(m).padStart(2,'0') + ':' + String(x).padStart(2,'0'); };
 const SUBN = {listening:'听力', reading:'阅读', writing:'写作', speaking:'口语'};
 const sentenceNorm = s => (String(s||'').toLowerCase().replace(/[‘’]/g,"'").match(/[a-z0-9]+(?:'[a-z0-9]+)*/g)||[]).join(' ');
 const normAns = s => String(s == null ? '' : s).trim().toLowerCase()
@@ -1717,7 +1720,7 @@ function renderCourseNav(){
           const on=(csSel.c===c.id&&csSel.l===li);
           h+=`<div class="cli${done?' done':''}${on?' on':''}" data-cid="${esc(c.id)}" data-ix="${li}">
             <span class="st"><i></i></span><span class="lt">${esc(l.title)}</span>
-            <span class="ld">${l.duration_sec?fmt(l.duration_sec):'—'}</span></div>`;
+            <span class="ld">${l.duration_sec?fmtDur(l.duration_sec):'—'}</span></div>`;
         });
       }
     }
@@ -1747,7 +1750,7 @@ function renderCourseMain(){
   const originals=l.handout?[{file:l.handout_file||'原讲义',url:l.handout}]:(c.handout_pdfs||[]).map(file=>({file,url:l.video.slice(0,l.video.lastIndexOf('/')+1)+encodeURIComponent(file)}));
   el.innerHTML=`<div class="cs-stick">
     <div class="csp-meta"><h3>${esc(l.title)}</h3>
-      <span class="src">${esc(c.title)} · 第 ${csSel.l+1}/${c.lessons.length} 节</span>
+      <span class="src">${esc(c.title)} · 第 ${csSel.l+1}/${c.lessons.length} 节${l.duration_sec?(' · '+fmtDur(l.duration_sec)):''}</span>
       ${cur&&cur.notes_verified?'<span class="chip a">讲义已核读</span>':''}</div>
     <div class="cs-stage">
       <video class="tfl" id="cs-video" controls preload="metadata" src="${esc(l.video)}"></video>
@@ -1781,7 +1784,13 @@ function renderCourseMain(){
   let lastSavedPos=p.pos??null,played=false;
   const savePosition=(pause=false)=>{if(pause&&!v.paused)v.pause();const pos=v.currentTime;if(Number.isFinite(pos)&&(v.readyState>=1||pos>0)&&pos!==lastSavedPos&&(pos>0||played)){lastSavedPos=pos;REC.course[l.id]={...REC.course[l.id],pos,at:Date.now()};recSave();}};
   currentVideoCheckpoint=savePosition;
-  v.addEventListener('pause',()=>savePosition());v.addEventListener('ended',()=>savePosition());
+  v.addEventListener('pause',()=>savePosition());
+  v.addEventListener('ended',()=>{ savePosition();
+    if(!(REC.course[l.id]&&REC.course[l.id].done)){   // 看完整个视频自动标看完(手动按钮保留, 可人工改)
+      REC.course[l.id]={...REC.course[l.id],done:true,at:Date.now()};
+      recSave(); renderCourseNav(); renderCourseMain();
+    }
+  });
   let posT=0;
   v.addEventListener('timeupdate',()=>{
     const now=Date.now();
