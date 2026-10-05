@@ -766,7 +766,8 @@ function tReset(){ if(TICK) clearInterval(TICK); TICK=null;
 let lastNav='home';
 function go(v){
   const isTask=(v==='do');
-  if(!isTask) {checkpointCourse(true);lastNav=v;if(v!=='course')document.body.classList.remove('vfull'); if(TICK) {TACC=usedSec();QACC=qUsedSec();clearInterval(TICK);TICK=null;} STU=false; $('d-audio').pause();const cv=$('cs-video');if(cv)cv.pause();document.querySelectorAll('.ai-audio').forEach(a=>a.pause());} else if(S && !TICK && !T_PAUSED) tStart();
+  if(v!=='course')document.body.classList.remove('vfull');   // 任何非课程视图都不留在铺满态(含做题, 否则考试页滚动被锁)
+  if(!isTask) {checkpointCourse(true);lastNav=v; if(TICK) {TACC=usedSec();QACC=qUsedSec();clearInterval(TICK);TICK=null;} STU=false; $('d-audio').pause();const cv=$('cs-video');if(cv)cv.pause();document.querySelectorAll('.ai-audio').forEach(a=>a.pause());} else if(S && !TICK && !T_PAUSED) tStart();
   document.querySelectorAll('.nav button').forEach(x=>x.classList.toggle('on',x.dataset.v===v));
   const navOn=document.querySelector('.nav button.on');   // 窄屏导航横向滚动时, 当前项要滚入视野
   if(navOn&&navOn.scrollIntoView) navOn.scrollIntoView({block:'nearest',inline:'center'});
@@ -1031,7 +1032,7 @@ function renderSets(){
     const cells=Object.entries(s.subjects||{}).filter(([k,v])=>v.q||v.blocked_reason)
       .sort((a,b)=>(ORD[a[0]]??9)-(ORD[b[0]]??9))
       .map(([k,v])=>v.blocked_reason?`<span class="c unavailable" title="${esc(v.blocked_reason)}"><i></i>${SUBN[k]||k} 暂不可练</span>`:`<span class="c ${s.grade==='A'?'s-full':'s-part'}"><i></i>${SUBN[k]||k} ${v.q}</span>`).join('');
-    return `<div class="srow stag" style="--i:${ix}" data-set="${esc(s.id)}">
+    return `<div class="srow rise" style="--i:${ix}" data-set="${esc(s.id)}">
       <span class="id">${esc(s.id)}</span>
       <span class="stag ${tag[0]}">${s.grade==='A'?'素材 A':(s.grade||'—')}</span>
       <span class="sp4">${cells}</span>
@@ -1768,7 +1769,7 @@ function renderCourseMain(){
         ${(!p.done&&p.pos>10)?`<span class="pill">上次看到 ${fmt(p.pos)} · 已自动定位</span>`:''}
         <span class="grow"></span>
         <button id="cs-vfull" onclick="csVfull()">${document.body.classList.contains('vfull')?'退出铺满':'铺满窗口'}</button>
-        <button onclick="csDone('${esc(c.id)}',${csSel.l})">${p.done?'取消看完':'标记看完'}</button></div>
+        <button id="cs-done-btn" onclick="csDone('${esc(c.id)}',${csSel.l})">${p.done?'取消看完':'标记看完'}</button></div>
     </div>
     <div class="na-box" id="cs-vnote" style="display:none"></div>
     ${cur&&cur.practice?`<div class="cs-act"><div class="l"><span class="k">看完练</span><b>${esc(cur.practice.label)}</b>
@@ -1793,14 +1794,19 @@ function renderCourseMain(){
   });
   v.addEventListener('loadedmetadata',()=>{ if(p.pos&&p.pos<v.duration-5) v.currentTime=p.pos; });
   let lastSavedPos=p.pos??null,played=false;
-  const markDoneOnce=()=>{ const cur=REC.course[l.id]; if(cur&&cur.done) return;   // 看完整个视频自动标看完(手动按钮保留, 可人工改)
-    REC.course[l.id]={...cur,done:true,at:Date.now()}; recSave(); renderCourseNav(); renderCourseMain(); };
+  const markDoneOnce=(inPlace)=>{ const cur=REC.course[l.id]; if(cur&&cur.done) return;   // 看完自动标看完(手动按钮保留)
+    REC.course[l.id]={...cur,done:true,at:Date.now()}; recSave();
+    if(inPlace){   // 片尾前 3 秒的兜底: 原地改状态条, 不重渲染(重渲染会重载视频, 打断最后几秒)
+      const st=$('cs-status');
+      if(st){ const pill=st.querySelector('.pill'); if(pill){pill.className='pill q';pill.textContent='已看完';}
+        const db=st.querySelector('#cs-done-btn'); if(db)db.textContent='取消看完'; }
+    } else { renderCourseNav(); renderCourseMain(); } };
   const savePosition=(pause=false)=>{if(pause&&!v.paused)v.pause();const pos=v.currentTime;
-    if(Number.isFinite(v.duration)&&v.duration>0&&pos>=v.duration-3) markDoneOnce();   // 兜底: 到达片尾即算看完, 不依赖 ended 事件(拖到结尾/卡顿后离开也覆盖)
+    if(Number.isFinite(v.duration)&&v.duration>0&&pos>=v.duration-3) markDoneOnce(true);   // 兜底: 到达片尾即算看完, 不依赖 ended 事件(原地更新, 不打断最后几秒)
     if(Number.isFinite(pos)&&(v.readyState>=1||pos>0)&&pos!==lastSavedPos&&(pos>0||played)){lastSavedPos=pos;REC.course[l.id]={...REC.course[l.id],pos,at:Date.now()};recSave();}};
   currentVideoCheckpoint=savePosition;
   v.addEventListener('pause',()=>savePosition());
-  v.addEventListener('ended',()=>{ savePosition(); markDoneOnce(); });
+  v.addEventListener('ended',()=>{ savePosition(); markDoneOnce(false); });
   let posT=0;
   v.addEventListener('timeupdate',()=>{
     const now=Date.now();
@@ -1857,10 +1863,10 @@ function renderCourseMain(){
           return;
         }
       }
-      hand.querySelector('p').textContent='讲义为图片版且页图未抽取（重跑 pipeline/scan_courses.py 可生成）。';
+      hand.innerHTML='<div class="empty">讲义为图片版且页图未抽取（重跑 pipeline/scan_courses.py 可生成）。</div>';
     });
   } else {
-    hand.querySelector('p').textContent='该课暂无讲义文本。';
+    hand.innerHTML='<div class="empty">该课暂无讲义文本。</div>';
   }
   const gq=$('cs-goquiz');
   if(gq) gq.onclick=async()=>{
@@ -1929,7 +1935,7 @@ async function renderReview(){
     const col=due<=Date.now()?'var(--bad)':(due<=Date.now()+3*864e5?'var(--warn)':'var(--ok)');
     const dt=due<=Date.now()?'今天该复习':'距复习 '+Math.max(1,Math.ceil((due-Date.now())/864e5))+' 天';
     const [set,subj]=k.split('/');
-    return `<div class="witem stag" style="border-left:3px solid ${col};--i:${ix}">
+    return `<div class="witem rise" style="border-left:3px solid ${col};--i:${ix}">
       <div class="c">
         <div class="q" title="${esc(main)}">${esc(main)}</div>
         <div class="m"><span class="m-src">${esc(material||SUBN[subj]||'')}</span>${material?' · ':''}${esc('错 '+(m.n_wrong||1)+' 次')} · <span class="m-due" style="color:${col}">${esc(dt)}</span><span class="m-qid">${esc(k)}</span></div>

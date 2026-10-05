@@ -890,8 +890,9 @@ body,button,input,textarea,.brand,.brand span,.lead h1,.pt,.part strong,.part em
 @keyframes eqB{0%,100%{height:4px}45%{height:12px}60%{height:7px}}
 .ab .ab-eq{margin-left:2px}
 
-/* 3) 列表级联入场: 行元素带 class="stag" + style="--i:序号" */
-.stag{animation:fadeUp .32s cubic-bezier(.2,.7,.3,1) both;
+/* 3) 列表级联入场: 行元素带 class="rise" + style="--i:序号"
+   (类名勿用 .stag——整套练习的状态徽章就叫 .stag, r24 撞车教训) */
+.rise{animation:fadeUp .32s cubic-bezier(.2,.7,.3,1) both;
   animation-delay:calc(min(var(--i,0),12)*34ms)}
 @keyframes fadeUp{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
 
