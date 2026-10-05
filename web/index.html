@@ -104,19 +104,21 @@ details.ai-tsec[open] summary{margin-bottom:8px}
   border:1px solid var(--warnln,#e0c9a0);border-left:3px solid #b8863b;border-radius:4px;
   font-size:13px;line-height:1.7;color:#7a5b23}
 </style>
+<script>try{if(localStorage.getItem('tfl-sb')==='min')document.documentElement.classList.add('sb-min')}catch(e){}</script>
 </head>
 <body>
 
 <div class="top">
   <div class="topin">
-    <div class="desk-brand"><span class="brand">TOEFL<span class="brand-lab">Lab</span><span class="brand-dot">.</span></span><span class="brand-caption">个人练习空间</span></div>
+    <button id="sb-toggle" class="sb-toggle" title="折叠/展开侧栏" aria-label="折叠/展开侧栏"><span>«</span></button>
+    <div class="desk-brand"><span class="brand"><span class="brand-t">T</span><span class="brand-oefl">OEFL&nbsp;</span><span class="brand-lab">Lab</span><span class="brand-dot">.</span></span><span class="brand-caption">个人练习空间</span></div>
     <div class="nav">
-      <button class="on" data-v="home">首页</button>
-      <button data-v="drill">专项训练</button>
-      <button data-v="sets">整套练习</button>
-      <button data-v="course">视频课</button>
-      <button data-v="review">错题本</button>
-      <button data-v="stats">数据分析</button>
+      <button class="on" data-v="home" title="首页"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 10.5 12 3.5l8.5 7"/><path d="M5.5 9.5V20h13V9.5"/></svg><span class="nv-t">首页</span></button>
+      <button data-v="drill" title="专项训练"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.6"/></svg><span class="nv-t">专项训练</span></button>
+      <button data-v="sets" title="整套练习"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M12 3.5 20.5 8 12 12.5 3.5 8Z"/><path d="M4.5 12.5 12 16.5l7.5-4"/><path d="M4.5 16.5 12 20.5l7.5-4"/></svg><span class="nv-t">整套练习</span></button>
+      <button data-v="course" title="视频课"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M10 8.5 16 12l-6 3.5Z"/></svg><span class="nv-t">视频课</span></button>
+      <button data-v="review" title="错题本"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M5 4.5h13.5V20H6.8A1.8 1.8 0 0 1 5 18.2Z"/><path d="M9 4.5V20"/></svg><span class="nv-t">错题本</span></button>
+      <button data-v="stats" title="数据分析"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 20h16"/><path d="M7.5 16.5v-5"/><path d="M12 16.5V7"/><path d="M16.5 16.5v-8"/></svg><span class="nv-t">数据分析</span></button>
     </div>
   </div>
 </div>
@@ -801,6 +803,10 @@ function route(){
 window.addEventListener('hashchange',route);
 window.goBack=function(){ nav(lastNav||'home'); };
 document.querySelectorAll('.nav button').forEach(b=>{ b.onclick=()=>nav(b.dataset.v); });
+document.getElementById('sb-toggle').onclick=()=>{
+  const min=document.documentElement.classList.toggle('sb-min');
+  try{localStorage.setItem('tfl-sb',min?'min':'full')}catch(e){}
+};
 function moveThumb(seg){
   const on=seg.querySelector('button.on'), th=seg.querySelector('.thumb');
   if(!on||!th) return;

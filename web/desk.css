@@ -927,3 +927,33 @@ body.vfull .cs-status button:hover{background:#28392d;border-color:#4d6350}
    只显示绿色 ✓, 用透明度呼吸表达"正在播放", 不再叠点。 */
 .cli.done.on .st i{width:auto;height:auto;background:none;color:var(--ok);
   animation:cspulse 1.6s ease-in-out infinite}
+
+/* ==== style block 18: 可折叠侧栏(Codex 式图标轨) ====
+   折叠=64px 图标轨: 品牌缩成"T."、导航只留图标(悬浮 title 有全名)、内容区拿走剩余空间
+   (上限 1150→1240)。状态存 localStorage('tfl-sb'), head 预置脚本防刷新闪烁。
+   仅桌面(>700px)可折叠; ≤700 顶栏本来就是横向的, 折叠无意义。 */
+.nav button{display:flex;align-items:center;gap:10px}
+.nav button svg{flex-shrink:0}
+.sb-toggle{align-self:flex-end;margin:0 6px 2px 0;border:0;background:none;border-radius:4px;
+  min-width:30px;height:30px;color:var(--t2);font-size:15px;
+  line-height:1;cursor:pointer;padding:0}
+.sb-toggle:hover{background:var(--hover);color:var(--t1)}
+.top{transition:width .18s ease}
+.wrap{transition:margin-left .18s ease}
+.sb-toggle span{display:inline-block;transition:transform .18s}
+@media(max-width:700px){.sb-toggle{display:none}}
+@media(min-width:701px){
+  html.sb-min .top{width:64px}
+  html.sb-min .topin{padding:22px 8px 28px;gap:20px}
+  html.sb-min .sb-toggle{align-self:center;margin:0 0 2px}
+  html.sb-min .sb-toggle span{transform:rotate(180deg)}
+  html.sb-min .desk-brand{padding-left:0;text-align:center}
+  html.sb-min .brand{font-size:19px;letter-spacing:-.5px}
+  html.sb-min .brand-oefl,html.sb-min .brand-lab,html.sb-min .brand-caption{display:none}
+  html.sb-min .nav button{padding:11px 0;justify-content:center;gap:0}
+  html.sb-min .nav .nv-t{display:none}
+  html.sb-min .wrap{margin-left:64px;max-width:1240px;padding:40px 48px 54px}
+}
+@media(min-width:1101px){
+  html.sb-min .wrap{margin-left:max(64px,calc((100% - 1240px)/2))}
+}
