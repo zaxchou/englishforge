@@ -1743,20 +1743,25 @@ function renderCourseMain(){
     <div class="csp-meta"><h3>${esc(l.title)}</h3>
       <span class="src">${esc(c.title)} · 第 ${csSel.l+1}/${c.lessons.length} 节</span>
       ${cur&&cur.notes_verified?'<span class="chip a">讲义已核读</span>':''}</div>
-    <video class="tfl" id="cs-video" controls preload="metadata" src="${esc(l.video)}"></video>
+    <div class="cs-stage">
+      <video class="tfl" id="cs-video" controls preload="metadata" src="${esc(l.video)}"></video>
+      <div class="cs-status"><span class="pill ${p.done?'q':'t'}">${p.done?'已看完':'未看完'}</span>
+        ${(!p.done&&p.pos>10)?`<span class="pill">上次看到 ${fmt(p.pos)} · 已自动定位</span>`:''}
+        <span class="grow"></span>
+        <button onclick="csDone('${esc(c.id)}',${csSel.l})">${p.done?'取消看完':'标记看完'}</button></div>
+    </div>
     <div class="na-box" id="cs-vnote" style="display:none"></div>
-    <div class="csqline"><span>本节</span>
-      <span class="pill ${p.done?'q':'t'}">${p.done?'已看完':'未看完'}</span>
-      ${(!p.done&&p.pos>10)?`<span class="pill">上次看到 ${fmt(p.pos)} · 已自动定位</span>`:''}
-      <span style="flex:1"></span>
-      <button onclick="csDone('${esc(c.id)}',${csSel.l})">${p.done?'取消看完':'标记看完'}</button></div>
-    ${cur?.notes_verified&&cur.key_points?.length?`<div class="handout" style="margin:18px 0"><h5>本节学习提示</h5><ul>${cur.key_points.map(point=>`<li style="margin:8px 0;line-height:1.7">${esc(point)}</li>`).join('')}</ul><p style="font-size:12px;color:var(--t2)">依据讲义整理，不是老师逐字原话。来源：${esc(cur.notes_source||'课程讲义')}</p></div>`:''}
-    ${originals.length?`<div class="handout" id="cs-original"><h5>原版讲义（保留图表与排版）</h5>${originals.map(x=>`<p><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.file)}</a></p>`).join('')}</div>`:''}
-    <div class="csbelow">
-      <div class="handout" id="cs-handout"><h5>讲义 <span class="tag-src">${esc(l.handout_file||(c.handout_pdfs||[]).join(' / ')||'—')}</span></h5>
-        <p>讲义文本加载中…</p></div>
-      <div class="linkbar" id="cs-link"></div>
-    </div></div>`;
+    ${cur&&cur.practice?`<div class="cs-act"><div class="l"><span class="k">看完练</span><b>${esc(cur.practice.label)}</b>
+      <span class="why">${esc(cur.why||'')}</span></div>
+      <button class="pri" id="cs-goquiz">练这组 →</button></div>`:''}
+    ${cur?.notes_verified&&cur.key_points?.length?`<div class="handout" style="margin:16px 0 0"><h5>本节学习提示</h5><ul>${cur.key_points.map(point=>`<li style="margin:8px 0;line-height:1.7">${esc(point)}</li>`).join('')}</ul><p style="font-size:12px;color:var(--t2)">依据讲义整理，不是老师逐字原话。来源：${esc(cur.notes_source||'课程讲义')}</p></div>`:''}
+    <div class="card" style="margin-top:16px;overflow:hidden">
+      <div class="phead"><div class="l"><b>本节讲义</b></div>
+        <div class="r">${originals.map(x=>`<a class="orig-link" href="${esc(x.url)}" target="_blank" rel="noopener">原版：${esc(x.file)} ↗</a>`).join(' ')}</div></div>
+      <div class="handout-scroll"><div class="handout" id="cs-handout" style="background:none;border-radius:0"><p>讲义文本加载中…</p></div></div>
+    </div>
+    <div class="linkbar" id="cs-link" style="margin-top:16px"></div>
+  </div>`;
   const v=$('cs-video');
   v.addEventListener('error',()=>{
     const nn=$('cs-vnote');
@@ -1828,17 +1833,16 @@ function renderCourseMain(){
   } else {
     hand.querySelector('p').textContent='该课暂无讲义文本。';
   }
+  const gq=$('cs-goquiz');
+  if(gq) gq.onclick=async()=>{
+    const pr=cur.practice;
+    if(pr.subject==='writing'||pr.subject==='speaking') await enterTask(pr.set,pr.subject);
+    else await enterGroup(pr.set,pr.subject,'m'+pr.module,pr.group);
+  };
   const link=$('cs-link');
-  if(cur&&cur.practice){
-    link.innerHTML=`<span class="k">看完练</span><b>${esc(cur.practice.label)}</b>
-      <span style="font-size:12px;color:var(--t2)">${esc(cur.why||'')}</span>
-      <button class="pri" id="cs-goquiz">练这组 →</button>`;
-    $('cs-goquiz').onclick=async()=>{
-      const pr=cur.practice;
-      if(pr.subject==='writing'||pr.subject==='speaking') await enterTask(pr.set,pr.subject);
-      else await enterGroup(pr.set,pr.subject,'m'+pr.module,pr.group);
-    };
-  } else {
+  if(cur&&cur.practice){ link.style.display='none'; }
+  else {
+    link.style.display='';
     link.innerHTML=`<span class="k" style="color:var(--t2)">本节暂无指定题组（方法课后去「${SUBN[c.subject]||'专项'}」按题型挑题）</span>
       <button onclick="location.hash='#/drill/${esc(c.subject)}'">去专项 →</button>`;
   }

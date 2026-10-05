@@ -713,3 +713,34 @@ body,button,input,textarea,.brand,.brand span,.lead h1,.pt,.part strong,.part em
   .srow2 .p-acc{display:inline}
   .srow2 button{grid-column:2;justify-self:start;margin-top:2px}
 }
+
+/* ==== style block 13: 视频课本节区 ====
+   播放器+状态条一体卡 → 看完练行动卡 → 讲义卡(固定高度滚动容器, 页图限宽居中)。 */
+.cs-stage{border:1px solid var(--line);border-radius:4px;overflow:hidden;background:#161616}
+.cs-stage video.tfl{border:0;border-radius:0;aspect-ratio:16/9}
+.cs-status{display:flex;align-items:center;gap:10px;background:var(--card);
+  border-top:1px solid var(--line);padding:11px 16px}
+.cs-status .grow{flex:1}
+.cs-status button{border:1px solid #d7dfcf;border-radius:4px;background:#f9fbf4;
+  color:#305540;font-size:13px;min-height:36px;padding:0 14px}
+.cs-status button:hover{background:#e8efdf;border-color:#b9c9ab}
+.cs-act{display:flex;align-items:center;gap:14px;margin-top:16px;padding:15px 18px;
+  background:#e7efdc;border:1px solid #b9c9ab;border-radius:4px}
+.cs-act .l{flex:1;min-width:0;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.cs-act .k{font-size:11px;color:#4d7a5f;letter-spacing:.08em}
+.cs-act b{font-size:15px;font-weight:600;color:#244433}
+.cs-act .why{font-size:12px;color:#5d6f5b}
+.cs-act .pri{flex-shrink:0}
+.handout-scroll{max-height:560px;overflow-y:auto;background:#fbfcf6}
+.handout-scroll .handout{background:none;border-radius:0;padding:14px 22px 20px}
+.handout-scroll .hslide{max-width:760px;margin:0 auto 16px}
+.handout-scroll .hslide img{display:block;margin:0 auto;max-height:70vh;width:auto;max-width:100%}
+.handout-scroll .hslide .tx{max-height:none}
+.phead .orig-link{font-size:12px;color:#52674a;text-decoration:none;border-bottom:1px dotted #b9c9ab;margin-left:10px}
+.phead .orig-link:hover{color:#21492f}
+@media(max-width:820px){
+  .handout-scroll{max-height:420px}
+  .handout-scroll .handout{padding:12px 14px 16px}
+  .cs-act{flex-wrap:wrap}
+  .cs-act .pri{width:100%}
+}
