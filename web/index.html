@@ -1672,6 +1672,10 @@ window.openCourse=function(cid){
   renderCourseNav(); renderCourseMain();
 };
 window.openLesson=function(cid,ix){ csSel={c:cid,l:ix}; csExp[cid]=true; renderCourseNav(); renderCourseMain(); };
+window.csNextLesson=function(){
+  const c=courseById(csSel.c); if(!c) return;
+  const n=csSel.l+1; if(n<c.lessons.length) openLesson(c.id,n);   // 最后一节则原地不动
+};
 window.csVfull=function(){
   document.body.classList.toggle('vfull');
   const b=document.getElementById('cs-vfull');
@@ -1683,8 +1687,10 @@ window.csDone=function(cid,ix){
   const l=c.lessons[ix]; if(!l) return;
   const p=REC.course[l.id];
   checkpointCourse();
-  REC.course[l.id]={...REC.course[l.id],done:!(p&&p.done),at:Date.now()};
+  const turnedOn=!(p&&p.done);
+  REC.course[l.id]={...REC.course[l.id],done:turnedOn,at:Date.now()};
   recSave(); renderCourseNav(); renderCourseMain();
+  if(turnedOn) csNextLesson();   // 标记完成即进下一节; 取消看完不跳
 };
 function renderCourse(){
   const t=((COURSES&&COURSES.series)||[]).reduce((a,s)=>a+(s.courses||[]).reduce((b,c)=>b+(c.lesson_count||0),0),0);
@@ -1807,7 +1813,7 @@ function renderCourseMain(){
     if(Number.isFinite(pos)&&(v.readyState>=1||pos>0)&&pos!==lastSavedPos&&(pos>0||played)){lastSavedPos=pos;REC.course[l.id]={...REC.course[l.id],pos,at:Date.now()};recSave();}};
   currentVideoCheckpoint=savePosition;
   v.addEventListener('pause',()=>savePosition());
-  v.addEventListener('ended',()=>{ savePosition(); markDoneOnce(false); });
+  v.addEventListener('ended',()=>{ savePosition(); markDoneOnce(false); csNextLesson(); });   // 播完自动进下一节(阈值兜底不跳, 等真正 ended)
   let posT=0;
   v.addEventListener('timeupdate',()=>{
     const now=Date.now();

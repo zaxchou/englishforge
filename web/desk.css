@@ -921,3 +921,9 @@ body.vfull .cs-stage video.tfl{flex:1;min-height:0;width:100%;height:auto;aspect
 body.vfull .cs-status{background:#161d17;border-top:1px solid #2c362e}
 body.vfull .cs-status button{background:#1f2a22;border-color:#3a4a3e;color:#c9d8cc}
 body.vfull .cs-status button:hover{background:#28392d;border-color:#4d6350}
+
+/* ---- 完成态×播放中: 勾与呼吸点重叠修复 ----
+   .cli.on 的实心点规则会盖在 .done 的 ✓ 上(截图事故)。已完成且正在播放的课节:
+   只显示绿色 ✓, 用透明度呼吸表达"正在播放", 不再叠点。 */
+.cli.done.on .st i{width:auto;height:auto;background:none;color:var(--ok);
+  animation:cspulse 1.6s ease-in-out infinite}
