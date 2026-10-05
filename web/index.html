@@ -1199,9 +1199,16 @@ function renderQ(){
         h+=`<div class="passage" style="padding:10px 14px">${it.body.map(esc).join('<br>')}</div>`;
       if(r.task?.kind==='discussion'&&it.body&&it.body.length)
         h+=`<div class="passage">${esc(it.body.join('\n\n'))}</div>`;
+      // 已提交(重进/回看): 只读展示已提交内容, 不再给可编辑框(数据层不可改)
+      const submittedWrite=(REC.writing&&REC.writing[it.qid]&&REC.writing[it.qid].submitted)||S.revealed;
+      if(submittedWrite){
+        h+=`<div class="na-box"><b>已提交</b> · 重新进入为只读回看${draftOf(r)?'':'（当时未作答）'}</div>
+      <textarea id="d-wr" readonly style="background:var(--sunk);color:var(--t2)">${esc(draftOf(r))}</textarea>`;
+      } else {
       h+=`<textarea id="d-wr" placeholder="在这里作答…">${esc(draftOf(r))}</textarea>
       <div class="task-timer"><span class="tt-lab">本题剩余</span> <span class="tt-val" id="d-task-t">--:--</span>
       <span class="wc" id="d-wordc">0 词</span></div>`;
+      }
     }
   } else if(r.kind==='speak'){
     h+=`<div class="qt">Speaking · 第 ${r.it.no} 题</div>`;
@@ -1212,11 +1219,17 @@ function renderQ(){
     if(r.it.audio_evidence)h+=`<div class="na-box">${esc(r.it.audio_evidence.scope)}。依据：${esc(r.it.audio_evidence.method)}；尚未人工逐题核验。</div>`;
     if(r.it.audio&&Number.isFinite(r.it.audio_cue))h+=`<button class="sm" id="d-source-cue">跳到本题附近 ${fmt(r.it.audio_cue)}（ASR 定位）</button>`;
     if(!r.it.audio) h+=`<div class="na-box">${esc(r.it.audio_issue||'本题没有可确认对应的口语录音。')} · 可读题、保存笔记；听后复述训练暂不可用。</div>`;
+    const submittedSpeak=(REC.writing&&REC.writing[it.qid]&&REC.writing[it.qid].submitted)||S.revealed;
+    if(submittedSpeak){
+      h+=`<div class="na-box"><b>已提交</b> · 重新进入为只读回看${draftOf(r)?'':'（当时未作答）'}</div>
+      <textarea id="d-wr" readonly style="background:var(--sunk);color:var(--t2)">${esc(draftOf(r))}</textarea>`;
+    } else {
     h+=`<div class="na-box">录音、上传与保存<b class="avail-no">本批未接入</b>（当前为静态资料与练习工具）。
       现在可以先听音频、看题；把要说的要点写下来会被保存。</div>
       <div class="task-timer"><span class="tt-lab" id="d-sp-phase">准备</span> <span class="tt-val" id="d-task-t">--:--</span>
       <span class="wc">正式考试此时自动录音、到时自动停（本批未接入录音）</span></div>
       <textarea id="d-wr" placeholder="（可选）先写下你想说的要点…" style="margin-top:10px">${esc(draftOf(r))}</textarea>`;
+    }
   }
   $('d-body').innerHTML=h;
   wireQ();
