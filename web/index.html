@@ -1800,6 +1800,7 @@ function renderCourseMain(){
       const st=$('cs-status');
       if(st){ const pill=st.querySelector('.pill'); if(pill){pill.className='pill q';pill.textContent='已看完';}
         const db=st.querySelector('#cs-done-btn'); if(db)db.textContent='取消看完'; }
+      renderCourseNav();   // 只重绘左栏列表(不碰视频), 勾选即时跟上
     } else { renderCourseNav(); renderCourseMain(); } };
   const savePosition=(pause=false)=>{if(pause&&!v.paused)v.pause();const pos=v.currentTime;
     if(Number.isFinite(v.duration)&&v.duration>0&&pos>=v.duration-3) markDoneOnce(true);   // 兜底: 到达片尾即算看完, 不依赖 ended 事件(原地更新, 不打断最后几秒)
