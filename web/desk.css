@@ -907,3 +907,16 @@ button.pri,.op-redo{position:relative;overflow:hidden}
 .ripple{position:absolute;border-radius:50%;background:rgba(255,255,255,.3);
   transform:scale(0);animation:rip .62s ease-out forwards;pointer-events:none}
 @keyframes rip{to{transform:scale(1);opacity:0}}
+
+/* ==== style block 17: 视频窗口铺满(非系统全屏) ====
+   窄屏显示器场景: 视频区 fixed 铺满浏览器视口, 窗口本身可浮在其它窗口上方;
+   状态条随行(标记看完/铺满切换), Esc 或按钮退出; 仅 CSS 挪显, 视频节点不动不重载。 */
+body.vfull{overflow:hidden}
+body.vfull .top{display:none}
+body.vfull .cs-stage{position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;
+  border:0;border-radius:0;background:#000}
+body.vfull .cs-stage video.tfl{flex:1;min-height:0;width:100%;height:auto;aspect-ratio:auto;
+  object-fit:contain;background:#000;border-radius:0}
+body.vfull .cs-status{background:#161d17;border-top:1px solid #2c362e}
+body.vfull .cs-status button{background:#1f2a22;border-color:#3a4a3e;color:#c9d8cc}
+body.vfull .cs-status button:hover{background:#28392d;border-color:#4d6350}

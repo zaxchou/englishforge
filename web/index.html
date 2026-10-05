@@ -766,7 +766,7 @@ function tReset(){ if(TICK) clearInterval(TICK); TICK=null;
 let lastNav='home';
 function go(v){
   const isTask=(v==='do');
-  if(!isTask) {checkpointCourse(true);lastNav=v; if(TICK) {TACC=usedSec();QACC=qUsedSec();clearInterval(TICK);TICK=null;} STU=false; $('d-audio').pause();const cv=$('cs-video');if(cv)cv.pause();document.querySelectorAll('.ai-audio').forEach(a=>a.pause());} else if(S && !TICK && !T_PAUSED) tStart();
+  if(!isTask) {checkpointCourse(true);lastNav=v;if(v!=='course')document.body.classList.remove('vfull'); if(TICK) {TACC=usedSec();QACC=qUsedSec();clearInterval(TICK);TICK=null;} STU=false; $('d-audio').pause();const cv=$('cs-video');if(cv)cv.pause();document.querySelectorAll('.ai-audio').forEach(a=>a.pause());} else if(S && !TICK && !T_PAUSED) tStart();
   document.querySelectorAll('.nav button').forEach(x=>x.classList.toggle('on',x.dataset.v===v));
   const navOn=document.querySelector('.nav button.on');   // 窄屏导航横向滚动时, 当前项要滚入视野
   if(navOn&&navOn.scrollIntoView) navOn.scrollIntoView({block:'nearest',inline:'center'});
@@ -1671,6 +1671,12 @@ window.openCourse=function(cid){
   renderCourseNav(); renderCourseMain();
 };
 window.openLesson=function(cid,ix){ csSel={c:cid,l:ix}; csExp[cid]=true; renderCourseNav(); renderCourseMain(); };
+window.csVfull=function(){
+  document.body.classList.toggle('vfull');
+  const b=document.getElementById('cs-vfull');
+  if(b) b.textContent=document.body.classList.contains('vfull')?'退出铺满':'铺满窗口';
+};
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&document.body.classList.contains('vfull')) csVfull(); });
 window.csDone=function(cid,ix){
   const c=courseById(cid); if(!c) return;
   const l=c.lessons[ix]; if(!l) return;
@@ -1761,6 +1767,7 @@ function renderCourseMain(){
       <div class="cs-status"><span class="pill ${p.done?'q':'t'}">${p.done?'已看完':'未看完'}</span>
         ${(!p.done&&p.pos>10)?`<span class="pill">上次看到 ${fmt(p.pos)} · 已自动定位</span>`:''}
         <span class="grow"></span>
+        <button id="cs-vfull" onclick="csVfull()">${document.body.classList.contains('vfull')?'退出铺满':'铺满窗口'}</button>
         <button onclick="csDone('${esc(c.id)}',${csSel.l})">${p.done?'取消看完':'标记看完'}</button></div>
     </div>
     <div class="na-box" id="cs-vnote" style="display:none"></div>
