@@ -1782,15 +1782,14 @@ function renderCourseMain(){
   });
   v.addEventListener('loadedmetadata',()=>{ if(p.pos&&p.pos<v.duration-5) v.currentTime=p.pos; });
   let lastSavedPos=p.pos??null,played=false;
-  const savePosition=(pause=false)=>{if(pause&&!v.paused)v.pause();const pos=v.currentTime;if(Number.isFinite(pos)&&(v.readyState>=1||pos>0)&&pos!==lastSavedPos&&(pos>0||played)){lastSavedPos=pos;REC.course[l.id]={...REC.course[l.id],pos,at:Date.now()};recSave();}};
+  const markDoneOnce=()=>{ const cur=REC.course[l.id]; if(cur&&cur.done) return;   // 看完整个视频自动标看完(手动按钮保留, 可人工改)
+    REC.course[l.id]={...cur,done:true,at:Date.now()}; recSave(); renderCourseNav(); renderCourseMain(); };
+  const savePosition=(pause=false)=>{if(pause&&!v.paused)v.pause();const pos=v.currentTime;
+    if(Number.isFinite(v.duration)&&v.duration>0&&pos>=v.duration-3) markDoneOnce();   // 兜底: 到达片尾即算看完, 不依赖 ended 事件(拖到结尾/卡顿后离开也覆盖)
+    if(Number.isFinite(pos)&&(v.readyState>=1||pos>0)&&pos!==lastSavedPos&&(pos>0||played)){lastSavedPos=pos;REC.course[l.id]={...REC.course[l.id],pos,at:Date.now()};recSave();}};
   currentVideoCheckpoint=savePosition;
   v.addEventListener('pause',()=>savePosition());
-  v.addEventListener('ended',()=>{ savePosition();
-    if(!(REC.course[l.id]&&REC.course[l.id].done)){   // 看完整个视频自动标看完(手动按钮保留, 可人工改)
-      REC.course[l.id]={...REC.course[l.id],done:true,at:Date.now()};
-      recSave(); renderCourseNav(); renderCourseMain();
-    }
-  });
+  v.addEventListener('ended',()=>{ savePosition(); markDoneOnce(); });
   let posT=0;
   v.addEventListener('timeupdate',()=>{
     const now=Date.now();
