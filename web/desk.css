@@ -314,9 +314,10 @@ textarea{width:100%;min-height:150px;padding:var(--s3) 13px;resize:vertical;line
 .tbar .tfull i.bad{background:var(--bad)}
 
 /* ---- 视频课 · 双栏 ----
-   左栏 340px sticky: 系列分组 → 课程 → 章节三级树
+   主角=视频: 左栏导航弹性收放(树形条目全部省略号截断, 230~290 足够),
+   901-1500 中档视口再收一档(见 block 15), 右栏拿走剩余全部宽度;
    右栏: 播放器 sticky 顶部, 切节零滚动 */
-.csplit{display:grid;grid-template-columns:340px minmax(0,1fr);gap:var(--s4);align-items:start}
+.csplit{display:grid;grid-template-columns:minmax(230px,290px) minmax(0,1fr);gap:var(--s4);align-items:start}
 @media(max-width:900px){.csplit{grid-template-columns:1fr}}
 
 /* 左栏导航 */
@@ -834,4 +835,15 @@ body,button,input,textarea,.brand,.brand span,.lead h1,.pt,.part strong,.part em
 @media(max-width:400px){
   .st-side{gap:18px}
   .st-side .n b{font-size:24px}
+}
+
+/* ==== style block 15: 中档视口再平衡 ====
+   用户 1333px 档: 侧栏 232 + wrap 内边距 62×2 + csplit 左栏写死 340 = 视频只剩 ~600px。
+   三步收复: ①csplit 左栏 340→弹性(见基础规则); ②901-1500 左栏再收一档 250 + 栏距用 --s3;
+   ③同档 wrap 内边距 62→44(所有内页受益)。1101- 与 ≤900 的既有规则不越界(用区间隔离)。 */
+@media(min-width:901px) and (max-width:1500px){
+  .csplit{grid-template-columns:minmax(210px,250px) minmax(0,1fr);gap:var(--s3)}
+}
+@media(min-width:1101px) and (max-width:1500px){
+  .wrap{padding:40px 44px 52px}
 }
