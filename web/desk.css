@@ -154,8 +154,8 @@ p.sub{font-size:var(--f4);color:var(--t2);margin:0 0 16px}
 .srow .sp4{display:grid;grid-template-columns:repeat(4,1fr);gap:var(--s2);flex:1;min-width:0}
 .srow .c{font-size:var(--f5);color:var(--t2);display:flex;align-items:center;gap:var(--s1);white-space:nowrap}
 .srow .c i{width:6px;height:6px;border-radius:2px;background:var(--line2);flex-shrink:0}
-.srow .c.full i{background:var(--ok)}
-.srow .c.part i{background:var(--warn)}
+.srow .c.s-full i{background:var(--ok)}
+.srow .c.s-part i{background:var(--warn)}
 .srow .pct{font-size:var(--f3);font-weight:500;width:38px;text-align:right;
   font-variant-numeric:tabular-nums;flex-shrink:0}
 
@@ -576,7 +576,9 @@ body,button,input,textarea,.brand,.brand span,.lead h1,.pt,.part strong,.part em
 .listening-guide p{margin:6px 0 0;font-size:13px;color:var(--t2)}
 @media(max-width:700px){#d-subjects{padding:12px 15px;gap:7px}#d-subjects button{flex:1;padding:8px 6px}#d-subjects>span{width:100%;margin:0}.qgh-enter{flex:1;min-width:0;flex-wrap:wrap;gap:3px}.qgh .sm{margin-left:0}.qgs .qn{width:auto;min-width:28px;padding:0 4px}}
 
-.c.unavailable{color:#7b6354;background:#f3eee8}.c.unavailable i{background:#ab8065!important}
+/* 不可练: 纯文字弱化态(无色块), 悬浮 title 有封锁原因; 类名禁用 part/full——
+   曾与研读桌 .part{min-height:104px;display:grid} 撞车, 非 A 套题行整体被撑高 */
+.c.unavailable{color:var(--t3)}.c.unavailable i{background:#ab8065!important}
 
 /* ==== style block 9: 品牌字标 ====
    母题 = 绿句点（与首屏 h1 的 heading-dot 同源）。衬线正体 TOEFL + 斜体 Lab，
@@ -847,3 +849,11 @@ body,button,input,textarea,.brand,.brand span,.lead h1,.pt,.part strong,.part em
 @media(min-width:1101px) and (max-width:1500px){
   .wrap{padding:40px 44px 52px}
 }
+
+/* --- block 15 补充: 视频课导航标题可读性 ---
+   左栏收窄后标题单行截断看不全 → 课程名/课节名放开两行(-webkit-line-clamp:2),
+   行内加 title 悬浮看全文。列表本就滚动容器, 行高增长可接受。 */
+.cli .lt{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+  overflow:hidden;line-height:1.45;overflow-wrap:anywhere}
+.csi .t b{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+  overflow:hidden;line-height:1.4;overflow-wrap:anywhere}

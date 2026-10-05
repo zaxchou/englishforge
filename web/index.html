@@ -1025,8 +1025,10 @@ function renderSets(){
     const st=setStat(s);
     const pct=st.t?Math.min(100,Math.round(st.d/st.t*100)):0;
     const tag=st.t&&st.d>=st.t?['done','已完成']:(st.d>0?['doing','进行中']:['','未开始']);
+    const ORD={listening:0,reading:1,writing:2,speaking:3};
     const cells=Object.entries(s.subjects||{}).filter(([k,v])=>v.q||v.blocked_reason)
-      .map(([k,v])=>v.blocked_reason?`<span class="c unavailable" title="${esc(v.blocked_reason)}"><i></i>${SUBN[k]||k} 暂不可练</span>`:`<span class="c ${s.grade==='A'?'full':'part'}"><i></i>${SUBN[k]||k} ${v.q}</span>`).join('');
+      .sort((a,b)=>(ORD[a[0]]??9)-(ORD[b[0]]??9))
+      .map(([k,v])=>v.blocked_reason?`<span class="c unavailable" title="${esc(v.blocked_reason)}"><i></i>${SUBN[k]||k} 暂不可练</span>`:`<span class="c ${s.grade==='A'?'s-full':'s-part'}"><i></i>${SUBN[k]||k} ${v.q}</span>`).join('');
     return `<div class="srow" data-set="${esc(s.id)}">
       <span class="id">${esc(s.id)}</span>
       <span class="stag ${tag[0]}">${s.grade==='A'?'素材 A':(s.grade||'—')}</span>
@@ -1708,7 +1710,7 @@ function renderCourseNav(){
     for(const c of list){
       const cd=(c.lessons||[]).filter(l=>REC.course[l.id]&&REC.course[l.id].done).length;
       const tot=c.lesson_count||0, open=!!csExp[c.id];
-      h+=`<div class="csi ${open?'open':''}" data-cid="${esc(c.id)}">
+      h+=`<div class="csi ${open?'open':''}" data-cid="${esc(c.id)}" title="${esc(c.title)}">
         <span class="no">${c.no!=null?c.no:'·'}</span>
         <div class="t"><b>${esc(c.title)}${c.unit?' · '+esc(c.unit):''}</b>
           <span>${esc(c.teacher||'')} · ${tot} 节</span></div>
@@ -1718,7 +1720,7 @@ function renderCourseNav(){
         c.lessons.forEach((l,li)=>{
           const done=REC.course[l.id]&&REC.course[l.id].done;
           const on=(csSel.c===c.id&&csSel.l===li);
-          h+=`<div class="cli${done?' done':''}${on?' on':''}" data-cid="${esc(c.id)}" data-ix="${li}">
+          h+=`<div class="cli${done?' done':''}${on?' on':''}" data-cid="${esc(c.id)}" data-ix="${li}" title="${esc(l.title)}">
             <span class="st"><i></i></span><span class="lt">${esc(l.title)}</span>
             <span class="ld">${l.duration_sec?fmtDur(l.duration_sec):'—'}</span></div>`;
         });
