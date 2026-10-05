@@ -249,6 +249,7 @@ details.ai-tsec[open] summary{margin-bottom:8px}
     <div class="st-side">
       <div class="n"><b id="st-today">—</b><span>今日学习</span></div>
       <div class="n"><b id="st-total">—</b><span>累计学习</span></div>
+      <div class="n"><b id="st-vwt">—</b><span>视频课累计</span></div>
       <div class="n"><b id="st-streak">—</b><span>连续学习天数</span></div>
       <div class="n"><b id="st-mist">—</b><span id="st-mist-l">待复习</span></div>
       <button id="st-go-review">去复习 →</button>
@@ -1633,6 +1634,7 @@ $('d-outline').onclick=function(){
 /* ---------- 视频课（真实素材） ---------- */
 let csSel={c:null,l:null}, csExp={};
 let currentVideoCheckpoint=null;
+let courseWatchTarget=null;   // 正在观看的课节 id, 播放秒表按它累计 course[].wt
 function checkpointCourse(pause=false){if(currentVideoCheckpoint)currentVideoCheckpoint(pause);}
 function updateCourseCount(){const lessons=((COURSES&&COURSES.series)||[]).flatMap(s=>s.courses||[]).flatMap(c=>c.lessons||[]);$('cs-ct').textContent=lessons.filter(l=>REC.course[l.id]?.done).length+' / '+lessons.length+' 节';}
 function courseFind(lid){
@@ -1767,6 +1769,8 @@ function renderCourseMain(){
     <div class="linkbar" id="cs-link" style="margin-top:16px"></div>
   </div>`;
   const v=$('cs-video');
+  if(p&&p.wt===undefined&&p.pos) p.wt=Math.floor(p.pos);   // 存量课: 已看进度作观看秒数下限
+  courseWatchTarget=l.id;
   v.addEventListener('error',()=>{
     const nn=$('cs-vnote');
     nn.style.display='';
@@ -1784,7 +1788,9 @@ function renderCourseMain(){
     if(now-posT>5000){ posT=now;savePosition(); }
   });
   STU=!v.paused;
-  v.addEventListener('play',()=>{if(!TICK)TICK=setInterval(()=>{if(STU&&!document.hidden){studyTick(1);if((REC.study.total||0)%5===0)recSave();}},1000);});
+  v.addEventListener('play',()=>{if(!TICK)TICK=setInterval(()=>{if(STU&&!document.hidden){studyTick(1);
+    if(courseWatchTarget){const c=REC.course[courseWatchTarget]||(REC.course[courseWatchTarget]={});c.wt=(c.wt||0)+1;}
+    if((REC.study.total||0)%5===0)recSave();}},1000);});
   v.addEventListener('play',()=>{played=true;STU=true;}); v.addEventListener('pause',()=>STU=false);
   const hand=$('cs-handout');
   const notesIds=(c.notes_ids||[]).includes(l.id)?[l.id]:(c.notes_ids||[]);
@@ -1953,6 +1959,9 @@ function renderStats(){
   const todaySec=st.day===localDay()?(st.today||0):0;
   $('st-today').textContent=fmt(todaySec);
   $('st-total').textContent=(st.total||0)>=3600?((st.total||0)/3600).toFixed(1)+'h':fmt(st.total||0);
+  /* 视频观看秒数: r20 起按播放实秒累计(course[].wt); 存量课以已看进度为下限种子 */
+  const vwt=Object.values(REC.course||{}).reduce((a,c)=>a+(c.wt!=null?c.wt:Math.floor(c.pos||0)),0);
+  $('st-vwt').textContent=vwt>=3600?(vwt/3600).toFixed(1)+'h':(vwt>=60?Math.round(vwt/60)+'m':'0m');
   $('st-streak').textContent=String(st.days||0);
   const dueN=msAll.filter(([,m])=>(m.due||0)<=Date.now()).length;
   $('st-mist').textContent=String(msAll.length);
