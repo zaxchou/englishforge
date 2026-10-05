@@ -198,6 +198,7 @@ details.ai-tsec[open] summary{margin-bottom:8px}
         <div class="tb"><i id="d-prog"></i></div>
         <div class="tm" id="d-time">00:00 / 00:00</div>
       </div>
+      <span class="ab-eq" id="d-ab-eq"><i></i><i></i><i></i><i></i></span>
       <button class="rate" id="d-rate">×1.0</button>
       <span class="audio-mode" id="d-amode" style="display:none"><span>整段 · 未分段</span></span>
     </div>
@@ -420,7 +421,7 @@ async function wireAiAudio(qidStr, panel) {
   if (!rel) { slot.remove(); return; }
   const src = '/media/set/' + encodeURIComponent(set) + '/' + rel;
   slot.innerHTML = '<span class="ai-player"><button type="button" class="ap-play" aria-label="播放/暂停本题原音频">▶</button>'
-    + '<span class="ap-track"><i></i></span><span class="ap-time">--:-- / --:--</span></span>'
+    + '<span class="ap-track"><i></i></span><span class="ap-eq"><i></i><i></i><i></i><i></i></span><span class="ap-time">--:-- / --:--</span></span>'
     + '<audio class="ai-audio" preload="metadata" src="' + src + '"></audio>';
   const au = slot.querySelector('audio'), btn = slot.querySelector('.ap-play'),
         bar = slot.querySelector('.ap-track i'), tm = slot.querySelector('.ap-time');
@@ -430,8 +431,9 @@ async function wireAiAudio(qidStr, panel) {
     if (au.paused) { try { await au.play(); } catch (err) { tm.textContent = '音频加载失败'; } }
     else au.pause();
   };
-  au.onplay = () => { btn.textContent = '⏸'; };
-  au.onpause = () => { btn.textContent = '▶'; };
+  const apeq = slot.querySelector('.ap-eq');
+  au.onplay = () => { btn.textContent = '⏸'; if (apeq) apeq.classList.add('on'); };
+  au.onpause = () => { btn.textContent = '▶'; if (apeq) apeq.classList.remove('on'); };
   au.onloadedmetadata = () => { tm.textContent = fmt(0) + ' / ' + fmt(au.duration); };
   au.ontimeupdate = () => {
     if (au.duration) bar.style.width = (au.currentTime / au.duration * 100) + '%';
@@ -445,8 +447,8 @@ async function aiExplainToggle(qid, panel, btn) {
   panel.hidden = false;
   panel.scrollIntoView({ block: 'nearest', behavior: 'smooth' });   // 面板可能在视口外, 不滚过去就像"没反应"
   if (AI_EXPLAIN_CACHE[qid]) { panel.innerHTML = AI_EXPLAIN_CACHE[qid]; wireAiRegen(qid, panel, btn); wireAiAudio(qid, panel); return; }
-  if (btn) { btn.disabled = true; btn.innerHTML = '分析中…'; }
-  panel.innerHTML = '<div class="ai-note ai-loading">AI 分析中，约需 2~4 秒…</div>';
+  if (btn) { btn.disabled = true; btn.innerHTML = '分析中<span class="ai-tdots"><i></i><i></i><i></i></span>'; }
+  panel.innerHTML = '<div class="ai-note ai-loading"><span class="ai-note-t">AI 分析中，约需 2~4 秒</span><span class="ai-tdots"><i></i><i></i><i></i></span></div>';
   try {
     const r = await api('/api/ai/explain', { method: 'POST',
       headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ qid }) });
@@ -465,8 +467,8 @@ function wireAiRegen(qid, panel, btn) {
   link.onclick = async () => {
     if (!confirm('重新生成会覆盖当前解析（调用一次 AI，约 2~4 秒）。继续？')) return;
     link.disabled = true; link.textContent = '生成中…';
-    if (btn) { btn.disabled = true; btn.innerHTML = '分析中…'; }
-    panel.innerHTML = '<div class="ai-note ai-loading">AI 重新分析中，约需 2~4 秒…</div>';
+    if (btn) { btn.disabled = true; btn.innerHTML = '分析中<span class="ai-tdots"><i></i><i></i><i></i></span>'; }
+    panel.innerHTML = '<div class="ai-note ai-loading"><span class="ai-note-t">AI 重新分析中，约需 2~4 秒</span><span class="ai-tdots"><i></i><i></i><i></i></span></div>';
     try {
       const r = await api('/api/ai/explain', { method: 'POST',
         headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ qid, force: true }) });
@@ -1021,7 +1023,7 @@ function renderSets(){
     if(setFilterF==='todo') return st.d===0;
     return true;
   });
-  $('sets').innerHTML=list.map(s=>{
+  $('sets').innerHTML=list.map((s,ix)=>{
     const st=setStat(s);
     const pct=st.t?Math.min(100,Math.round(st.d/st.t*100)):0;
     const tag=st.t&&st.d>=st.t?['done','已完成']:(st.d>0?['doing','进行中']:['','未开始']);
@@ -1029,7 +1031,7 @@ function renderSets(){
     const cells=Object.entries(s.subjects||{}).filter(([k,v])=>v.q||v.blocked_reason)
       .sort((a,b)=>(ORD[a[0]]??9)-(ORD[b[0]]??9))
       .map(([k,v])=>v.blocked_reason?`<span class="c unavailable" title="${esc(v.blocked_reason)}"><i></i>${SUBN[k]||k} 暂不可练</span>`:`<span class="c ${s.grade==='A'?'s-full':'s-part'}"><i></i>${SUBN[k]||k} ${v.q}</span>`).join('');
-    return `<div class="srow" data-set="${esc(s.id)}">
+    return `<div class="srow stag" style="--i:${ix}" data-set="${esc(s.id)}">
       <span class="id">${esc(s.id)}</span>
       <span class="stag ${tag[0]}">${s.grade==='A'?'素材 A':(s.grade||'—')}</span>
       <span class="sp4">${cells}</span>
@@ -1583,8 +1585,8 @@ $('d-play').onclick=()=>{
   });
   else au.pause();
 };
-$('d-audio').addEventListener('play',()=>{ $('d-play-ic').innerHTML='<rect x="2.5" y="2" width="2.6" height="8" fill="#1C1C1A"/><rect x="6.9" y="2" width="2.6" height="8" fill="#1C1C1A"/>'; });
-$('d-audio').addEventListener('pause',()=>{ $('d-play-ic').innerHTML='<path d="M3 2 L9 6 L3 10 Z" fill="#1C1C1A"/>'; });
+$('d-audio').addEventListener('play',()=>{ $('d-play-ic').innerHTML='<rect x="2.5" y="2" width="2.6" height="8" fill="#1C1C1A"/><rect x="6.9" y="2" width="2.6" height="8" fill="#1C1C1A"/>'; const eq=$('d-ab-eq'); if(eq)eq.classList.add('on'); });
+$('d-audio').addEventListener('pause',()=>{ $('d-play-ic').innerHTML='<path d="M3 2 L9 6 L3 10 Z" fill="#1C1C1A"/>'; const eq2=$('d-ab-eq'); if(eq2)eq2.classList.remove('on'); });
 $('d-audio').addEventListener('timeupdate',()=>{
   const au=$('d-audio'); if(!au.duration) return;
   $('d-prog').style.width=(au.currentTime/au.duration*100)+'%';
@@ -1769,7 +1771,7 @@ function renderCourseMain(){
     <div class="card" style="margin-top:16px;overflow:hidden">
       <div class="phead"><div class="l"><b>本节讲义</b></div>
         <div class="r">${originals.map(x=>`<a class="orig-link" href="${esc(x.url)}" target="_blank" rel="noopener">原版：${esc(x.file)} ↗</a>`).join(' ')}</div></div>
-      <div class="handout-scroll"><div class="handout" id="cs-handout" style="background:none;border-radius:0"><p>讲义文本加载中…</p></div></div>
+      <div class="handout-scroll"><div class="handout" id="cs-handout" style="background:none;border-radius:0"><div class="skl"><i style="width:62%"></i><i style="width:88%"></i><i style="width:76%"></i><i style="width:38%"></i></div></div></div>
     </div>
     <div class="linkbar" id="cs-link" style="margin-top:16px"></div>
   </div>`;
@@ -1910,7 +1912,7 @@ async function renderReview(){
   }
   ms.sort((a,b)=>(a[1].due||0)-(b[1].due||0));
   await aiHave();   // 已生成清单, 按钮上标「已生成」
-  const items=await Promise.all(ms.map(async([k,m])=>{
+  const items=await Promise.all(ms.map(async([k,m],ix)=>{
     const stem=await stemOf(k);
     // 主角=题干; 材料名/题干拆开: "材料 · 题干" → 材料进元数据行
     let main=stem, material='';
@@ -1920,7 +1922,7 @@ async function renderReview(){
     const col=due<=Date.now()?'var(--bad)':(due<=Date.now()+3*864e5?'var(--warn)':'var(--ok)');
     const dt=due<=Date.now()?'今天该复习':'距复习 '+Math.max(1,Math.ceil((due-Date.now())/864e5))+' 天';
     const [set,subj]=k.split('/');
-    return `<div class="witem" style="border-left:3px solid ${col}">
+    return `<div class="witem stag" style="border-left:3px solid ${col};--i:${ix}">
       <div class="c">
         <div class="q" title="${esc(main)}">${esc(main)}</div>
         <div class="m"><span class="m-src">${esc(material||SUBN[subj]||'')}</span>${material?' · ':''}${esc('错 '+(m.n_wrong||1)+' 次')} · <span class="m-due" style="color:${col}">${esc(dt)}</span><span class="m-qid">${esc(k)}</span></div>
@@ -2066,6 +2068,16 @@ function renderStats(){
   $('st-mastery').querySelectorAll('[data-subj]').forEach(el=>{el.onclick=()=>nav('drill/'+el.dataset.subj);});
 }
 
+/* 主按钮涟漪(模式参考 Amicro, MIT): pointerdown 定位, 键盘触发不出涟漪 */
+document.addEventListener('pointerdown',e=>{
+  const b=e.target.closest('button.pri,.op-redo'); if(!b) return;
+  const r=b.getBoundingClientRect(), d=Math.max(r.width,r.height)*2.1;
+  const sp=document.createElement('span'); sp.className='ripple';
+  sp.style.width=sp.style.height=d+'px';
+  sp.style.left=((e.clientX||r.left+r.width/2)-r.left-d/2)+'px';
+  sp.style.top=((e.clientY||r.top+r.height/2)-r.top-d/2)+'px';
+  b.appendChild(sp); setTimeout(()=>sp.remove(),680);
+});
 document.addEventListener('keydown',e=>{
   if((e.key==='Enter'||e.key===' ')&&e.target.matches('[role="button"]')){e.preventDefault();e.target.click();}
 });

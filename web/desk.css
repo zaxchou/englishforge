@@ -857,3 +857,53 @@ body,button,input,textarea,.brand,.brand span,.lead h1,.pt,.part strong,.part em
   overflow:hidden;line-height:1.45;overflow-wrap:anywhere}
 .csi .t b{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
   overflow:hidden;line-height:1.4;overflow-wrap:anywhere}
+
+/* ==== style block 16: 微交互层 ====
+   动效模式参考 Amicro (MIT) github.com/Subhan-code/Amicro--Micro-transitions- ,
+   按本项目零依赖原生栈重写为纯 CSS; 全局 prefers-reduced-motion 规则已整体兜底。
+   五件: AI等待点/文字微光 · 音频播放均衡器 · 列表级联入场 · 加载骨架 · 主按钮涟漪。 */
+
+/* 1) AI 解析等待: 按钮内三点 + 面板文字微光 */
+.ai-tdots{display:inline-flex;gap:3px;margin-left:6px;vertical-align:baseline}
+.ai-tdots i{width:4px;height:4px;border-radius:50%;background:currentColor;
+  opacity:.45;animation:aiTdot 1s ease-in-out infinite}
+.ai-tdots i:nth-child(2){animation-delay:.16s}
+.ai-tdots i:nth-child(3){animation-delay:.32s}
+@keyframes aiTdot{0%,100%{opacity:.3;transform:translateY(0)}40%{opacity:1;transform:translateY(-3px)}}
+.ai-loading{display:flex;align-items:center;gap:10px}
+.ai-loading .ai-note-t{background:linear-gradient(90deg,var(--t3) 35%,var(--t1) 50%,var(--t3) 65%);
+  background-size:200% 100%;-webkit-background-clip:text;background-clip:text;
+  color:transparent;animation:aiShimmer 1.5s linear infinite}
+@keyframes aiShimmer{to{background-position:-200% 0}}
+
+/* 2) 音频播放均衡器: 播放时跳动, 暂停静止 */
+.ab-eq,.ap-eq{display:inline-flex;align-items:flex-end;gap:2px;height:12px;flex-shrink:0}
+.ab-eq i,.ap-eq i{width:2.5px;border-radius:1px;background:#66856a;height:4px;
+  transition:height .18s}
+.ab-eq.on i,.ap-eq.on i{animation:eqB .9s ease-in-out infinite}
+.ab-eq.on i:nth-child(2){animation-delay:.22s}
+.ab-eq.on i:nth-child(3){animation-delay:.44s}
+.ab-eq.on i:nth-child(4){animation-delay:.1s}
+.ap-eq.on i:nth-child(2){animation-delay:.22s}
+.ap-eq.on i:nth-child(3){animation-delay:.44s}
+.ap-eq.on i:nth-child(4){animation-delay:.1s}
+@keyframes eqB{0%,100%{height:4px}45%{height:12px}60%{height:7px}}
+.ab .ab-eq{margin-left:2px}
+
+/* 3) 列表级联入场: 行元素带 class="stag" + style="--i:序号" */
+.stag{animation:fadeUp .32s cubic-bezier(.2,.7,.3,1) both;
+  animation-delay:calc(min(var(--i,0),12)*34ms)}
+@keyframes fadeUp{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+
+/* 4) 加载骨架: 微光线段 */
+.skl{padding:6px 0}
+.skl i{display:block;height:11px;margin:9px 0;border-radius:3px;
+  background:linear-gradient(90deg,var(--sunk) 25%,#f7f5ee 45%,var(--sunk) 65%);
+  background-size:200% 100%;animation:skl 1.25s linear infinite}
+@keyframes skl{to{background-position:-200% 0}}
+
+/* 5) 主按钮涟漪 */
+button.pri,.op-redo{position:relative;overflow:hidden}
+.ripple{position:absolute;border-radius:50%;background:rgba(255,255,255,.3);
+  transform:scale(0);animation:rip .62s ease-out forwards;pointer-events:none}
+@keyframes rip{to{transform:scale(1);opacity:0}}
