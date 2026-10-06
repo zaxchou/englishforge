@@ -2267,7 +2267,7 @@ async function renderReview(){
     ['错题总数',ms.length,''],
     ['今日到期',dueN,dueN?'warn':''],
     ['已移出训练',scopedEntries(REC.mistakes).filter(([,m])=>m.cleared).length,''],
-    ['累计作答',scopedEntries(REC.attempts).reduce((a,[,x])=>a+(x.n||0),0),''],
+    ['累计作答',scopedEntries(REC.attempts).filter(([k])=>!k.startsWith('gen/')).reduce((a,[,x])=>a+(x.n||0),0),''],
   ].map(([k,v,c])=>`<div class="wk"><div class="k" style="font-size:12px;color:var(--t2)">${k}</div>
     <div style="font-size:20px;font-weight:500;line-height:1.2${c==='warn'?';color:var(--warn)':''}">${v}</div></div>`).join('');
   $('rv-due').textContent=dueN?('今天 '+dueN+' 题到期'):'';
