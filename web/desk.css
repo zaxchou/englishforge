@@ -356,11 +356,12 @@ textarea{width:100%;min-height:150px;padding:var(--s3) 13px;resize:vertical;line
 .cli.on .lt{color:var(--t1);font-weight:500}
 .cli .st{width:22px;height:16px;flex-shrink:0;display:flex;align-items:center;gap:3px}
 .cli .st i{width:6px;height:6px;border-radius:50%;background:var(--line2);transform:translateY(-.5px)}   /* 对齐标题墨心(评审实测单行低 1px) */
-/* 状态母题(r33): ✓=视频看完(墨绿), 绿句点=课后练练完(品牌 T. 句点母题), ✓.=全完成(与字标同构) */
+/* 状态(r34): ✓=视频看完, 灰点=未开始; 课后练完成=行内文字徽章「已练」
+   (纯图形句点在 1x 屏与未开始/全完成不可辨, 用户实测否决, 改用文字徽章) */
 .cli .st i.v{width:auto;height:auto;border-radius:0;background:none;display:flex;color:var(--ok)}
 .cli .st i.v svg{display:block}
-.cli .st i.q{background:#668171}   /* 与标题句点 heading-dot 同源 */
-.cli .st i.v + i.q{transform:translateY(1.5px);margin-left:-1.5px}   /* 句点坐上勾的收笔基线(评审实测过冲 1px)+收紧连字字距 */
+.cli .lz{flex-shrink:0;font-size:10px;line-height:1;color:var(--ok);background:var(--okbg);
+  border:1px solid #cfdcc9;border-radius:3px;padding:3px 5px 2px;letter-spacing:.08em}
 .cli .lt{flex:1;min-width:0;font-size:var(--f4);color:var(--t2);white-space:nowrap;
   overflow:hidden;text-overflow:ellipsis}
 .cli .ld{flex-shrink:0;font-size:var(--f5);color:var(--t3);font-variant-numeric:tabular-nums}
@@ -924,11 +925,9 @@ body.vfull .cs-status{background:#161d17;border-top:1px solid #2c362e}
 body.vfull .cs-status button{background:#1f2a22;border-color:#3a4a3e;color:#c9d8cc}
 body.vfull .cs-status button:hover{background:#28392d;border-color:#4d6350}
 
-/* ---- 完成态×播放中: 勾与呼吸点重叠修复 ----
-   已完成且正在播放的课节: ✓ 保持可见, 用透明度呼吸表达"正在播放", 不再叠点;
-   练完行的句点在播放时同样呼吸(播放=整组状态标记脉动)。 */
+/* ---- 完成态×播放中: 勾保持可见, 用透明度呼吸表达"正在播放", 不再叠点 ----
+   已完成且正在播放的课节: ✓ 呼吸; 练完徽章为文字, 不参与动效(行高亮即播放指示)。 */
 .cli.done.on .st i.v{animation:cspulse 1.6s ease-in-out infinite}
-.cli.on .st i.q{animation:cspulse 1.6s ease-in-out infinite}
 
 /* ==== style block 18: 可折叠侧栏(Codex 式图标轨) ====
    折叠=64px 图标轨: 品牌缩成"T."、导航只留图标(悬浮 title 有全名)、内容区拿走剩余空间
