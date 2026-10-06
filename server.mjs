@@ -166,6 +166,7 @@ async function aiExplain(qidStr, force) {
   const [set, subj, mk, type, noS] = parts;
   const no = Number(noS);
   if (!Number.isInteger(no)) throw new Error('bad qid');
+  if (set === 'gen') return aiExplainGen(qidStr, subj, mk, no, force);   // 课后练错题: 题面来自 GQ_STORE
   if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(set) || !/^(listening|reading|writing|speaking)$/.test(subj)
       || !/^[\w.+-]+$/.test(mk) || !/^[\w]+$/.test(type)) throw new Error('bad qid');
   if (!force) {
@@ -381,6 +382,70 @@ async function genQuiz(lessonId, force) {
   GQ_STORE[lessonId] = entry;
   gqSave();
   return { quiz: entry, cached: false, dropped: quiz.questions.length - kept.length };
+}
+
+/* 课后练(gen qid)的 AI 解析: 题面来自生成题组, 讲义相关页作上下文。 */
+async function aiExplainGen(qidStr, course, mk, no, force) {
+  if (!force) {
+    if (AI_CACHE.has(qidStr)) return { text: AI_CACHE.get(qidStr), cached: true, q: (AI_STORE[qidStr] && AI_STORE[qidStr].q) || undefined };
+    if (AI_STORE[qidStr]) {
+      const hit = AI_STORE[qidStr];
+      if (AI_CACHE.size >= AI_CACHE_MAX) AI_CACHE.delete(AI_CACHE.keys().next().value);
+      AI_CACHE.set(qidStr, hit.text);
+      return { text: hit.text, cached: true, q: hit.q };
+    }
+  }
+  const lessonId = course + '-' + String(Number(mk)).padStart(2, '0');
+  const quiz = GQ_STORE[lessonId];
+  const q = quiz && quiz.questions.find(x => Number(String(x.id).slice(1)) === no);
+  if (!q) throw new Error('question not found');
+  const att = RECORDS.attempts && RECORDS.attempts[qidStr];
+  const wrongs = att && Array.isArray(att.history)
+    ? [...new Set(att.history.filter(h => h.ok === false).map(h => String(h.answer || '').slice(0, 80)))]
+    : [];
+  const mine = wrongs.join(' / ');
+  let material = '';
+  try {
+    const f = findLesson(lessonId);
+    const nid = f && (f.course.notes_ids || [])[0];
+    if (nid && (quiz.pages || []).length) {
+      const note = JSON.parse(fs.readFileSync(path.join(BUILD_DIR, 'courses', 'notes', nid + '.json'), 'utf8'));
+      material = (note.pages || []).filter(pg => quiz.pages.includes(pg.page))
+        .map(pg => '[第' + pg.page + '页]\n' + pg.text).join('\n\n').slice(0, 3000);
+    }
+  } catch (e) {}
+  const sys = '你是托福词汇助教，用中文讲解这道课后练习题：先一句话点明考查点（词根/词缀/搭配），'
+    + '再说正确答案为什么对（引用讲义依据）'
+    + (mine ? '，最后指出学生当时的错选（' + mine + '）错在哪里。' : '。没有学生作答记录，不要编造或猜测学生的选择。')
+    + '不超过 160 字，2-3 小段纯文本，不要客套话。';
+  const lines = [];
+  if (material) lines.push('[讲义相关页]\n' + material);
+  lines.push('[题干] ' + q.stem);
+  lines.push('[选项]\n' + Object.entries(q.options).map(([k, v]) => k + '. ' + v).join('\n'));
+  lines.push('[正确答案] ' + q.answer);
+  if (mine) lines.push('[学生当时的错误答案] ' + mine);
+  lines.push('[出题时的解析参考] ' + q.explain);
+  const r = await fetch(AI_CFG.base + '/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + AI_CFG.key },
+    body: JSON.stringify({ model: AI_CFG.model,
+      messages: [{ role: 'system', content: sys }, { role: 'user', content: lines.join('\n\n') }],
+      max_tokens: 400, temperature: 0.2, stream: false }),
+    signal: AbortSignal.timeout(30000),
+  });
+  if (!r.ok) {
+    const t = await r.text().catch(() => '');
+    throw new Error('AI 接口 ' + r.status + (t ? ': ' + t.slice(0, 120) : ''));
+  }
+  const j = await r.json();
+  const text = j.choices?.[0]?.message?.content?.trim();
+  if (!text) throw new Error('AI 未返回内容');
+  const qPub = { stem: q.stem, options: q.options, answer: q.answer, mine, passage: material };
+  AI_STORE[qidStr] = { text, q: qPub, at: Date.now(), v: AI_V };
+  aiStoreSave();
+  if (AI_CACHE.size >= AI_CACHE_MAX) AI_CACHE.delete(AI_CACHE.keys().next().value);
+  AI_CACHE.set(qidStr, text);
+  return { text, cached: false, q: qPub };
 }
 
 /* ---------- 题库目录（启动时缓存） ---------- */
