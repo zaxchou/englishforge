@@ -934,20 +934,16 @@ body.vfull .cs-status button:hover{background:#28392d;border-color:#4d6350}
    仅桌面(>700px)可折叠; ≤700 顶栏本来就是横向的, 折叠无意义。 */
 .nav button{display:flex;align-items:center;gap:10px}
 .nav button svg{flex-shrink:0}
-.sb-toggle{margin:0 0 10px;width:40px;height:40px;display:flex;align-items:center;justify-content:center;
-  border:0;border-radius:4px;background:none;color:var(--t2);cursor:pointer}
-.sb-toggle:hover{background:var(--hover);color:var(--t1)}
-.sb-toggle svg{transition:transform .18s}
-html.sb-min .sb-toggle svg{transform:scaleX(-1)}
+/* 品牌(T. logo)即折叠开关(r29): 独立切换按钮已删, 顶部一行空间收归内容区 */
+.desk-brand{cursor:pointer;transition:opacity .15s}
+.desk-brand:hover{opacity:.78}
+@media(max-width:700px){.desk-brand{cursor:auto}.desk-brand:hover{opacity:1}}
 
 .top{transition:width .18s ease}
 .wrap{transition:margin-left .18s ease}
-body.vfull .sb-toggle{display:none}
-
-@media(max-width:700px){.sb-toggle{display:none}}
 @media(min-width:701px){
-  /* 折叠交互模型(r24): 切换按钮移入 .wrap 顶部文档流(左缘与页面大标题恒对齐, 随侧栏开合移动),
-     侧栏品牌/导航顶部内边距与按钮同高对齐; 折叠轨图标全部居中 */
+  /* 折叠交互模型(r29): 无独立切换按钮——侧栏品牌(T. logo)即折叠开关(点击切换, ≤700 不生效);
+     折叠轨图标全部居中; 内容区顶部只留 12px 与品牌行同高 */
   /* 折叠交互模型(r5 重写): .top 保持基础 fixed(勿写 position——relative 会把侧栏拽进文档流,
      把内容区整体推下去); 悬停"折叠按钮"=浮层展开, 鼠标在侧栏内不收回;
      两态同坐标: 按钮/品牌/图标列全部正常流+固定行高, 展开只是变宽+文字显示 */
