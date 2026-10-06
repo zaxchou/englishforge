@@ -1023,3 +1023,11 @@ body.vfull .cs-status button:hover{background:#28392d;border-color:#4d6350}
 .gq-wronglist{border:1px solid var(--line);border-radius:4px;padding:12px 16px;margin-bottom:14px;background:var(--sunk)}
 .gq-wronglist .k{font-size:12px;color:var(--t2);margin-bottom:6px}
 .gq-wronglist .w{font-size:13px;color:var(--t1);line-height:1.7}
+
+/* ==== 词根家族复习 ==== */
+.famcard{padding:14px 18px 14px 15px;border-top:1px solid var(--line)}
+.famcard .h{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.famcard .nm{font-size:16px;font-weight:600}
+.famcard .gl{font-size:12px;color:var(--t3);flex:1;min-width:0}
+.famcard .ws{font-size:12px;color:var(--t2);line-height:2;margin-top:6px}
+.famcard .ws i{font-style:normal;background:var(--sunk);border-radius:3px;padding:1px 7px;margin-right:6px;font-variant-numeric:tabular-nums}

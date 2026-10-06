@@ -633,9 +633,38 @@ function loadCourses() {
   return COURSES;
 }
 
+/* 词根家族聚合(跨课): 生成题组的 families + tags → 家族卡片与题池。
+   同一题可挂多个家族(tags 多值)。MVP 数据量小, 题面直接随端点下发。 */
+function familiesAggregate() {
+  const map = new Map();
+  const ensure = (key, name, kind, gloss) => {
+    let e = map.get(key);
+    if (!e) { e = { key, name, kind: kind || 'root', gloss: gloss || '', words: [], items: [] }; map.set(key, e); }
+    return e;
+  };
+  for (const qz of Object.values(GQ_STORE)) {
+    if (!qz || qz.v !== AI_QV) continue;
+    for (const fam of (qz.families || [])) {
+      if (!fam || !fam.name) continue;
+      const e = ensure(qz.course + '|' + fam.name, fam.name, fam.kind, fam.gloss);
+      if (!e.gloss && fam.gloss) e.gloss = fam.gloss;
+      for (const w of (fam.words || [])) if (!e.words.includes(w)) e.words.push(w);
+    }
+    for (const q of (qz.questions || [])) {
+      for (const tag of (q.tags || [])) {
+        const e = ensure(qz.course + '|' + tag, tag, 'root', '');
+        e.items.push({ qid: 'gen/' + qz.course + '/' + qz.lessonNo + '/quiz/' + Number(String(q.id).slice(1)),
+          stem: q.stem, options: q.options, answer: q.answer, explain: q.explain, tags: q.tags,
+          course: qz.course, lessonNo: qz.lessonNo });
+      }
+    }
+  }
+  return [...map.values()];
+}
+
 /* ---------- 学习记录（records/records.json，服务端唯一真源） ---------- */
 const RECORDS_FILE = path.join(RECORDS_DIR, 'records.json');
-let RECORDS = { version: 1, attempts: {}, course: {}, study: {}, qtimes: {}, mistakes: {}, feedback: [], saved_at: null };
+let RECORDS = { version: 1, attempts: {}, course: {}, study: {}, qtimes: {}, mistakes: {}, families: {}, feedback: [], saved_at: null };
 function recordsLoad() {
   try {
     const j = JSON.parse(fs.readFileSync(RECORDS_FILE, 'utf8'));
@@ -663,7 +692,7 @@ function recordsSave(next) {
 function nextRecords(incoming) {
   if (!incoming || typeof incoming !== 'object' || Array.isArray(incoming)) throw new Error('invalid records');
   const next = {...RECORDS};
-  for (const k of ['attempts', 'qtimes', 'mistakes', 'course', 'study', 'writing', 'drafts']) {
+  for (const k of ['attempts', 'qtimes', 'mistakes', 'families', 'course', 'study', 'writing', 'drafts']) {
     if (k === 'drafts' && !incoming[k]) {next[k]={};continue;}
     if (!incoming[k] || typeof incoming[k] !== 'object' || Array.isArray(incoming[k])) throw new Error('invalid ' + k);
     next[k] = incoming[k];
@@ -800,6 +829,14 @@ const handler = async (req, res) => {
         const code = /^bad qid|not found/.test(e.message) ? 400 : 502;
         return sendJSON(res, code, { error: e.message });
       }
+    }
+
+    /* ---- 词根家族聚合(课后练的长期复习) ---- */
+    if (p === '/api/ai/families') {
+      const origin = req.headers.origin;
+      if (origin && origin !== `http://${req.headers.host}` && origin !== `https://${req.headers.host}`) return sendJSON(res, 403, { error: 'cross-origin rejected' });
+      if (req.method !== 'GET') return sendJSON(res, 405, { error: 'method' });
+      return sendJSON(res, 200, { ok: true, families: familiesAggregate() });
     }
 
     /* ---- AI 课后练（视频课按教材生成的题组） ---- */

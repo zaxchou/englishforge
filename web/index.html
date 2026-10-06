@@ -231,9 +231,13 @@ details.ai-tsec[open] summary{margin-bottom:8px}
 <div class="view" id="v-review">
   <div class="bhead"><h2 class="pt">错题本</h2><span class="ct" id="rv-ct"></span></div>
   <p class="sub">复习间隔 1 / 3 / 7 / 14 天（固定节奏，不是对所有题最优的结论）· 也可以直接勾选「不再训练」</p>
+  <div class="seg" id="rv-seg" style="margin-bottom:16px"><span class="thumb"></span>
+    <button class="on" data-t="mistakes">错题复习</button>
+    <button data-t="families">词根家族</button>
+  </div>
   <div class="stats" id="rv-stats"></div>
   <div class="card" style="overflow:hidden">
-    <div class="phead"><div class="l"><b>待复习</b></div><div class="r"><span id="rv-due"></span></div></div>
+    <div class="phead"><div class="l"><b id="rv-ph-t">待复习</b></div><div class="r"><span id="rv-due"></span></div></div>
     <div id="rv-list"></div>
   </div>
 </div>
@@ -2107,7 +2111,154 @@ async function stemOf(qidKey){
     STEM_CACHE[qidKey]=label; return label;
   }catch(e){ return qidKey; }
 }
+/* ---------- 词根家族复习（课后练的长期记忆机制; 2026-10-06 P3） ---------- */
+let RV_TAB = 'mistakes';
+let FAM_CACHE = null, FAM_AT = 0;
+const FAM_UI = { key: null, items: [], ix: 0, answers: {}, anyWrong: false, busy: false };
+document.querySelectorAll('#rv-seg button').forEach(b => {
+  b.onclick = () => {
+    if (RV_TAB === b.dataset.t) return;
+    RV_TAB = b.dataset.t;
+    document.querySelectorAll('#rv-seg button').forEach(x => x.classList.toggle('on', x === b));
+    moveThumb($('rv-seg'));
+    renderReview();
+  };
+});
+function famStateOf(key) {
+  return REC.families[key] || null;
+}
+function famAttempt(key, ok) {
+  const f = REC.families[key] = REC.families[key] || { added: Date.now(), stage: 0, n_wrong: 0, due: 0 };
+  f.last = Date.now();
+  if (ok === false) { f.n_wrong = (f.n_wrong || 0) + 1; f.stage = 0; f.due = Date.now() + 864e5; }
+  else if (Date.now() >= (f.due || 0)) {
+    const next = [3, 7, 14][f.stage] || 14;
+    f.stage = (f.stage || 0) + 1;
+    if (f.stage >= 4) f.cleared = true;   // 毕业: 1/3/7/14 四轮通过
+    else f.due = Date.now() + next * 864e5;
+  }
+}
+async function fetchFamilies() {
+  if (FAM_CACHE && Date.now() - FAM_AT < 5 * 60000) return FAM_CACHE;
+  const r = await api('/api/ai/families');
+  FAM_CACHE = r.families || []; FAM_AT = Date.now();
+  return FAM_CACHE;
+}
+async function renderFamilies() {
+  const list = $('rv-list'), stats = $('rv-stats');
+  $('rv-ph-t').textContent = '词根家族';
+  list.innerHTML = '<div class="empty">家族加载中…</div>';
+  let fams;
+  try { fams = await fetchFamilies(); }
+  catch (e) { list.innerHTML = '<div class="empty">' + esc(e.message || '加载失败') + '</div>'; return; }
+  if (FAM_UI.key) return;   // 复习面板打开中, 不覆盖
+  const live = fams.filter(f => { const st = famStateOf(f.key); return !(st && st.cleared); });
+  const doneN = fams.length - live.length;
+  const dueN = live.filter(f => { const st = famStateOf(f.key); return !st || (st.due || 0) <= Date.now(); }).length;
+  $('rv-ct').textContent = live.length + ' 家族 · 今日 ' + dueN;
+  stats.innerHTML = [
+    ['家族', live.length, ''],
+    ['今日到期', dueN, dueN ? 'warn' : ''],
+    ['已毕业', doneN, ''],
+  ].map(([k, v, c]) => '<div class="wk"><div class="k" style="font-size:12px;color:var(--t2)">' + k + '</div>'
+    + '<div style="font-size:20px;font-weight:500;line-height:1.2' + (c === 'warn' ? ';color:var(--warn)' : '') + '">' + v + '</div></div>').join('');
+  $('rv-due').textContent = dueN ? ('今天 ' + dueN + ' 家族到期') : '';
+  if (!fams.length) {
+    list.innerHTML = '<div class="empty">还没有家族数据——先去词汇课生成几节课后练，词根/词缀会自动归到这里。</div>';
+    return;
+  }
+  const order = live.slice().sort((a, b) => {
+    const sa = famStateOf(a.key), sb = famStateOf(b.key);
+    const da = sa ? (sa.due || 0) : 0, db = sb ? (sb.due || 0) : 0;   // 未复习过的排最前
+    return da - db;
+  });
+  list.innerHTML = order.map((f, ix) => {
+    const st = famStateOf(f.key);
+    const due = st ? (st.due || 0) : 0;
+    const col = !st ? 'var(--acc)' : (due <= Date.now() ? 'var(--bad)' : (due <= Date.now() + 3 * 864e5 ? 'var(--warn)' : 'var(--ok)'));
+    const dt = !st ? '新家族 · 未复习过' : (due <= Date.now() ? '今天该复习' : '距复习 ' + Math.max(1, Math.ceil((due - Date.now()) / 864e5)) + ' 天');
+    return '<div class="famcard rise" style="border-left:3px solid ' + col + ';--i:' + ix + '">'
+      + '<div class="h"><span class="nm">' + esc(f.name) + '</span>'
+      + '<span class="gl">' + esc((f.kind === 'prefix' ? '前缀' : f.kind === 'suffix' ? '后缀' : '词根') + (f.gloss ? ' · ' + f.gloss : '')) + '</span>'
+      + '<span class="grow"></span>'
+      + '<span class="due" style="color:' + col + '">' + esc(dt) + '</span>'
+      + '<button class="sm" data-fam="' + esc(f.key) + '">复习 →</button></div>'
+      + (f.words.length ? '<div class="ws">' + f.words.slice(0, 12).map(w => '<i>' + esc(w) + '</i>').join('') + (f.words.length > 12 ? '<i>+' + (f.words.length - 12) + '</i>' : '') + '</div>' : '')
+      + '</div>';
+  }).join('');
+  list.querySelectorAll('[data-fam]').forEach(b => {
+    b.onclick = () => startFamReview(b.dataset.fam);
+  });
+}
+async function startFamReview(key) {
+  const fams = await fetchFamilies();
+  const f = fams.find(x => x.key === key);
+  if (!f || !f.items.length) return;
+  // 题池: 到期的错题优先(按 mistakes 在册排序), 其余按原序
+  const items = f.items.slice().sort((a, b) => {
+    const ma = REC.mistakes[a.qid], mb = REC.mistakes[b.qid];
+    return (mb && !mb.cleared ? 1 : 0) - (ma && !ma.cleared ? 1 : 0);
+  }).slice(0, 8);
+  Object.assign(FAM_UI, { key, items, ix: 0, answers: {}, anyWrong: false });
+  renderFamQuiz();
+}
+function renderFamQuiz() {
+  const list = $('rv-list');
+  const st = FAM_UI;
+  const item = st.items[st.ix];
+  const done = st.answers[item.qid];
+  list.innerHTML = '<div style="padding:18px 20px 20px">'
+    + '<div class="gq-prog">家族复习 · 第 ' + (st.ix + 1) + ' / ' + st.items.length + ' 题'
+    + '<button class="gq-ghost" id="fam-quit">退出复习</button></div>'
+    + '<div class="gq-stem">' + esc(item.stem) + '</div>'
+    + '<div class="gq-opts">' + Object.entries(item.options).map(([k, v]) =>
+        '<div class="opt gq-opt" data-k="' + k + '"><span class="ol">' + k + '</span>' + esc(v) + '</div>').join('') + '</div>'
+    + '<div id="fam-fb"></div><div class="gq-nav" id="fam-nav"></div></div>';
+  $('fam-quit').onclick = () => { FAM_UI.key = null; renderFamilies(); };
+  if (done) {
+    list.querySelectorAll('.gq-opt').forEach(el => {
+      if (el.dataset.k === item.answer) el.classList.add('right');
+      else if (el.dataset.k === done.letter) el.classList.add('wrong');
+      el.onclick = null;
+    });
+    $('fam-fb').innerHTML = '<div class="gq-fb ' + (done.ok ? 'ok' : 'bad') + '"><b>' + (done.ok ? '答对了' : '答错了 · 正确答案 ' + esc(item.answer)) + '</b> ' + esc(item.explain) + '</div>';
+    $('fam-nav').innerHTML = '<span class="grow"></span><button class="pri" id="fam-next">' + (st.ix + 1 >= st.items.length ? '完成 →' : '下一题 →') + '</button>';
+    $('fam-next').onclick = famNext;
+    return;
+  }
+  list.querySelectorAll('.gq-opt').forEach(el => {
+    el.onclick = () => {
+      const letter = el.dataset.k;
+      const ok = letter === item.answer;
+      recAttempt({ qid: item.qid, set: 'gen', subj: item.course, mk: String(item.lessonNo), gkey: 'quiz' }, ok, letter, 0);
+      if (REC.mistakes[item.qid]) REC.mistakes[item.qid].stem = item.stem;
+      if (!ok) st.anyWrong = true;
+      st.answers[item.qid] = { letter, ok };
+      renderFamQuiz();
+    };
+  });
+}
+function famNext() {
+  const st = FAM_UI;
+  if (st.ix + 1 >= st.items.length) {
+    famAttempt(st.key, !st.anyWrong);
+    recSave();
+    const passed = !st.anyWrong;
+    st.key = null;
+    $('rv-list').innerHTML = '<div class="empty">' + (passed
+      ? '本轮家族复习全对' + (REC.families && Object.values(REC.families).some(f => f.cleared) ? '' : '，间隔复习会帮你长期记住它们') + '。'
+      : '本轮有错题——家族 1 天后再来，错题已进错题本。') + '</div>'
+      + '<div style="padding:0 20px 20px;text-align:center"><button class="pri" id="fam-back">返回家族列表</button></div>';
+    $('fam-back').onclick = () => { FAM_UI.key = null; renderReview(); };
+    return;
+  }
+  st.ix++;
+  renderFamQuiz();
+}
+
 async function renderReview(){
+  if (RV_TAB === 'families') return renderFamilies();
+  $('rv-ph-t').textContent = '待复习';
   // gen(课后练)错题不在 catalog set 里, scopedEntries 会滤掉 —— 手动并进来
   const ms=[...scopedEntries(REC.mistakes),
             ...Object.entries(REC.mistakes||{}).filter(([k,m])=>k.startsWith('gen/')&&m&&!m.cleared)];
