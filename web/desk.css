@@ -1055,3 +1055,17 @@ body.vfull .cs-status button:hover{background:#28392d;border-color:#4d6350}
 .gq-inv .ws i.a{border-color:#cddcc2;color:#4d7a5f}
 .gq-inv .ws i.r{border-color:#d8cfc0;color:#7a5b2c}
 .gq-inv .ws i.cov{background:#eef4e7;border-color:#b9c9ab;color:#244433}
+
+/* 词表芯片墙 v2: 三分组+强对比覆盖态+可靠换行 */
+.gq-inv .ws{display:block;overflow-wrap:anywhere}
+.gq-inv-grp{display:block;margin-bottom:10px}
+.gq-inv-grp:last-child{margin-bottom:0}
+.gq-inv-grp .g{display:inline-block;font-size:11px;color:var(--t3);margin-right:8px;letter-spacing:.05em}
+.gq-inv .ws i{display:inline-block;font-size:12px;margin:0 6px 5px 0;padding:2px 9px;border-radius:3px;
+  background:var(--card);border:1px solid var(--line);color:var(--t2)}
+.gq-inv .ws i.a{border-color:#cddcc2}
+.gq-inv .ws i.r{border-color:#d8cfc0}
+.gq-inv .ws i.cov{background:#2c503a;border-color:#2c503a;color:#fff}
+.gq-kp .k{color:#5a6a5d;font-weight:600}
+.gq-fb{position:relative}
+.gq-fb>div .gq-ghost{position:absolute;right:0;bottom:0}

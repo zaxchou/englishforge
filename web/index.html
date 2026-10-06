@@ -1745,9 +1745,9 @@ function renderGenQuiz() {
     body.innerHTML = '<div class="gq-in">'
       + (qz.scope ? '<p class="gq-scope">' + esc(qz.scope) + (qz.pages && qz.pages.length ? '（讲义第 ' + Math.min(...qz.pages) + '–' + Math.max(...qz.pages) + ' 页）' : '') + '</p>' : '')
       + (fam ? '<div class="gq-chips">' + fam + '</div>' : '')
-      + (qz.inventory ? '<details class="gq-inv"><summary>本节词表 · ' + (qz.inventory.words || []).length + ' 词 / '
-        + (qz.inventory.affixes || []).length + ' 词缀 / ' + (qz.inventory.roots || []).length + ' 词根</summary>'
-        + '<div class="ws">' + gqInvChips(qz) + '</div></details>' : '')
+      + (qz.inventory ? '<details class="gq-inv"><summary>本节词表 · '
+        + ((qz.inventory.words || []).length + (qz.inventory.affixes || []).length + (qz.inventory.roots || []).length)
+        + ' 项（词/词缀/词根分列）</summary><div class="ws">' + gqInvChips(qz) + '</div></details>' : '')
       + (st.err ? '<div class="na-box">' + esc(st.err) + '</div>' : '')
       + '<div class="gq-row"><b>' + (qz.questions.length - (qz.bad || []).length) + ' 道题</b>'
       + '<span class="gq-stat">' + (s.n ? ('已练 ' + s.right + '/' + s.n + ' 正确') : '未做过') + (s.lastT ? ' · 最近 ' + new Date(s.lastT).toLocaleDateString() : '') + '</span>'
@@ -1787,8 +1787,7 @@ function renderGenQuiz() {
       + '<div class="gq-row"><span class="grow"></span>'
       + (wrongIds.length ? '<button id="gq-redo">重做错题 →</button>' : '')
       + '<button class="pri" id="gq-again">再练一遍</button></div>'
-      + (qz.inventory ? '<details class="gq-inv" open><summary>本节词表过一遍（'
-        + (qz.inventory.words || []).length + '+' + (qz.inventory.affixes || []).length + '+' + (qz.inventory.roots || []).length + ' 项，绿色=已被题目覆盖）</summary>'
+      + (qz.inventory ? '<details class="gq-inv" open><summary>本节词表过一遍 · 深绿=已被题目覆盖，描边=靠这张表记住</summary>'
         + '<div class="ws">' + gqInvChips(qz) + '</div></details>' : '') + '</div>';
     if (wrongIds.length) $('gq-redo').onclick = () => gqStart(wrongIds.slice());
     $('gq-again').onclick = () => gqStart(qz.questions.map(x => x.id));
@@ -1797,11 +1796,17 @@ function renderGenQuiz() {
 function gqInvChips(qz) {
   const inv = qz.inventory || {};
   const allText = JSON.stringify(qz.questions).toLowerCase();
-  const mk = (arr, cls) => (arr || []).map(w => {
-    const cov = allText.includes(String(w).toLowerCase()) ? ' cov' : '';
-    return '<i class="' + cls + cov + '">' + esc(w) + '</i>';
-  }).join('');
-  return mk(inv.words, 'w') + mk(inv.affixes, 'a') + mk(inv.roots, 'r');
+  const mk = (label, arr, cls) => {
+    const items = arr || [];
+    if (!items.length) return '';
+    const covN = items.filter(w => allText.includes(String(w).toLowerCase())).length;
+    return '<div class="gq-inv-grp"><span class="g">' + label + ' ' + covN + '/' + items.length + '</span>'
+      + items.map(w => {
+        const cov = allText.includes(String(w).toLowerCase()) ? ' cov' : '';
+        return '<i class="' + cls + cov + '">' + esc(w) + '</i>';
+      }).join('') + '</div>';
+  };
+  return mk('词', inv.words, 'w') + mk('词缀', inv.affixes, 'a') + mk('词根', inv.roots, 'r');
 }
 function gqPaintAnswered(q, done) {
   const st = GQ_UI;
