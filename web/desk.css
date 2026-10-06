@@ -994,7 +994,7 @@ body.vfull .sb-toggle{display:none}
 .gq-scope{margin:0 0 10px;font-size:13px;color:var(--t2)}
 .gq-chips{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px}
 .gq-chips span{font-size:11px;color:#4d7a5f;background:#eef4e7;border:1px solid #cddcc2;border-radius:12px;padding:2px 9px}
-.gq-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.gq-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-top:14px}
 .gq-row .grow{flex:1}
 .gq-row b{font-size:15px}
 .gq-stat{font-size:12px;color:var(--t3);font-variant-numeric:tabular-nums}
