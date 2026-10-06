@@ -1652,7 +1652,7 @@ $('d-outline').onclick=function(){
 };
 
 /* ---------- 视频课（真实素材） ---------- */
-let csSel={c:null,l:null}, csExp={};
+let csSel={c:null,l:null}, csPick=null;
 let currentVideoCheckpoint=null;
 let courseWatchTarget=null;   // 正在观看的课节 id, 播放秒表按它累计 course[].wt
 function checkpointCourse(pause=false){if(currentVideoCheckpoint)currentVideoCheckpoint(pause);}
@@ -1664,26 +1664,28 @@ function courseFind(lid){
 }
 window.openLessonById=function(lid){
   const f=courseFind(lid); if(!f) return;
-  csSel={c:f.c.id,l:f.ix}; csExp[f.c.id]=true;
+  csSel={c:f.c.id,l:f.ix}; csPick=f.c.id;
   renderCourseNav(); renderCourseMain();
 };
 function courseById(cid){
   return ((COURSES&&COURSES.series)||[]).flatMap(s=>s.courses||[]).find(x=>x.id===cid);
 }
 window.openCourse=function(cid){
+  if(cid===csPick&&csSel.c===cid){ renderCourseNav(); return; }
+  csPick=cid;
   const c=courseById(cid); if(!c) return;
-  const opening=!csExp[cid]; csExp[cid]=opening;
-  if(opening&&csSel.c!==cid){
+  if(csSel.c!==cid){
     let next=0;
     for(let i=0;i<c.lessons.length;i++){
       const p=REC.course[c.lessons[i].id];
       if(!(p&&p.done)){ next=i; break; }
+      next=i;
     }
     csSel={c:cid,l:next};
   }
   renderCourseNav(); renderCourseMain();
 };
-window.openLesson=function(cid,ix){ csSel={c:cid,l:ix}; csExp[cid]=true; renderCourseNav(); renderCourseMain(); };
+window.openLesson=function(cid,ix){ csSel={c:cid,l:ix}; csPick=cid; renderCourseNav(); renderCourseMain(); };
 window.csNextLesson=function(){
   const c=courseById(csSel.c); if(!c) return;
   const n=csSel.l+1; if(n<c.lessons.length) openLesson(c.id,n);   // 最后一节则原地不动
@@ -2081,19 +2083,20 @@ function renderCourse(){
   const d=Object.values(REC.course||{}).filter(x=>x.done).length;
   $('cs-ct').textContent=d+' / '+t+' 节';
   if(csSel.c==null){
-    // 继续上次: 优先跳到最近观看的课节 (含未看完的), 没有记录才选第一个未看完的
+    // 继续上次: 优先跳到最近观看的课节 (含未看完的), 没有记录才选第一个未看完的(新东方系列优先)
     let lastLid=null, lastT=0;
     for(const [lid,c] of Object.entries(REC.course||{})){
       if(c.at&&c.at>lastT&&courseFind(lid)){ lastT=c.at; lastLid=lid; }
     }
     if(lastLid){
       const f=courseFind(lastLid);
-      csSel={c:f.c.id,l:f.ix}; csExp[f.c.id]=true;
+      csSel={c:f.c.id,l:f.ix}; csPick=f.c.id;
     } else {
-      outer: for(const s of (COURSES&&COURSES.series)||[]) for(const c of (s.courses||[]))
+      const ss=((COURSES&&COURSES.series)||[]).slice().sort((a,b)=>(/新东方/.test(courseSeriesName(b.name))?1:0)-(/新东方/.test(courseSeriesName(a.name))?1:0));
+      outer: for(const s of ss) for(const c of (s.courses||[]))
         for(let i=0;i<(c.lessons||[]).length;i++){
           const p=REC.course[c.lessons[i].id];
-          if(!(p&&p.done)){ csSel={c:c.id,l:i}; csExp[c.id]=true; break outer; }
+          if(!(p&&p.done)){ csSel={c:c.id,l:i}; csPick=c.id; break outer; }
         }
     }
   }
@@ -2102,39 +2105,49 @@ function renderCourse(){
 function courseSeriesName(n){ return String(n||'').replace(/新D方/g,'新东方'); }
 function renderCourseNav(){
   updateCourseCount();
-  let h='';
-  for(const s of (COURSES&&COURSES.series)||[]){
-    const list=s.courses||[];
-    h+=`<div class="csg"><div class="csg-h"><b>${esc(courseSeriesName(s.name))}</b><span>${esc(courseSeriesName(s.note||''))}</span></div>`;
-    for(const c of list){
-      const cd=(c.lessons||[]).filter(l=>REC.course[l.id]&&REC.course[l.id].done).length;
-      const tot=c.lesson_count||0, open=!!csExp[c.id];
-      h+=`<div class="csi ${open?'open':''}" data-cid="${esc(c.id)}" title="${esc(c.title)}">
-        <span class="no">${c.no!=null?c.no:'·'}</span>
-        <div class="t"><b>${esc(c.title)}${c.unit?' · '+esc(c.unit):''}</b>
-          <span>${esc(c.teacher||'')} · ${tot} 节</span></div>
-        <div class="pg"><span class="pb"><i style="width:${tot?Math.round(cd/tot*100):0}%"></i></span>
-          <span class="pn ${cd===tot&&tot?'full':''}">${cd}/${tot}</span></div></div>`;
-      if(open){
-        const checkSvg='<i class="v"><svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1.8 5.4 4 7.6 8.3 2.9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></i>';   // SVG 勾锁定笔画几何, 文本 ✓ 各行粗细不一
-        c.lessons.forEach((l,li)=>{
-          const done=REC.course[l.id]&&REC.course[l.id].done;
-          const qd=c.id===GEN_COURSE&&REC.course['gq:'+l.id]&&REC.course['gq:'+l.id].done;
-          const on=(csSel.c===c.id&&csSel.l===li);
-          const st= done ? checkSvg : '<i></i>';
-          const tip= done&&qd ? '视频已看完 · 课后练已完成'
-                   : done    ? '视频已看完'
-                   : qd      ? '课后练已完成' : '';
-          /* 练完状态用文字徽章「已练」: 纯图形点在 1x 屏上与未开始/全完成不可辨(用户实测反馈) */
-          h+=`<div class="cli${done?' done':''}${on?' on':''}" data-cid="${esc(c.id)}" data-ix="${li}" title="${esc(l.title)}">
-            <span class="st"${tip?` title="${tip}"`:''}>${st}</span><span class="lt">${esc(l.title)}</span>${qd?'<span class="lz">已练</span>':''}<span class="ld">${l.duration_sec?fmtDur(l.duration_sec):'—'}</span></div>`;
-        });
-      }
+  const series=(COURSES&&COURSES.series)||[];
+  /* 当前课有归属就用它, 否则默认新东方系列第一门(用户约定) */
+  if(!csPick||!courseById(csPick)){
+    const ns=series.find(s=>/新东方/.test(courseSeriesName(s.name)));
+    csPick=(ns&&ns.courses&&ns.courses[0])?ns.courses[0].id:((series[0]&&series[0].courses&&series[0].courses[0])?series[0].courses[0].id:null);
+  }
+  const c=courseById(csPick);
+  const checkSvg='<i class="v"><svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1.8 5.4 4 7.6 8.3 2.9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></i>';   // SVG 勾锁定笔画几何, 文本 ✓ 各行粗细不一
+  let h='<div class="cs-pick"><select id="cs-course" title="切换课程">';
+  for(const s of series){
+    h+='<optgroup label="'+esc(courseSeriesName(s.name))+'">';
+    for(const c2 of (s.courses||[])){
+      const cd2=(c2.lessons||[]).filter(l=>REC.course[l.id]&&REC.course[l.id].done).length;
+      h+='<option value="'+esc(c2.id)+'"'+(c2.id===csPick?' selected':'')+'>'
+        + esc((c2.no!=null?c2.no+'. ':'')+courseSeriesName(c2.title)+(c2.unit?' · '+c2.unit:'')+'（'+cd2+'/'+(c2.lesson_count||0)+'）')+'</option>';
     }
-    h+='</div>';
+    h+='</optgroup>';
+  }
+  h+='</select></div>';
+  if(c){
+    const cd=(c.lessons||[]).filter(l=>REC.course[l.id]&&REC.course[l.id].done).length;
+    const tot=c.lesson_count||0;
+    h+='<div class="csi flat" data-cid="'+esc(c.id)+'" title="'+esc(c.title)+'">'
+      +'<span class="no">'+(c.no!=null?c.no:'·')+'</span>'
+      +'<div class="t"><b>'+esc(c.title)+(c.unit?' · '+esc(c.unit):'')+'</b>'
+      +'<span>'+esc(c.teacher||'')+' · '+tot+' 节</span></div>'
+      +'<div class="pg"><span class="pb"><i style="width:'+(tot?Math.round(cd/tot*100):0)+'%"></i></span>'
+      +'<span class="pn '+(cd===tot&&tot?'full':'')+'">'+cd+'/'+tot+'</span></div></div>';
+    c.lessons.forEach((l,li)=>{
+      const done=REC.course[l.id]&&REC.course[l.id].done;
+      const qd=c.id===GEN_COURSE&&REC.course['gq:'+l.id]&&REC.course['gq:'+l.id].done;
+      const on=(csSel.c===c.id&&csSel.l===li);
+      const st= done ? checkSvg : '<i></i>';
+      const tip= done&&qd ? '视频已看完 · 课后练已完成'
+               : done    ? '视频已看完'
+               : qd      ? '课后练已完成' : '';
+      /* 练完状态用文字徽章「已练」: 纯图形点在 1x 屏上与未开始/全完成不可辨(用户实测反馈) */
+      h+=`<div class="cli${done?' done':''}${on?' on':''}" data-cid="${esc(c.id)}" data-ix="${li}" title="${esc(l.title)}">
+        <span class="st"${tip?` title="${tip}"`:''}>${st}</span><span class="lt">${esc(l.title)}</span>${qd?'<span class="lz">已练</span>':''}<span class="ld">${l.duration_sec?fmtDur(l.duration_sec):'—'}</span></div>`;
+    });
   }
   const el=$('cs-nav'); el.innerHTML=h;
-  el.querySelectorAll('.csi').forEach(x=>x.onclick=()=>openCourse(x.dataset.cid));
+  el.querySelector('#cs-course').onchange=e=>openCourse(e.target.value);
   el.querySelectorAll('.cli').forEach(x=>x.onclick=()=>openLesson(x.dataset.cid,+x.dataset.ix));
   const active=el.querySelector('.cli.on');
   if(active){

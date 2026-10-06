@@ -1101,3 +1101,16 @@ html.sb-min .brand{display:none}
 .gq-fb>div .gq-ghost{text-decoration:underline;text-underline-offset:3px}
 /* 词表块与内容同宽对齐 + 暖底 */
 .gq-inv{background:#f7f5ee}
+
+/* ==== 课程下拉切换(r40): 选课器 sticky 钉顶 + 所选课程信息条 + 课节平铺 ====
+   替代多课折叠堆叠: 加新课只需在数据里加一行, 下拉自动多一个选项 */
+.cs-pick{position:sticky;top:0;z-index:6;background:var(--card);
+  padding:10px 10px 9px;border-bottom:1px solid var(--line)}
+.cs-pick select{width:100%;appearance:none;-webkit-appearance:none;
+  font-family:inherit;font-size:14px;color:var(--t1);
+  background:var(--card) url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23566158' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 10px center;
+  border:1px solid #cfdcc9;border-radius:4px;padding:9px 30px 9px 11px;cursor:pointer}
+.cs-pick select:hover{border-color:#b9c9ab}
+.cs-pick select:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
+.csi.flat{cursor:default;border-left-color:transparent;background:none}
+.csi.flat:hover{background:none}
