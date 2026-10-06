@@ -1891,6 +1891,7 @@ async function gqGenerate(force) {
     if (st.lessonId !== myLesson) return;   // 已切课: 服务端已缓存, 面板不动
     st.quiz = r.quiz; st.checked = true;
     st.phase = 'ready';
+    if (force) { delete REC.course['gq:' + st.lessonId]; recSave(); }   // 重生成=新题组, 练完标记作废
   } catch (e) {
     if (st.lessonId !== myLesson) return;
     st.err = (e.message || '生成失败') + ' —— 网络波动时再点一次生成即可';
@@ -1940,10 +1941,30 @@ function gqMarkBad(qid) {
 }
 function gqNext() {
   const st = GQ_UI;
-  if (st.ix + 1 >= st.order.length) { st.phase = 'result'; renderGenQuiz(); gqScrollToCard(); return; }
+  if (st.ix + 1 >= st.order.length) {
+    gqMarkPracticed();   // 全部做完: 列表绿句点(r33)
+    st.phase = 'result'; renderGenQuiz(); gqScrollToCard(); return;
+  }
   st.ix++; st.qAt = Date.now();
   renderGenQuiz();
   gqScrollToCard();
+}
+/* 课后练完成标记: 存 REC.course['gq:<lessonId>'], 列表绿句点; 视频看完=course[l.id].done */
+function gqMarkPracticed() {
+  const st = GQ_UI;
+  if (!st.lessonId) return;
+  const k = 'gq:' + st.lessonId;
+  if (!(REC.course[k] && REC.course[k].done)) {
+    REC.course[k] = { done: 1, t: Date.now() }; recSave();
+    if (document.getElementById('cs-nav') && document.querySelector('#v-course.on')) renderCourseNav();   // 当屏看到句点亮起
+  }
+}
+function gqBackfillPracticed(lessonId, qz) {
+  const k = 'gq:' + lessonId;
+  if (REC.course[k] && REC.course[k].done) return;
+  const live = qz.questions.filter(q => !(qz.bad || []).includes(q.id));
+  const all = live.length > 0 && live.every(q => { const a = REC.attempts[gqQid(qz, q)]; return a && a.history && a.history.length; });
+  if (all) { REC.course[k] = { done: 1, t: Date.now() }; recSave(); }
 }
 /* ---------- 课稿(逐字稿校对版) tab ---------- */
 function mdRender(md) {
@@ -2006,6 +2027,7 @@ async function wireGenQuiz(c, l) {
       headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lessonId: l.id }) });
     if (body.isConnected && st.lessonId === l.id && st.phase === 'idle') {
       st.quiz = r.quiz; st.phase = 'ready'; renderGenQuiz();
+      gqBackfillPracticed(l.id, r.quiz);   // 改造前已做完的课: 打开即补绿句点
     }
   } catch (e) { /* 查询失败保持 idle, 按钮仍可手动生成 */ }
   gqConsumeRedo(l.id);
@@ -2071,11 +2093,20 @@ function renderCourseNav(){
         <div class="pg"><span class="pb"><i style="width:${tot?Math.round(cd/tot*100):0}%"></i></span>
           <span class="pn ${cd===tot&&tot?'full':''}">${cd}/${tot}</span></div></div>`;
       if(open){
+        const checkSvg='<i class="v"><svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1.8 5.4 4 7.6 8.3 2.9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></i>';   // SVG 勾锁定笔画几何, 文本 ✓ 各行粗细不一
         c.lessons.forEach((l,li)=>{
           const done=REC.course[l.id]&&REC.course[l.id].done;
+          const qd=c.id===GEN_COURSE&&REC.course['gq:'+l.id]&&REC.course['gq:'+l.id].done;
           const on=(csSel.c===c.id&&csSel.l===li);
+          const st= done&&qd ? checkSvg+'<i class="q"></i>'
+                  : done    ? checkSvg
+                  : qd      ? '<i class="q"></i>'
+                  :           '<i></i>';
+          const tip= done&&qd ? '视频已看完 · 课后练已完成'
+                   : done    ? '视频已看完'
+                   : qd      ? '课后练已完成' : '';
           h+=`<div class="cli${done?' done':''}${on?' on':''}" data-cid="${esc(c.id)}" data-ix="${li}" title="${esc(l.title)}">
-            <span class="st"><i></i></span><span class="lt">${esc(l.title)}</span>
+            <span class="st"${tip?` title="${tip}"`:''}>${st}</span><span class="lt">${esc(l.title)}</span>
             <span class="ld">${l.duration_sec?fmtDur(l.duration_sec):'—'}</span></div>`;
         });
       }

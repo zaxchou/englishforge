@@ -354,16 +354,18 @@ textarea{width:100%;min-height:150px;padding:var(--s3) 13px;resize:vertical;line
 .cli:hover{background:var(--hover)}
 .cli.on{border-left-color:var(--t1);background:var(--sunk)}
 .cli.on .lt{color:var(--t1);font-weight:500}
-.cli .st{width:16px;height:16px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
-.cli .st i{width:6px;height:6px;border-radius:50%;background:var(--line2)}
-.cli.done .st i{width:auto;height:auto;border-radius:0;background:none;
-  color:var(--ok);font-size:11px;font-style:normal}
-.cli.done .st i::before{content:'✓'}
+.cli .st{width:22px;height:16px;flex-shrink:0;display:flex;align-items:center;gap:3px}
+.cli .st i{width:6px;height:6px;border-radius:50%;background:var(--line2);transform:translateY(-.5px)}   /* 对齐标题墨心(评审实测单行低 1px) */
+/* 状态母题(r33): ✓=视频看完(墨绿), 绿句点=课后练练完(品牌 T. 句点母题), ✓.=全完成(与字标同构) */
+.cli .st i.v{width:auto;height:auto;border-radius:0;background:none;display:flex;color:var(--ok)}
+.cli .st i.v svg{display:block}
+.cli .st i.q{background:#668171}   /* 与标题句点 heading-dot 同源 */
+.cli .st i.v + i.q{transform:translateY(1.5px);margin-left:-1.5px}   /* 句点坐上勾的收笔基线(评审实测过冲 1px)+收紧连字字距 */
 .cli .lt{flex:1;min-width:0;font-size:var(--f4);color:var(--t2);white-space:nowrap;
   overflow:hidden;text-overflow:ellipsis}
 .cli .ld{flex-shrink:0;font-size:var(--f5);color:var(--t3);font-variant-numeric:tabular-nums}
-/* 播放中呼吸点 — 功能性指示, 不是装饰 */
-.cli.on .st i{width:8px;height:8px;background:var(--t1);animation:cspulse 1.6s ease-in-out infinite}
+/* 播放中呼吸点 — 功能性指示, 不是装饰; 只替换灰点, 不吃 ✓/绿句点字形 */
+.cli.on .st i:not(.v):not(.q){width:8px;height:8px;background:var(--t1);animation:cspulse 1.6s ease-in-out infinite}
 @keyframes cspulse{0%,100%{opacity:1}50%{opacity:.25}}
 
 /* 右栏主区 */
@@ -923,10 +925,10 @@ body.vfull .cs-status button{background:#1f2a22;border-color:#3a4a3e;color:#c9d8
 body.vfull .cs-status button:hover{background:#28392d;border-color:#4d6350}
 
 /* ---- 完成态×播放中: 勾与呼吸点重叠修复 ----
-   .cli.on 的实心点规则会盖在 .done 的 ✓ 上(截图事故)。已完成且正在播放的课节:
-   只显示绿色 ✓, 用透明度呼吸表达"正在播放", 不再叠点。 */
-.cli.done.on .st i{width:auto;height:auto;background:none;color:var(--ok);
-  animation:cspulse 1.6s ease-in-out infinite}
+   已完成且正在播放的课节: ✓ 保持可见, 用透明度呼吸表达"正在播放", 不再叠点;
+   绿句点(练完)保持静态。 */
+.cli.done.on .st i.v{animation:cspulse 1.6s ease-in-out infinite}
+.cli.on .st i.q{animation:cspulse 1.6s ease-in-out infinite}   /* 播放中的练完节: 句点呼吸 */
 
 /* ==== style block 18: 可折叠侧栏(Codex 式图标轨) ====
    折叠=64px 图标轨: 品牌缩成"T."、导航只留图标(悬浮 title 有全名)、内容区拿走剩余空间
