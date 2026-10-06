@@ -349,12 +349,14 @@ textarea{width:100%;min-height:150px;padding:var(--s3) 13px;resize:vertical;line
 .csi .pg .pn{font-size:var(--f5);color:var(--t3);font-variant-numeric:tabular-nums}
 .csi .pg .pn.full{color:var(--ok);font-weight:500}
 /* 章节项 */
-.cli{display:flex;align-items:center;gap:var(--s2);padding:6px var(--s3) 6px 44px;
+.cli{display:flex;align-items:center;gap:var(--s2);padding:6px var(--s3) 6px 12px;
   cursor:pointer;border-left:2px solid transparent;position:relative;transition:background .12s}
 .cli:hover{background:var(--hover)}
 .cli.on{border-left-color:var(--t1);background:var(--sunk)}
 .cli.on .lt{color:var(--t1);font-weight:500}
-.cli .st{width:22px;height:16px;flex-shrink:0;display:flex;align-items:center;gap:3px}
+/* 状态槽(r36): 与课程编号徽章同列同宽(24px), 勾/点居中——编号正下方一列;
+   课节标题与课程标题同左缘(x=158), 只靠字号粗细区分层级, 标题宽度 +30px */
+.cli .st{width:24px;height:16px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
 .cli .st i{width:6px;height:6px;border-radius:50%;background:var(--line2);transform:translateY(-.5px)}   /* 对齐标题墨心(评审实测单行低 1px) */
 /* 状态(r34): ✓=视频看完, 灰点=未开始; 课后练完成=行内文字徽章「已练」
    (纯图形句点在 1x 屏与未开始/全完成不可辨, 用户实测否决, 改用文字徽章) */
