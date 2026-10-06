@@ -71,6 +71,14 @@ while [ $i -lt 60 ]; do
       case "$BODY" in
         *"\"version\":\"$VER\""*)
           T3=$(date +%s)
+          # 清理本项目的旧镜像(保留当前 $VER 与运行容器的镜像)与旧发布包(保留最近 3 个供回滚)
+          KEEP="toefl-lab:$VER $(docker ps --filter name=toefl-lab --format '{{.Image}}')"
+          docker images --format '{{.Repository}}:{{.Tag}}' toefl-lab | while read -r img; do
+            case " $KEEP " in *" $img "*) continue ;; esac
+            docker rmi "$img" >/dev/null 2>&1 || true
+          done
+          docker image prune -f >/dev/null 2>&1 || true
+          ls -1t "$PROJ/releases" 2>/dev/null | tail -n +4 | while read -r d; do rm -rf "$PROJ/releases/$d"; done
           echo "完成：健康检查与版本断言通过，$VER 已上线（https://$(grep -E '^NAS_IP=' "$ENV_FILE" | cut -d= -f2):$PORT）"
           echo "阶段耗时：构建 $((T1-T0))s · 换标签 $((T2-T1))s · 重建+断言 $((T3-T2))s · 总计 $((T3-T0))s"
           exit 0
