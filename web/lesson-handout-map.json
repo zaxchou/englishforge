@@ -1,0 +1,574 @@
+{
+ "ndf-01": {
+  "lessons": {
+   "ndf-01-09": {
+    "nid": "ndf-01-h1",
+    "page": 12
+   },
+   "ndf-01-10": {
+    "nid": "ndf-01-h1",
+    "page": 12
+   },
+   "ndf-01-11": {
+    "nid": "ndf-01-h1",
+    "page": 12
+   },
+   "ndf-01-12": {
+    "nid": "ndf-01-h1",
+    "page": 12
+   },
+   "ndf-01-13": {
+    "nid": "ndf-01-h1",
+    "page": 12
+   },
+   "ndf-01-14": {
+    "nid": "ndf-01-h1",
+    "page": 12
+   },
+   "ndf-01-15": {
+    "nid": "ndf-01-h1",
+    "page": 12
+   },
+   "ndf-01-16": {
+    "nid": "ndf-01-h1",
+    "page": 12
+   },
+   "ndf-01-17": {
+    "nid": "ndf-01-h1",
+    "page": 12
+   },
+   "ndf-01-18": {
+    "nid": "ndf-01-h1",
+    "page": 12
+   },
+   "ndf-01-19": {
+    "nid": "ndf-01-h1",
+    "page": 17
+   },
+   "ndf-01-21": {
+    "nid": "ndf-01-h1",
+    "page": 18
+   },
+   "ndf-01-24": {
+    "nid": "ndf-01-h1",
+    "page": 19
+   },
+   "ndf-01-29": {
+    "nid": "ndf-01-h1",
+    "page": 21
+   },
+   "ndf-01-01": {
+    "nid": "ndf-01-h1",
+    "page": 3
+   },
+   "ndf-01-02": {
+    "nid": "ndf-01-h1",
+    "page": 3
+   },
+   "ndf-01-06": {
+    "nid": "ndf-01-h1",
+    "page": 4
+   },
+   "ndf-01-07": {
+    "nid": "ndf-01-h1",
+    "page": 7
+   },
+   "ndf-01-08": {
+    "nid": "ndf-01-h1",
+    "page": 8
+   },
+   "ndf-01-39": {
+    "nid": "ndf-01-h1",
+    "page": 26
+   },
+   "ndf-01-40": {
+    "nid": "ndf-01-h1",
+    "page": 26
+   },
+   "ndf-01-41": {
+    "nid": "ndf-01-h1",
+    "page": 28
+   },
+   "ndf-01-42": {
+    "nid": "ndf-01-h1",
+    "page": 29
+   },
+   "ndf-01-43": {
+    "nid": "ndf-01-h1",
+    "page": 30
+   },
+   "ndf-01-45": {
+    "nid": "ndf-01-h1",
+    "page": 31
+   },
+   "ndf-01-47": {
+    "nid": "ndf-01-h1",
+    "page": 32
+   },
+   "ndf-01-48": {
+    "nid": "ndf-01-h1",
+    "page": 33
+   }
+  }
+ },
+ "ndf-03": {
+  "lessons": {
+   "ndf-03-02": {
+    "nid": "ndf-03-h1",
+    "page": 2
+   },
+   "ndf-03-04": {
+    "nid": "ndf-03-h1",
+    "page": 15
+   },
+   "ndf-03-05": {
+    "nid": "ndf-03-h1",
+    "page": 21
+   },
+   "ndf-03-07": {
+    "nid": "ndf-03-h1",
+    "page": 35
+   },
+   "ndf-03-08": {
+    "nid": "ndf-03-h1",
+    "page": 43
+   },
+   "ndf-03-09": {
+    "nid": "ndf-03-h1",
+    "page": 50
+   },
+   "ndf-03-11": {
+    "nid": "ndf-03-h1",
+    "page": 2
+   },
+   "ndf-03-12": {
+    "nid": "ndf-03-h1",
+    "page": 2
+   },
+   "ndf-03-13": {
+    "nid": "ndf-03-h1",
+    "page": 2
+   },
+   "ndf-03-14": {
+    "nid": "ndf-03-h1",
+    "page": 2
+   },
+   "ndf-03-15": {
+    "nid": "ndf-03-h1",
+    "page": 2
+   },
+   "ndf-03-16": {
+    "nid": "ndf-03-h1",
+    "page": 2
+   }
+  }
+ },
+ "ndf-04": {
+  "lessons": {
+   "ndf-04-02": {
+    "nid": "ndf-04-h1",
+    "page": 5
+   },
+   "ndf-04-03": {
+    "nid": "ndf-04-h1",
+    "page": 5
+   },
+   "ndf-04-04": {
+    "nid": "ndf-04-h1",
+    "page": 5
+   },
+   "ndf-04-05": {
+    "nid": "ndf-04-h1",
+    "page": 16
+   },
+   "ndf-04-06": {
+    "nid": "ndf-04-h1",
+    "page": 18
+   },
+   "ndf-04-07": {
+    "nid": "ndf-04-h1",
+    "page": 21
+   },
+   "ndf-04-08": {
+    "nid": "ndf-04-h1",
+    "page": 24
+   },
+   "ndf-04-09": {
+    "nid": "ndf-04-h1",
+    "page": 27
+   },
+   "ndf-04-10": {
+    "nid": "ndf-04-h1",
+    "page": 29
+   },
+   "ndf-04-11": {
+    "nid": "ndf-04-h1",
+    "page": 33
+   },
+   "ndf-04-12": {
+    "nid": "ndf-04-h1",
+    "page": 35
+   },
+   "ndf-04-13": {
+    "nid": "ndf-04-h1",
+    "page": 37
+   },
+   "ndf-04-14": {
+    "nid": "ndf-04-h1",
+    "page": 41
+   },
+   "ndf-04-15": {
+    "nid": "ndf-04-h1",
+    "page": 43
+   },
+   "ndf-04-16": {
+    "nid": "ndf-04-h1",
+    "page": 45
+   },
+   "ndf-04-17": {
+    "nid": "ndf-04-h1",
+    "page": 47
+   },
+   "ndf-04-18": {
+    "nid": "ndf-04-h1",
+    "page": 49
+   },
+   "ndf-04-19": {
+    "nid": "ndf-04-h1",
+    "page": 51
+   },
+   "ndf-04-20": {
+    "nid": "ndf-04-h1",
+    "page": 6
+   },
+   "ndf-04-21": {
+    "nid": "ndf-04-h1",
+    "page": 6
+   },
+   "ndf-04-22": {
+    "nid": "ndf-04-h1",
+    "page": 6
+   },
+   "ndf-04-23": {
+    "nid": "ndf-04-h1",
+    "page": 61
+   },
+   "ndf-04-24": {
+    "nid": "ndf-04-h1",
+    "page": 63
+   },
+   "ndf-04-25": {
+    "nid": "ndf-04-h1",
+    "page": 66
+   },
+   "ndf-04-26": {
+    "nid": "ndf-04-h1",
+    "page": 68
+   },
+   "ndf-04-27": {
+    "nid": "ndf-04-h1",
+    "page": 70
+   },
+   "ndf-04-28": {
+    "nid": "ndf-04-h1",
+    "page": 72
+   }
+  }
+ },
+ "ndf-05": {
+  "lessons": {
+   "ndf-05-02": {
+    "nid": "ndf-05-h1",
+    "page": 4
+   },
+   "ndf-05-04": {
+    "nid": "ndf-05-h1",
+    "page": 13
+   },
+   "ndf-05-05": {
+    "nid": "ndf-05-h1",
+    "page": 4
+   },
+   "ndf-05-07": {
+    "nid": "ndf-05-h1",
+    "page": 13
+   },
+   "ndf-05-08": {
+    "nid": "ndf-05-h1",
+    "page": 4
+   },
+   "ndf-05-10": {
+    "nid": "ndf-05-h1",
+    "page": 13
+   },
+   "ndf-05-11": {
+    "nid": "ndf-05-h1",
+    "page": 4
+   },
+   "ndf-05-13": {
+    "nid": "ndf-05-h1",
+    "page": 13
+   },
+   "ndf-05-14": {
+    "nid": "ndf-05-h1",
+    "page": 4
+   },
+   "ndf-05-16": {
+    "nid": "ndf-05-h1",
+    "page": 13
+   },
+   "ndf-05-17": {
+    "nid": "ndf-05-h1",
+    "page": 4
+   },
+   "ndf-05-19": {
+    "nid": "ndf-05-h1",
+    "page": 13
+   },
+   "ndf-05-20": {
+    "nid": "ndf-05-h1",
+    "page": 4
+   },
+   "ndf-05-22": {
+    "nid": "ndf-05-h1",
+    "page": 13
+   },
+   "ndf-05-23": {
+    "nid": "ndf-05-h1",
+    "page": 4
+   },
+   "ndf-05-25": {
+    "nid": "ndf-05-h1",
+    "page": 4
+   },
+   "ndf-05-27": {
+    "nid": "ndf-05-h1",
+    "page": 13
+   },
+   "ndf-05-28": {
+    "nid": "ndf-05-h1",
+    "page": 4
+   }
+  }
+ },
+ "ndf-06": {
+  "lessons": {
+   "ndf-06-01": {
+    "nid": "ndf-06-h1",
+    "page": 42
+   },
+   "ndf-06-02": {
+    "nid": "ndf-06-h1",
+    "page": 75
+   },
+   "ndf-06-03": {
+    "nid": "ndf-06-h1",
+    "page": 42
+   },
+   "ndf-06-04": {
+    "nid": "ndf-06-h1",
+    "page": 42
+   },
+   "ndf-06-05": {
+    "nid": "ndf-06-h1",
+    "page": 66
+   },
+   "ndf-06-07": {
+    "nid": "ndf-06-h1",
+    "page": 42
+   },
+   "ndf-06-08": {
+    "nid": "ndf-06-h1",
+    "page": 75
+   },
+   "ndf-06-09": {
+    "nid": "ndf-06-h1",
+    "page": 66
+   },
+   "ndf-06-10": {
+    "nid": "ndf-06-h1",
+    "page": 42
+   },
+   "ndf-06-11": {
+    "nid": "ndf-06-h1",
+    "page": 75
+   },
+   "ndf-06-12": {
+    "nid": "ndf-06-h1",
+    "page": 66
+   },
+   "ndf-06-13": {
+    "nid": "ndf-06-h1",
+    "page": 42
+   },
+   "ndf-06-14": {
+    "nid": "ndf-06-h1",
+    "page": 75
+   },
+   "ndf-06-15": {
+    "nid": "ndf-06-h1",
+    "page": 66
+   },
+   "ndf-06-16": {
+    "nid": "ndf-06-h1",
+    "page": 74
+   },
+   "ndf-06-17": {
+    "nid": "ndf-06-h1",
+    "page": 42
+   },
+   "ndf-06-18": {
+    "nid": "ndf-06-h1",
+    "page": 75
+   },
+   "ndf-06-19": {
+    "nid": "ndf-06-h1",
+    "page": 66
+   },
+   "ndf-06-20": {
+    "nid": "ndf-06-h1",
+    "page": 42
+   },
+   "ndf-06-21": {
+    "nid": "ndf-06-h1",
+    "page": 75
+   },
+   "ndf-06-22": {
+    "nid": "ndf-06-h1",
+    "page": 66
+   },
+   "ndf-06-23": {
+    "nid": "ndf-06-h1",
+    "page": 42
+   },
+   "ndf-06-24": {
+    "nid": "ndf-06-h1",
+    "page": 75
+   },
+   "ndf-06-25": {
+    "nid": "ndf-06-h1",
+    "page": 66
+   },
+   "ndf-06-26": {
+    "nid": "ndf-06-h1",
+    "page": 42
+   },
+   "ndf-06-27": {
+    "nid": "ndf-06-h1",
+    "page": 75
+   },
+   "ndf-06-28": {
+    "nid": "ndf-06-h1",
+    "page": 66
+   },
+   "ndf-06-29": {
+    "nid": "ndf-06-h1",
+    "page": 42
+   },
+   "ndf-06-30": {
+    "nid": "ndf-06-h1",
+    "page": 75
+   },
+   "ndf-06-31": {
+    "nid": "ndf-06-h1",
+    "page": 66
+   },
+   "ndf-06-32": {
+    "nid": "ndf-06-h1",
+    "page": 42
+   },
+   "ndf-06-33": {
+    "nid": "ndf-06-h1",
+    "page": 75
+   }
+  }
+ },
+ "ndf-07": {
+  "lessons": {
+   "ndf-07-02": {
+    "nid": "ndf-07-h1",
+    "page": 5
+   },
+   "ndf-07-04": {
+    "nid": "ndf-07-h1",
+    "page": 14
+   },
+   "ndf-07-05": {
+    "nid": "ndf-07-h1",
+    "page": 5
+   },
+   "ndf-07-07": {
+    "nid": "ndf-07-h1",
+    "page": 14
+   },
+   "ndf-07-08": {
+    "nid": "ndf-07-h1",
+    "page": 5
+   },
+   "ndf-07-10": {
+    "nid": "ndf-07-h1",
+    "page": 14
+   },
+   "ndf-07-11": {
+    "nid": "ndf-07-h1",
+    "page": 5
+   },
+   "ndf-07-13": {
+    "nid": "ndf-07-h1",
+    "page": 14
+   },
+   "ndf-07-14": {
+    "nid": "ndf-07-h1",
+    "page": 5
+   },
+   "ndf-07-16": {
+    "nid": "ndf-07-h1",
+    "page": 14
+   },
+   "ndf-07-17": {
+    "nid": "ndf-07-h1",
+    "page": 5
+   },
+   "ndf-07-19": {
+    "nid": "ndf-07-h1",
+    "page": 14
+   },
+   "ndf-07-20": {
+    "nid": "ndf-07-h1",
+    "page": 5
+   },
+   "ndf-07-22": {
+    "nid": "ndf-07-h1",
+    "page": 14
+   },
+   "ndf-07-23": {
+    "nid": "ndf-07-h1",
+    "page": 5
+   },
+   "ndf-07-25": {
+    "nid": "ndf-07-h1",
+    "page": 14
+   },
+   "ndf-07-26": {
+    "nid": "ndf-07-h1",
+    "page": 5
+   },
+   "ndf-07-28": {
+    "nid": "ndf-07-h1",
+    "page": 14
+   },
+   "ndf-07-29": {
+    "nid": "ndf-07-h1",
+    "page": 5
+   },
+   "ndf-07-30": {
+    "nid": "ndf-07-h1",
+    "page": 5
+   },
+   "ndf-07-31": {
+    "nid": "ndf-07-h1",
+    "page": 14
+   }
+  }
+ }
+}

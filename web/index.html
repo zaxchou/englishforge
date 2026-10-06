@@ -328,7 +328,7 @@ function answerKeyOf(q){
 }
 
 /* ---------- 服务端数据 ---------- */
-let CATALOG = null, COURSES = null, CURATED = {};
+let CATALOG = null, COURSES = null, CURATED = {}, LESSON_HANDOUT_MAP = {};
 const SETCACHE = {};
 async function api(path, opts) {
   const r = await fetch(path, opts);
@@ -2236,21 +2236,31 @@ function renderCourseMain(){
   v.addEventListener('play',()=>{played=true;STU=true;}); v.addEventListener('pause',()=>STU=false);
   const hand=$('cs-handout');
   const notesIds=(c.notes_ids||[]).includes(l.id)?[l.id]:(c.notes_ids||[]);
+  const hm=((LESSON_HANDOUT_MAP[c.id]||{}).lessons||{})[l.id];   // 课节→讲义页映射(r41): 有则默认只展示本节相关页
   if((c.notes_ids||[]).length||l.handout_file){
     Promise.all((notesIds.length?notesIds:c.notes_ids||[]).map(id=>
       api('/api/handout/'+encodeURIComponent(id)).catch(()=>null))).then(async list=>{
       if(!hand.isConnected)return;
       const notes=list.filter(Boolean);
-      const pages=notes.flatMap(x=>(x.pages||[]).map(pg=>({...pg,source_file:x.source_file||x.id}))).filter(pg=>pg.text&&pg.text.trim());
+      const allPages=notes.flatMap(x=>(x.pages||[]).map(pg=>({...pg,source_file:x.source_file||x.id}))).filter(pg=>pg.text&&pg.text.trim());
+      let pages=allPages, scopeNote='';
+      if(hm&&hm.page){   // 本节窗口: 映射页起(含), 到下一个有映射的课节的页为止(即本节讲的页范围), 至少 2 页
+        const ordered=Object.entries(((LESSON_HANDOUT_MAP[c.id]||{}).lessons)||{}).map(([lid,m])=>({lid,page:m.page,nid:m.nid})).sort((a,b)=>a.page-b.page);
+        const at=ordered.findIndex(x=>x.lid===l.id);
+        const nextAt=ordered.slice(at+1).find(x=>!hm.nid||x.nid===hm.nid);
+        const p0=hm.page, p1=nextAt?nextAt.page-1:Math.min(hm.page+5, Math.max(...pages.filter(pg=>!hm.nid||pg.source_file===(notes.find(x=>x.id===hm.nid)||{}).source_file).map(pg=>pg.page)));
+        const inScope=pages.filter(pg=>pg.page>=p0&&pg.page<=Math.max(p1,p0+1)&&(!hm.nid||pg.source_file===(notes.find(x=>x.id===hm.nid)||{}).source_file));
+        if(inScope.length){ pages=inScope; scopeNote=' · 本节相关第 '+p0+'–'+Math.max(p1,p0+1)+' 页'; }
+      }
       if(pages.length){
         const show=pages.slice(0,8);
-        hand.innerHTML=`<h5>讲义文本 <span class="tag-src">提取自源文件 · 共 ${pages.length} 页 · 保留来源页</span></h5>`+
+        hand.innerHTML=`<h5>讲义文本 <span class="tag-src">提取自源文件${esc(scopeNote)} · 共 ${pages.length} 页</span></h5>`+
           show.map(pg=>`<div class="hslide"><div class="pg">${esc(pg.source_file||'')} · 第 ${pg.page} 页</div><div class="tx">${esc(pg.text.slice(0,600))}${pg.text.length>600?'…':''}</div></div>`).join('')+
-          (pages.length>show.length||show.some(pg=>pg.text.length>600)?`<div style="padding-top:10px"><button id="cs-hmore">展开完整讲义（${pages.length} 页）</button></div>`:'');
+          (allPages.length>show.length||show.some(pg=>pg.text.length>600)?`<div style="padding-top:10px"><button id="cs-hmore">展开完整讲义（${allPages.length} 页）</button></div>`:'');
         const more=hand.querySelector('#cs-hmore');
         if(more) more.onclick=()=>{
-          hand.innerHTML=`<h5>讲义文本 <span class="tag-src">共 ${pages.length} 页</span></h5>`+
-            pages.map(pg=>`<div class="hslide"><div class="pg">${esc(pg.source_file||'')} · 第 ${pg.page} 页</div><div class="tx">${esc(pg.text)}</div></div>`).join('');
+          hand.innerHTML=`<h5>讲义文本 <span class="tag-src">完整讲义 · 共 ${allPages.length} 页</span></h5>`+
+            allPages.map(pg=>`<div class="hslide"><div class="pg">${esc(pg.source_file||'')} · 第 ${pg.page} 页</div><div class="tx">${esc(pg.text)}</div></div>`).join('');
         };
         return;
       }
@@ -2672,12 +2682,14 @@ $('d-audio').addEventListener('timeupdate',()=>{const a=$('d-audio');audioTrack.
 /* ---------- 启动 ---------- */
 async function boot(){
   try{
-    const [cat,courses,recs,curated]=await Promise.all([
+    const [cat,courses,recs,curated,hmap]=await Promise.all([
       api('/api/catalog'), api('/api/courses'),
       api('/api/records'),
       fetch('curated.json').then(r=>r.json()).catch(()=>({})),
+      fetch('lesson-handout-map.json').then(r=>r.json()).catch(()=>({})),
     ]);
     CATALOG=cat; COURSES=courses; CURATED=curated&&curated.lessons?curated.lessons:(curated||{});
+    LESSON_HANDOUT_MAP=hmap||{};
     REC=Object.assign(REC,recs);recBase=recClone(REC);recReady=true;
     renderHome();
     route();
