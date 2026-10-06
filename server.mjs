@@ -312,8 +312,7 @@ function parseQuiz(raw) {
   const qs = Array.isArray(j.questions) ? j.questions : [];
   const clean = qs.filter(q => q && typeof q.stem === 'string' && q.stem.trim().length > 3
       && q.options && Object.keys(q.options).length >= 3
-      && q.answer && Object.keys(q.options).map(k => String(k).toUpperCase()[0]).includes(String(q.answer).trim().toUpperCase()[0])
-      && typeof q.explain === 'string' && q.explain.trim()
+      && q.answer && typeof q.explain === 'string' && q.explain.trim()
       && ['root', 'collocation', 'meaning', 'cloze'].includes(q.type))
     .map(q => {
       const optSrc = Object.entries(q.options || {}).slice(0, 4);
@@ -321,16 +320,18 @@ function parseQuiz(raw) {
         const o = (v && typeof v === 'object') ? v : { t: v };
         return ['ABCD'[i], { t: String(o.t == null ? '' : o.t).trim(), note: String(o.note == null ? '' : o.note).trim() }];
       }));
+      const ansK = String(q.answer).trim().toUpperCase()[0];
+      if (!options[ansK] || !options[ansK].t) return null;   // 归一化后答案必须在 A-D 里(防 5 选项 answer=E 被截)
       return {
         type: q.type,
         stem: String(q.stem).trim(),
         options,
-        answer: String(q.answer).trim().toUpperCase()[0],
+        answer: ansK,
         explain: String(q.explain).trim(),
         tags: Array.isArray(q.tags) ? q.tags.map(x => String(x).slice(0, 24)).slice(0, 3) : [],
         covers: Array.isArray(q.covers) ? q.covers.map(x => String(x).slice(0, 40)) : [],
       };
-    });
+    }).filter(Boolean);
   if (clean.length < 4) throw new Error('有效题目不足（仅 ' + clean.length + ' 题）');
   return {
     scope: String(j.scope || '').slice(0, 200),
@@ -736,13 +737,15 @@ function familiesAggregate() {
   };
   for (const qz of Object.values(GQ_STORE)) {
     if (!qz || qz.v !== AI_QV) continue;
+    const badSet = new Set(qz.bad || []);
+    const liveQs = (qz.questions || []).filter(q => !badSet.has(q.id));
     for (const fam of (qz.families || [])) {
       if (!fam || !fam.name) continue;
       const e = ensure(qz.course + '|' + fam.name, fam.name, fam.kind, fam.gloss);
       if (!e.gloss && fam.gloss) e.gloss = fam.gloss;
       for (const w of (fam.words || [])) if (!e.words.includes(w)) e.words.push(w);
     }
-    for (const q of (qz.questions || [])) {
+    for (const q of liveQs) {
       for (const tag of (q.tags || [])) {
         const e = ensure(qz.course + '|' + tag, tag, 'root', '');
         e.items.push({ qid: 'gen/' + qz.course + '/' + qz.lessonNo + '/quiz/' + Number(String(q.id).slice(1)),
@@ -786,6 +789,7 @@ function nextRecords(incoming) {
   const next = {...RECORDS};
   for (const k of ['attempts', 'qtimes', 'mistakes', 'families', 'course', 'study', 'writing', 'drafts']) {
     if (k === 'drafts' && !incoming[k]) {next[k]={};continue;}
+    if (k === 'families' && !incoming[k]) {next[k]={};continue;}   // r16 前的旧标签页没有 families, 兼容而非报错
     if (!incoming[k] || typeof incoming[k] !== 'object' || Array.isArray(incoming[k])) throw new Error('invalid ' + k);
     next[k] = incoming[k];
   }

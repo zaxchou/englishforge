@@ -1069,3 +1069,11 @@ body.vfull .cs-status button:hover{background:#28392d;border-color:#4d6350}
 .gq-kp .k{color:#5a6a5d;font-weight:600}
 .gq-fb{position:relative}
 .gq-fb>div .gq-ghost{position:absolute;right:0;bottom:0}
+
+/* ==== T. 品牌图标接入(t-dot-v1) ==== */
+.desk-brand{display:flex;align-items:center;gap:10px}
+.brand-ico{display:block;border-radius:7px;flex-shrink:0}
+.brand{display:inline-flex;align-items:baseline}
+/* 折叠轨: 只留图标(文字隐藏), 图标居中 */
+html.sb-min .desk-brand{width:48px}
+html.sb-min .brand{display:none}

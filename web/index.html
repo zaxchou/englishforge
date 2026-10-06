@@ -3,9 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="icon" type="image/png" sizes="32x32" href="/icon-32.png">
-<link rel="icon" type="image/png" sizes="96x96" href="/icon-96.png">
-<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<link rel="icon" type="image/x-icon" href="/assets/brand/t-dot-v1/favicon-t-dot-v1.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="/assets/brand/t-dot-v1/t-dot-32.png">
+<link rel="icon" type="image/png" sizes="96x96" href="/assets/brand/t-dot-v1/t-dot-96.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/assets/brand/t-dot-v1/t-dot-180.png">
 <title>TOEFL Lab · 托福自学练习</title>
 <link rel="stylesheet" href="desk.css">
 <style>
@@ -111,7 +112,7 @@ details.ai-tsec[open] summary{margin-bottom:8px}
 <div class="top">
   <div class="topin">
     <button id="sb-toggle" class="sb-toggle" title="折叠/展开侧栏" aria-label="折叠/展开侧栏"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M9.5 4.5v15"/><rect x="5" y="6" width="3.2" height="12" rx="1" fill="currentColor" stroke="none" opacity=".22"/></svg></button>
-    <div class="desk-brand"><span class="brand"><span class="brand-t">T</span><span class="brand-oefl">OEFL&nbsp;</span><span class="brand-lab">Lab</span><span class="brand-dot">.</span></span><span class="brand-caption">个人练习空间</span></div>
+    <div class="desk-brand"><img class="brand-ico" src="/assets/brand/t-dot-v1/t-dot-48.png" alt="" width="30" height="30"><span class="brand"><span class="brand-t">T</span><span class="brand-oefl">OEFL&nbsp;</span><span class="brand-lab">Lab</span><span class="brand-dot">.</span></span><span class="brand-caption">个人练习空间</span></div>
     <div class="nav">
       <button class="on" data-v="home" title="首页"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 10.5 12 3.5l8.5 7"/><path d="M5.5 9.5V20h13V9.5"/></svg><span class="nv-t">首页</span></button>
       <button data-v="drill" title="专项训练"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.6"/></svg><span class="nv-t">专项训练</span></button>
@@ -2306,7 +2307,7 @@ function renderFamQuiz() {
     + '<button class="gq-ghost" id="fam-quit">退出复习</button></div>'
     + '<div class="gq-stem">' + esc(item.stem) + '</div>'
     + '<div class="gq-opts">' + Object.entries(item.options).map(([k, v]) =>
-        '<div class="opt gq-opt" data-k="' + k + '"><span class="ol">' + k + '</span>' + esc(v) + '</div>').join('') + '</div>'
+        '<div class="opt gq-opt" data-k="' + k + '"><span class="ol">' + k + '</span>' + esc(typeof v === 'object' ? (v.t || '') : v) + '</div>').join('') + '</div>'
     + '<div id="fam-fb"></div><div class="gq-nav" id="fam-nav"></div></div>';
   $('fam-quit').onclick = () => { FAM_UI.key = null; renderFamilies(); };
   if (done) {
