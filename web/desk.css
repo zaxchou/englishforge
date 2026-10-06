@@ -935,7 +935,7 @@ body.vfull .cs-status button:hover{background:#28392d;border-color:#4d6350}
 .nav button{display:flex;align-items:center;gap:10px}
 .nav button svg{flex-shrink:0}
 .sb-toggle{margin:0 0 10px;width:40px;height:40px;display:flex;align-items:center;justify-content:center;
-  border:1px solid var(--line);border-radius:4px;background:var(--card);color:var(--t2);cursor:pointer}
+  border:0;border-radius:4px;background:none;color:var(--t2);cursor:pointer}
 .sb-toggle:hover{background:var(--hover);color:var(--t1)}
 .sb-toggle svg{transition:transform .18s}
 html.sb-min .sb-toggle svg{transform:scaleX(-1)}
