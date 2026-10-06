@@ -262,8 +262,19 @@ function gqSave() {
     fs.writeFileSync(GQ_STORE_FILE, JSON.stringify({ version: 1, items: GQ_STORE }));
   } catch (e) { console.error('[gq-store]', e.message); }
 }
-const AI_QV = 1;                 // v1 = 词根/搭配/词义三题型 + families 元数据
+const AI_QV = 2;                 // v2 = 逐字稿源+覆盖闭环+选项级解析(note)
 const GQ_COURSE = 'ndf-01';      // MVP 只开词汇课
+/* 逐字稿(已校对 md)目录: 用户下载并经 pipeline/proofread_scripts.py 校对后落在源素材 逐字稿/ 文件夹 */
+const SCRIPT_DIRS = { 'ndf-01': path.join(SIB, '新D方', '新D方新托福全套', '01 托福词汇课 孙曦', '逐字稿') };
+function scriptFileFor(course, lessonNo) {
+  const dir = SCRIPT_DIRS[course];
+  if (!dir) return null;
+  try {
+    const pref = String(lessonNo).padStart(2, '0');
+    const f = fs.readdirSync(dir).find(x => x.startsWith(pref) && x.toLowerCase().endsWith('.md'));
+    return f ? { dir, file: f } : null;
+  } catch (e) { return null; }
+}
 const GQ_STOP = new Set(('the,a,an,and,or,of,to,in,on,for,with,from,by,at,as,is,are,was,were,be,been,' +
   'this,that,these,those,it,its,not,but,which,who,whom,whose,what,when,where,how,why,can,could,' +
   'will,would,should,may,might,must,do,does,did,have,has,had,he,she,they,we,you,i,his,her,their,' +
@@ -304,18 +315,26 @@ function parseQuiz(raw) {
       && q.answer && Object.keys(q.options).map(k => String(k).toUpperCase()[0]).includes(String(q.answer).trim().toUpperCase()[0])
       && typeof q.explain === 'string' && q.explain.trim()
       && ['root', 'collocation', 'meaning', 'cloze'].includes(q.type))
-    .map(q => ({
-      type: q.type,
-      stem: String(q.stem).trim(),
-      options: Object.fromEntries(Object.entries(q.options).slice(0, 4)
-        .map(([k, v], i) => ['ABCD'[i], String(v).trim()])),
-      answer: String(q.answer).trim().toUpperCase()[0],
-      explain: String(q.explain).trim(),
-      tags: Array.isArray(q.tags) ? q.tags.map(x => String(x).slice(0, 24)).slice(0, 3) : [],
-    }));
+    .map(q => {
+      const optSrc = Object.entries(q.options || {}).slice(0, 4);
+      const options = Object.fromEntries(optSrc.map(([k, v], i) => {
+        const o = (v && typeof v === 'object') ? v : { t: v };
+        return ['ABCD'[i], { t: String(o.t == null ? '' : o.t).trim(), note: String(o.note == null ? '' : o.note).trim() }];
+      }));
+      return {
+        type: q.type,
+        stem: String(q.stem).trim(),
+        options,
+        answer: String(q.answer).trim().toUpperCase()[0],
+        explain: String(q.explain).trim(),
+        tags: Array.isArray(q.tags) ? q.tags.map(x => String(x).slice(0, 24)).slice(0, 3) : [],
+        covers: Array.isArray(q.covers) ? q.covers.map(x => String(x).slice(0, 40)) : [],
+      };
+    });
   if (clean.length < 4) throw new Error('有效题目不足（仅 ' + clean.length + ' 题）');
   return {
     scope: String(j.scope || '').slice(0, 200),
+    covered: Array.isArray(j.covered) ? j.covered.map(x => String(x)) : [],
     pages: Array.isArray(j.pages) ? j.pages.slice(0, 12).map(Number).filter(Number.isFinite) : [],
     families: (Array.isArray(j.families) ? j.families : []).filter(x => x && x.name).map(x => ({
       name: String(x.name).slice(0, 24),
@@ -332,7 +351,9 @@ function parseQuiz(raw) {
    干扰词本应多样。答案词完全不在讲义→整题丢弃——不考没教过的词。 */
 function traceOK(q, wordSet, rawText) {
   const latin = s => (String(s).toLowerCase().match(/[a-z][a-z'-]{2,}/g) || []);
-  let cand = latin((q.options || {})[String(q.answer).trim().toUpperCase()] || '');
+  const av = (q.options || {})[String(q.answer).trim().toUpperCase()];
+  const ansText = (av && typeof av === 'object') ? String(av.t || '') : String(av || '');
+  let cand = latin(ansText);
   if (!cand.length) cand = latin(q.stem).filter(w => !GQ_STOP.has(w));
   if (!cand.length) return true;   // 全中文问答(方法论/概念题): 无英文可查, 交提示词约束+用户坏题标记兜底
   return cand.some(w => wordSet.has(w) || rawText.includes(w)
@@ -354,64 +375,96 @@ async function genQuizInner(lessonId, force) {
   const f = findLesson(lessonId);
   if (!f) throw new Error('lesson not found');
   if (f.course.id !== GQ_COURSE) throw new Error('本课程暂未开通课后练');
-  const nid = (f.course.notes_ids || [])[0];
-  if (!nid) throw new Error('该课暂无文字讲义');
-  let pages;
+  const sf = scriptFileFor(f.course.id, f.ix + 1);
+  if (!sf) throw new Error('该节逐字稿尚未校对');
+  let scriptMd = '';
   try {
-    pages = (JSON.parse(fs.readFileSync(path.join(BUILD_DIR, 'courses', 'notes', nid + '.json'), 'utf8'))
-      .pages || []).filter(pg => pg.text && pg.text.trim());
-  } catch (e) { throw new Error('讲义文本读取失败'); }
-  if (!pages.length) throw new Error('该讲义无可用的文字层');
-  const text = pages.map(pg => '[第' + pg.page + '页]\n' + pg.text).join('\n\n');
-  const sys = '你是托福词汇课的教研老师，根据提供的教材讲义为指定课节生成一套课后练习。铁律：'
-    + '1. 以教材为唯一标准：只考讲义中出现的词根/词缀/单词，被考察的英文词必须在讲义原文中出现过，不引入讲义之外的生词。'
-    + '2. 先用讲义开头的目录定位本节课标题对应的章节页码，只出该范围的内容。'
-    + '3. 题型混合：root(词根词缀逻辑)、collocation(搭配用法辨析)、meaning(词义选择)、cloze(例句填空，句中空格用 ______)，共 8-12 题，按内容自然分配。'
-    + '4. 每题恰好 4 个选项、一个正确答案、一句中文解析（点明讲义依据）、tags 数组（本题考查的词根或词缀）。'
-    + '5. 另输出 families：本节涉及的词根/词缀家族清单（name/kind(root|prefix|suffix)/gloss(中文含义)/words(讲义中该家族成员词)）。'
-    + '6. 只输出一个 JSON 对象，不要任何额外文字，格式：'
-    + '{"scope":"本节内容范围一句话","pages":[起,止],"families":[{"name":"ceive","kind":"root","gloss":"拿取","words":["receive","accept"]}],'
-    + '"questions":[{"type":"root","stem":"...","options":{"A":"...","B":"...","C":"...","D":"..."},"answer":"B","explain":"...","tags":["ceive"]}]}';
-  const user = '[教材讲义全文（课程级，共 ' + pages.length + ' 页）]\n' + text
-    + '\n\n[本节课] 第 ' + (f.ix + 1) + ' 节：' + f.lesson.title + '\n请只针对本节课对应章节的内容出题。';
-  const wordSet = new Set((text.toLowerCase().match(/[a-z][a-z'-]{2,}/g) || []));
-  const runAttempt = async (userMsg, tag) => {
-    const parsed = parseQuiz(await aiGen(sys, userMsg));
-    const kept = [], dropped = [];
-    for (const q of parsed.questions) (traceOK(q, wordSet, text) ? kept : dropped).push(q);
-    console.log('[gen-quiz]', lessonId, tag, 'kept', kept.length, 'dropped', dropped.length);
-    return { parsed, kept, dropped };
+    scriptMd = fs.readFileSync(path.join(sf.dir, sf.file), 'utf8').replace(/^---[\s\S]*?---\n*/, '').trim();
+  } catch (e) { throw new Error('逐字稿读取失败'); }
+  if (scriptMd.length < 500) throw new Error('逐字稿内容过短');
+  const stem = f.course.id + '-' + String(f.ix + 1).padStart(2, '0');
+  let inv = { words: [], affixes: [], roots: [], phrases: [] };
+  try {
+    const j = JSON.parse(fs.readFileSync(path.join(sf.dir, stem + '.words.json'), 'utf8'));
+    inv = { words: j.words || [], affixes: j.affixes || [], roots: j.roots || [], phrases: j.phrases || [] };
+  } catch (e) {}
+  const invItems = [...inv.words, ...inv.affixes, ...inv.roots].map(x => String(x).trim()).filter(Boolean);
+  const invLine = 'words: ' + inv.words.join('、') + '\naffixes: ' + inv.affixes.join('、')
+    + '\nroots: ' + inv.roots.join('、') + (inv.phrases.length ? '\nphrases: ' + inv.phrases.join('、') : '');
+
+  const sys = '你是托福词汇课的教研老师。根据本节课的课堂逐字稿(已校对)和本节语言点清单，生成覆盖式课后练习。铁律：'
+    + '1. 覆盖第一：清单里的每一个单词/词根/词缀都必须被至少一道题考查，或出现在某题的选项解析(note)或 explain 里。'
+    + '2. 每道题的每个选项都给 note(知识点)：说明该选项的含义，错误选项要说它是什么意思、为什么在这里不对。'
+    + '3. 内容以逐字稿里老师讲的原话为准(老师举的例子、补充的辨析都要用上)；拼写与讲义核对。'
+    + '4. 题型混合：root(词根词缀逻辑)、collocation(搭配用法)、meaning(词义选择)、cloze(例句填空，空格用 ______)，每题 4 选项。'
+    + '5. 严格 JSON：{"scope":"本节一句话","questions":[{"type":"root","stem":"...","options":{"A":{"t":"选项内容","note":"该选项含义/为何对错"},"B":{...},"C":{...},"D":{...}},"answer":"B","explain":"本题主知识点","tags":["-ist"],"covers":["清单中被本题覆盖的项，原文照抄"]}],"covered":["本轮已覆盖的清单项"]}';
+
+  const user = '[本节课] 第 ' + (f.ix + 1) + ' 节：' + f.lesson.title
+    + '\n\n[本节语言点清单(必须全覆盖)]\n' + invLine
+    + '\n\n[课堂逐字稿(已校对)]\n' + scriptMd.slice(0, 26000);
+
+  const parseOne = raw => {
+    const parsed = parseQuiz(raw);
+    // 覆盖对账: 清单项 出现在 covered 或任何题目文本里 即算覆盖
+    const allText = JSON.stringify(parsed.questions).toLowerCase();
+    const cov = new Set((parsed.covered || []).map(x => String(x).toLowerCase()));
+    const uncovered = invItems.filter(w => !cov.has(w.toLowerCase()) && !allText.includes(w.toLowerCase()));
+    return { parsed, uncovered };
   };
-  const finish = r => {
-    r.kept.forEach((q, i) => { q.id = 'q' + (i + 1); });
-    if (!r.parsed.families.length) {   // 模型漏了 families: 从题目 tags 合成, 保证复习 tab 的家族卡完整
-      r.parsed.families = [...new Set(r.kept.flatMap(q => q.tags || []))]
-        .filter(Boolean).map(t => ({ name: t, kind: /^(un|dis|in|im|re|de|sub|super|over|con|com|col|cor|ex|pre|pro|sub)$/.test(t) ? 'prefix' : /(ing|ed|er|or|ist|ment|ness|tion|sion|able|ible|ous|ive|ful|less|ize|ise|fy|ify|ate|al|ic|ty|ity|cy|ence|ance|ency|ancy|age|ship|ary|ery|ory|um|ium)$/.test(t) ? 'suffix' : 'root', gloss: '', words: [] }));
-    }
+  const finish = (questions, scope, uncoveredFinal) => {
+    questions.forEach((q, i) => { q.id = 'q' + (i + 1); });
     const entry = { v: AI_QV, at: Date.now(), course: f.course.id, lessonNo: f.ix + 1,
-      title: f.lesson.title, scope: r.parsed.scope, pages: r.parsed.pages,
-      families: r.parsed.families, questions: r.kept, bad: [] };
+      title: f.lesson.title, scope, inventory: inv, uncovered: uncoveredFinal,
+      questions, bad: [] };
     GQ_STORE[lessonId] = entry;
     gqSave();
-    return { quiz: entry, cached: false, dropped: r.dropped.length };
+    return { quiz: entry, cached: false, uncovered: uncoveredFinal.length };
   };
-  let r1 = null, r2 = null, lastErr = '';
-  try { r1 = await runAttempt(user, 'a1'); }
-  catch (e) { lastErr = e.message; console.error('[gen-quiz]', lessonId, 'a1 FAIL', e.message); }
-  if (r1 && r1.kept.length >= 4) return finish(r1);
-  if (r1) {
-    // 反馈式重出: 把被拒题目列给模型, 要求只用讲义词
-    const fb = '[出题反馈] 上一稿以下题目因考察了讲义外的词被拒绝：\n'
-      + r1.dropped.slice(0, 8).map(q => '- ' + String(q.stem).slice(0, 50)).join('\n')
-      + '\n请重新出题：题干目标词与正确答案必须来自讲义原文；干扰项也尽量取讲义词。';
-    try { r2 = await runAttempt(user + '\n\n' + fb, 'a2'); }
-    catch (e) { lastErr = e.message; console.error('[gen-quiz]', lessonId, 'a2 FAIL', e.message); }
-    if (r2 && r2.kept.length >= 4) return finish(r2);
+  // 覆盖闭环 V2: 清单分批(每批约 30 项, 单轮输出天然不超限), 批间全局对账, 收尾补漏一轮
+  const covNow = qs => {
+    const allText = JSON.stringify(qs).toLowerCase();
+    return invItems.filter(w => !allText.includes(w.toLowerCase()));
+  };
+  const groups = [];
+  for (let i = 0; i < invItems.length; i += 30) groups.push(invItems.slice(i, i + 30));
+  if (!groups.length) groups.push([]);
+  let acc = [], scope = '', lastErr = '';
+  for (let gi = 0; gi < groups.length; gi++) {
+    const target = groups[gi].filter(w => covNow(acc).includes(w.toLowerCase()));
+    if (!target.length) continue;   // 前面批次已顺带覆盖
+    const msg = user + '\n\n[本轮只针对以下清单项出题，不要超出]\n' + target.join('、')
+      + '\n出 4-9 题，每题的选项 note 都要给全。';
+    let r;
+    try { r = parseOne(await aiGen(sys, msg)); }
+    catch (e) {
+      lastErr = e.message;
+      console.error('[gen-quiz]', lessonId, 'g' + gi, 'FAIL', e.message);
+      continue;   // 单批失败不放弃整节, 后续批次继续
+    }
+    if (!scope) scope = r.parsed.scope;
+    acc = acc.concat(r.parsed.questions);
+    console.log('[gen-quiz]', lessonId, 'g' + gi, 'q', r.parsed.questions.length, '累计', acc.length);
   }
-  const best = (r2 && r2.kept.length) || 0;
-  if (r1 && r1.kept.length >= 2 && r1.kept.length >= best) return finish(r1);   // 内容薄的节: 有 2 题也如实交付
-  if (best >= 2) return finish(r2);
-  throw new Error(lastErr || '生成题目未通过教材溯源校验，请重试');
+  // 收尾补漏: 全局对账后仍有未覆盖 → 一轮针对补题
+  let remaining = covNow(acc);
+  if (remaining.length && acc.length) {
+    const msg = user + '\n\n[出题反馈] 以下清单项尚未覆盖，请只针对它们继续出题：\n' + remaining.join('、');
+    try {
+      const r = parseOne(await aiGen(sys, msg));
+      acc = acc.concat(r.parsed.questions);
+      remaining = covNow(acc);
+      console.log('[gen-quiz]', lessonId, 'final', 'q', r.parsed.questions.length, 'uncovered', remaining.length);
+    } catch (e) { console.error('[gen-quiz]', lessonId, 'final FAIL', e.message); }
+  }
+  if (!acc.length) throw new Error(lastErr || '生成失败');
+  // 溯源抽查: 英文答案词必须能在逐字稿找到(防幻觉; 全中文问答跳过)
+  const rawText = scriptMd.toLowerCase();
+  const wordSet = new Set((rawText.match(/[a-z][a-z'-]{2,}/g) || []));
+  acc = acc.filter(q => traceOK(q, wordSet, rawText));
+  if (!acc.length) throw new Error('生成题目未通过溯源校验，请重试');
+  acc = acc.slice(0, 30);   // 单节题量上限
+  const finalUncovered = remaining.filter(w => !acc.some(q => JSON.stringify(q).toLowerCase().includes(w.toLowerCase())));
+  return finish(acc, scope, finalUncovered);
 }
 
 /* 课后练(gen qid)的 AI 解析: 题面来自生成题组, 讲义相关页作上下文。 */
@@ -859,6 +912,24 @@ const handler = async (req, res) => {
         const code = /^bad qid|not found/.test(e.message) ? 400 : 502;
         return sendJSON(res, code, { error: e.message });
       }
+    }
+
+    /* ---- 课稿(逐字稿校对版 md) ---- */
+    const mScript = p.match(/^\/api\/lesson-script\/([\w.-]+)$/);
+    if (mScript) {
+      const lessonId = mScript[1];
+      const parts = lessonId.split('-');
+      const no = Number(parts[parts.length - 1]);
+      const course = parts.slice(0, -1).join('-');
+      const sf = scriptFileFor(course, no);
+      if (!sf) return sendJSON(res, 404, { error: '该节暂无课稿' });
+      try {
+        let md = fs.readFileSync(path.join(sf.dir, sf.file), 'utf8').replace(/^---[\s\S]*?---\n*/, '').trim();
+        let inv = null;
+        const stem = course + '-' + String(no).padStart(2, '0');
+        try { inv = JSON.parse(fs.readFileSync(path.join(sf.dir, stem + '.words.json'), 'utf8')); } catch (e) {}
+        return sendJSON(res, 200, { ok: true, title: sf.file.replace(/\.md$/i, ''), md, inv });
+      } catch (e) { return sendJSON(res, 500, { error: '课稿读取失败' }); }
     }
 
     /* ---- 课后练坏题标记(用户反馈, 从练习中隐藏) ---- */

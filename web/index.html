@@ -1745,6 +1745,9 @@ function renderGenQuiz() {
     body.innerHTML = '<div class="gq-in">'
       + (qz.scope ? '<p class="gq-scope">' + esc(qz.scope) + (qz.pages && qz.pages.length ? '（讲义第 ' + Math.min(...qz.pages) + '–' + Math.max(...qz.pages) + ' 页）' : '') + '</p>' : '')
       + (fam ? '<div class="gq-chips">' + fam + '</div>' : '')
+      + (qz.inventory ? '<details class="gq-inv"><summary>本节词表 · ' + (qz.inventory.words || []).length + ' 词 / '
+        + (qz.inventory.affixes || []).length + ' 词缀 / ' + (qz.inventory.roots || []).length + ' 词根</summary>'
+        + '<div class="ws">' + gqInvChips(qz) + '</div></details>' : '')
       + (st.err ? '<div class="na-box">' + esc(st.err) + '</div>' : '')
       + '<div class="gq-row"><b>' + (qz.questions.length - (qz.bad || []).length) + ' 道题</b>'
       + '<span class="gq-stat">' + (s.n ? ('已练 ' + s.right + '/' + s.n + ' 正确') : '未做过') + (s.lastT ? ' · 最近 ' + new Date(s.lastT).toLocaleDateString() : '') + '</span>'
@@ -1783,16 +1786,36 @@ function renderGenQuiz() {
           + wrongIds.map(id => { const q = qz.questions.find(x => x.id === id); return '<div class="w">· ' + esc(String(q.stem).slice(0, 60)) + '</div>'; }).join('') + '</div>' : '')
       + '<div class="gq-row"><span class="grow"></span>'
       + (wrongIds.length ? '<button id="gq-redo">重做错题 →</button>' : '')
-      + '<button class="pri" id="gq-again">再练一遍</button></div></div>';
+      + '<button class="pri" id="gq-again">再练一遍</button></div>'
+      + (qz.inventory ? '<details class="gq-inv" open><summary>本节词表过一遍（'
+        + (qz.inventory.words || []).length + '+' + (qz.inventory.affixes || []).length + '+' + (qz.inventory.roots || []).length + ' 项，绿色=已被题目覆盖）</summary>'
+        + '<div class="ws">' + gqInvChips(qz) + '</div></details>' : '') + '</div>';
     if (wrongIds.length) $('gq-redo').onclick = () => gqStart(wrongIds.slice());
     $('gq-again').onclick = () => gqStart(qz.questions.map(x => x.id));
   }
 }
+function gqInvChips(qz) {
+  const inv = qz.inventory || {};
+  const allText = JSON.stringify(qz.questions).toLowerCase();
+  const mk = (arr, cls) => (arr || []).map(w => {
+    const cov = allText.includes(String(w).toLowerCase()) ? ' cov' : '';
+    return '<i class="' + cls + cov + '">' + esc(w) + '</i>';
+  }).join('');
+  return mk(inv.words, 'w') + mk(inv.affixes, 'a') + mk(inv.roots, 'r');
+}
 function gqPaintAnswered(q, done) {
   const st = GQ_UI;
   const fb = $('gq-fb');
+  let kp = '';
+  const firstOpt = Object.values(q.options || {})[0];
+  if (firstOpt && typeof firstOpt === 'object') {   // V2: 每个选项都带知识点(含义/为何对错)
+    kp = '<div class="gq-kp"><div class="k">选项知识点</div>'
+      + Object.entries(q.options).map(([k, o]) =>
+        '<div class="o' + (k === q.answer ? ' right' : (done.letter === k ? ' mine' : '')) + '"><b>' + k + '</b> ' + esc(o.t || '')
+        + (o.note ? '<span> — ' + esc(o.note) + '</span>' : '') + '</div>').join('') + '</div>';
+  }
   if (fb) fb.innerHTML = '<div class="gq-fb ' + (done.ok ? 'ok' : 'bad') + '"><b>' + (done.ok ? '答对了' : '答错了 · 正确答案 ' + esc(q.answer)) + '</b> ' + esc(q.explain)
-    + '<span class="grow"></span><button class="gq-ghost" id="gq-bad">这题有问题</button></div>';
+    + '<span class="grow"></span><button class="gq-ghost" id="gq-bad">这题有问题</button></div>' + kp;
   const nav = $('gq-nav');
   if (nav) {
     nav.innerHTML = '<span class="grow"></span><button class="pri" id="gq-next">' + (st.ix + 1 >= st.order.length ? '看结果 →' : '下一题 →') + '</button>';
@@ -1864,6 +1887,47 @@ function gqNext() {
   st.ix++; st.qAt = Date.now();
   renderGenQuiz();
 }
+/* ---------- 课稿(逐字稿校对版) tab ---------- */
+function mdRender(md) {
+  const lines = esc(md).split(/\n/);
+  let h = '', inUl = false;
+  const closeUl = () => { if (inUl) { h += '</ul>'; inUl = false; } };
+  for (const ln of lines) {
+    const t = ln.trim();
+    if (/^#{2,3}\s/.test(t)) { closeUl(); h += '<h5>' + t.replace(/^#+\s*/, '') + '</h5>'; }
+    else if (/^[-*]\s/.test(t)) { if (!inUl) { h += '<ul>'; inUl = true; } h += '<li>' + t.slice(2).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>') + '</li>'; }
+    else if (!t) { closeUl(); }
+    else { closeUl(); h += '<p>' + t.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>') + '</p>'; }
+  }
+  closeUl();
+  return h;
+}
+let SCRIPT_MD = null, SCRIPT_LESSON = null;
+function wireScriptTab(c, l) {
+  const btn = $('cs-tab-script'); if (!btn) return;
+  btn.style.display = 'none'; btn.classList.remove('on');
+  $('cs-mat-t').textContent = '本节讲义';
+  $('cs-mat-handout').style.display = ''; $('cs-mat-script').style.display = 'none';
+  document.querySelectorAll('.htabs button').forEach(x => x.classList.toggle('on', x.dataset.h === 'handout'));
+  if (c.id !== GEN_COURSE) return;
+  SCRIPT_MD = null; SCRIPT_LESSON = null;
+  api('/api/lesson-script/' + encodeURIComponent(l.id)).then(r => {
+    if (!r.md || SCRIPT_LESSON === l.id) return;
+    SCRIPT_MD = r.md; SCRIPT_LESSON = l.id;
+    btn.style.display = ''; $('cs-script-body').innerHTML = mdRender(r.md);
+  }).catch(() => {});
+}
+document.querySelectorAll('.htabs button').forEach(b => {
+  b.onclick = () => {
+    document.querySelectorAll('.htabs button').forEach(x => x.classList.toggle('on', x === b));
+    const script = b.dataset.h === 'script';
+    $('cs-mat-handout').style.display = script ? 'none' : '';
+    $('cs-mat-script').style.display = script ? '' : 'none';
+    $('cs-mat-t').textContent = script ? '本节课稿' : '本节讲义';
+    $('cs-mat-r').style.display = script ? 'none' : '';
+  };
+});
+
 async function wireGenQuiz(c, l) {
   if (c.id !== GEN_COURSE) return;
   const body = $('gq-body'); if (!body) return;
@@ -2001,9 +2065,11 @@ function renderCourseMain(){
       <div class="phead"><div class="l"><b>课后练 · 按本节教材生成</b></div><div class="r" id="gq-meta"></div></div>
       <div id="gq-body"></div></div>`:''}
     <div class="card" style="margin-top:16px;overflow:hidden">
-      <div class="phead"><div class="l"><b>本节讲义</b></div>
-        <div class="r">${originals.map(x=>`<a class="orig-link" href="${esc(x.url)}" target="_blank" rel="noopener">原版：${esc(x.file)} ↗</a>`).join(' ')}</div></div>
-      <div class="handout-scroll"><div class="handout" id="cs-handout" style="background:none;border-radius:0"><div class="skl"><i style="width:62%"></i><i style="width:88%"></i><i style="width:76%"></i><i style="width:38%"></i></div></div></div>
+      <div class="phead"><div class="l"><b id="cs-mat-t">本节讲义</b>
+        <span class="htabs"><button class="on" data-h="handout">讲义</button><button data-h="script" id="cs-tab-script" style="display:none">课稿</button></span></div>
+        <div class="r" id="cs-mat-r">${originals.map(x=>`<a class="orig-link" href="${esc(x.url)}" target="_blank" rel="noopener">原版：${esc(x.file)} ↗</a>`).join(' ')}</div></div>
+      <div id="cs-mat-handout"><div class="handout-scroll"><div class="handout" id="cs-handout" style="background:none;border-radius:0"><div class="skl"><i style="width:62%"></i><i style="width:88%"></i><i style="width:76%"></i><i style="width:38%"></i></div></div></div></div>
+      <div id="cs-mat-script" style="display:none"><div class="md-body" id="cs-script-body"><p class="gq-note">加载中…</p></div></div>
     </div>
     <div class="linkbar" id="cs-link" style="margin-top:16px"></div>
   </div>`;
@@ -2011,6 +2077,7 @@ function renderCourseMain(){
   if(p&&p.wt===undefined&&p.pos) p.wt=Math.floor(p.pos);   // 存量课: 已看进度作观看秒数下限
   courseWatchTarget=l.id;
   wireGenQuiz(c, l);   // 课后练(仅 GEN_COURSE)
+  wireScriptTab(c, l);   // 课稿 tab
   v.addEventListener('error',()=>{
     const nn=$('cs-vnote');
     nn.style.display='';

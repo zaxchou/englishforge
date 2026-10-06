@@ -1031,3 +1031,27 @@ body.vfull .cs-status button:hover{background:#28392d;border-color:#4d6350}
 .famcard .gl{font-size:12px;color:var(--t3);flex:1;min-width:0}
 .famcard .ws{font-size:12px;color:var(--t2);line-height:2;margin-top:6px}
 .famcard .ws i{font-style:normal;background:var(--sunk);border-radius:3px;padding:1px 7px;margin-right:6px;font-variant-numeric:tabular-nums}
+
+/* ==== 课稿 tab + 题目 V2(选项知识点/本节词表) ==== */
+.htabs{margin-left:12px;display:inline-flex;gap:2px}
+.htabs button{border:0;background:none;font-size:12px;color:var(--t2);min-height:26px;padding:2px 10px;border-radius:3px;cursor:pointer}
+.htabs button.on{background:var(--sunk);color:var(--t1);font-weight:500}
+.md-body{padding:18px 22px 22px;line-height:1.9;font-size:14px;max-height:560px;overflow-y:auto;background:#fbfcf6}
+.md-body h5{font-size:14px;margin:18px 0 8px;color:#244433}
+.md-body p{margin:8px 0}
+.md-body ul{margin:6px 0;padding-left:20px}
+.md-body li{margin:4px 0}
+.gq-kp{margin-top:10px;border:1px solid var(--line);border-radius:4px;background:var(--sunk);padding:10px 14px}
+.gq-kp .k{font-size:11px;color:var(--t3);margin-bottom:6px;letter-spacing:.05em}
+.gq-kp .o{font-size:13px;line-height:1.7;padding:4px 0;border-top:1px dashed var(--line)}
+.gq-kp .o:first-of-type{border-top:0}
+.gq-kp .o b{color:var(--t2);margin-right:6px}
+.gq-kp .o span{color:var(--t2)}
+.gq-kp .o.right b{color:var(--ok)} .gq-kp .o.mine b{color:var(--bad)}
+.gq-inv{margin-top:14px;border:1px solid var(--line);border-radius:4px;padding:10px 14px;background:var(--sunk)}
+.gq-inv summary{font-size:12px;color:var(--t2);cursor:pointer}
+.gq-inv .ws{margin-top:8px;line-height:2.2}
+.gq-inv .ws i{font-style:normal;font-size:12px;background:var(--card);border:1px solid var(--line);border-radius:3px;padding:1px 8px;margin:0 6px 4px 0;color:var(--t2)}
+.gq-inv .ws i.a{border-color:#cddcc2;color:#4d7a5f}
+.gq-inv .ws i.r{border-color:#d8cfc0;color:#7a5b2c}
+.gq-inv .ws i.cov{background:#eef4e7;border-color:#b9c9ab;color:#244433}
