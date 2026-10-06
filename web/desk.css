@@ -940,10 +940,7 @@ body.vfull .cs-status button:hover{background:#28392d;border-color:#4d6350}
 .sb-toggle:hover{background:rgba(0,0,0,.07);color:var(--t1)}
 .sb-toggle svg{transition:transform .18s}
 html.sb-min .sb-toggle svg{transform:scaleX(-1)}
-@media(min-width:701px){
-  .desk-brand{flex-wrap:wrap}
-  .desk-brand .brand-caption{flex-basis:100%;margin:6px 0 0;padding-left:40px}
-}
+
 .top{transition:width .18s ease}
 .wrap{transition:margin-left .18s ease}
 body.vfull .sb-toggle{display:none}
@@ -957,9 +954,7 @@ body.vfull .sb-toggle{display:none}
   html.sb-min .top{width:64px;z-index:800;transition:width .18s ease,box-shadow .18s ease}
   html.sb-min .topin{padding:52px 8px 24px;gap:0}
   html.sb-min .desk-brand{padding:0;width:48px;height:56px;justify-content:center}
-  html.sb-min .brand{font-size:19px;letter-spacing:-.5px;line-height:30px}
-  html.sb-min .brand-caption{line-height:18px;margin-top:2px}
-  html.sb-min .brand-oefl,html.sb-min .brand-lab,html.sb-min .brand-caption{display:none}
+  html.sb-min .brand{display:none}   /* 折叠轨只留图标资产(T. img) */
   html.sb-min .nav{margin-top:14px}
   html.sb-min .nav button{padding:11px 0;justify-content:center;gap:0}
   html.sb-min .nav .nv-t{display:none}
