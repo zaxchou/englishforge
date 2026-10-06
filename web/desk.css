@@ -1068,3 +1068,20 @@ body.vfull .sb-toggle{display:none}
 /* 折叠轨: 只留图标(文字隐藏), 图标居中 */
 html.sb-min .desk-brand{width:48px}
 html.sb-min .brand{display:none}
+
+/* ==== 课稿/课后练评审抛光(oil-ui-pro 轮) ==== */
+/* 课稿长文: 收窄行宽+加大字号+暖色滚动条 */
+.md-body{max-width:720px;margin:0 auto;padding:20px 24px 26px;font-size:15.5px;line-height:1.85}
+.md-body::-webkit-scrollbar{width:10px}
+.md-body::-webkit-scrollbar-thumb{background:#d3d8c8;border-radius:5px;border:2px solid #fbfcf6}
+.md-body h5{font-size:15px;color:#244433;border-left:3px solid #66856a;padding-left:9px}
+/* tab 选中态加强: 白底描边+加粗, 与未选中拉开 */
+.htabs button.on{background:#fffef9;border:1px solid #b9c9ab;color:#244433;font-weight:600}
+/* 知识点块: 暖纸底 */
+.gq-kp{background:#f7f5ee;border-color:var(--line)}
+.gq-kp .k{color:#687568;font-weight:600}
+/* 答错结论/理由分行; 动作链接可点感 */
+.gq-fb>div .gq-fb-x{display:block;margin-top:5px}
+.gq-fb>div .gq-ghost{text-decoration:underline;text-underline-offset:3px}
+/* 词表块与内容同宽对齐 + 暖底 */
+.gq-inv{background:#f7f5ee}

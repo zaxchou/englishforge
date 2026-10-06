@@ -1814,7 +1814,7 @@ function gqPaintAnswered(q, done) {
         '<div class="o' + (k === q.answer ? ' right' : (done.letter === k ? ' mine' : '')) + '"><b>' + k + '</b> ' + esc(o.t || '')
         + (o.note ? '<span> — ' + esc(o.note) + '</span>' : '') + '</div>').join('') + '</div>';
   }
-  if (fb) fb.innerHTML = '<div class="gq-fb ' + (done.ok ? 'ok' : 'bad') + '"><b>' + (done.ok ? '答对了' : '答错了 · 正确答案 ' + esc(q.answer)) + '</b> ' + esc(q.explain)
+  if (fb) fb.innerHTML = '<div class="gq-fb ' + (done.ok ? 'ok' : 'bad') + '"><b>' + (done.ok ? '答对了' : '答错了 · 正确答案 ' + esc(q.answer)) + '</b><span class="gq-fb-x"> ' + esc(q.explain) + '</span></div>' + kp;
     + '<span class="grow"></span><button class="gq-ghost" id="gq-bad">这题有问题</button></div>' + kp;
   const nav = $('gq-nav');
   if (nav) {
@@ -1909,6 +1909,7 @@ function wireScriptTab(c, l) {
   $('cs-mat-t').textContent = '本节讲义';
   $('cs-mat-handout').style.display = ''; $('cs-mat-script').style.display = 'none';
   document.querySelectorAll('.htabs button').forEach(x => x.classList.toggle('on', x.dataset.h === 'handout'));
+  gqBindTabs();
   if (c.id !== GEN_COURSE) return;
   SCRIPT_MD = null; SCRIPT_LESSON = null;
   api('/api/lesson-script/' + encodeURIComponent(l.id)).then(r => {
@@ -1917,16 +1918,17 @@ function wireScriptTab(c, l) {
     btn.style.display = ''; $('cs-script-body').innerHTML = mdRender(r.md);
   }).catch(() => {});
 }
-document.querySelectorAll('.htabs button').forEach(b => {
-  b.onclick = () => {
-    document.querySelectorAll('.htabs button').forEach(x => x.classList.toggle('on', x === b));
-    const script = b.dataset.h === 'script';
-    $('cs-mat-handout').style.display = script ? 'none' : '';
-    $('cs-mat-script').style.display = script ? '' : 'none';
-    $('cs-mat-t').textContent = script ? '本节课稿' : '本节讲义';
-    $('cs-mat-r').style.display = script ? 'none' : '';
-  };
-});
+function gqBindTabs() {   // tab 按钮随每节课重渲染, 绑定必须在每次渲染后执行(顶层一次性绑定绑不到新按钮)
+  document.querySelectorAll('.htabs button').forEach(b => {
+    b.onclick = () => {
+      document.querySelectorAll('.htabs button').forEach(x => x.classList.toggle('on', x === b));
+      const script = b.dataset.h === 'script';
+      $('cs-mat-handout').style.display = script ? 'none' : '';
+      $('cs-mat-script').style.display = script ? '' : 'none';
+      $('cs-mat-r').style.display = script ? 'none' : '';
+    };
+  });
+}
 
 async function wireGenQuiz(c, l) {
   if (c.id !== GEN_COURSE) return;
@@ -2120,12 +2122,12 @@ function renderCourseMain(){
       const pages=notes.flatMap(x=>(x.pages||[]).map(pg=>({...pg,source_file:x.source_file||x.id}))).filter(pg=>pg.text&&pg.text.trim());
       if(pages.length){
         const show=pages.slice(0,8);
-        hand.innerHTML=`<h5>讲义文本 <span class="tag-src">提取自源文件 · 共 ${pages.length} 页/张 · 保留来源页</span></h5>`+
+        hand.innerHTML=`<h5>讲义文本 <span class="tag-src">提取自源文件 · 共 ${pages.length} 页 · 保留来源页</span></h5>`+
           show.map(pg=>`<div class="hslide"><div class="pg">${esc(pg.source_file||'')} · 第 ${pg.page} 页</div><div class="tx">${esc(pg.text.slice(0,600))}${pg.text.length>600?'…':''}</div></div>`).join('')+
           (pages.length>show.length||show.some(pg=>pg.text.length>600)?`<div style="padding-top:10px"><button id="cs-hmore">展开完整讲义（${pages.length} 页）</button></div>`:'');
         const more=hand.querySelector('#cs-hmore');
         if(more) more.onclick=()=>{
-          hand.innerHTML=`<h5>讲义文本 <span class="tag-src">共 ${pages.length} 页/张</span></h5>`+
+          hand.innerHTML=`<h5>讲义文本 <span class="tag-src">共 ${pages.length} 页</span></h5>`+
             pages.map(pg=>`<div class="hslide"><div class="pg">${esc(pg.source_file||'')} · 第 ${pg.page} 页</div><div class="tx">${esc(pg.text)}</div></div>`).join('');
         };
         return;
