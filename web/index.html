@@ -774,6 +774,7 @@ function go(v){
   const isTask=(v==='do');
   if(v!=='course')document.body.classList.remove('vfull');   // 任何非课程视图都不留在铺满态(含做题, 否则考试页滚动被锁)
   if(!isTask) {checkpointCourse(true);lastNav=v; if(TICK) {TACC=usedSec();QACC=qUsedSec();clearInterval(TICK);TICK=null;} STU=false; $('d-audio').pause();const cv=$('cs-video');if(cv)cv.pause();document.querySelectorAll('.ai-audio').forEach(a=>a.pause());} else if(S && !TICK && !T_PAUSED) tStart();
+  if(v!=='course'&&GQ_TICK){clearInterval(GQ_TICK);GQ_TICK=null;}   /* 离开课程页: 课后练计时即停(回到同节 quiz 相位会自动重开) */
   document.querySelectorAll('.nav button').forEach(x=>x.classList.toggle('on',x.dataset.v===v));
   const navOn=document.querySelector('.nav button.on');   // 窄屏导航横向滚动时, 当前项要滚入视野
   if(navOn&&navOn.scrollIntoView) navOn.scrollIntoView({block:'nearest',inline:'center'});
@@ -1708,6 +1709,18 @@ const GEN_COURSE = 'ndf-01';   // MVP: 词汇课先行(讲义文字层完整)
 const GQ_UI = { lessonId:null, phase:'idle', quiz:null, order:[], ix:0, answers:{}, wrong:[],
                 qAt:0, err:'', checked:false, busy:false };
 let GQ_REDO = null;   // 错题本「重做」带来的待重做队列 {lessonId, qids}
+/* 课后练做题期间计入学习时长(与 drill/视频同口径: 每秒累加, 切走标签页不记, 结算即停) */
+let GQ_TICK = null;
+function gqStudyGate() {
+  const on = GQ_UI.phase === 'quiz';
+  if (on && !GQ_TICK) GQ_TICK = setInterval(() => {
+    /* 面板已不在场(离页/切走)一律不记, 防计时器漏跑虚增时长 */
+    if (!document.hidden && GQ_UI.phase === 'quiz' && document.getElementById('gq-body')) {
+      studyTick(1); if ((REC.study.total || 0) % 5 === 0) recSave();
+    }
+  }, 1000);
+  else if (!on && GQ_TICK) { clearInterval(GQ_TICK); GQ_TICK = null; }
+}
 function gqQid(quiz, q) { return 'gen/' + quiz.course + '/' + quiz.lessonNo + '/quiz/' + Number(String(q.id).slice(1)); }
 function gqRef(quiz, q) { return { qid: gqQid(quiz, q), set: 'gen', subj: quiz.course, mk: String(quiz.lessonNo), gkey: 'quiz' }; }
 function gqStats(quiz) {
@@ -1723,6 +1736,7 @@ function gqStats(quiz) {
 }
 function renderGenQuiz() {
   const body = $('gq-body'); if (!body) return;
+  gqStudyGate();   // quiz 相位→计时开, 其余相位→停(切课/结算自动停)
   const st = GQ_UI, qz = st.quiz;
   $('gq-meta').textContent = qz ? (qz.questions.length - (qz.bad || []).length + ' 题') : '';
   if (st.phase === 'idle') {
@@ -1930,7 +1944,7 @@ function gqBindTabs() {   // tab 按钮随每节课重渲染, 绑定必须在每
 }
 
 async function wireGenQuiz(c, l) {
-  if (c.id !== GEN_COURSE) return;
+  if (c.id !== GEN_COURSE) { if (GQ_TICK) { clearInterval(GQ_TICK); GQ_TICK = null; } return; }   /* 非词汇课: 面板不渲染, 计时必须先停 */
   const body = $('gq-body'); if (!body) return;
   if (GQ_UI.lessonId !== l.id) {
     Object.assign(GQ_UI, { lessonId: l.id, phase: 'idle', quiz: null, order: [], ix: 0,
