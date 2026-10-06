@@ -329,6 +329,8 @@ function parseQuiz(raw) {
         if (seenT.has(nt)) return null;
         seenT.add(nt);
       }
+      // 覆盖范围式判错("本节未讲/未重点讲解")=题干多解的糊弄, 拒收(9 课 q22 事故根治)
+      if (/未重点讲解|本节未讲|未在本节|更直接对应本节/.test(JSON.stringify(options) + ' ' + (q.explain || ''))) return null;
       return {
         type: q.type,
         stem: String(q.stem).trim(),
@@ -405,7 +407,9 @@ async function genQuizInner(lessonId, force) {
     + '2. 每道题的每个选项都给 note(知识点)：说明该选项的含义，错误选项要说它是什么意思、为什么在这里不对。'
     + '3. 内容以逐字稿里老师讲的原话为准(老师举的例子、补充的辨析都要用上)；拼写与讲义核对。'
     + '4. 题型混合：root(词根词缀逻辑)、collocation(搭配用法)、meaning(词义选择)、cloze(例句填空，空格用 ______)，每题 4 选项。'
-    + '5. 严格 JSON：{"scope":"本节一句话","questions":[{"type":"root","stem":"...","options":{"A":{"t":"选项内容","note":"该选项含义/为何对错"},"B":{...},"C":{...},"D":{...}},"answer":"B","explain":"本题主知识点","tags":["-ist"],"covers":["清单中被本题覆盖的项，原文照抄"]}],"covered":["本轮已覆盖的清单项"]}';
+    + '5. 正确答案唯一：题干的判定条件必须只有正确选项满足；干扰项必须因词根/词缀含义、词义、搭配的真实错误而不成立。'
+    + '若某候选词同样满足题干条件，必须换掉它——严禁与正确答案形成多解，更严禁拿"本节没讲/未重点讲解/超纲"当判错理由。'
+    + '6. 严格 JSON：{"scope":"本节一句话","questions":[{"type":"root","stem":"...","options":{"A":{"t":"选项内容","note":"该选项含义/为何对错"},"B":{...},"C":{...},"D":{...}},"answer":"B","explain":"本题主知识点","tags":["-ist"],"covers":["清单中被本题覆盖的项，原文照抄"]}],"covered":["本轮已覆盖的清单项"]}';
 
   const user = '[本节课] 第 ' + (f.ix + 1) + ' 节：' + f.lesson.title
     + '\n\n[本节语言点清单(必须全覆盖)]\n' + invLine
