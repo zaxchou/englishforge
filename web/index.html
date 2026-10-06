@@ -1767,7 +1767,7 @@ function renderGenQuiz() {
       + '<div class="gq-prog">第 ' + (st.ix + 1) + ' / ' + st.order.length + ' 题' + tag + '</div>'
       + '<div class="gq-stem">' + esc(q.stem) + '</div>'
       + '<div class="gq-opts">' + Object.entries(q.options).map(([k, v]) =>
-          '<div class="opt gq-opt' + (done ? (k === q.answer ? ' right' : (done.letter === k ? ' wrong' : '')) : '') + '" data-k="' + k + '"><span class="ol">' + k + '</span>' + esc(v) + '</div>').join('') + '</div>'
+          '<div class="opt gq-opt' + (done ? (k === q.answer ? ' right' : (done.letter === k ? ' wrong' : '')) : '') + '" data-k="' + k + '"><span class="ol">' + k + '</span>' + esc(typeof v === 'object' ? (v.t || '') : v) + '</div>').join('') + '</div>'
       + '<div id="gq-fb"></div><div class="gq-nav" id="gq-nav"></div></div>';
     if (!done) {
       body.querySelectorAll('.gq-opt').forEach(el => {
