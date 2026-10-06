@@ -465,7 +465,23 @@ async function genQuizInner(lessonId, force) {
   const wordSet = new Set((rawText.match(/[a-z][a-z'-]{2,}/g) || []));
   acc = acc.filter(q => traceOK(q, wordSet, rawText));
   if (!acc.length) throw new Error('生成题目未通过溯源校验，请重试');
-  acc = acc.slice(0, 30);   // 单节题量上限
+  // 覆盖续写轮: 大清单课(130+ 项)30 题装不下 → 继续针对性出题直到覆盖完(总量≤60)
+  let extra = 0;
+  remaining = invItems.filter(w => !acc.some(q => JSON.stringify(q).toLowerCase().includes(w.toLowerCase())));
+  while (remaining.length && extra < 5) {
+    const msg = user + '\n\n[补充出题] 以下清单项尚未被覆盖，请只针对它们出题(每项至少出现一次)：\n' + remaining.join('、');
+    let r;
+    try { r = parseOne(await aiGen(sys, msg)); }
+    catch (e) { console.error('[gen-quiz]', lessonId, 'extra' + extra, 'FAIL', e.message); break; }
+    const before = acc.length;
+    acc = acc.concat(r.parsed.questions.filter(q => traceOK(q, wordSet, rawText)));
+    extra++;
+    remaining = invItems.filter(w => !acc.some(q => JSON.stringify(q).toLowerCase().includes(w.toLowerCase())));
+    console.log('[gen-quiz]', lessonId, 'extra' + extra, 'q', acc.length - before, 'uncovered', remaining.length);
+    if (acc.length >= 60 || !remaining.length) break;
+    if (acc.length === before) break;   // 无进展防死循环
+  }
+  acc = acc.slice(0, 60);
   const finalUncovered = remaining.filter(w => !acc.some(q => JSON.stringify(q).toLowerCase().includes(w.toLowerCase())));
   return finish(acc, scope, finalUncovered);
 }
