@@ -1694,23 +1694,29 @@ window.csVfull=function(){
   if(b) b.textContent=document.body.classList.contains('vfull')?'退出铺满':'铺满窗口';
 };
 document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&document.body.classList.contains('vfull')) csVfull(); });
-/* 课后练键盘流(r31): A–D/1–4 作答, Enter/→ 下一题; 仅做题相位+面板在场, 输入框聚焦与铺满态不响应 */
+/* 课后练键盘流(r31): A–D/1–4 作答, Enter/→ 下一题, ← 上一题; 仅做题相位+面板在场, 输入框聚焦与铺满态不响应;
+   修饰键组合(Ctrl+A 全选等)不吞; 焦点在按钮上时 Enter/方向键交还原生 click(防双重触发) */
 document.addEventListener('keydown',e=>{
   if(document.body.classList.contains('vfull'))return;
   if(GQ_UI.phase!=='quiz'||!document.getElementById('gq-body'))return;
+  if(e.ctrlKey||e.metaKey||e.altKey)return;
   if(e.target&&/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName||''))return;
   const qz=GQ_UI.quiz; if(!qz)return;
   const q=qz.questions.find(x=>x.id===GQ_UI.order[GQ_UI.ix])||qz.questions[0];
   if(!q)return;
+  const onBtn=e.target&&e.target.tagName==='BUTTON';
   if(!GQ_UI.answers[q.id]){
+    if(onBtn)return;
     let k=null;
     if(/^[a-d]$/i.test(e.key))k=e.key.toUpperCase();
     else if(/^[1-4]$/.test(e.key))k='ABCD'[Number(e.key)-1];
     if(k&&q.options[k]){ gqPick(q,k); e.preventDefault(); }
   }else if(e.key==='Enter'||e.key==='ArrowRight'){
+    if(onBtn)return;
     const b=document.getElementById('gq-next');
     if(b&&!b.disabled){ gqNext(); e.preventDefault(); }
   }else if(e.key==='ArrowLeft'){
+    if(onBtn)return;
     if(document.getElementById('gq-prev')){ gqPrev(); e.preventDefault(); }
   }
 });
@@ -1891,7 +1897,7 @@ async function gqGenerate(force) {
     if (st.lessonId !== myLesson) return;   // 已切课: 服务端已缓存, 面板不动
     st.quiz = r.quiz; st.checked = true;
     st.phase = 'ready';
-    if (force) { delete REC.course['gq:' + st.lessonId]; recSave(); }   // 重生成=新题组, 练完标记作废
+    if (force) { delete REC.course['gq:' + st.lessonId]; recSave(); gqRefreshList(); }   // 重生成=新题组, 练完标记作废+列表即时熄灭
   } catch (e) {
     if (st.lessonId !== myLesson) return;
     st.err = (e.message || '生成失败') + ' —— 网络波动时再点一次生成即可';
@@ -1956,15 +1962,18 @@ function gqMarkPracticed() {
   const k = 'gq:' + st.lessonId;
   if (!(REC.course[k] && REC.course[k].done)) {
     REC.course[k] = { done: 1, t: Date.now() }; recSave();
-    if (document.getElementById('cs-nav') && document.querySelector('#v-course.on')) renderCourseNav();   // 当屏看到句点亮起
+    gqRefreshList();   // 当屏看到句点亮起
   }
+}
+function gqRefreshList() {
+  if (document.getElementById('cs-nav') && document.querySelector('#v-course.on')) renderCourseNav();
 }
 function gqBackfillPracticed(lessonId, qz) {
   const k = 'gq:' + lessonId;
   if (REC.course[k] && REC.course[k].done) return;
   const live = qz.questions.filter(q => !(qz.bad || []).includes(q.id));
   const all = live.length > 0 && live.every(q => { const a = REC.attempts[gqQid(qz, q)]; return a && a.history && a.history.length; });
-  if (all) { REC.course[k] = { done: 1, t: Date.now() }; recSave(); }
+  if (all) { REC.course[k] = { done: 1, t: Date.now() }; recSave(); gqRefreshList(); }
 }
 /* ---------- 课稿(逐字稿校对版) tab ---------- */
 function mdRender(md) {

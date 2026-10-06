@@ -926,9 +926,9 @@ body.vfull .cs-status button:hover{background:#28392d;border-color:#4d6350}
 
 /* ---- 完成态×播放中: 勾与呼吸点重叠修复 ----
    已完成且正在播放的课节: ✓ 保持可见, 用透明度呼吸表达"正在播放", 不再叠点;
-   绿句点(练完)保持静态。 */
+   练完行的句点在播放时同样呼吸(播放=整组状态标记脉动)。 */
 .cli.done.on .st i.v{animation:cspulse 1.6s ease-in-out infinite}
-.cli.on .st i.q{animation:cspulse 1.6s ease-in-out infinite}   /* 播放中的练完节: 句点呼吸 */
+.cli.on .st i.q{animation:cspulse 1.6s ease-in-out infinite}
 
 /* ==== style block 18: 可折叠侧栏(Codex 式图标轨) ====
    折叠=64px 图标轨: 品牌缩成"T."、导航只留图标(悬浮 title 有全名)、内容区拿走剩余空间
