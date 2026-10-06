@@ -919,7 +919,7 @@ function renderHome(){
   $('hm-course').querySelectorAll('[data-go]').forEach(b=>{b.onclick=()=>nav(b.dataset.go);});
 
   /* ---- 学习数据摘要 ---- */
-  const atts=scopedEntries(REC.attempts);
+  const atts=scopedEntries(REC.attempts).filter(([k])=>!k.startsWith('gen/'));   // 课后练(gen)不入备考口径
   let nA=0,nR=0;
   atts.forEach(([,a])=>{nA+=(a.n||0);nR+=(a.right||0);});
   const qSec=Object.keys(REC.qtimes||{}).length?Object.values(REC.qtimes||{}).reduce((a,b)=>a+b,0):0;
@@ -1705,6 +1705,160 @@ window.csDone=function(cid,ix){
   recSave(); renderCourseNav(); renderCourseMain();
   if(turnedOn) csNextLesson();   // 标记完成即进下一节; 取消看完不跳
 };
+/* ---------- 课后练（AI 按教材讲义生成, gen qid 判分入库; 2026-10-06 P1） ---------- */
+const GEN_COURSE = 'ndf-01';   // MVP: 词汇课先行(讲义文字层完整)
+const GQ_UI = { lessonId:null, phase:'idle', quiz:null, order:[], ix:0, answers:{}, wrong:[],
+                qAt:0, err:'', checked:false, busy:false };
+function gqQid(quiz, q) { return 'gen/' + quiz.course + '/' + quiz.lessonNo + '/quiz/' + Number(String(q.id).slice(1)); }
+function gqRef(quiz, q) { return { qid: gqQid(quiz, q), set: 'gen', subj: quiz.course, mk: String(quiz.lessonNo), gkey: 'quiz' }; }
+function gqStats(quiz) {
+  let n = 0, right = 0, lastT = 0;
+  for (const q of quiz.questions) {
+    const a = REC.attempts[gqQid(quiz, q)];
+    const h = a && (a.history || []);
+    if (!h || !h.length) continue;
+    n++; if (h[h.length - 1].ok === true) right++;
+    lastT = Math.max(lastT, h[h.length - 1].t || 0);
+  }
+  return { n, right, lastT };
+}
+function renderGenQuiz() {
+  const body = $('gq-body'); if (!body) return;
+  const st = GQ_UI, qz = st.quiz;
+  $('gq-meta').textContent = qz ? (qz.questions.length + ' 题') : '';
+  if (st.phase === 'idle') {
+    body.innerHTML = '<div class="gq-in"><p class="gq-note">按本节讲义内容出 8~12 道题（词根词缀 / 搭配辨析 / 词义与例句填空），错题自动进错题本。首次生成约需 10~30 秒，之后永久保存、可反复练习。</p>'
+      + (st.err ? '<div class="na-box">' + esc(st.err) + '</div>' : '')
+      + '<button class="pri" id="gq-gen"' + (st.busy ? ' disabled' : '') + '>生成本节课后练</button></div>';
+    const b = $('gq-gen');
+    if (b) b.onclick = () => gqGenerate(false);
+  } else if (st.phase === 'generating') {
+    body.innerHTML = '<div class="gq-in"><p class="gq-note">正在按本节教材出题<span class="ai-tdots"><i></i><i></i><i></i></span><br><span style="color:var(--t3)">通读讲义、聚焦本节章节、生成并校验题目，约需 10~30 秒</span></p></div>';
+  } else if (st.phase === 'ready') {
+    const s = gqStats(qz);
+    const fam = (qz.families || []).map(x => '<span title="' + esc(x.gloss || '') + '">' + esc(x.name) + '</span>').join('');
+    body.innerHTML = '<div class="gq-in">'
+      + (qz.scope ? '<p class="gq-scope">' + esc(qz.scope) + (qz.pages && qz.pages.length ? '（讲义第 ' + Math.min(...qz.pages) + '–' + Math.max(...qz.pages) + ' 页）' : '') + '</p>' : '')
+      + (fam ? '<div class="gq-chips">' + fam + '</div>' : '')
+      + (st.err ? '<div class="na-box">' + esc(st.err) + '</div>' : '')
+      + '<div class="gq-row"><b>' + qz.questions.length + ' 道题</b>'
+      + '<span class="gq-stat">' + (s.n ? ('已练 ' + s.right + '/' + s.n + ' 正确') : '未做过') + (s.lastT ? ' · 最近 ' + new Date(s.lastT).toLocaleDateString() : '') + '</span>'
+      + '<span class="grow"></span>'
+      + '<button class="gq-ghost" id="gq-regen">重新生成</button>'
+      + '<button class="pri" id="gq-start">开始练习 →</button></div></div>';
+    $('gq-start').onclick = () => gqStart(qz.questions.map(q => q.id));
+    $('gq-regen').onclick = async () => {
+      if (!confirm('重新生成会替换本节现有题目（作答记录保留），继续？')) return;
+      gqGenerate(true);
+    };
+  } else if (st.phase === 'quiz') {
+    const q = qz.questions.find(x => x.id === st.order[st.ix]) || qz.questions[0];
+    const done = st.answers[q.id];
+    const tag = (q.tags || []).length ? '<span class="gq-tag">' + esc(q.tags.join(' · ')) + '</span>' : '';
+    body.innerHTML = '<div class="gq-in">'
+      + '<div class="gq-prog">第 ' + (st.ix + 1) + ' / ' + st.order.length + ' 题' + tag + '</div>'
+      + '<div class="gq-stem">' + esc(q.stem) + '</div>'
+      + '<div class="gq-opts">' + Object.entries(q.options).map(([k, v]) =>
+          '<div class="opt gq-opt' + (done ? (k === q.answer ? ' right' : (done.letter === k ? ' wrong' : '')) : '') + '" data-k="' + k + '"><span class="ol">' + k + '</span>' + esc(v) + '</div>').join('') + '</div>'
+      + '<div id="gq-fb"></div><div class="gq-nav" id="gq-nav"></div></div>';
+    if (!done) {
+      body.querySelectorAll('.gq-opt').forEach(el => {
+        el.onclick = () => gqPick(q, el.dataset.k);
+      });
+    } else {
+      gqPaintAnswered(q, done);
+    }
+  } else if (st.phase === 'result') {
+    const right = st.order.filter(id => st.answers[id] && st.answers[id].ok).length;
+    const wrongIds = st.order.filter(id => st.answers[id] && !st.answers[id].ok);
+    body.innerHTML = '<div class="gq-in">'
+      + '<div class="gq-sum"><b>' + right + ' / ' + st.order.length + '</b> 正确'
+      + (wrongIds.length ? '' : ' · 全对，漂亮') + '</div>'
+      + (wrongIds.length ? '<div class="gq-wronglist"><div class="k">错题（已自动进错题本，1 天后复习）</div>'
+          + wrongIds.map(id => { const q = qz.questions.find(x => x.id === id); return '<div class="w">· ' + esc(String(q.stem).slice(0, 60)) + '</div>'; }).join('') + '</div>' : '')
+      + '<div class="gq-row"><span class="grow"></span>'
+      + (wrongIds.length ? '<button id="gq-redo">重做错题 →</button>' : '')
+      + '<button class="pri" id="gq-again">再练一遍</button></div></div>';
+    if (wrongIds.length) $('gq-redo').onclick = () => gqStart(wrongIds.slice());
+    $('gq-again').onclick = () => gqStart(qz.questions.map(x => x.id));
+  }
+}
+function gqPaintAnswered(q, done) {
+  const st = GQ_UI;
+  const fb = $('gq-fb');
+  if (fb) fb.innerHTML = '<div class="gq-fb ' + (done.ok ? 'ok' : 'bad') + '"><b>' + (done.ok ? '答对了' : '答错了 · 正确答案 ' + esc(q.answer)) + '</b> ' + esc(q.explain) + '</div>';
+  const nav = $('gq-nav');
+  if (nav) {
+    nav.innerHTML = '<span class="grow"></span><button class="pri" id="gq-next">' + (st.ix + 1 >= st.order.length ? '看结果 →' : '下一题 →') + '</button>';
+    $('gq-next').onclick = gqNext;
+  }
+}
+async function gqGenerate(force) {
+  const st = GQ_UI;
+  if (st.busy || !st.lessonId) return;
+  st.busy = true; st.err = '';
+  st.phase = 'generating'; renderGenQuiz();
+  try {
+    const r = await api('/api/ai/quiz', { method: 'POST',
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lessonId: st.lessonId, force }) });
+    st.quiz = r.quiz; st.checked = true;
+    st.phase = 'ready';
+  } catch (e) {
+    st.err = e.message || '生成失败';
+    st.phase = st.quiz ? 'ready' : 'idle';
+  } finally { st.busy = false; renderGenQuiz(); }
+}
+function gqStart(ids) {
+  const st = GQ_UI;
+  st.order = ids.slice(); st.ix = 0; st.answers = {}; st.wrong = [];
+  st.phase = 'quiz'; st.qAt = Date.now();
+  renderGenQuiz();
+}
+function gqPick(q, letter) {
+  const st = GQ_UI, qz = st.quiz;
+  if (st.answers[q.id]) return;   // 已作答, 防重复判分
+  const ok = letter === q.answer;
+  const secs = (Date.now() - st.qAt) / 1000;
+  const ref = gqRef(qz, q);
+  recAttempt(ref, ok, letter, secs);
+  if (REC.mistakes[ref.qid]) REC.mistakes[ref.qid].stem = q.stem;   // 错题本可显示的题干快照(P2 用)
+  if (!ok && !st.wrong.includes(q.id)) st.wrong.push(q.id);
+  st.answers[q.id] = { letter, ok };
+  document.querySelectorAll('#gq-body .gq-opt').forEach(el => {
+    el.onclick = null;
+    if (el.dataset.k === q.answer) el.classList.add('right');
+    else if (el.dataset.k === letter) el.classList.add('wrong');
+  });
+  gqPaintAnswered(q, { letter, ok });
+}
+function gqNext() {
+  const st = GQ_UI;
+  if (st.ix + 1 >= st.order.length) { st.phase = 'result'; renderGenQuiz(); return; }
+  st.ix++; st.qAt = Date.now();
+  renderGenQuiz();
+}
+async function wireGenQuiz(c, l) {
+  if (c.id !== GEN_COURSE) return;
+  const body = $('gq-body'); if (!body) return;
+  if (GQ_UI.lessonId !== l.id) {
+    Object.assign(GQ_UI, { lessonId: l.id, phase: 'idle', quiz: null, order: [], ix: 0,
+      answers: {}, wrong: [], err: '', checked: false, busy: false });
+  }
+  renderGenQuiz();
+  const st = GQ_UI;
+  if (st.phase !== 'idle' || st.checked || st.busy) return;
+  st.checked = true;   // 本节只查一次生成状态
+  try {
+    const have = await api('/api/ai/quiz');
+    if (!have.lessons.includes(l.id)) { if (body.isConnected && st.lessonId === l.id) renderGenQuiz(); return; }
+    const r = await api('/api/ai/quiz', { method: 'POST',
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lessonId: l.id }) });
+    if (body.isConnected && st.lessonId === l.id && st.phase === 'idle') {
+      st.quiz = r.quiz; st.phase = 'ready'; renderGenQuiz();
+    }
+  } catch (e) { /* 查询失败保持 idle, 按钮仍可手动生成 */ }
+}
+
 function renderCourse(){
   const t=((COURSES&&COURSES.series)||[]).reduce((a,s)=>a+(s.courses||[]).reduce((b,c)=>b+(c.lesson_count||0),0),0);
   const d=Object.values(REC.course||{}).filter(x=>x.done).length;
@@ -1795,6 +1949,9 @@ function renderCourseMain(){
       <span class="why">${esc(cur.why||'')}</span></div>
       <button class="pri" id="cs-goquiz">练这组 →</button></div>`:''}
     ${cur?.notes_verified&&cur.key_points?.length?`<div class="handout" style="margin:16px 0 0"><h5>本节学习提示</h5><ul>${cur.key_points.map(point=>`<li style="margin:8px 0;line-height:1.7">${esc(point)}</li>`).join('')}</ul><p style="font-size:12px;color:var(--t2)">依据讲义整理，不是老师逐字原话。来源：${esc(cur.notes_source||'课程讲义')}</p></div>`:''}
+    ${c.id===GEN_COURSE?`<div class="card" style="margin-top:16px;overflow:hidden">
+      <div class="phead"><div class="l"><b>课后练 · 按本节教材生成</b></div><div class="r" id="gq-meta"></div></div>
+      <div id="gq-body"></div></div>`:''}
     <div class="card" style="margin-top:16px;overflow:hidden">
       <div class="phead"><div class="l"><b>本节讲义</b></div>
         <div class="r">${originals.map(x=>`<a class="orig-link" href="${esc(x.url)}" target="_blank" rel="noopener">原版：${esc(x.file)} ↗</a>`).join(' ')}</div></div>
@@ -1805,6 +1962,7 @@ function renderCourseMain(){
   const v=$('cs-video');
   if(p&&p.wt===undefined&&p.pos) p.wt=Math.floor(p.pos);   // 存量课: 已看进度作观看秒数下限
   courseWatchTarget=l.id;
+  wireGenQuiz(c, l);   // 课后练(仅 GEN_COURSE)
   v.addEventListener('error',()=>{
     const nn=$('cs-vnote');
     nn.style.display='';
@@ -1987,7 +2145,7 @@ async function renderReview(){
    hero=判分正确率(对/错分段条) + 学习投入 + 错题入口;
    弱点区(错题分布/每题用时, 中位数、只认有效计时) → 节奏与覆盖(真实日期轴/科目进度)。 */
 function renderStats(){
-  const atts=scopedEntries(REC.attempts);
+  const atts=scopedEntries(REC.attempts).filter(([k])=>!k.startsWith('gen/'));   // 课后练(gen)不入备考口径
   let judged=0,right=0;
   atts.forEach(([,a])=>{ for(const h of a.history||[]){ if(h.ok===true){right++;judged++;} else if(h.ok===false)judged++; } });
   const wrong=judged-right, attempted=atts.length;

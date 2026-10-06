@@ -996,3 +996,30 @@ body.vfull .cs-status button:hover{background:#28392d;border-color:#4d6350}
   .csmain{padding:0 14px 16px}
   .csmain .card{margin:14px -14px 0}
 }
+
+/* ==== 课后练面板（AI 按教材生成, gen qid） ==== */
+.gq-in{padding:16px 20px 18px}
+.gq-note{margin:0 0 14px;font-size:13px;color:var(--t2);line-height:1.8}
+.gq-scope{margin:0 0 10px;font-size:13px;color:var(--t2)}
+.gq-chips{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px}
+.gq-chips span{font-size:11px;color:#4d7a5f;background:#eef4e7;border:1px solid #cddcc2;border-radius:12px;padding:2px 9px}
+.gq-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.gq-row .grow{flex:1}
+.gq-row b{font-size:15px}
+.gq-stat{font-size:12px;color:var(--t3);font-variant-numeric:tabular-nums}
+.gq-ghost{border:0;background:none;color:#52674a;font-size:12px;min-height:32px;padding:2px 0;cursor:pointer}
+.gq-ghost:hover{color:#21492f;text-decoration:underline;text-underline-offset:4px}
+.gq-prog{font-size:12px;color:var(--t3);margin-bottom:8px;display:flex;align-items:center;gap:10px}
+.gq-tag{font-size:11px;color:#4d7a5f;background:#eef4e7;border:1px solid #cddcc2;border-radius:12px;padding:1px 9px}
+.gq-stem{font-size:16px;line-height:1.7;margin:0 0 6px}
+.gq-opts .opt{margin:8px 0}
+.gq-fb{margin-top:12px}
+.gq-fb>div{padding:13px 16px;border-radius:4px;font-size:13px;line-height:1.8}
+.gq-fb .ok{background:#f1f7ef;border:1px solid #d3e0d4}
+.gq-fb .bad{background:#fff5ed;border:1px solid #e1c3b5}
+.gq-nav{display:flex;margin-top:12px}
+.gq-sum{font-size:15px;margin-bottom:12px}
+.gq-sum b{font-family:Georgia,serif;font-size:30px;font-weight:400;margin-right:6px}
+.gq-wronglist{border:1px solid var(--line);border-radius:4px;padding:12px 16px;margin-bottom:14px;background:var(--sunk)}
+.gq-wronglist .k{font-size:12px;color:var(--t2);margin-bottom:6px}
+.gq-wronglist .w{font-size:13px;color:var(--t1);line-height:1.7}

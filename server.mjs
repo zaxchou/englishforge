@@ -248,6 +248,141 @@ async function aiExplain(qidStr, force) {
   return { text, cached: false, q: qPub };
 }
 
+/* ---------- 课后练（AI 按教材讲义生成题组; 2026-10-06 计划 P1） ----------
+   讲义是课程级 PDF（如 ndf-01 一份 33 页覆盖 48 节），生成时全文注入，
+   模型按课节标题聚焦对应章节。铁律同 AI 解析：以教材为标准、题目用词必须
+   能在讲义文本溯源（机械校验，不达标丢题）、一次生成永久缓存（records 卷）。 */
+const GQ_STORE_FILE = path.join(RECORDS_DIR, 'generated-quizzes.json');
+let GQ_STORE = {};
+try { GQ_STORE = JSON.parse(fs.readFileSync(GQ_STORE_FILE, 'utf8')).items || {}; } catch (e) {}
+function gqSave() {
+  try {
+    fs.mkdirSync(RECORDS_DIR, { recursive: true });
+    fs.writeFileSync(GQ_STORE_FILE, JSON.stringify({ version: 1, items: GQ_STORE }));
+  } catch (e) { console.error('[gq-store]', e.message); }
+}
+const AI_QV = 1;                 // v1 = 词根/搭配/词义三题型 + families 元数据
+const GQ_COURSE = 'ndf-01';      // MVP 只开词汇课
+const GQ_STOP = new Set(('the,a,an,and,or,of,to,in,on,for,with,from,by,at,as,is,are,was,were,be,been,' +
+  'this,that,these,those,it,its,not,but,which,who,whom,whose,what,when,where,how,why,can,could,' +
+  'will,would,should,may,might,must,do,does,did,have,has,had,he,she,they,we,you,i,his,her,their,' +
+  'our,your,my,me,him,them,us,if,then,than,so,such,also,more,most,very,much,many,some,any,no,one,' +
+  'word,words,example,examples,meaning,means,fill,blank,choose,correct,following,sentence').split(','));
+
+function findLesson(lessonId) {
+  for (const s of (loadCourses().series || [])) for (const c of (s.courses || []))
+    for (let i = 0; i < (c.lessons || []).length; i++)
+      if (c.lessons[i].id === lessonId) return { course: c, lesson: c.lessons[i], ix: i };
+  return null;
+}
+async function aiGen(sys, user) {
+  const r = await fetch(AI_CFG.base + '/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + AI_CFG.key },
+    body: JSON.stringify({ model: AI_CFG.model,
+      messages: [{ role: 'system', content: sys }, { role: 'user', content: user }],
+      max_tokens: 4000, temperature: 0.3, stream: false }),
+    signal: AbortSignal.timeout(90000),
+  });
+  if (!r.ok) {
+    const t = await r.text().catch(() => '');
+    throw new Error('AI 接口 ' + r.status + (t ? ': ' + t.slice(0, 120) : ''));
+  }
+  const j = await r.json();
+  const raw = j.choices?.[0]?.message?.content?.trim();
+  if (!raw) throw new Error('AI 未返回内容');
+  return raw;
+}
+function parseQuiz(raw) {
+  const m = raw.match(/\{[\s\S]*\}/);   // 容忍模型在 JSON 外加说明文字
+  if (!m) throw new Error('AI 未返回 JSON');
+  const j = JSON.parse(m[0]);
+  const qs = Array.isArray(j.questions) ? j.questions : [];
+  const clean = qs.filter(q => q && typeof q.stem === 'string' && q.stem.trim().length > 3
+      && q.options && Object.keys(q.options).length >= 3
+      && q.answer && Object.keys(q.options).map(k => String(k).toUpperCase()[0]).includes(String(q.answer).trim().toUpperCase()[0])
+      && typeof q.explain === 'string' && q.explain.trim()
+      && ['root', 'collocation', 'meaning', 'cloze'].includes(q.type))
+    .map(q => ({
+      type: q.type,
+      stem: String(q.stem).trim(),
+      options: Object.fromEntries(Object.entries(q.options).slice(0, 4)
+        .map(([k, v], i) => ['ABCD'[i], String(v).trim()])),
+      answer: String(q.answer).trim().toUpperCase()[0],
+      explain: String(q.explain).trim(),
+      tags: Array.isArray(q.tags) ? q.tags.map(x => String(x).slice(0, 24)).slice(0, 3) : [],
+    }));
+  if (clean.length < 4) throw new Error('有效题目不足（仅 ' + clean.length + ' 题）');
+  return {
+    scope: String(j.scope || '').slice(0, 200),
+    pages: Array.isArray(j.pages) ? j.pages.slice(0, 12).map(Number).filter(Number.isFinite) : [],
+    families: (Array.isArray(j.families) ? j.families : []).filter(x => x && x.name).map(x => ({
+      name: String(x.name).slice(0, 24),
+      kind: ['root', 'prefix', 'suffix'].includes(x.kind) ? x.kind : 'root',
+      gloss: String(x.gloss || '').slice(0, 120),
+      words: Array.isArray(x.words) ? x.words.map(w => String(w).trim()).filter(Boolean).slice(0, 24) : [],
+    })),
+    questions: clean.slice(0, 14),
+  };
+}
+/* 溯源校验: 选项里的英文实词（被考察的词）必须能在讲义全文找到（全等或前 4 字符词干匹配）。
+   全中文选项（英选中释义题）回退到校验题干英文词。不达标整题丢弃——宁缺勿编。 */
+function traceOK(q, wordSet) {
+  const latin = s => (String(s).toLowerCase().match(/[a-z][a-z'-]{2,}/g) || []);
+  let cand = latin(Object.values(q.options || {}).join(' ')).filter(w => !GQ_STOP.has(w));
+  if (!cand.length) cand = latin(q.stem).filter(w => !GQ_STOP.has(w));
+  if (!cand.length) return false;
+  const hit = cand.filter(w => wordSet.has(w)
+    || [...wordSet].some(t => t.startsWith(w.slice(0, 4)))).length;
+  return hit / cand.length >= 0.7;
+}
+async function genQuiz(lessonId, force) {
+  if (!/^[\w.-]+$/.test(lessonId)) throw new Error('bad lessonId');
+  if (!force) {
+    const hit = GQ_STORE[lessonId];
+    if (hit && hit.v === AI_QV) return { quiz: hit, cached: true };
+  }
+  const f = findLesson(lessonId);
+  if (!f) throw new Error('lesson not found');
+  if (f.course.id !== GQ_COURSE) throw new Error('本课程暂未开通课后练');
+  const nid = (f.course.notes_ids || [])[0];
+  if (!nid) throw new Error('该课暂无文字讲义');
+  let pages;
+  try {
+    pages = (JSON.parse(fs.readFileSync(path.join(BUILD_DIR, 'courses', 'notes', nid + '.json'), 'utf8'))
+      .pages || []).filter(pg => pg.text && pg.text.trim());
+  } catch (e) { throw new Error('讲义文本读取失败'); }
+  if (!pages.length) throw new Error('该讲义无可用的文字层');
+  const text = pages.map(pg => '[第' + pg.page + '页]\n' + pg.text).join('\n\n');
+  const sys = '你是托福词汇课的教研老师，根据提供的教材讲义为指定课节生成一套课后练习。铁律：'
+    + '1. 以教材为唯一标准：只考讲义中出现的词根/词缀/单词，被考察的英文词必须在讲义原文中出现过，不引入讲义之外的生词。'
+    + '2. 先用讲义开头的目录定位本节课标题对应的章节页码，只出该范围的内容。'
+    + '3. 题型混合：root(词根词缀逻辑)、collocation(搭配用法辨析)、meaning(词义选择)、cloze(例句填空，句中空格用 ______)，共 8-12 题，按内容自然分配。'
+    + '4. 每题恰好 4 个选项、一个正确答案、一句中文解析（点明讲义依据）、tags 数组（本题考查的词根或词缀）。'
+    + '5. 另输出 families：本节涉及的词根/词缀家族清单（name/kind(root|prefix|suffix)/gloss(中文含义)/words(讲义中该家族成员词)）。'
+    + '6. 只输出一个 JSON 对象，不要任何额外文字，格式：'
+    + '{"scope":"本节内容范围一句话","pages":[起,止],"families":[{"name":"ceive","kind":"root","gloss":"拿取","words":["receive","accept"]}],'
+    + '"questions":[{"type":"root","stem":"...","options":{"A":"...","B":"...","C":"...","D":"..."},"answer":"B","explain":"...","tags":["ceive"]}]}';
+  const user = '[教材讲义全文（课程级，共 ' + pages.length + ' 页）]\n' + text
+    + '\n\n[本节课] 第 ' + (f.ix + 1) + ' 节：' + f.lesson.title + '\n请只针对本节课对应章节的内容出题。';
+  let quiz = null, lastErr = '';
+  for (let attempt = 0; attempt < 2 && !quiz; attempt++) {
+    try { quiz = parseQuiz(await aiGen(sys, user)); }
+    catch (e) { lastErr = e.message; console.error('[gen-quiz]', lessonId, e.message); }
+  }
+  if (!quiz) throw new Error(lastErr || '生成失败');
+  const wordSet = new Set((text.toLowerCase().match(/[a-z][a-z'-]{2,}/g) || []));
+  const kept = quiz.questions.filter(q => traceOK(q, wordSet));
+  if (!kept.length) throw new Error('生成题目均未通过教材溯源校验，请重试');
+  kept.forEach((q, i) => { q.id = 'q' + (i + 1); });
+  const entry = { v: AI_QV, at: Date.now(), course: f.course.id, lessonNo: f.ix + 1,
+    title: f.lesson.title, scope: quiz.scope, pages: quiz.pages,
+    families: quiz.families, questions: kept, bad: [] };
+  GQ_STORE[lessonId] = entry;
+  gqSave();
+  return { quiz: entry, cached: false, dropped: quiz.questions.length - kept.length };
+}
+
 /* ---------- 题库目录（启动时缓存） ---------- */
 function fillCount(g) {
   const text=String(g.passage||'').replace(/▢/g,'_').replace(/([A-Za-z'’\-])(_+)/g,(m,c,u)=>c+' '+u.split('').join(' '));
@@ -598,6 +733,28 @@ const handler = async (req, res) => {
         return sendJSON(res, 200, { ok: true, ...out });
       } catch (e) {
         const code = /^bad qid|not found/.test(e.message) ? 400 : 502;
+        return sendJSON(res, code, { error: e.message });
+      }
+    }
+
+    /* ---- AI 课后练（视频课按教材生成的题组） ---- */
+    if (p === '/api/ai/quiz') {
+      const origin = req.headers.origin;
+      if (origin && origin !== `http://${req.headers.host}` && origin !== `https://${req.headers.host}`) return sendJSON(res, 403, { error: 'cross-origin rejected' });
+      if (req.method === 'GET') return sendJSON(res, 200, {
+        ok: true,
+        lessons: Object.keys(GQ_STORE).filter(k => GQ_STORE[k] && GQ_STORE[k].v === AI_QV),
+        v: AI_QV,
+      });
+      if (req.method !== 'POST') return sendJSON(res, 405, { error: 'method' });
+      if (!AI_CFG.key) return sendJSON(res, 503, { error: 'AI 未配置（服务端缺少 TFL_AI_KEY）' });
+      const body = await readBody(req);
+      let inc; try { inc = JSON.parse(body.toString('utf8') || '{}'); } catch (e) { return sendJSON(res, 400, { error: 'bad json' }); }
+      try {
+        const out = await genQuiz(String(inc.lessonId || ''), !!inc.force);
+        return sendJSON(res, 200, { ok: true, ...out });
+      } catch (e) {
+        const code = /bad lessonId|not found|未开通|无文字|读取失败|溯源校验/.test(e.message) ? 400 : 502;
         return sendJSON(res, code, { error: e.message });
       }
     }
