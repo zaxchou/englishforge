@@ -399,6 +399,16 @@ async function genQuizInner(lessonId, force) {
     inv = { words: j.words || [], affixes: j.affixes || [], roots: j.roots || [], phrases: j.phrases || [] };
   } catch (e) {}
   const invItems = [...inv.words, ...inv.affixes, ...inv.roots].map(x => String(x).trim()).filter(Boolean);
+  // 讲解分级(r39): 词表里"老师真正讲过"的才算出题对象, 仅念过/提及的退回词表墙(06 课 869 项覆盖式出题事故根治)
+  let taughtItems = invItems;
+  try {
+    const graded = await aiGradeTaught(scriptMd, invItems);
+    if (graded && graded.taught && graded.taught.length) {
+      const set = new Set(graded.taught);
+      taughtItems = invItems.filter(w => set.has(w));
+      console.log('[gen-quiz]', lessonId, '讲解释级 taught', taughtItems.length, '/ mentioned', invItems.length - taughtItems.length);
+    }
+  } catch (e) { console.error('[gen-quiz]', lessonId, '讲解释级 FAIL, 全清单覆盖', e.message); }
   const invLine = 'words: ' + inv.words.join('、') + '\naffixes: ' + inv.affixes.join('、')
     + '\nroots: ' + inv.roots.join('、') + (inv.phrases.length ? '\nphrases: ' + inv.phrases.join('、') : '');
 
@@ -412,15 +422,15 @@ async function genQuizInner(lessonId, force) {
     + '6. 严格 JSON：{"scope":"本节一句话","questions":[{"type":"root","stem":"...","options":{"A":{"t":"选项内容","note":"该选项含义/为何对错"},"B":{...},"C":{...},"D":{...}},"answer":"B","explain":"本题主知识点","tags":["-ist"],"covers":["清单中被本题覆盖的项，原文照抄"]}],"covered":["本轮已覆盖的清单项"]}';
 
   const user = '[本节课] 第 ' + (f.ix + 1) + ' 节：' + f.lesson.title
-    + '\n\n[本节语言点清单(必须全覆盖)]\n' + invLine
+    + '\n\n[本节老师讲过的语言点清单(出题对象, 必须全覆盖)]\n' + invLine
     + '\n\n[课堂逐字稿(已校对)]\n' + scriptMd.slice(0, 26000);
 
   const parseOne = raw => {
     const parsed = parseQuiz(raw);
-    // 覆盖对账: 清单项 出现在 covered 或任何题目文本里 即算覆盖
+    // 覆盖对账: 讲过的清单项 出现在 covered 或任何题目文本里 即算覆盖
     const allText = JSON.stringify(parsed.questions).toLowerCase();
     const cov = new Set((parsed.covered || []).map(x => String(x).toLowerCase()));
-    const uncovered = invItems.filter(w => !cov.has(w.toLowerCase()) && !allText.includes(w.toLowerCase()));
+    const uncovered = taughtItems.filter(w => !cov.has(w.toLowerCase()) && !allText.includes(w.toLowerCase()));
     return { parsed, uncovered };
   };
   const finish = (questions, scope, uncoveredFinal) => {
