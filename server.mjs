@@ -322,6 +322,13 @@ function parseQuiz(raw) {
       }));
       const ansK = String(q.answer).trim().toUpperCase()[0];
       if (!options[ansK] || !options[ansK].t) return null;   // 归一化后答案必须在 A-D 里(防 5 选项 answer=E 被截)
+      // 选项文本两两不同(归一化大小写/空白)——重复选项题无判别度, 拒收该题(29/33 重复事故根治)
+      const seenT = new Set();
+      for (const o of Object.values(options)) {
+        const nt = o.t.toLowerCase().replace(/\s+/g, ' ');
+        if (seenT.has(nt)) return null;
+        seenT.add(nt);
+      }
       return {
         type: q.type,
         stem: String(q.stem).trim(),
