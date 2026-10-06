@@ -293,7 +293,7 @@ async function aiGen(sys, user) {
     headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + AI_CFG.key },
     body: JSON.stringify({ model: AI_CFG.model,
       messages: [{ role: 'system', content: sys }, { role: 'user', content: user }],
-      max_tokens: 6000, temperature: 0.3, stream: false }),   // 12 题长解析可能超 4k 被截断成残 JSON
+      max_tokens: 7800, temperature: 0.3, stream: false }),   // 30 项批次带全 note 约 15k+ 字符, 6k 会被截成残 JSON
     signal: AbortSignal.timeout(90000),
   });
   if (!r.ok) {
@@ -453,7 +453,8 @@ async function genQuizInner(lessonId, force) {
     catch (e) {
       lastErr = e.message;
       console.error('[gen-quiz]', lessonId, 'g' + gi, 'FAIL', e.message);
-      continue;   // 单批失败不放弃整节, 后续批次继续
+      try { r = parseOne(await aiGen(sys, msg)); }   // 截断/网络抖动重试一次
+      catch (e2) { console.error('[gen-quiz]', lessonId, 'g' + gi, 'RETRY FAIL'); continue; }   // 单批失败不放弃整节
     }
     if (!scope) scope = r.parsed.scope;
     acc = acc.concat(r.parsed.questions);
@@ -494,7 +495,40 @@ async function genQuizInner(lessonId, force) {
   }
   acc = acc.slice(0, 60);
   const finalUncovered = remaining.filter(w => !acc.some(q => JSON.stringify(q).toLowerCase().includes(w.toLowerCase())));
+  await gradeTiers(scriptMd, acc);   // 分级: core=课堂讲过, ext=未展开(复习完选做); 失败全按 core
   return finish(acc, scope, finalUncovered);
+}
+
+/* 生成后分级(r38): 对照逐字稿判定每道题 core/ext, 前端拆「课堂复习/扩展挑战」两个入口。
+   判级失败不阻断出题——全部按 core 处理(宁缺毋滥的反面是宁可多给, 不丢题)。 */
+async function gradeTiers(scriptMd, questions) {
+  try {
+    const list = questions.map(q => {
+      const a = q.options[q.answer];
+      const t = (a && typeof a === 'object') ? a.t : a;
+      return q.id + '. ' + String(q.stem).slice(0, 70) + ' [答案词: ' + String(t).slice(0, 30) + ']';
+    }).join('\n');
+    const sys = '你是词汇课教研审读。给定课堂逐字稿和题目列表，判定每道题属于哪一层：'
+      + 'core=答案词(或其词根/用法)老师在逐字稿里有实质讲解(给出含义/词源/搭配/例句/辨析)；'
+      + 'ext=答案词只在词表/语流中顺带出现、老师未展开讲解，或题目考点超出课堂内容。'
+      + '只输出严格 JSON：{"tiers":{"题目id":"core或ext",...}}，每题都要有判定，一个不落。';
+    const r = await fetch(AI_CFG.base + '/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + AI_CFG.key },
+      body: JSON.stringify({ model: AI_CFG.model, messages: [
+        { role: 'system', content: sys },
+        { role: 'user', content: '【课堂逐字稿】\n' + scriptMd.slice(0, 20000) + '\n\n【题目列表】\n' + list },
+      ], max_tokens: 3000, temperature: 0.1, stream: false }),
+      signal: AbortSignal.timeout(90000),
+    });
+    const j = await r.json();
+    const tiers = (JSON.parse(j.choices[0].message.content.match(/\{[\s\S]*\}/)[0]).tiers) || {};
+    let n = 0;
+    for (const q of questions) if (tiers[q.id] === 'ext') { q.tier = 'ext'; n++; }
+    console.log('[gen-quiz] tiers core', questions.length - n, '/ ext', n);
+  } catch (e) {
+    console.error('[gen-quiz] tiers FAIL(全按 core)', e.message);
+  }
 }
 
 /* 课后练(gen qid)的 AI 解析: 题面来自生成题组, 讲义相关页作上下文。 */

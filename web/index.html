@@ -1733,7 +1733,7 @@ window.csDone=function(cid,ix){
 /* ---------- 课后练（AI 按教材讲义生成, gen qid 判分入库; 2026-10-06 P1） ---------- */
 const GEN_COURSE = 'ndf-01';   // MVP: 词汇课先行(讲义文字层完整)
 const GQ_UI = { lessonId:null, phase:'idle', quiz:null, order:[], ix:0, answers:{}, wrong:[],
-                qAt:0, err:'', checked:false, busy:false };
+                qAt:0, err:'', checked:false, busy:false, run:'core' };
 let GQ_REDO = null;   // 错题本「重做」带来的待重做队列 {lessonId, qids}
 /* 课后练做题期间计入学习时长(与 drill/视频同口径: 每秒累加, 切走标签页不记, 结算即停) */
 let GQ_TICK = null;
@@ -1749,9 +1749,11 @@ function gqStudyGate() {
 }
 function gqQid(quiz, q) { return 'gen/' + quiz.course + '/' + quiz.lessonNo + '/quiz/' + Number(String(q.id).slice(1)); }
 function gqRef(quiz, q) { return { qid: gqQid(quiz, q), set: 'gen', subj: quiz.course, mk: String(quiz.lessonNo), gkey: 'quiz' }; }
-function gqStats(quiz) {
+function gqStats(quiz, ids) {
+  const set = ids ? new Set(ids) : null;
   let n = 0, right = 0, lastT = 0;
   for (const q of quiz.questions) {
+    if (set && !set.has(q.id)) continue;
     const a = REC.attempts[gqQid(quiz, q)];
     const h = a && (a.history || []);
     if (!h || !h.length) continue;
@@ -1774,7 +1776,11 @@ function renderGenQuiz() {
   } else if (st.phase === 'generating') {
     body.innerHTML = '<div class="gq-in"><p class="gq-note">正在按本节教材出题<span class="ai-tdots"><i></i><i></i><i></i></span><br><span style="color:var(--t3)">通读讲义、聚焦本节章节、生成并校验题目，约需 10~30 秒</span></p></div>';
   } else if (st.phase === 'ready') {
-    const s = gqStats(qz);
+    /* 双层练习(r38): core=课堂复习(老师讲过的), ext=扩展挑战(课堂未展开的, 复习完再选做) */
+    const live = qz.questions.filter(q => !(qz.bad || []).includes(q.id));
+    const coreIds = live.filter(q => q.tier !== 'ext').map(q => q.id);
+    const extIds = live.filter(q => q.tier === 'ext').map(q => q.id);
+    const s = gqStats(qz, coreIds);
     const fam = (qz.families || []).map(x => '<span title="' + esc(x.gloss || '') + '">' + esc(x.name) + '</span>').join('');
     body.innerHTML = '<div class="gq-in">'
       + (qz.scope ? '<p class="gq-scope">' + esc(qz.scope) + (qz.pages && qz.pages.length ? '（讲义第 ' + Math.min(...qz.pages) + '–' + Math.max(...qz.pages) + ' 页）' : '') + '</p>' : '')
@@ -1783,12 +1789,19 @@ function renderGenQuiz() {
         + ((qz.inventory.words || []).length + (qz.inventory.affixes || []).length + (qz.inventory.roots || []).length)
         + ' 项（词/词缀/词根分列）</summary><div class="ws">' + gqInvChips(qz) + '</div></details>' : '')
       + (st.err ? '<div class="na-box">' + esc(st.err) + '</div>' : '')
-      + '<div class="gq-row"><b>' + (qz.questions.length - (qz.bad || []).length) + ' 道题</b>'
-      + '<span class="gq-stat">' + (s.n ? ('已练 ' + s.right + '/' + s.n + ' 正确') : '未做过') + (s.lastT ? ' · 最近 ' + new Date(s.lastT).toLocaleDateString() : '') + '</span>'
-      + '<span class="grow"></span>'
-      + '<button class="gq-ghost" id="gq-regen">重新生成</button>'
-      + '<button class="pri" id="gq-start">开始练习 →</button></div></div>';
-    $('gq-start').onclick = () => gqStart(qz.questions.filter(q => !(qz.bad || []).includes(q.id)).map(q => q.id));
+      + (coreIds.length ? '<div class="gq-row"><b>课堂复习 · ' + coreIds.length + ' 题</b>'
+        + '<span class="gq-stat">' + (s.n ? ('已练 ' + s.right + '/' + s.n + ' 正确') : '未做过') + (s.lastT ? ' · 最近 ' + new Date(s.lastT).toLocaleDateString() : '') + '</span>'
+        + '<span class="grow"></span>'
+        + '<button class="gq-ghost" id="gq-regen">重新生成</button>'
+        + '<button class="pri" id="gq-start">开始复习 →</button></div>' : '')
+      + (extIds.length ? '<div class="gq-row' + (coreIds.length ? ' gq-row-ext' : '') + '"><b>扩展挑战 · ' + extIds.length + ' 题</b>'
+        + '<span class="gq-stat">' + (coreIds.length ? '课堂未展开讲的词，复习完再挑战' : '本节课堂未展开讲解，题目全部为扩展题') + '</span>'
+        + '<span class="grow"></span>'
+        + '<button class="' + (coreIds.length ? 'gq-ghost' : 'pri') + '" id="gq-start-ext">' + (coreIds.length ? '做扩展 →' : '开始练习 →') + '</button></div>' : '')
+      + '</div>';
+    if (coreIds.length) $('gq-start').onclick = () => gqStart(coreIds, 'core');
+    const se = $('gq-start-ext');
+    if (se) se.onclick = () => gqStart(extIds, 'ext');
     $('gq-regen').onclick = async () => {
       if (!confirm('重新生成会替换本节现有题目（作答记录保留），继续？')) return;
       gqGenerate(true);
@@ -1798,7 +1811,7 @@ function renderGenQuiz() {
     const done = st.answers[q.id];
     const tag = (q.tags || []).length ? '<span class="gq-tag">' + esc(q.tags.join(' · ')) + '</span>' : '';
     body.innerHTML = '<div class="gq-in">'
-      + '<div class="gq-prog">第 ' + (st.ix + 1) + ' / ' + st.order.length + ' 题' + tag + '</div>'
+      + '<div class="gq-prog">' + (st.run === 'ext' ? '扩展 · ' : '') + '第 ' + (st.ix + 1) + ' / ' + st.order.length + ' 题' + tag + '</div>'
       + '<div class="gq-stem">' + esc(q.stem) + '</div>'
       + '<div class="gq-opts">' + Object.entries(q.options).map(([k, v]) =>
           '<div class="opt gq-opt' + (done ? (k === q.answer ? ' right' : (done.letter === k ? ' wrong' : '')) : '') + '" data-k="' + k + '"><span class="ol">' + k + '</span>' + esc(typeof v === 'object' ? (v.t || '') : v) + '</div>').join('') + '</div>'
@@ -1816,16 +1829,17 @@ function renderGenQuiz() {
     const wrongIds = st.order.filter(id => st.answers[id] && !st.answers[id].ok);
     body.innerHTML = '<div class="gq-in">'
       + '<div class="gq-sum"><b>' + right + ' / ' + st.order.length + '</b> 正确'
+      + (st.run === 'ext' ? ' · 扩展挑战' : '')
       + (wrongIds.length ? '' : ' · 全对，漂亮') + '</div>'
       + (wrongIds.length ? '<div class="gq-wronglist"><div class="k">错题（已自动进错题本，1 天后复习）</div>'
           + wrongIds.map(id => { const q = qz.questions.find(x => x.id === id); return '<div class="w">· ' + esc(String(q.stem).slice(0, 60)) + '</div>'; }).join('') + '</div>' : '')
       + '<div class="gq-row"><span class="grow"></span>'
       + (wrongIds.length ? '<button id="gq-redo">重做错题 →</button>' : '')
-      + '<button class="pri" id="gq-again">再练一遍</button></div>'
+      + '<button class="pri" id="gq-again">' + (st.run === 'ext' ? '再练扩展' : '再练一遍') + '</button></div>'
       + (qz.inventory ? '<details class="gq-inv" open><summary>本节词表过一遍 · 深绿=已被题目覆盖，描边=靠这张表记住</summary>'
         + '<div class="ws">' + gqInvChips(qz) + '</div></details>' : '') + '</div>';
-    if (wrongIds.length) $('gq-redo').onclick = () => gqStart(wrongIds.slice());
-    $('gq-again').onclick = () => gqStart(qz.questions.map(x => x.id));
+    if (wrongIds.length) $('gq-redo').onclick = () => gqStart(wrongIds.slice(), st.run);
+    $('gq-again').onclick = () => gqStart(st.order.slice(), st.run);   // 再练同一组(课堂/扩展各回各的)
   }
 }
 function gqInvChips(qz) {
@@ -1907,9 +1921,9 @@ async function gqGenerate(force) {
     if ($('gq-body')) renderGenQuiz();
   }
 }
-function gqStart(ids) {
+function gqStart(ids, run) {
   const st = GQ_UI;
-  st.order = ids.slice(); st.ix = 0; st.answers = {}; st.wrong = [];
+  st.order = ids.slice(); st.ix = 0; st.answers = {}; st.wrong = []; st.run = run || 'core';
   st.phase = 'quiz'; st.qAt = Date.now();
   renderGenQuiz();
   gqScrollToCard();
@@ -1971,7 +1985,7 @@ function gqRefreshList() {
 function gqBackfillPracticed(lessonId, qz) {
   const k = 'gq:' + lessonId;
   if (REC.course[k] && REC.course[k].done) return;
-  const live = qz.questions.filter(q => !(qz.bad || []).includes(q.id));
+  const live = qz.questions.filter(q => !(qz.bad || []).includes(q.id) && q.tier !== 'ext');   // 课堂复习做完即算
   const all = live.length > 0 && live.every(q => { const a = REC.attempts[gqQid(qz, q)]; return a && a.history && a.history.length; });
   if (all) { REC.course[k] = { done: 1, t: Date.now() }; recSave(); gqRefreshList(); }
 }
