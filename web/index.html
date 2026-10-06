@@ -1694,6 +1694,26 @@ window.csVfull=function(){
   if(b) b.textContent=document.body.classList.contains('vfull')?'退出铺满':'铺满窗口';
 };
 document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&document.body.classList.contains('vfull')) csVfull(); });
+/* 课后练键盘流(r31): A–D/1–4 作答, Enter/→ 下一题; 仅做题相位+面板在场, 输入框聚焦与铺满态不响应 */
+document.addEventListener('keydown',e=>{
+  if(document.body.classList.contains('vfull'))return;
+  if(GQ_UI.phase!=='quiz'||!document.getElementById('gq-body'))return;
+  if(e.target&&/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName||''))return;
+  const qz=GQ_UI.quiz; if(!qz)return;
+  const q=qz.questions.find(x=>x.id===GQ_UI.order[GQ_UI.ix])||qz.questions[0];
+  if(!q)return;
+  if(!GQ_UI.answers[q.id]){
+    let k=null;
+    if(/^[a-d]$/i.test(e.key))k=e.key.toUpperCase();
+    else if(/^[1-4]$/.test(e.key))k='ABCD'[Number(e.key)-1];
+    if(k&&q.options[k]){ gqPick(q,k); e.preventDefault(); }
+  }else if(e.key==='Enter'||e.key==='ArrowRight'){
+    const b=document.getElementById('gq-next');
+    if(b&&!b.disabled){ gqNext(); e.preventDefault(); }
+  }else if(e.key==='ArrowLeft'){
+    if(document.getElementById('gq-prev')){ gqPrev(); e.preventDefault(); }
+  }
+});
 window.csDone=function(cid,ix){
   const c=courseById(cid); if(!c) return;
   const l=c.lessons[ix]; if(!l) return;
@@ -1777,6 +1797,7 @@ function renderGenQuiz() {
       + '<div class="gq-opts">' + Object.entries(q.options).map(([k, v]) =>
           '<div class="opt gq-opt' + (done ? (k === q.answer ? ' right' : (done.letter === k ? ' wrong' : '')) : '') + '" data-k="' + k + '"><span class="ol">' + k + '</span>' + esc(typeof v === 'object' ? (v.t || '') : v) + '</div>').join('') + '</div>'
       + '<div id="gq-fb"></div><div class="gq-nav" id="gq-nav"></div></div>';
+    gqPaintNav(q, done);
     if (!done) {
       body.querySelectorAll('.gq-opt').forEach(el => {
         el.onclick = () => gqPick(q, el.dataset.k);
@@ -1817,7 +1838,6 @@ function gqInvChips(qz) {
   return mk('词', inv.words, 'w') + mk('词缀', inv.affixes, 'a') + mk('词根', inv.roots, 'r');
 }
 function gqPaintAnswered(q, done) {
-  const st = GQ_UI;
   const fb = $('gq-fb');
   let kp = '';
   const firstOpt = Object.values(q.options || {})[0];
@@ -1827,15 +1847,37 @@ function gqPaintAnswered(q, done) {
         '<div class="o' + (k === q.answer ? ' right' : (done.letter === k ? ' mine' : '')) + '"><b>' + k + '</b> ' + esc(o.t || '')
         + (o.note ? '<span> — ' + esc(o.note) + '</span>' : '') + '</div>').join('') + '</div>';
   }
-  if (fb) fb.innerHTML = '<div class="gq-fb ' + (done.ok ? 'ok' : 'bad') + '"><b>' + (done.ok ? '答对了' : '答错了 · 正确答案 ' + esc(q.answer)) + '</b><span class="gq-fb-x"> ' + esc(q.explain) + '</span></div>' + kp;
-    + '<span class="grow"></span><button class="gq-ghost" id="gq-bad">这题有问题</button></div>' + kp;
-  const nav = $('gq-nav');
-  if (nav) {
-    nav.innerHTML = '<span class="grow"></span><button class="pri" id="gq-next">' + (st.ix + 1 >= st.order.length ? '看结果 →' : '下一题 →') + '</button>';
-    $('gq-next').onclick = gqNext;
+  if (fb) {
+    fb.innerHTML = '<div class="gq-fb ' + (done.ok ? 'ok' : 'bad') + '"><b>' + (done.ok ? '答对了' : '答错了 · 正确答案 ' + esc(q.answer)) + '</b><span class="gq-fb-x"> ' + esc(q.explain) + '</span></div>' + kp;
+    fb.scrollIntoView({ behavior: 'smooth', block: 'nearest' });   // 判分结果送到眼前, 粘底条保持按钮可见
+  }
+}
+/* 做题动作条(r31): 常驻粘底——进度+坏题标记+主按钮永远在视口内, 不再滚动找按钮;
+   未作答时按钮禁用占位, 文案即作答指引 */
+function gqPaintNav(q, done) {
+  const st = GQ_UI, nav = $('gq-nav');
+  if (!nav) return;
+  const last = st.ix + 1 >= st.order.length;
+  nav.innerHTML = '<span class="nb"><i style="width:' + Math.round(st.ix / st.order.length * 100) + '%"></i></span>'
+    + '<span class="pc">' + (st.ix + 1) + ' / ' + st.order.length + '</span>'
+    + '<span class="grow"></span>'
+    + (st.ix > 0 ? '<button class="gq-ghost" id="gq-prev">← 上一题</button>' : '')
+    + '<button class="gq-ghost" id="gq-bad">这题有问题</button>'
+    + '<button class="pri" id="gq-next"' + (done ? '' : ' disabled') + '>' + (done ? (last ? '看结果 →' : '下一题 →') : '点击选项或按 A–D 作答') + '</button>';
+  $('gq-next').onclick = gqNext;
+  const prevBtn = $('gq-prev');
+  if (prevBtn) prevBtn.onclick = gqPrev;
   const badBtn = $('gq-bad');
   if (badBtn) badBtn.onclick = () => { if (confirm('标记为坏题？这题会从练习中隐藏。')) gqMarkBad(q.id); };
-  }
+}
+function gqScrollToCard() {
+  const c = document.querySelector('.gq-card');
+  if (c) c.scrollIntoView({ block: 'start' });   // 换题后新题干固定从视口顶开始, 消灭"往上拉"
+}
+function gqPrev() {
+  const st = GQ_UI;
+  if (st.ix <= 0) return;
+  st.ix--; renderGenQuiz(); gqScrollToCard();   // 回看的题带完整判分+解析(done 相位渲染)
 }
 async function gqGenerate(force) {
   const st = GQ_UI;
@@ -1863,6 +1905,7 @@ function gqStart(ids) {
   st.order = ids.slice(); st.ix = 0; st.answers = {}; st.wrong = [];
   st.phase = 'quiz'; st.qAt = Date.now();
   renderGenQuiz();
+  gqScrollToCard();
 }
 function gqPick(q, letter) {
   const st = GQ_UI, qz = st.quiz;
@@ -1880,6 +1923,7 @@ function gqPick(q, letter) {
     else if (el.dataset.k === letter) el.classList.add('wrong');
   });
   gqPaintAnswered(q, { letter, ok });
+  gqPaintNav(q, { letter, ok });   // 解锁下一题 + 挂上坏题标记
 }
 function gqMarkBad(qid) {
   const st = GQ_UI, qz = st.quiz;
@@ -1896,9 +1940,10 @@ function gqMarkBad(qid) {
 }
 function gqNext() {
   const st = GQ_UI;
-  if (st.ix + 1 >= st.order.length) { st.phase = 'result'; renderGenQuiz(); return; }
+  if (st.ix + 1 >= st.order.length) { st.phase = 'result'; renderGenQuiz(); gqScrollToCard(); return; }
   st.ix++; st.qAt = Date.now();
   renderGenQuiz();
+  gqScrollToCard();
 }
 /* ---------- 课稿(逐字稿校对版) tab ---------- */
 function mdRender(md) {
@@ -2076,7 +2121,7 @@ function renderCourseMain(){
       <span class="why">${esc(cur.why||'')}</span></div>
       <button class="pri" id="cs-goquiz">练这组 →</button></div>`:''}
     ${cur?.notes_verified&&cur.key_points?.length?`<div class="handout" style="margin:16px 0 0"><h5>本节学习提示</h5><ul>${cur.key_points.map(point=>`<li style="margin:8px 0;line-height:1.7">${esc(point)}</li>`).join('')}</ul><p style="font-size:12px;color:var(--t2)">依据讲义整理，不是老师逐字原话。来源：${esc(cur.notes_source||'课程讲义')}</p></div>`:''}
-    ${c.id===GEN_COURSE?`<div class="card" style="margin-top:16px;overflow:hidden">
+    ${c.id===GEN_COURSE?`<div class="card gq-card" style="margin-top:16px">
       <div class="phead"><div class="l"><b>课后练 · 按本节教材生成</b></div><div class="r" id="gq-meta"></div></div>
       <div id="gq-body"></div></div>`:''}
     <div class="card" style="margin-top:16px;overflow:hidden">
@@ -2553,7 +2598,7 @@ document.addEventListener('pointerdown',e=>{
   b.appendChild(sp); setTimeout(()=>sp.remove(),680);
 });
 document.addEventListener('keydown',e=>{
-  if((e.key==='Enter'||e.key===' ')&&e.target.matches('[role="button"]')){e.preventDefault();e.target.click();}
+  if((e.key==='Enter'||e.key===' ')&&e.target&&e.target.matches&&e.target.matches('[role="button"]')){e.preventDefault();e.target.click();}
 });
 const audioTrack=$('d-track');audioTrack.tabIndex=0;audioTrack.setAttribute('role','slider');audioTrack.setAttribute('aria-label','音频播放位置');audioTrack.setAttribute('aria-valuemin','0');
 audioTrack.addEventListener('keydown',e=>{const a=$('d-audio');if(!a.duration)return;
