@@ -282,7 +282,7 @@ async function aiGen(sys, user) {
     headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + AI_CFG.key },
     body: JSON.stringify({ model: AI_CFG.model,
       messages: [{ role: 'system', content: sys }, { role: 'user', content: user }],
-      max_tokens: 4000, temperature: 0.3, stream: false }),
+      max_tokens: 6000, temperature: 0.3, stream: false }),   // 12 题长解析可能超 4k 被截断成残 JSON
     signal: AbortSignal.timeout(90000),
   });
   if (!r.ok) {
@@ -384,6 +384,10 @@ async function genQuizInner(lessonId, force) {
   };
   const finish = r => {
     r.kept.forEach((q, i) => { q.id = 'q' + (i + 1); });
+    if (!r.parsed.families.length) {   // 模型漏了 families: 从题目 tags 合成, 保证复习 tab 的家族卡完整
+      r.parsed.families = [...new Set(r.kept.flatMap(q => q.tags || []))]
+        .filter(Boolean).map(t => ({ name: t, kind: /^(un|dis|in|im|re|de|sub|super|over|con|com|col|cor|ex|pre|pro|sub)$/.test(t) ? 'prefix' : /(ing|ed|er|or|ist|ment|ness|tion|sion|able|ible|ous|ive|ful|less|ize|ise|fy|ify|ate|al|ic|ty|ity|cy|ence|ance|ency|ancy|age|ship|ary|ery|ory|um|ium)$/.test(t) ? 'suffix' : 'root', gloss: '', words: [] }));
+    }
     const entry = { v: AI_QV, at: Date.now(), course: f.course.id, lessonNo: f.ix + 1,
       title: f.lesson.title, scope: r.parsed.scope, pages: r.parsed.pages,
       families: r.parsed.families, questions: r.kept, bad: [] };
