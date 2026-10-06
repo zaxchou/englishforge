@@ -861,6 +861,21 @@ const handler = async (req, res) => {
       }
     }
 
+    /* ---- 课后练坏题标记(用户反馈, 从练习中隐藏) ---- */
+    if (p === '/api/ai/quiz-bad') {
+      const origin = req.headers.origin;
+      if (origin && origin !== `http://${req.headers.host}` && origin !== `https://${req.headers.host}`) return sendJSON(res, 403, { error: 'cross-origin rejected' });
+      if (req.method !== 'POST') return sendJSON(res, 405, { error: 'method' });
+      const body = await readBody(req);
+      let inc; try { inc = JSON.parse(body.toString('utf8') || '{}'); } catch (e) { return sendJSON(res, 400, { error: 'bad json' }); }
+      const qz = GQ_STORE[String(inc.lessonId || '')];
+      if (!qz) return sendJSON(res, 404, { error: 'quiz not found' });
+      const qid = String(inc.qid || '');
+      if (!/^q\d+$/.test(qid)) return sendJSON(res, 400, { error: 'bad qid' });
+      if (!qz.bad.includes(qid)) { qz.bad.push(qid); gqSave(); }
+      return sendJSON(res, 200, { ok: true, bad: qz.bad });
+    }
+
     /* ---- 词根家族聚合(课后练的长期复习) ---- */
     if (p === '/api/ai/families') {
       const origin = req.headers.origin;

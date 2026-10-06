@@ -1730,7 +1730,7 @@ function gqStats(quiz) {
 function renderGenQuiz() {
   const body = $('gq-body'); if (!body) return;
   const st = GQ_UI, qz = st.quiz;
-  $('gq-meta').textContent = qz ? (qz.questions.length + ' 题') : '';
+  $('gq-meta').textContent = qz ? (qz.questions.length - (qz.bad || []).length + ' 题') : '';
   if (st.phase === 'idle') {
     body.innerHTML = '<div class="gq-in"><p class="gq-note">按本节讲义内容出 8~12 道题（词根词缀 / 搭配辨析 / 词义与例句填空），错题自动进错题本。首次生成约需 10~30 秒，之后永久保存、可反复练习。</p>'
       + (st.err ? '<div class="na-box">' + esc(st.err) + '</div>' : '')
@@ -1746,12 +1746,12 @@ function renderGenQuiz() {
       + (qz.scope ? '<p class="gq-scope">' + esc(qz.scope) + (qz.pages && qz.pages.length ? '（讲义第 ' + Math.min(...qz.pages) + '–' + Math.max(...qz.pages) + ' 页）' : '') + '</p>' : '')
       + (fam ? '<div class="gq-chips">' + fam + '</div>' : '')
       + (st.err ? '<div class="na-box">' + esc(st.err) + '</div>' : '')
-      + '<div class="gq-row"><b>' + qz.questions.length + ' 道题</b>'
+      + '<div class="gq-row"><b>' + (qz.questions.length - (qz.bad || []).length) + ' 道题</b>'
       + '<span class="gq-stat">' + (s.n ? ('已练 ' + s.right + '/' + s.n + ' 正确') : '未做过') + (s.lastT ? ' · 最近 ' + new Date(s.lastT).toLocaleDateString() : '') + '</span>'
       + '<span class="grow"></span>'
       + '<button class="gq-ghost" id="gq-regen">重新生成</button>'
       + '<button class="pri" id="gq-start">开始练习 →</button></div></div>';
-    $('gq-start').onclick = () => gqStart(qz.questions.map(q => q.id));
+    $('gq-start').onclick = () => gqStart(qz.questions.filter(q => !(qz.bad || []).includes(q.id)).map(q => q.id));
     $('gq-regen').onclick = async () => {
       if (!confirm('重新生成会替换本节现有题目（作答记录保留），继续？')) return;
       gqGenerate(true);
@@ -1791,11 +1791,14 @@ function renderGenQuiz() {
 function gqPaintAnswered(q, done) {
   const st = GQ_UI;
   const fb = $('gq-fb');
-  if (fb) fb.innerHTML = '<div class="gq-fb ' + (done.ok ? 'ok' : 'bad') + '"><b>' + (done.ok ? '答对了' : '答错了 · 正确答案 ' + esc(q.answer)) + '</b> ' + esc(q.explain) + '</div>';
+  if (fb) fb.innerHTML = '<div class="gq-fb ' + (done.ok ? 'ok' : 'bad') + '"><b>' + (done.ok ? '答对了' : '答错了 · 正确答案 ' + esc(q.answer)) + '</b> ' + esc(q.explain)
+    + '<span class="grow"></span><button class="gq-ghost" id="gq-bad">这题有问题</button></div>';
   const nav = $('gq-nav');
   if (nav) {
     nav.innerHTML = '<span class="grow"></span><button class="pri" id="gq-next">' + (st.ix + 1 >= st.order.length ? '看结果 →' : '下一题 →') + '</button>';
     $('gq-next').onclick = gqNext;
+  const badBtn = $('gq-bad');
+  if (badBtn) badBtn.onclick = () => { if (confirm('标记为坏题？这题会从练习中隐藏。')) gqMarkBad(q.id); };
   }
 }
 async function gqGenerate(force) {
@@ -1841,6 +1844,19 @@ function gqPick(q, letter) {
     else if (el.dataset.k === letter) el.classList.add('wrong');
   });
   gqPaintAnswered(q, { letter, ok });
+}
+function gqMarkBad(qid) {
+  const st = GQ_UI, qz = st.quiz;
+  if (!qz) return;
+  api('/api/ai/quiz-bad', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ lessonId: st.lessonId, qid }) }).catch(() => {});
+  qz.bad = qz.bad || [];
+  if (!qz.bad.includes(qid)) qz.bad.push(qid);
+  const ix = st.order.indexOf(qid);
+  if (ix >= 0) st.order.splice(ix, 1);   // 移出本轮, 下一题顶上
+  if (!st.order.length) { st.phase = 'ready'; renderGenQuiz(); return; }
+  if (st.ix >= st.order.length) { st.phase = 'result'; }
+  renderGenQuiz();
 }
 function gqNext() {
   const st = GQ_UI;
