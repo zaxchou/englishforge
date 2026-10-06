@@ -513,8 +513,8 @@ body{font-family:"Segoe UI","Microsoft YaHei",sans-serif;font-size:16px;color:va
 .pt{font-family:"SimSun",Georgia,serif;font-size:27px;font-weight:400}.bhead{display:flex;align-items:baseline;justify-content:space-between;gap:18px}.ct{font-size:12px;color:#6b7565}.sub{font-size:13px;color:#697562;margin-top:8px;margin-bottom:24px}.card{background:var(--card);border-color:#dfe3d6;border-radius:4px}.phead{background:#f4f5ed;padding:15px 20px;border-color:#e0e4d7}.phead b{font-size:14px;font-weight:600}.phead .r{font-size:12px}.trow{padding:18px 20px;border-color:#e8ebdf}.trow .t b{font-family:Georgia,serif;font-size:18px;font-weight:400}.trow .t span{font-size:12px;margin-top:5px;color:#6a7561}.ovc{border-radius:4px;background:#e9eddf;padding:17px 20px}.ovc .v{font-family:Georgia,serif;font-size:29px;font-weight:400}.seg{background:#e7ebdd}.seg button{font-size:14px}.seg .thumb{background:#fffef9;border:1px solid #dce2d0;box-shadow:none}
 #v-do{max-width:900px;margin:auto}.ctx{background:none;border:0;padding:0 0 18px;border-bottom:1px solid #dfe3d6;margin-bottom:20px;gap:14px}.ctx .bk{font-size:12px;border:0;background:none;padding:8px 0;color:#5c6e50}.ctx .c1{font-size:13px;font-weight:500}.ctx .c2{font-size:12px;color:#738267}.ctx .sp{font-family:Georgia,serif;font-size:14px}.qb{padding:32px 36px}.qt{font-family:Georgia,serif;font-weight:400;font-size:25px;line-height:1.55;letter-spacing:-.02em;margin-bottom:7px}.qd{font-family:"Microsoft YaHei",sans-serif;font-size:13px;color:#737a6b;line-height:1.8;margin-bottom:21px}.opt{border:1px solid #dce2d3;border-radius:4px;padding:16px 19px;font-size:17px;font-family:Georgia,serif;line-height:1.6;margin:11px 0;gap:16px;background:#fffefa}.opt .ol{width:25px;height:25px;min-width:25px;font-family:"Segoe UI",sans-serif;font-size:11px;border-color:#d2dac6;color:#64795a;display:flex;align-items:center;justify-content:center}.opt.sel{border-color:#69825b;background:#edf2e5}.opt.right{border-color:#95b7a3;background:#eef6ef;box-shadow:none}.opt.wrong{border-color:#d6a59c;background:#fff1ed}.pfoot{padding:17px 24px;border-color:#e2e7d8;background:#fbfcf5}.pfoot button{font-size:13px;min-height:40px}.pri{background:#2c503a!important;border-color:#2c503a!important;color:#fff!important;font-weight:500;box-shadow:0 2px 3px #27402a10}.pri:hover{background:#1f402b!important}.ab{padding:15px 25px;background:#f3f5ea;border-color:#e2e6d7}.ab .play{padding:0;min-height:34px;min-width:34px;display:flex;align-items:center;justify-content:center}.ab .play svg{width:12px;height:12px;flex:none}.tbar{background:#f8f9f2;padding:14px 25px;gap:14px}.tval{font-family:Georgia,serif;font-size:18px!important}.tlab{font-size:11px}.fb{border:1px solid #d3e0d4;border-radius:4px;padding:21px 25px;box-shadow:none}.fb.ok{background:#f1f7ef}.fb.bad{background:#fff5ed;border-color:#e1c3b5}.fb .h{margin-bottom:16px;gap:12px}.fb .tt{font-family:"SimSun",serif;font-size:22px;font-weight:400}.fb .qn2{font-size:11px;color:#75806e}.fb .cmp2{border-top:1px solid #dce6d5;padding-top:15px}.fb .k{font-size:12px}.fb .v{font-family:Georgia,serif;font-size:17px}.fb .tagrow{padding-top:16px}.fb .tag{border-radius:3px;font-size:12px}
 .cslayout{gap:26px;grid-template-columns:minmax(230px,300px) 1fr}.csnav{background:#fffefa;border-radius:4px;border-color:#dce2d3}.cli{padding-top:10px;padding-bottom:10px}.cli.on{border-left-color:transparent;background:#e7efdc}.cli .lt{font-size:13px}.csgrp .csg-title{font-size:14px}.csp-meta h3{font-family:"SimSun",serif;font-size:25px;font-weight:400}.player{border-radius:4px;background:#26332c}.handout{background:#edf1e2;padding:20px;line-height:1.8}.handout h5{font-size:13px}.handout p{font-size:15px}.csqline .qb{padding:0;height:4px}.tbar .tfull{height:2px}.view.on{animation:deskOpen .24s ease-out}@keyframes deskOpen{from{opacity:.75;transform:translateY(4px)}to{opacity:1;transform:none}}
-@media(max-width:1100px){.wrap{padding:35px 35px;max-width:none}.top{width:204px}.wrap{margin-left:204px}.topin{padding:34px 20px}.part{gap:14px}.resource span{display:none}.cslayout{grid-template-columns:230px 1fr}}
-@media(max-width:800px){.top{width:180px}.wrap{margin-left:180px;padding:30px 24px}.topin{padding:30px 15px}.part{grid-template-columns:28px 1fr}.part button{grid-column:2;justify-self:start;margin-top:2px}.cslayout{grid-template-columns:1fr}.csmain .cs-stick{position:static}.csnav{max-height:280px}}
+@media(max-width:1100px){.wrap{padding:52px 35px 50px;max-width:none}.top{width:204px}.wrap{margin-left:204px}.topin{padding:34px 20px}.part{gap:14px}.resource span{display:none}.cslayout{grid-template-columns:230px 1fr}}
+@media(max-width:800px){.top{width:180px}.wrap{margin-left:180px;padding:46px 24px}.topin{padding:30px 15px}.part{grid-template-columns:28px 1fr}.part button{grid-column:2;justify-self:start;margin-top:2px}.cslayout{grid-template-columns:1fr}.csmain .cs-stick{position:static}.csnav{max-height:280px}}
 @media(max-width:700px){.top{position:sticky;inset:auto;width:auto;background:#e9eee5;border-right:0}.topin{padding:15px 18px 8px;display:block}.desk-brand{display:flex;align-items:baseline;gap:18px;padding:0}.brand{font-size:23px;line-height:1}.brand-caption{font-size:10px;margin:0;letter-spacing:.04em}.nav{flex-direction:row;margin-top:14px;gap:4px;overflow:auto}.nav-label{display:none}.nav button{padding:9px 13px;min-height:38px;font-size:13px}.wrap{margin:0;padding:26px 18px 36px}.lead{margin-bottom:22px}.lead h1{font-size:29px}.desk-kicker{font-size:10px}.lead p{font-size:13px}.notebook{padding:0 20px}.bookhead{font-size:11px;padding:16px 0}.part{padding:20px 0;gap:10px 14px;min-height:0}.part .num{font-size:15px}.part strong{font-size:22px}.part em{font-size:17px;margin-left:12px}.part p{font-size:12px;margin-top:8px}.part button{font-size:12px;padding:8px 12px;min-height:36px}.bookfoot{font-size:10px;gap:12px;padding:16px 0}.resources{margin-top:25px}.resource{padding:10px 0}.resource b{font-size:13px}.resource button{font-size:12px}.resource span{display:none}.qt{font-size:22px}.qb{padding:23px 20px}.opt{font-size:16px;padding:13px}.ctx{padding-bottom:13px;margin-bottom:15px}.tbar{padding:12px 15px}.tval{font-size:16px!important}.tbar .tleft,.tbar .tmid,.tbar .tright{gap:6px}.ab{padding:14px 18px}.pfoot{padding:14px 17px}.fb{padding:20px}.fb .qn2{max-width:180px;text-align:right}.fb .cmp2{grid-template-columns:1fr}.csnav{max-height:240px}.trow{padding:15px}.trow .t b{font-size:16px}.ovc{padding:13px}.ovc .v{font-size:25px}.pt{font-size:25px}}
 /* ==== style block 5 ==== */
 /* User choice: retain study desk, use training ground typography */
@@ -847,7 +847,7 @@ body,button,input,textarea,.brand,.brand span,.lead h1,.pt,.part strong,.part em
   .csplit{grid-template-columns:minmax(210px,250px) minmax(0,1fr);gap:var(--s3)}
 }
 @media(min-width:1101px) and (max-width:1500px){
-  .wrap{padding:40px 44px 52px}
+  .wrap{padding:56px 44px 52px}
 }
 
 /* --- block 15 补充: 视频课导航标题可读性 ---
@@ -934,12 +934,17 @@ body.vfull .cs-status button:hover{background:#28392d;border-color:#4d6350}
    仅桌面(>700px)可折叠; ≤700 顶栏本来就是横向的, 折叠无意义。 */
 .nav button{display:flex;align-items:center;gap:10px}
 .nav button svg{flex-shrink:0}
-.sb-toggle{position:fixed;top:12px;left:14px;z-index:850;width:36px;height:36px;
-  display:flex;align-items:center;justify-content:center;border:0;border-radius:4px;
-  background:none;color:var(--t2);cursor:pointer}
+.sb-toggle{position:fixed;top:6px;left:calc(var(--sbw,232px) + 12px);z-index:850;
+  width:36px;height:36px;display:flex;align-items:center;justify-content:center;
+  border:0;border-radius:4px;background:none;color:var(--t2);cursor:pointer}
 .sb-toggle:hover{background:rgba(0,0,0,.07);color:var(--t1)}
 .sb-toggle svg{transition:transform .18s}
 html.sb-min .sb-toggle svg{transform:scaleX(-1)}
+:root{--sbw:232px}
+@media(max-width:1100px){:root{--sbw:204px}}
+@media(max-width:800px){:root{--sbw:180px}}
+@media(max-width:700px){:root{--sbw:0px}}
+@media(min-width:701px){html.sb-min{--sbw:64px}}
 
 .top{transition:width .18s ease}
 .wrap{transition:margin-left .18s ease}
@@ -958,7 +963,7 @@ body.vfull .sb-toggle{display:none}
   html.sb-min .nav{margin-top:14px}
   html.sb-min .nav button{padding:11px 0;justify-content:center;gap:0}
   html.sb-min .nav .nv-t{display:none}
-  html.sb-min .wrap{margin-left:64px;max-width:1240px;padding:40px 48px 54px}
+  html.sb-min .wrap{margin-left:64px;max-width:1240px;padding:46px 48px 54px}
 }
 @media(min-width:1101px){
   html.sb-min .wrap{margin-left:max(64px,calc((100% - 1240px)/2))}
