@@ -326,19 +326,27 @@ function parseQuiz(raw) {
     questions: clean.slice(0, 14),
   };
 }
-/* 溯源校验: 选项里的英文实词（被考察的词）必须能在讲义全文找到（全等或前 4 字符词干匹配）。
-   全中文选项（英选中释义题）回退到校验题干英文词。不达标整题丢弃——宁缺勿编。 */
-function traceOK(q, wordSet) {
+/* 溯源校验(r9 修订): 只查"被考察的词"=正确答案选项里的英文实词
+   (全中文选项→题干英文词)。词根/词缀这类短候选用讲义全文子串匹配
+   (-ment 出现在 development 里即算讲过)。干扰项允许讲义外——词义题的
+   干扰词本应多样。答案词完全不在讲义→整题丢弃——不考没教过的词。 */
+function traceOK(q, wordSet, rawText) {
   const latin = s => (String(s).toLowerCase().match(/[a-z][a-z'-]{2,}/g) || []);
-  let cand = latin(Object.values(q.options || {}).join(' ')).filter(w => !GQ_STOP.has(w));
+  let cand = latin((q.options || {})[String(q.answer).trim().toUpperCase()] || '');
   if (!cand.length) cand = latin(q.stem).filter(w => !GQ_STOP.has(w));
-  if (!cand.length) return false;
-  const hit = cand.filter(w => wordSet.has(w)
-    || [...wordSet].some(t => t.startsWith(w.slice(0, 4)))).length;
-  return hit / cand.length >= 0.7;
+  if (!cand.length) return true;   // 全中文问答(方法论/概念题): 无英文可查, 交提示词约束+用户坏题标记兜底
+  return cand.some(w => wordSet.has(w) || rawText.includes(w)
+    || [...wordSet].some(t => t.startsWith(w.slice(0, 4))));
 }
+const GQ_INFLIGHT = new Map();   // 同课并发去重: 双标签页/重复点击只跑一次 AI
 async function genQuiz(lessonId, force) {
   if (!/^[\w.-]+$/.test(lessonId)) throw new Error('bad lessonId');
+  if (GQ_INFLIGHT.has(lessonId)) return GQ_INFLIGHT.get(lessonId);
+  const job = genQuizInner(lessonId, force);
+  GQ_INFLIGHT.set(lessonId, job);
+  try { return await job; } finally { GQ_INFLIGHT.delete(lessonId); }
+}
+async function genQuizInner(lessonId, force) {
   if (!force) {
     const hit = GQ_STORE[lessonId];
     if (hit && hit.v === AI_QV) return { quiz: hit, cached: true };
@@ -366,22 +374,40 @@ async function genQuiz(lessonId, force) {
     + '"questions":[{"type":"root","stem":"...","options":{"A":"...","B":"...","C":"...","D":"..."},"answer":"B","explain":"...","tags":["ceive"]}]}';
   const user = '[教材讲义全文（课程级，共 ' + pages.length + ' 页）]\n' + text
     + '\n\n[本节课] 第 ' + (f.ix + 1) + ' 节：' + f.lesson.title + '\n请只针对本节课对应章节的内容出题。';
-  let quiz = null, lastErr = '';
-  for (let attempt = 0; attempt < 2 && !quiz; attempt++) {
-    try { quiz = parseQuiz(await aiGen(sys, user)); }
-    catch (e) { lastErr = e.message; console.error('[gen-quiz]', lessonId, e.message); }
-  }
-  if (!quiz) throw new Error(lastErr || '生成失败');
   const wordSet = new Set((text.toLowerCase().match(/[a-z][a-z'-]{2,}/g) || []));
-  const kept = quiz.questions.filter(q => traceOK(q, wordSet));
-  if (!kept.length) throw new Error('生成题目均未通过教材溯源校验，请重试');
-  kept.forEach((q, i) => { q.id = 'q' + (i + 1); });
-  const entry = { v: AI_QV, at: Date.now(), course: f.course.id, lessonNo: f.ix + 1,
-    title: f.lesson.title, scope: quiz.scope, pages: quiz.pages,
-    families: quiz.families, questions: kept, bad: [] };
-  GQ_STORE[lessonId] = entry;
-  gqSave();
-  return { quiz: entry, cached: false, dropped: quiz.questions.length - kept.length };
+  const runAttempt = async (userMsg, tag) => {
+    const parsed = parseQuiz(await aiGen(sys, userMsg));
+    const kept = [], dropped = [];
+    for (const q of parsed.questions) (traceOK(q, wordSet, text) ? kept : dropped).push(q);
+    console.log('[gen-quiz]', lessonId, tag, 'kept', kept.length, 'dropped', dropped.length);
+    return { parsed, kept, dropped };
+  };
+  const finish = r => {
+    r.kept.forEach((q, i) => { q.id = 'q' + (i + 1); });
+    const entry = { v: AI_QV, at: Date.now(), course: f.course.id, lessonNo: f.ix + 1,
+      title: f.lesson.title, scope: r.parsed.scope, pages: r.parsed.pages,
+      families: r.parsed.families, questions: r.kept, bad: [] };
+    GQ_STORE[lessonId] = entry;
+    gqSave();
+    return { quiz: entry, cached: false, dropped: r.dropped.length };
+  };
+  let r1 = null, r2 = null, lastErr = '';
+  try { r1 = await runAttempt(user, 'a1'); }
+  catch (e) { lastErr = e.message; console.error('[gen-quiz]', lessonId, 'a1 FAIL', e.message); }
+  if (r1 && r1.kept.length >= 4) return finish(r1);
+  if (r1) {
+    // 反馈式重出: 把被拒题目列给模型, 要求只用讲义词
+    const fb = '[出题反馈] 上一稿以下题目因考察了讲义外的词被拒绝：\n'
+      + r1.dropped.slice(0, 8).map(q => '- ' + String(q.stem).slice(0, 50)).join('\n')
+      + '\n请重新出题：题干目标词与正确答案必须来自讲义原文；干扰项也尽量取讲义词。';
+    try { r2 = await runAttempt(user + '\n\n' + fb, 'a2'); }
+    catch (e) { lastErr = e.message; console.error('[gen-quiz]', lessonId, 'a2 FAIL', e.message); }
+    if (r2 && r2.kept.length >= 4) return finish(r2);
+  }
+  const best = (r2 && r2.kept.length) || 0;
+  if (r1 && r1.kept.length >= 2 && r1.kept.length >= best) return finish(r1);   // 内容薄的节: 有 2 题也如实交付
+  if (best >= 2) return finish(r2);
+  throw new Error(lastErr || '生成题目未通过教材溯源校验，请重试');
 }
 
 /* 课后练(gen qid)的 AI 解析: 题面来自生成题组, 讲义相关页作上下文。 */
@@ -852,10 +878,13 @@ const handler = async (req, res) => {
       if (!AI_CFG.key) return sendJSON(res, 503, { error: 'AI 未配置（服务端缺少 TFL_AI_KEY）' });
       const body = await readBody(req);
       let inc; try { inc = JSON.parse(body.toString('utf8') || '{}'); } catch (e) { return sendJSON(res, 400, { error: 'bad json' }); }
+      const t0 = Date.now();
       try {
         const out = await genQuiz(String(inc.lessonId || ''), !!inc.force);
+        console.log('[quiz]', inc.lessonId, out.cached ? 'cached' : 'fresh', out.quiz.questions.length + 'q', (Date.now() - t0) + 'ms');
         return sendJSON(res, 200, { ok: true, ...out });
       } catch (e) {
+        console.error('[quiz]', inc.lessonId, 'FAIL', (Date.now() - t0) + 'ms', e.message);
         const code = /bad lessonId|not found|未开通|无文字|读取失败|溯源校验/.test(e.message) ? 400 : 502;
         return sendJSON(res, code, { error: e.message });
       }

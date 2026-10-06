@@ -1801,17 +1801,23 @@ function gqPaintAnswered(q, done) {
 async function gqGenerate(force) {
   const st = GQ_UI;
   if (st.busy || !st.lessonId) return;
+  const myLesson = st.lessonId;   // 生成耗时 10~30s, 期间切课不能让旧题挂新课
   st.busy = true; st.err = '';
   st.phase = 'generating'; renderGenQuiz();
   try {
     const r = await api('/api/ai/quiz', { method: 'POST',
-      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lessonId: st.lessonId, force }) });
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lessonId: myLesson, force }) });
+    if (st.lessonId !== myLesson) return;   // 已切课: 服务端已缓存, 面板不动
     st.quiz = r.quiz; st.checked = true;
     st.phase = 'ready';
   } catch (e) {
-    st.err = e.message || '生成失败';
+    if (st.lessonId !== myLesson) return;
+    st.err = (e.message || '生成失败') + ' —— 网络波动时再点一次生成即可';
     st.phase = st.quiz ? 'ready' : 'idle';
-  } finally { st.busy = false; renderGenQuiz(); }
+  } finally {
+    st.busy = false;
+    if ($('gq-body')) renderGenQuiz();
+  }
 }
 function gqStart(ids) {
   const st = GQ_UI;
