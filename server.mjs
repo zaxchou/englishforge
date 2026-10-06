@@ -431,9 +431,11 @@ async function genQuizInner(lessonId, force) {
   let acc = [], scope = '', lastErr = '';
   for (let gi = 0; gi < groups.length; gi++) {
     const target = groups[gi].filter(w => covNow(acc).includes(w.toLowerCase()));
-    if (!target.length) continue;   // 前面批次已顺带覆盖
-    const msg = user + '\n\n[本轮只针对以下清单项出题，不要超出]\n' + target.join('、')
-      + '\n出 4-9 题，每题的选项 note 都要给全。';
+    if (invItems.length && !target.length) continue;   // 前面批次已顺带覆盖; 词表缺失时不跳过(退化整稿出题)
+    const msg = invItems.length
+      ? user + '\n\n[本轮只针对以下清单项出题，不要超出]\n' + target.join('、')
+        + '\n出 4-9 题，每题的选项 note 都要给全。'
+      : user + '\n\n请出 8-12 题，每题的选项 note 都要给全。';   // 词表缺失: 退化为整稿出题
     let r;
     try { r = parseOne(await aiGen(sys, msg)); }
     catch (e) {
@@ -489,12 +491,19 @@ async function aiExplainGen(qidStr, course, mk, no, force) {
   const mine = wrongs.join(' / ');
   let material = '';
   try {
-    const f = findLesson(lessonId);
-    const nid = f && (f.course.notes_ids || [])[0];
-    if (nid && (quiz.pages || []).length) {
-      const note = JSON.parse(fs.readFileSync(path.join(BUILD_DIR, 'courses', 'notes', nid + '.json'), 'utf8'));
-      material = (note.pages || []).filter(pg => quiz.pages.includes(pg.page))
-        .map(pg => '[第' + pg.page + '页]\n' + pg.text).join('\n\n').slice(0, 3000);
+    if ((quiz.pages || []).length) {   // v1 题组: 讲义相关页
+      const f = findLesson(lessonId);
+      const nid = f && (f.course.notes_ids || [])[0];
+      if (nid) {
+        const note = JSON.parse(fs.readFileSync(path.join(BUILD_DIR, 'courses', 'notes', nid + '.json'), 'utf8'));
+        material = (note.pages || []).filter(pg => quiz.pages.includes(pg.page))
+          .map(pg => '[第' + pg.page + '页]\n' + pg.text).join('\n\n').slice(0, 3000);
+      }
+    } else {                          // v2 题组: 课堂逐字稿(老师讲的原话就是依据)
+      const parts = lessonId.split('-');
+      const sf = scriptFileFor(course, Number(parts[parts.length - 1]));
+      if (sf) material = fs.readFileSync(path.join(sf.dir, sf.file), 'utf8')
+        .replace(/^---[\s\S]*?---\n*/, '').trim().slice(0, 3000);
     }
   } catch (e) {}
   const sys = '你是托福词汇助教，用中文讲解这道课后练习题：先一句话点明考查点（词根/词缀/搭配），'

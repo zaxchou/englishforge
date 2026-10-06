@@ -50,9 +50,17 @@ def ai(messages, max_tokens=8000, timeout=300):
                        'temperature': 0.2, 'stream': False}).encode('utf-8')
     req = urllib.request.Request(base + '/chat/completions', data=body,
         headers={'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key})
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        j = json.loads(r.read().decode('utf-8'))
-    return j['choices'][0]['message']['content'].strip()
+    last = None
+    for attempt in range(4):   # 网络韧性: IncompleteRead/超时 重试
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                j = json.loads(r.read().decode('utf-8'))
+            return j['choices'][0]['message']['content'].strip()
+        except Exception as e:
+            last = e
+            print('  retry', attempt + 1, type(e).__name__, str(e)[:60], flush=True)
+            time.sleep(5 + attempt * 5)
+    raise last
 
 def chunks(text, size=6000):
     paras = text.split('\n')
