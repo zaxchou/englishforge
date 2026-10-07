@@ -29,6 +29,7 @@
 ## 生成后处理
 
 - **跨批题干去重**：归一化题干（去空白/标点/空格线）已存在即丢弃——覆盖补漏轮是重复的主要来源（07 课 collaborate×3 事故）。
+- **答案位置确定性洗牌**（`shuffleOptions`）：按 qid 做种子的 Fisher-Yates 打乱选项——LLM 出题习惯把正确项放首位（全库曾 85% 是 A）；note 跟选项对象走，answer 按对象引用重定位，同一题永远同一排列（缓存/作答记录不漂移）。
 - **讲解释级**（`aiGradeTaught`）：清单分批 120 项/批判 taught/mentioned；失败回退全清单。
 - **生成后判级**（`gradeTiers`）：逐题判 core/ext，前端拆「课堂复习/扩展挑战」双入口；**必须先给题目赋 id 再判级**（否则 AI 对 undefined 编号判级会全量误标 ext，r7 事故）。失败全按 core。
 - 批次 JSON 截断：max_tokens 7800、单批失败自动重试一次。
