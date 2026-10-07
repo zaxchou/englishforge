@@ -398,8 +398,39 @@ async function genQuizInner(lessonId, force) {
     const j = JSON.parse(fs.readFileSync(path.join(sf.dir, stem + '.words.json'), 'utf8'));
     inv = { words: j.words || [], affixes: j.affixes || [], roots: j.roots || [], phrases: j.phrases || [] };
   } catch (e) {}
-  const invItems = [...inv.words, ...inv.affixes, ...inv.roots].map(x => String(x).trim()).filter(Boolean);
-  // 讲解分级(r39): 词表里"老师真正讲过"的才算出题对象, 仅念过/提及的退回词表墙(06 课 869 项覆盖式出题事故根治)
+  // 混录防护(09/01/17/26 事故固化): 信息密度>8字符/秒 几乎必然混入其他章节 → 只取最长节
+  const durSec = f.lesson.duration_sec || 0;
+  if (durSec > 60 && scriptMd.length / durSec > 8) {
+    const marks = [...scriptMd.matchAll(/^## .+$/gm)];
+    if (marks.length >= 2) {
+      const bounds = marks.map(m => m.index).concat([scriptMd.length]);
+      let best = -1, bestLen = 0;
+      for (let i = 0; i < marks.length; i++) {
+        const len = bounds[i + 1] - bounds[i];
+        if (len > bestLen) { bestLen = len; best = i; }
+      }
+      if (bestLen > 800 && bestLen < scriptMd.length) {
+        const fm = scriptMd.match(/^---[\s\S]*?---\n*/);
+        scriptMd = (fm ? fm[0] : '') + scriptMd.slice(bounds[best], bounds[best + 1]);
+        console.warn('[gen-quiz]', lessonId, '混录嫌疑 rate=' + (scriptMd.length / durSec).toFixed(1) + '字/s(原' + (durSec > 0 ? '' : '') + ') → 只取最长节 ' + marks[best][0].slice(0, 24) + ' (' + bestLen + '字符)');
+      }
+    }
+  }
+  // 词表错配防护: 清单项大面积不在逐字稿里 → 丢弃稿外项并告警(防跨课词表污染)
+  let invItems = [...inv.words, ...inv.affixes, ...inv.roots].map(x => String(x).trim()).filter(Boolean);
+  if (invItems.length > 20) {
+    const low = scriptMd.toLowerCase();
+    const inScript = invItems.filter(w => low.includes(w.toLowerCase()) || low.includes(w.toLowerCase().replace(/\s+/g, '')));
+    if (inScript.length / invItems.length < 0.5) {
+      console.warn('[gen-quiz]', lessonId, '词表错配嫌疑: 仅', inScript.length, '/', invItems.length, '命中逐字稿 → 丢弃稿外项');
+      const keep = new Set(inScript);
+      inv.words = inv.words.filter(w => keep.has(String(w).trim()));
+      inv.affixes = inv.affixes.filter(w => keep.has(String(w).trim()));
+      inv.roots = inv.roots.filter(w => keep.has(String(w).trim()));
+      invItems = invItems.filter(w => keep.has(w));
+    }
+  }
+  // 讲解释级(r39): 词表里"老师真正讲过"的才算出题对象, 仅念过/提及的退回词表墙(06 课 869 项覆盖式出题事故根治)
   let taughtItems = invItems;
   try {
     const graded = await aiGradeTaught(scriptMd, invItems);
@@ -409,8 +440,12 @@ async function genQuizInner(lessonId, force) {
       console.log('[gen-quiz]', lessonId, '讲解释级 taught', taughtItems.length, '/ mentioned', invItems.length - taughtItems.length);
     }
   } catch (e) { console.error('[gen-quiz]', lessonId, '讲解释级 FAIL, 全清单覆盖', e.message); }
-  const invLine = 'words: ' + inv.words.join('、') + '\naffixes: ' + inv.affixes.join('、')
-    + '\nroots: ' + inv.roots.join('、') + (inv.phrases.length ? '\nphrases: ' + inv.phrases.join('、') : '');
+  const taughtSet = new Set(taughtItems);
+  const tw = inv.words.filter(w => taughtSet.has(String(w).trim()));
+  const ta = inv.affixes.filter(w => taughtSet.has(String(w).trim()));
+  const tr = inv.roots.filter(w => taughtSet.has(String(w).trim()));
+  const invLine = 'words: ' + tw.join('、') + '\naffixes: ' + ta.join('、')
+    + '\nroots: ' + tr.join('、') + (inv.phrases.length ? '\nphrases: ' + inv.phrases.join('、') : '');
 
   const sys = '你是托福词汇课的教研老师。根据本节课的课堂逐字稿(已校对)和本节语言点清单，生成覆盖式课后练习。铁律：'
     + '1. 覆盖第一：清单里的每一个单词/词根/词缀都必须被至少一道题考查，或出现在某题的选项解析(note)或 explain 里。'
@@ -445,16 +480,16 @@ async function genQuizInner(lessonId, force) {
   // 覆盖闭环 V2: 清单分批(每批约 30 项, 单轮输出天然不超限), 批间全局对账, 收尾补漏一轮
   const covNow = qs => {
     const allText = JSON.stringify(qs).toLowerCase();
-    return invItems.filter(w => !allText.includes(w.toLowerCase()));
+    return taughtItems.filter(w => !allText.includes(w.toLowerCase()));
   };
   const groups = [];
-  for (let i = 0; i < invItems.length; i += 30) groups.push(invItems.slice(i, i + 30));
+  for (let i = 0; i < taughtItems.length; i += 30) groups.push(taughtItems.slice(i, i + 30));
   if (!groups.length) groups.push([]);
   let acc = [], scope = '', lastErr = '';
   for (let gi = 0; gi < groups.length; gi++) {
     const target = groups[gi].filter(w => covNow(acc).includes(w.toLowerCase()));
-    if (invItems.length && !target.length) continue;   // 前面批次已顺带覆盖; 词表缺失时不跳过(退化整稿出题)
-    const msg = invItems.length
+    if (taughtItems.length && !target.length) continue;   // 前面批次已顺带覆盖; 词表缺失时不跳过(退化整稿出题)
+    const msg = taughtItems.length
       ? user + '\n\n[本轮只针对以下清单项出题，不要超出]\n' + target.join('、')
         + '\n出 4-9 题，每题的选项 note 都要给全。'
       : user + '\n\n请出 8-12 题，每题的选项 note 都要给全。';   // 词表缺失: 退化为整稿出题
@@ -493,7 +528,7 @@ async function genQuizInner(lessonId, force) {
   if (!acc.length) throw new Error('生成题目未通过溯源校验，请重试');
   // 覆盖续写轮: 大清单课(130+ 项)30 题装不下 → 继续针对性出题直到覆盖完(总量≤60)
   let extra = 0;
-  remaining = invItems.filter(w => !acc.some(q => JSON.stringify(q).toLowerCase().includes(w.toLowerCase())));
+  remaining = taughtItems.filter(w => !acc.some(q => JSON.stringify(q).toLowerCase().includes(w.toLowerCase())));
   while (remaining.length && extra < 5) {
     const msg = user + '\n\n[补充出题] 以下清单项尚未被覆盖，请只针对它们出题(每项至少出现一次)：\n' + remaining.join('、');
     let r;
@@ -502,7 +537,7 @@ async function genQuizInner(lessonId, force) {
     const before = acc.length;
     acc = acc.concat(r.parsed.questions.filter(q => traceOK(q, wordSet, rawText)));
     extra++;
-    remaining = invItems.filter(w => !acc.some(q => JSON.stringify(q).toLowerCase().includes(w.toLowerCase())));
+    remaining = taughtItems.filter(w => !acc.some(q => JSON.stringify(q).toLowerCase().includes(w.toLowerCase())));
     console.log('[gen-quiz]', lessonId, 'extra' + extra, 'q', acc.length - before, 'uncovered', remaining.length);
     if (acc.length >= 60 || !remaining.length) break;
     if (acc.length === before) break;   // 无进展防死循环
@@ -512,6 +547,34 @@ async function genQuizInner(lessonId, force) {
   acc.forEach((q, i) => { q.id = 'q' + (i + 1); });   // 判级与 finish 都依赖稳定 id(此前判级拿不到 id, AI 对 undefined 编号判 ext 会全量误标)
   await gradeTiers(scriptMd, acc);   // 分级: core=课堂讲过, ext=未展开(复习完选做); 失败全按 core
   return finish(acc, scope, finalUncovered);
+}
+
+/* 讲解释级(r39): 对照逐字稿把清单分成 taught(实质讲解过)/mentioned(仅提及)。
+   只对 taught 做覆盖出题; 失败返回 null → 调用方回退全清单(宁多勿漏, 不阻断出题)。 */
+async function aiGradeTaught(scriptMd, invItems) {
+  if (!invItems.length) return null;
+  const taught = new Set();
+  const BATCH = 120;
+  for (let i = 0; i < invItems.length; i += BATCH) {
+    const batch = invItems.slice(i, i + BATCH);
+    const sys = '你是词汇课教研审读。给定课堂逐字稿和语言点清单，判定清单里每一项是否被老师"实质讲解"'
+      + '(给出含义解释/词源构词分析/搭配用法/例句/辨析)。只在语流里顺带出现、没被解释的算 mentioned。'
+      + '只输出严格 JSON：{"taught":["清单中被实质讲解的项，原文照抄"]}';
+    const r = await fetch(AI_CFG.base + '/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + AI_CFG.key },
+      body: JSON.stringify({ model: AI_CFG.model, messages: [
+        { role: 'system', content: sys },
+        { role: 'user', content: '【课堂逐字稿】\n' + scriptMd.slice(0, 20000) + '\n\n【语言点清单】\n' + batch.join('、') },
+      ], max_tokens: 3000, temperature: 0.1, stream: false }),
+      signal: AbortSignal.timeout(90000),
+    });
+    if (!r.ok) throw new Error('AI 接口 ' + r.status);
+    const j = await r.json();
+    const arr = JSON.parse(j.choices[0].message.content.match(/\{[\s\S]*\}/)[0]).taught;
+    for (const w of (arr || [])) taught.add(String(w).trim());
+  }
+  return { taught: [...taught] };
 }
 
 /* 生成后分级(r38): 对照逐字稿判定每道题 core/ext, 前端拆「课堂复习/扩展挑战」两个入口。
