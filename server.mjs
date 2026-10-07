@@ -509,6 +509,7 @@ async function genQuizInner(lessonId, force) {
   }
   acc = acc.slice(0, 60);
   const finalUncovered = remaining.filter(w => !acc.some(q => JSON.stringify(q).toLowerCase().includes(w.toLowerCase())));
+  acc.forEach((q, i) => { q.id = 'q' + (i + 1); });   // 判级与 finish 都依赖稳定 id(此前判级拿不到 id, AI 对 undefined 编号判 ext 会全量误标)
   await gradeTiers(scriptMd, acc);   // 分级: core=课堂讲过, ext=未展开(复习完选做); 失败全按 core
   return finish(acc, scope, finalUncovered);
 }
