@@ -545,8 +545,27 @@ async function genQuizInner(lessonId, force) {
   acc = acc.slice(0, 60);
   const finalUncovered = remaining.filter(w => !acc.some(q => JSON.stringify(q).toLowerCase().includes(w.toLowerCase())));
   acc.forEach((q, i) => { q.id = 'q' + (i + 1); });   // 判级与 finish 都依赖稳定 id(此前判级拿不到 id, AI 对 undefined 编号判 ext 会全量误标)
+  acc.forEach(q => shuffleOptions(q, lessonId + '/' + q.id));   // 答案位置确定性洗牌(AI 习惯把正确项放 A, 全库曾 85% 是 A)
   await gradeTiers(scriptMd, acc);   // 分级: core=课堂讲过, ext=未展开(复习完选做); 失败全按 core
   return finish(acc, scope, finalUncovered);
+}
+
+/* 答案位置确定性洗牌: LLM 出题习惯把正确项放首位(全库曾 85% 是 A)。
+   用 qid 做种子的 Fisher-Yates——同一题永远同一排列, 缓存/作答记录不漂移; note 跟选项对象一起走。 */
+function shuffleOptions(q, seed) {
+  if (!q.options || q.answer == null) return;
+  let h = 2166136261;
+  for (const ch of seed) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); }
+  const rand = () => { h = Math.imul(h ^ (h >>> 15), 2246822519); h = Math.imul(h ^ (h >>> 13), 3266489917); return ((h ^= h >>> 16) >>> 0) / 4294967296; };
+  const entries = Object.entries(q.options);
+  const ansVal = entries.find(([k]) => k === q.answer);
+  for (let i = entries.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [entries[i], entries[j]] = [entries[j], entries[i]];
+  }
+  q.options = Object.fromEntries(entries.map(([, v], i) => ['ABCD'[i], v]));
+  const at = entries.findIndex(([k]) => k === (ansVal && ansVal[0]));
+  if (at >= 0) q.answer = 'ABCD'[at];
 }
 
 /* 讲解释级(r39): 对照逐字稿把清单分成 taught(实质讲解过)/mentioned(仅提及)。
