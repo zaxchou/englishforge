@@ -467,7 +467,11 @@ async function genQuizInner(lessonId, force) {
       catch (e2) { console.error('[gen-quiz]', lessonId, 'g' + gi, 'RETRY FAIL'); continue; }   // 单批失败不放弃整节
     }
     if (!scope) scope = r.parsed.scope;
-    acc = acc.concat(r.parsed.questions);
+    for (const q of r.parsed.questions) {
+      const k = q.stem.toLowerCase().replace(/____+/g, ' ').replace(/[\s「」“”"'（）()。.,，?？!！:：;；]/g, '');
+      if (acc.some(x => x.stem.toLowerCase().replace(/____+/g, ' ').replace(/[\s「」“”"'（）()。.,，?？!！:：;；]/g, '') === k)) continue;   // 跨批次题干去重(07 课 collaborate 三连事故根治)
+      acc.push(q);
+    }
     console.log('[gen-quiz]', lessonId, 'g' + gi, 'q', r.parsed.questions.length, '累计', acc.length);
   }
   // 收尾补漏: 全局对账后仍有未覆盖 → 一轮针对补题
@@ -817,8 +821,10 @@ function familiesAggregate() {
       for (const w of (fam.words || [])) if (!e.words.includes(w)) e.words.push(w);
     }
     for (const q of liveQs) {
+      const sk = q.stem.toLowerCase().replace(/____+/g, ' ').replace(/[\s「」“”"'（）()。.,，?？!！:：;；]/g, '');
       for (const tag of (q.tags || [])) {
         const e = ensure(qz.course + '|' + tag, tag, 'root', '');
+        if (e.items.some(x => (x.stem || '').toLowerCase().replace(/____+/g, ' ').replace(/[\s「」“”"'（）()。.,，?？!！:：;；]/g, '') === sk)) continue;   // 家族聚合跨课去重(同题干多课重复不再翻倍)
         e.items.push({ qid: 'gen/' + qz.course + '/' + qz.lessonNo + '/quiz/' + Number(String(q.id).slice(1)),
           stem: q.stem, options: q.options, answer: q.answer, explain: q.explain, tags: q.tags,
           course: qz.course, lessonNo: qz.lessonNo });
