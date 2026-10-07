@@ -11,14 +11,21 @@
 <link rel="stylesheet" href="desk.css">
 <style>
 /* 应用层补充样式（视觉基线在 desk.css，不改它的既有规则） */
-.fillrun{display:inline-flex;align-items:baseline;gap:2px;white-space:nowrap}
+/* 单词与字符格保持同一行；焦点、已填、判题状态沿用研读桌配色。 */
+.fillrun{display:inline-flex;align-items:baseline;gap:3px;white-space:nowrap;vertical-align:baseline;margin:2px 1px}
 .fillrun .clue{font-weight:600;color:var(--t1)}
-.fillrun input{border:none;border-bottom:1.5px solid var(--line2);background:transparent;
-  font:inherit;color:var(--t1);padding:0 1px;text-align:center;border-radius:0}
-.fillrun input:focus{outline:none;border-bottom-color:var(--acc)}
-.fillrun.ok input{border-bottom-color:var(--ok);color:var(--ok)}
-.fillrun.bad input{border-bottom-color:var(--bad);color:var(--bad);text-decoration:line-through}
+.fillrun .fillcells{display:inline-flex;gap:3px;align-items:baseline}
+.fillrun input.fillchar{box-sizing:border-box;width:1.65em;height:2em;min-width:0;padding:0;
+  border:1px solid var(--line2);border-bottom-width:2px;border-radius:5px;background:var(--card);
+  font:inherit;font-size:16px;line-height:normal;text-align:center;color:var(--t1);
+  caret-color:var(--acc);transition:border-color .12s,box-shadow .12s,background .12s}
+.fillrun input.fillchar:focus{outline:none;border-color:var(--acc);box-shadow:0 0 0 2px color-mix(in srgb,var(--acc) 16%,transparent);background:var(--sunk)}
+.fillrun input.fillchar.has-char{border-bottom-color:var(--t2)}
+.fillrun.ok input.fillchar{border-color:var(--ok);color:var(--ok)}
+.fillrun.bad input.fillchar{border-color:var(--bad);color:var(--bad)}
+.fillrun input.fillchar:disabled{opacity:1;-webkit-text-fill-color:currentColor;cursor:default}
 .fillrun .fix{font-size:12px;color:var(--ok);margin-left:4px}
+@media(prefers-reduced-motion:reduce){.fillrun input.fillchar{transition:none}}
 .passage{font-size:16px;line-height:2.0;padding:14px 16px;background:var(--sunk);
   border-radius:var(--rs);margin-bottom:16px;white-space:pre-wrap}
 .wb-chip{display:inline-block;font-size:14px;padding:4px 12px;margin:0 6px 6px 0;
@@ -111,7 +118,7 @@ details.ai-tsec[open] summary{margin-bottom:8px}
 
 <div class="top">
   <div class="topin">
-    <div class="desk-brand" id="sb-brand" role="button" title="折叠/展开侧栏" aria-label="折叠/展开侧栏"><img class="brand-ico" src="/assets/brand/t-dot-v1/t-dot-48.png" alt="" width="30" height="30"><span class="brand"><span class="brand-t">T</span><span class="brand-oefl">OEFL&nbsp;</span><span class="brand-lab">Lab</span><span class="brand-dot">.</span></span></div>
+    <div class="desk-brand" id="sb-brand" role="button" title="折叠/展开侧栏" aria-label="折叠/展开侧栏"><img class="brand-ico" src="/assets/brand/t-dot-v1/t-dot-48.png" alt="" width="30" height="30"><span class="brand"><span class="brand-name">TOEFL</span> <span class="brand-lab">Lab</span></span></div>
     <div class="nav">
       <button class="on" data-v="home" title="首页"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 10.5 12 3.5l8.5 7"/><path d="M5.5 9.5V20h13V9.5"/></svg><span class="nv-t">首页</span></button>
       <button data-v="drill" title="专项训练"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.6"/></svg><span class="nv-t">专项训练</span></button>
@@ -237,7 +244,7 @@ details.ai-tsec[open] summary{margin-bottom:8px}
   </div>
   <div class="stats" id="rv-stats"></div>
   <div class="card" style="overflow:hidden">
-    <div class="phead"><div class="l"><b id="rv-ph-t">待复习</b></div><div class="r"><span id="rv-due"></span></div></div>
+    <div class="phead"><div class="l"><b id="rv-ph-t">待复习</b></div><div class="r"><span id="rv-due"></span><button class="pri" id="rv-batch" hidden>复习全部到期题</button></div></div>
     <div id="rv-list"></div>
   </div>
 </div>
@@ -308,7 +315,7 @@ const fmt = s => { s = Math.max(0, Math.round(s)); const m = Math.floor(s/60), x
 const fmtDur = s => { s = Math.round(s||0); if (s < 3600) return fmt(s);
   const h = Math.floor(s/3600), m = Math.floor(s%3600/60), x = s%60;
   return h + ':' + String(m).padStart(2,'0') + ':' + String(x).padStart(2,'0'); };
-const SUBN = {listening:'听力', reading:'阅读', writing:'写作', speaking:'口语'};
+const SUBN = {listening:'听力', reading:'阅读', writing:'写作', speaking:'口语', vocabulary:'课后练'};
 const sentenceNorm = s => (String(s||'').toLowerCase().replace(/[‘’]/g,"'").match(/[a-z0-9]+(?:'[a-z0-9]+)*/g)||[]).join(' ');
 const normAns = s => String(s == null ? '' : s).trim().toLowerCase()
   .replace(/[.,!?;:"'’”]/g,'').replace(/\s+/g,' ');
@@ -714,7 +721,7 @@ function recAttempt(ref, ok, answer, secs) {
        set: ref.set, subj: ref.subj, mk: ref.mk, gkey: ref.gkey} :
       {n_wrong: 1, stage: 0, added: Date.now(), due: Date.now()+864e5, last: Date.now(),
        set: ref.set, subj: ref.subj, mk: ref.mk, gkey: ref.gkey};
-  } else if (ok === true && m && !m.cleared && Date.now() >= m.due) {
+  } else if (ok === true && m && !m.cleared && Date.now() >= (m.due||0)) {
     // 复习答对：按 3/7/14 天推进；14 天后再答对才移出
     const next = [3,7,14][m.stage] || 14;
     m.stage = (m.stage||0) + 1;
@@ -1117,6 +1124,7 @@ async function enterTask(set,subj,taskKey){
   startSession({title:set+' · '+SUBN[subj], subj, refs});
 }
 function startSession(o){
+  ['d-prev','d-skip','d-reset','d-pause'].forEach(id=>$(id).disabled=false);
   if(!o.refs.length){ alert('该题组没有可做的题'); return; }
   S={...o, i:0, sel:null, revealed:false, fillVals:{}, slots:{}, startTs:Date.now(),subjectSeconds:{},subjectStart:0};
   lastNav=lastNav||'home';
@@ -1128,16 +1136,16 @@ function renderQ(){
   const r=curRef();
   S.subjectPositions=S.subjectPositions||{};S.subjectPositions[r.subj]=S.i;
   if(S.subj!==r.subj){S.subjectSeconds=S.subjectSeconds||{};S.subjectSeconds[S.subj]=(S.subjectSeconds[S.subj]||0)+Math.max(0,usedSec()-(S.subjectStart||0));S.subjectStart=usedSec();S.subj=r.subj;}
-  $('d-set').textContent=r.set;
+  $('d-set').textContent=r.gen?'词汇课 · 第 '+r.mk+' 节':r.set;
   const moduleNo=r.mk.match(/^m(\d+)/)?.[1];
-  $('d-kind').textContent=SUBN[r.subj]+' · '+(moduleNo?'第 '+moduleNo+' 模块 · '+(r.q?'第 '+r.q.no+' 题':'填词 '+r.gkey):(r.task?.title||SUBN[r.subj]));
-  $('d-cnt').textContent='本轮 '+(S.i+1)+' / '+S.refs.length;
+  $('d-kind').textContent=r.gen?'课后练 · 第 '+r.q.no+' 题':SUBN[r.subj]+' · '+(moduleNo?'第 '+moduleNo+' 模块 · '+(r.q?'第 '+r.q.no+' 题':'填词 '+r.gkey):(r.task?.title||SUBN[r.subj]));
+  $('d-cnt').textContent=(S.batchReview?'到期复习 · ':'本轮 ')+(S.i+1)+' / '+S.refs.length+(S.batchReview?' 项 · 共 '+S.reviewKeys.length+' 题':'');
   $('d-fb').innerHTML='';
   stopTaskTimer();
   if(NEXT_T){clearInterval(NEXT_T);NEXT_T=null;}
   $('d-next').textContent='确认答案'; $('d-next').className='pri';
-  const key=(r.q||r.it)?.qid||[r.set,r.subj,r.mk,'fill',r.gkey].join('/');
-  if(S.timedKey!==key){S.timedKey=key;S.startTs=Date.now();QACC=0;Q0=Date.now();S.answerSec=null;const draft=REC.drafts?.[key];if(draft&&!S.revealed){S.sel=draft.sel??null;S.fillVals={...draft.fillVals};S.slots={...draft.slots};}}
+  const key=((r.q||r.it)?.qid||[r.set,r.subj,r.mk,'fill',r.gkey].join('/'))+(S.batchReview?'/due-review':'');
+  if(S.timedKey!==key){S.timedKey=key;S.startTs=Date.now();QACC=0;Q0=Date.now();S.answerSec=null;const draft=S.batchReview?null:REC.drafts?.[key];if(draft&&!S.revealed){S.sel=draft.sel??null;S.fillVals={...draft.fillVals};S.slots={...draft.slots};}}
   const ab=$('d-ab');
   const audioUrl = (r.kind==='choice'&&r.q.audio) || (r.kind==='speak'&&r.it.audio);
   const noQA = r.kind==='choice' && r.group.questions && r.group.questions.every(q=>!q.audio);
@@ -1208,7 +1216,7 @@ function renderQ(){
   } else if(r.kind==='fill'){
     const g=r.group;
     h+=`<div class="qt">Complete the Words（Q${esc(g.key)}）</div>
-        <div class="qd">只输入空格中缺少的字母（也兼容完整单词）；每空一题，回车可提交。</div>
+        <div class="qd">逐格输入缺少的字母，自动跳到下一格；可粘贴完整单词，回车提交。</div>
         <div class="passage" id="d-fill"></div>`;
   } else if(r.kind==='write'){
     const t=r.task,it=r.it;
@@ -1316,6 +1324,57 @@ function saveQuestionDraft(){
   REC.drafts[S.timedKey]={sel:S.sel,fillVals:{...S.fillVals},slots:{...S.slots},updated:Date.now()};recSave();
 }
 function draftOf(r){ const w=REC.writing&&REC.writing[r.it.qid]; return w?w.text:''; }
+// 仍按整词存草稿和判题；空字符用空格保留位置，不能把后面的字母左移。
+function fillSuffix(value,clue,width){
+  const text=String(value||'');
+  return text.length===String(clue||'').length+width&&text.toLowerCase().startsWith(String(clue||'').toLowerCase())
+    ?text.slice(String(clue||'').length):text;
+}
+function wireFillCharacters(host){
+  const inputs=[...host.querySelectorAll('input.fillchar')];
+  const letters=text=>String(text||'').replace(/[^a-z]/gi,'');
+  const focus=inp=>{if(inp&&!inp.disabled){inp.focus();inp.select();}};
+  const sync=inp=>{
+    const group=inp.closest('.fillrun'),cells=[...group.querySelectorAll('input.fillchar')];
+    cells.forEach(cell=>cell.classList.toggle('has-char',!!cell.value));
+    S.fillVals[inp.dataset.b]=cells.map(cell=>cell.value||' ').join('').trimEnd();
+    saveQuestionDraft();
+  };
+  const insert=(inp,text,pasting=false)=>{
+    const cells=[...inp.closest('.fillrun').querySelectorAll('input.fillchar')],index=Number(inp.dataset.c);
+    let value=letters(text);
+    if(pasting&&index===0){
+      const clue=inp.closest('.fillrun').querySelector('.clue').textContent;
+      value=fillSuffix(value,clue,cells.length);
+    }
+    if(!value){if(!pasting){inp.value='';sync(inp);}return;}
+    const count=Math.min(value.length,cells.length-index);
+    for(let i=0;i<count;i++)cells[index+i].value=value[i];
+    sync(inp);
+    // 满词后进入下一个填空；文章最后一格不自动提交或揭晓。
+    const last=cells[index+count-1];focus(inputs[inputs.indexOf(last)+1]||last);
+  };
+  inputs.forEach((inp,index)=>{
+    let composing=false;
+    inp.onfocus=()=>inp.select();
+    inp.oncompositionstart=()=>{composing=true;};
+    inp.oncompositionend=()=>{composing=false;insert(inp,inp.value);};
+    inp.oninput=e=>{if(!composing&&!e.isComposing)insert(inp,inp.value);};
+    inp.onpaste=e=>{e.preventDefault();insert(inp,e.clipboardData.getData('text'),true);};
+    inp.onkeydown=e=>{
+      if(S.revealed||composing||e.isComposing)return;
+      if(e.key==='Enter'){e.preventDefault();confirmQ();return;}
+      if(e.key==='ArrowLeft'||e.key==='ArrowRight'){
+        e.preventDefault();focus(inputs[index+(e.key==='ArrowLeft'?-1:1)]);return;
+      }
+      if(e.key==='Backspace'){
+        e.preventDefault();
+        if(inp.value){inp.value='';sync(inp);}
+        else if(inputs[index-1]){const prev=inputs[index-1];prev.value='';sync(prev);focus(prev);}
+      }else if(e.key==='Delete'){e.preventDefault();inp.value='';sync(inp);}
+    };
+  });
+}
 function wireQ(){
   const r=curRef();
   if(r.kind==='choice'){
@@ -1329,18 +1388,13 @@ function wireQ(){
       const b=g.blanks[p.blank], q=g.parsed[p.blank];
       const v=S.fillVals[p.blank]!=null?S.fillVals[p.blank]:'';
       const marked=S.revealed?(q.answer?(fillIsCorrect(q,v)?'ok':'bad'):''):'';
-      // 原题的格数提示: 每格一个可视单元格(竖线分隔), 一格≈1.9ch
-      const w=Math.max(1,Math.min(12,b.width||1));
-      const cw=(w*1.9);
-      const cells=`repeating-linear-gradient(90deg,transparent 0,transparent calc(${(100/w).toFixed(2)}% - 1px),var(--line2) calc(${(100/w).toFixed(2)}% - 1px),var(--line2) ${(100/w).toFixed(2)}%)`;
-      return `<span class="fillrun ${marked}" data-b="${p.blank}"><span class="clue">${esc(b.clue)}</span>`+
-        `<input data-b="${p.blank}" aria-label="Q${q.no}，线索 ${esc(b.clue)}，补 ${w} 个字母" style="width:${cw}ch;background-image:${cells}" title="${w} 个字母格" value="${esc(v)}" autocomplete="off" spellcheck="false">`+
+      const w=Math.max(1,Number(b.width)||1);
+      const saved=fillSuffix(v,b.clue,w);
+      const cells=Array.from({length:w},(_,i)=>`<input class="fillchar ${saved[i]&&saved[i]!==' '?'has-char':''}" data-b="${p.blank}" data-c="${i}" type="text" maxlength="1" aria-label="Q${q.no}，线索 ${esc(b.clue)}，第 ${i+1}/${w} 个字母" value="${esc(saved[i]===' '?'':saved[i]||'')}" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" ${S.revealed?'disabled':''}>`).join('');
+      return `<span class="fillrun ${marked}" data-b="${p.blank}" role="group" aria-label="Q${q.no}，补 ${w} 个字母"><span class="clue">${esc(b.clue)}</span><span class="fillcells">${cells}</span>`+
         (S.revealed&&marked==='bad'?`<span class="fix">${esc(q.answer)}</span>`:'')+`</span>`;
     }).join('');
-    host.querySelectorAll('input').forEach(inp=>{
-      inp.disabled=S.revealed; inp.oninput=()=>{ S.fillVals[inp.dataset.b]=inp.value;saveQuestionDraft(); };
-      inp.onkeydown=e=>{ if(e.key==='Enter'){ e.preventDefault(); confirmQ(); } };
-    });
+    wireFillCharacters(host);
   } else if(r.kind==='write'&&r.task?.kind==='sentence'){
     const it=r.it;
     const nSlots=(it.response_slots.match(/_{3,}/g)||[]).length;
@@ -1412,7 +1466,7 @@ function renderQbar(){
     const first=S.refs[g.items[0]],moduleNo=first.mk.match(/^m(\d+)/)?.[1];
     const numbers=g.items.map(ix=>S.refs[ix].q?.no||S.refs[ix].it?.no).filter(Boolean);
     const range=first.kind==='fill'?first.gkey:(numbers[0]===numbers.at(-1)?String(numbers[0]):numbers[0]+'–'+numbers.at(-1));
-    const label=moduleNo?'第 '+moduleNo+' 模块 · '+(first.kind==='fill'?'填词 ':'题 ')+range:(first.task?.title||SUBN[g.subj]);
+    const label=first.gen?first.group.title:moduleNo?'第 '+moduleNo+' 模块 · '+(first.kind==='fill'?'填词 ':'题 ')+range:(first.task?.title||SUBN[g.subj]);
     let cells='',doneN=0;const totalN=g.items.reduce((n,ix)=>n+(S.refs[ix].kind==='fill'?S.refs[ix].group.parsed.length:1),0);
     g.items.forEach(ix=>{
       const r=S.refs[ix];let st='';
@@ -1474,6 +1528,11 @@ function recordChoice(){
   renderFB([{label:'你的答案',v:S.sel?(S.sel+' · '+r.q.options[S.sel]):'—',cls:ok?'ok':'bad'},
             {label:'正确答案',v:rightK+' · '+r.q.options[rightK],cls:'right'}],
     ok, 'Q'+r.q.no, null, r.q.qid);
+  if(r.gen){
+    const m=REC.mistakes[r.q.qid];if(m){m.stem=r.gen.stem;recSave();}
+    $('d-fb').insertAdjacentHTML('beforeend','<div class="gq-in"><p>'+esc(r.gen.explain||'')+'</p>'+
+      Object.entries(r.gen.options).filter(([,o])=>typeof o==='object'&&o.note).map(([k,o])=>'<p>'+esc(k+' · '+o.note)+'</p>').join('')+'</div>');
+  }
   showSourceReference(r.q.source_reference);
 }
 function recordFill(){
@@ -1576,6 +1635,14 @@ function nextQ(){
 }
 function finishSession(){
   stopTaskTimer();
+  if(S.batchReview){
+    const results=S.reviewKeys.map(k=>{const h=REC.attempts[k]?.history||[];return h.length>(S.baseline[k]||0)?h.at(-1):null;});
+    ['d-prev','d-skip','d-reset','d-pause'].forEach(id=>$(id).disabled=true);
+    const done=results.filter(Boolean).length,right=results.filter(h=>h?.ok===true).length,wrong=results.filter(h=>h?.ok===false).length;
+    $('d-fb').innerHTML='<div class="fb ok"><div class="h"><span class="tt">到期复习结束</span></div><p>本轮已答 '+done+' / '+S.reviewKeys.length+' 题 · 正确 '+right+' · 错误 '+wrong+' · 未判分 '+results.filter(h=>h&&h.ok==null).length+'</p><p>答对按复习间隔推进；答错明天再练。'+(S.skipped.length?'另有 '+S.skipped.length+' 题素材不可用，记录保留。':'')+'</p><button id="rv-return" class="pri">返回错题本</button></div>';
+    TACC=usedSec();QACC=qUsedSec();if(TICK)clearInterval(TICK);TICK=null;STU=false;
+    $('d-audio').pause();$('rv-return').onclick=()=>nav('review');$('d-next').textContent='返回错题本';return;
+  }
   const done=S.refs.filter(r=>{
     if(r.kind==='fill') return r.group.parsed.length>0&&r.group.parsed.every(q=>REC.attempts[q.qid]);
     const a=REC.attempts[r.q?r.q.qid:r.it.qid];
@@ -1621,6 +1688,7 @@ $('d-rate').onclick=()=>{ auRateIx=(auRateIx+1)%RATES.length; auRate=RATES[auRat
 /* 底部按钮 */
 $('d-next').onclick=()=>{
   if(!S) return;
+  if($('d-next').textContent==='返回错题本'){nav('review');return;}
   if($('d-next').textContent==='下一题'){ nextQ(); return; }
   if($('d-next').textContent==='重新开始'){ tReset();tStart();STU=true;S.timedKey=null;S.i=0;S.sel=null;S.revealed=false;S.fillVals={};S.slots={};renderQ(); return; }
   confirmQ();
@@ -1757,7 +1825,7 @@ function gqStats(quiz, ids) {
   for (const q of quiz.questions) {
     if (set && !set.has(q.id)) continue;
     const a = REC.attempts[gqQid(quiz, q)];
-    const h = a && (a.history || []);
+    const h = a && (a.history || []).filter(h => !q.revisionAt || (h.t || 0) >= q.revisionAt);
     if (!h || !h.length) continue;
     n++; if (h[h.length - 1].ok === true) right++;
     lastT = Math.max(lastT, h[h.length - 1].t || 0);
@@ -1811,7 +1879,7 @@ function renderGenQuiz() {
   } else if (st.phase === 'quiz') {
     const q = qz.questions.find(x => x.id === st.order[st.ix]) || qz.questions[0];
     const done = st.answers[q.id];
-    const tag = (q.tags || []).length ? '<span class="gq-tag">' + esc(q.tags.join(' · ')) + '</span>' : '';
+    const tag = done && (q.tags || []).length ? '<span class="gq-tag">' + esc(q.tags.join(' · ')) + '</span>' : '';
     body.innerHTML = '<div class="gq-in">'
       + '<div class="gq-prog">' + (st.run === 'ext' ? '扩展 · ' : '') + '第 ' + (st.ix + 1) + ' / ' + st.order.length + ' 题' + tag + '</div>'
       + '<div class="gq-stem">' + esc(q.stem) + '</div>'
@@ -1988,7 +2056,7 @@ function gqBackfillPracticed(lessonId, qz) {
   const k = 'gq:' + lessonId;
   if (REC.course[k] && REC.course[k].done) return;
   const live = qz.questions.filter(q => !(qz.bad || []).includes(q.id) && q.tier !== 'ext');   // 课堂复习做完即算
-  const all = live.length > 0 && live.every(q => { const a = REC.attempts[gqQid(qz, q)]; return a && a.history && a.history.length; });
+  const all = live.length > 0 && live.every(q => { const a = REC.attempts[gqQid(qz, q)]; return a && a.history && a.history.some(h => !q.revisionAt || (h.t || 0) >= q.revisionAt); });
   if (all) { REC.course[k] = { done: 1, t: Date.now() }; recSave(); gqRefreshList(); }
 }
 /* ---------- 课稿(逐字稿校对版) tab ---------- */
@@ -2482,12 +2550,71 @@ function famNext() {
   renderFamQuiz();
 }
 
+// 到期复习统一进入做题页；仅加载已存在的课后练缓存，不触发新出题。
+async function startDueReview(button){
+  button.disabled=true;button.textContent='准备复习…';
+  try{
+    const have=await api('/api/ai/quiz');const revisions=have.revisions||{};
+    const entries=[...scopedEntries(REC.mistakes),...Object.entries(REC.mistakes||{}).filter(([k])=>k.startsWith('gen/'))]
+      .filter(([k,m])=>m&&!m.cleared&&(m.due||0)<=Date.now()&&(!revisions[k]||(m.last||0)>=revisions[k]))
+      .sort((a,b)=>(a[1].due||0)-(b[1].due||0));
+    const dueKeys=new Set(entries.map(([k])=>k)),refs=[],seen=new Set(),quizzes=new Map(),skipped=[];
+    for(const [key] of entries){
+      if(seen.has(key))continue;
+      try{
+        if(key.startsWith('gen/')){
+          const [,course,lesson,,number]=key.split('/'),lid=course+'-'+String(Number(lesson)).padStart(2,'0');
+          if(!(have.lessons||[]).includes(lid))throw Error('没有可用缓存');
+          if(!quizzes.has(lid))quizzes.set(lid,(await api('/api/ai/quiz',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lessonId:lid})})).quiz);
+          const quiz=quizzes.get(lid),q=quiz.questions.find(q=>gqQid(quiz,q)===key);
+          if(!q||(quiz.bad||[]).includes(q.id))throw Error('题目已停用');
+          refs.push({kind:'choice',set:'gen',subj:'vocabulary',mk:String(lesson),gkey:lid,
+            group:{title:'第 '+lesson+' 节课后练',questions:[],passage:''},gen:q,
+            q:{qid:key,no:Number(number),stem:q.stem,answer:q.answer,options:Object.fromEntries(Object.entries(q.options).map(([k,v])=>[k,typeof v==='object'?v.t:v]))}});
+          seen.add(key);continue;
+        }
+        const [set,subj,mk]=key.split('/'),n=await normSet(set),sub=n.subjects[subj];
+        if(!sub||sub.blocked_reason)throw Error('素材不可练');
+        let found=false;
+        for(const mod of sub.modules||[])for(const group of mod.groups){
+          if(mod.mk!==mk)continue;
+          if(group.type==='fill'&&group.parsed.some(q=>q.qid===key)){
+            if(!group.complete)throw Error('空格解析不完整');
+            const indices=group.parsed.map((q,i)=>dueKeys.has(q.qid)?i:-1).filter(i=>i>=0),map=new Map(indices.map((old,i)=>[old,i]));
+            const copy={...group,key:indices.map(i=>group.parsed[i].no).join('、'),parsed:indices.map(i=>group.parsed[i]),blanks:indices.map(i=>group.blanks[i]),parts:group.parts.map(part=>{
+              if(part.t!=null)return part;
+              if(map.has(part.blank))return {blank:map.get(part.blank)};
+              const q=group.parsed[part.blank],clue=group.blanks[part.blank].clue,answer=String(q.answer||'');
+              return {t:answer.toLowerCase().startsWith(clue.toLowerCase())?answer:clue+answer};
+            })};
+            refs.push({kind:'fill',set,subj,mk,gkey:group.key,group:copy});copy.parsed.forEach(q=>seen.add(q.qid));found=true;break;
+          }
+          const q=(group.questions||[]).find(q=>q.qid===key);
+          if(q){if(subj==='listening'&&!q.audio&&!group.audio)throw Error('无对应录音');
+            refs.push({kind:'choice',set,subj,mk,gkey:group.key,group,q});seen.add(key);found=true;break;}
+        }
+        if(!found)for(const task of sub.tasks||[]){const it=task.items.find(it=>it.qid===key);if(it){
+          refs.push({kind:subj==='writing'?'write':'speak',set,subj,mk,task,it});seen.add(key);found=true;break;}}
+        if(!found)throw Error('原题不可用');
+      }catch(e){skipped.push(key);}
+    }
+    if(!refs.length){alert('当前到期题的素材暂不可用，记录已保留。');return;}
+    if(skipped.length)alert(skipped.length+' 道题素材暂不可用，本轮跳过；其余题目继续复习，错题记录保留。');
+    const baseline=Object.fromEntries([...seen].map(k=>[k,REC.attempts[k]?.history?.length||0]));
+    lastNav='review';startSession({title:'到期错题复习',subj:refs[0].subj,refs,batchReview:true,reviewKeys:[...seen],baseline,skipped});
+  }catch(e){alert('复习加载失败，请稍后重试。');}
+  finally{button.disabled=false;button.textContent='复习全部到期题';}
+}
+
 async function renderReview(){
+  $('rv-batch').hidden=true;
   if (RV_TAB === 'families') return renderFamilies();
   $('rv-ph-t').textContent = '待复习';
   // gen(课后练)错题不在 catalog set 里, scopedEntries 会滤掉 —— 手动并进来
-  const ms=[...scopedEntries(REC.mistakes),
-            ...Object.entries(REC.mistakes||{}).filter(([k,m])=>k.startsWith('gen/')&&m&&!m.cleared)];
+  // Revised questions keep historical attempts, but old mistakes are not current weaknesses.
+  const revisions = (await api('/api/ai/quiz').catch(() => ({}))).revisions || {};
+  const ms=[...scopedEntries(REC.mistakes).filter(([,m])=>m&&!m.cleared),
+            ...Object.entries(REC.mistakes||{}).filter(([k,m])=>k.startsWith('gen/')&&m&&!m.cleared && (!revisions[k] || (m.last || 0) >= revisions[k]))];
   const dueN=ms.filter(([,m])=>(m.due||0)<=Date.now()).length;
   $('rv-stats').innerHTML=[
     ['错题总数',ms.length,''],
@@ -2498,6 +2625,9 @@ async function renderReview(){
     <div style="font-size:20px;font-weight:500;line-height:1.2${c==='warn'?';color:var(--warn)':''}">${v}</div></div>`).join('');
   $('rv-due').textContent=dueN?('今天 '+dueN+' 题到期'):'';
   $('rv-ct').textContent=ms.length+' 题 · 今日 '+dueN;
+  const batch=$('rv-batch');batch.hidden=!dueN;batch.disabled=false;
+  batch.textContent='复习全部到期题 · '+dueN;
+  batch.onclick=()=>startDueReview(batch);
   if(!ms.length){
     $('rv-list').innerHTML='<div class="empty">还没有错题。做题答错会自动进这里。</div>';
     return;

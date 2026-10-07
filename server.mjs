@@ -23,6 +23,7 @@ import http from 'node:http';
 import https from 'node:https';
 import fs from 'node:fs';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -264,10 +265,12 @@ function gqSave() {
 }
 const AI_QV = 2;                 // v2 = 逐字稿源+覆盖闭环+选项级解析(note)
 const GQ_COURSE = 'ndf-01';      // MVP 只开词汇课
-/* 逐字稿(已校对 md)目录: 用户下载并经 pipeline/proofread_scripts.py 校对后落在源素材 逐字稿/ 文件夹 */
+/* 原素材只读；优先提供本地文字复核派生稿，状态不等于逐句听音认证。 */
 const SCRIPT_DIRS = { 'ndf-01': path.join(SIB, '新D方', '新D方新托福全套', '01 托福词汇课 孙曦', '逐字稿') };
 function scriptFileFor(course, lessonNo) {
-  const dir = SCRIPT_DIRS[course];
+  const reviewed = path.join(BUILD_DIR, 'scripts-reviewed', course);
+  // 已接入复核目录时不悄悄降级到旧稿；缺稿应报错让问题可见。
+  const dir = fs.existsSync(reviewed) ? reviewed : SCRIPT_DIRS[course];
   if (!dir) return null;
   try {
     const pref = String(lessonNo).padStart(2, '0');
@@ -396,8 +399,18 @@ async function genQuizInner(lessonId, force) {
   let inv = { words: [], affixes: [], roots: [], phrases: [] };
   try {
     const j = JSON.parse(fs.readFileSync(path.join(sf.dir, stem + '.words.json'), 'utf8'));
+    if (sf.dir === path.join(BUILD_DIR, 'scripts-reviewed', f.course.id)) {
+      const digest = createHash('sha256').update(fs.readFileSync(path.join(sf.dir, sf.file))).digest('hex');
+      if (!j.sourceReview || j.sourceReview.reviewedSha256 !== digest)
+        throw new Error('课稿复核签名不一致，暂停新题生成');
+      if (j.sourceReview.generationReady !== true)
+        throw new Error('课稿仍有待确认片段，暂停新题生成；现有课后练仍可使用');
+    }
     inv = { words: j.words || [], affixes: j.affixes || [], roots: j.roots || [], phrases: j.phrases || [] };
-  } catch (e) {}
+  } catch (e) {
+    if (sf.dir === path.join(BUILD_DIR, 'scripts-reviewed', f.course.id))
+      throw new Error(e.message.includes('暂停新题生成') ? e.message : '复核语言点清单读取失败，暂停新题生成');
+  }
   // 混录防护(09/01/17/26 事故固化): 信息密度>8字符/秒 几乎必然混入其他章节 → 只取最长节
   const durSec = f.lesson.duration_sec || 0;
   if (durSec > 60 && scriptMd.length / durSec > 8) {
@@ -1136,6 +1149,7 @@ const handler = async (req, res) => {
         ok: true,
         lessons: Object.keys(GQ_STORE).filter(k => GQ_STORE[k] && GQ_STORE[k].v === AI_QV),
         v: AI_QV,
+        revisions: Object.fromEntries(Object.values(GQ_STORE).flatMap(qz => (qz.questions || []).filter(q => q.revisionAt).map(q => ['gen/' + qz.course + '/' + qz.lessonNo + '/quiz/' + Number(String(q.id).slice(1)), q.revisionAt]))),
       });
       if (req.method !== 'POST') return sendJSON(res, 405, { error: 'method' });
       if (!AI_CFG.key) return sendJSON(res, 503, { error: 'AI 未配置（服务端缺少 TFL_AI_KEY）' });
@@ -1148,7 +1162,7 @@ const handler = async (req, res) => {
         return sendJSON(res, 200, { ok: true, ...out });
       } catch (e) {
         console.error('[quiz]', inc.lessonId, 'FAIL', (Date.now() - t0) + 'ms', e.message);
-        const code = /bad lessonId|not found|未开通|无文字|读取失败|溯源校验/.test(e.message) ? 400 : 502;
+        const code = /暂停新题生成/.test(e.message) ? 409 : /bad lessonId|not found|未开通|无文字|读取失败|溯源校验/.test(e.message) ? 400 : 502;
         return sendJSON(res, code, { error: e.message });
       }
     }
