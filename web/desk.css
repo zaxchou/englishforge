@@ -366,7 +366,8 @@ textarea{width:100%;min-height:150px;padding:var(--s3) 13px;resize:vertical;line
   border:1px solid #cfdcc9;border-radius:3px;padding:3px 5px 2px;letter-spacing:.08em}
 .cli .lt{flex:1;min-width:0;font-size:var(--f4);color:var(--t2);white-space:nowrap;
   overflow:hidden;text-overflow:ellipsis}
-.cli .ld{flex-shrink:0;font-size:var(--f5);color:var(--t3);font-variant-numeric:tabular-nums}
+.cli .ld{flex-shrink:0;font-size:var(--f5);color:var(--t3);font-variant-numeric:tabular-nums;
+  min-width:52px;text-align:right}   /* 固定宽右对齐: 时长长短不一不再把「已练」徽章挤得忽左忽右 */
 /* 播放中呼吸点 — 功能性指示, 不是装饰; 只替换灰点, 不吃 ✓/绿句点字形 */
 .cli.on .st i:not(.v):not(.q){width:8px;height:8px;background:var(--t1);animation:cspulse 1.6s ease-in-out infinite}
 @keyframes cspulse{0%,100%{opacity:1}50%{opacity:.25}}
