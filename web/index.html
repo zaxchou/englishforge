@@ -2137,13 +2137,16 @@ function renderCourseNav(){
       const done=REC.course[l.id]&&REC.course[l.id].done;
       const qd=c.id===GEN_COURSE&&REC.course['gq:'+l.id]&&REC.course['gq:'+l.id].done;
       const on=(csSel.c===c.id&&csSel.l===li);
-      const st= done ? checkSvg : '<i></i>';
+      const st= done&&qd ? checkSvg+'<i class="q"></i>'
+              : done    ? checkSvg
+              : qd      ? '<i class="q"></i>'
+              :           '<i></i>';
       const tip= done&&qd ? '视频已看完 · 课后练已完成'
                : done    ? '视频已看完'
                : qd      ? '课后练已完成' : '';
-      /* 练完状态用文字徽章「已练」: 纯图形点在 1x 屏上与未开始/全完成不可辨(用户实测反馈) */
+      /* 练完=✓旁小绿点(r42): 文字徽章占宽被否, 小标记+悬浮说明 */
       h+=`<div class="cli${done?' done':''}${on?' on':''}" data-cid="${esc(c.id)}" data-ix="${li}" title="${esc(l.title)}">
-        <span class="st"${tip?` title="${tip}"`:''}>${st}</span><span class="lt">${esc(l.title)}</span>${qd?'<span class="lz">已练</span>':''}<span class="ld">${l.duration_sec?fmtDur(l.duration_sec):'—'}</span></div>`;
+        <span class="st"${tip?` title="${tip}"`:''}>${st}</span><span class="lt">${esc(l.title)}</span><span class="ld">${l.duration_sec?fmtDur(l.duration_sec):'—'}</span></div>`;
     });
   }
   const el=$('cs-nav'); el.innerHTML=h;

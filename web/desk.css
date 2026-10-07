@@ -356,18 +356,15 @@ textarea{width:100%;min-height:150px;padding:var(--s3) 13px;resize:vertical;line
 .cli.on .lt{color:var(--t1);font-weight:500}
 /* 状态槽(r36): 与课程编号徽章同列同宽(24px), 勾/点居中——编号正下方一列;
    课节标题与课程标题同左缘(x=158), 只靠字号粗细区分层级, 标题宽度 +30px */
-.cli .st{width:24px;height:16px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+.cli .st{width:26px;height:16px;flex-shrink:0;display:flex;align-items:center;justify-content:center;gap:2px}
 .cli .st i{width:6px;height:6px;border-radius:50%;background:var(--line2);transform:translateY(-.5px)}   /* 对齐标题墨心(评审实测单行低 1px) */
-/* 状态(r34): ✓=视频看完, 灰点=未开始; 课后练完成=行内文字徽章「已练」
-   (纯图形句点在 1x 屏与未开始/全完成不可辨, 用户实测否决, 改用文字徽章) */
+/* 状态(r42): ✓=视频看完, 灰点=未开始, ✓+绿点=练完(小标记替代「已练」文字牌, 回收标题宽度) */
 .cli .st i.v{width:auto;height:auto;border-radius:0;background:none;display:flex;color:var(--ok)}
 .cli .st i.v svg{display:block}
-.cli .lz{flex-shrink:0;font-size:10px;line-height:1;color:var(--ok);background:var(--okbg);
-  border:1px solid #cfdcc9;border-radius:3px;padding:3px 5px 2px;letter-spacing:.08em}
+.cli .st i.q{width:5px;height:5px;background:#668171;transform:none}
 .cli .lt{flex:1;min-width:0;font-size:var(--f4);color:var(--t2);white-space:nowrap;
   overflow:hidden;text-overflow:ellipsis}
-.cli .ld{flex-shrink:0;font-size:var(--f5);color:var(--t3);font-variant-numeric:tabular-nums;
-  min-width:52px;text-align:right}   /* 固定宽右对齐: 时长长短不一不再把「已练」徽章挤得忽左忽右 */
+.cli .ld{flex-shrink:0;font-size:var(--f5);color:var(--t3);font-variant-numeric:tabular-nums}
 /* 播放中呼吸点 — 功能性指示, 不是装饰; 只替换灰点, 不吃 ✓/绿句点字形 */
 .cli.on .st i:not(.v):not(.q){width:8px;height:8px;background:var(--t1);animation:cspulse 1.6s ease-in-out infinite}
 @keyframes cspulse{0%,100%{opacity:1}50%{opacity:.25}}
