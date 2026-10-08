@@ -515,13 +515,17 @@ async function wireGenAnchors(qid, panel, q) {
     head.insertBefore(b, head.querySelector('.ai-regen'));
   }
   if (panel.querySelector('.ai-script-quote')) return;
-  // 关键词: tags(词根/词)优先, 补题干英文长词; 来自错题本快照时不依赖解析响应
-  const kwSet = new Set();
-  (Array.isArray(q && q.tags) ? q.tags : []).forEach(t => { const s = String(t).trim().toLowerCase(); if (s.length >= 3 && !/\s/.test(s)) kwSet.add(s); });
+  // 关键词两级(r52 深审修正): 只用 tags 命中; tags 空或全落空才退到题干词。
+  // 题干高频词(which/have 等)若与 tags 混用, 会把"讲到的段落"锚到只含虚词的段落。
+  const tagKw = [], stemKw = [];
+  (Array.isArray(q && q.tags) ? q.tags : []).forEach(t => {
+    const s = String(t).trim().toLowerCase(); if (!s) return;
+    if (s.length >= 3 && !/\s/.test(s)) tagKw.push(s);
+    if (s.startsWith('-')) { const b = s.slice(1); if (b.length >= 4) tagKw.push(b); }   // '-ion' 兼配课稿里不带连字符的写法
+  });
   const stem = String((q && q.stem) || (REC.mistakes[qid] && REC.mistakes[qid].stem) || '');
-  (stem.match(/[a-zA-Z]{4,}/g) || []).forEach(w => kwSet.add(w.toLowerCase()));
-  const kw = [...kwSet].slice(0, 6);
-  if (!kw.length) return;
+  const STOP = new Set(['this','that','with','which','what','when','where','there','here','have','has','been','from','they','them','their','would','could','should','about','into','word','words','meaning','according','classroom','does']);
+  (stem.match(/[a-zA-Z]{4,}/g) || []).forEach(w => { const l = w.toLowerCase(); if (!STOP.has(l)) stemKw.push(l); });
   let md = '';
   try {
     if (!AI_SCRIPT_CACHE[lid]) AI_SCRIPT_CACHE[lid] = String((await api('/api/lesson-script/' + lid)).md || '');
@@ -529,7 +533,10 @@ async function wireGenAnchors(qid, panel, q) {
   } catch (e) { return; }   // 课稿暂缺: 不引用, 不虚构
   const paras = md.split(/\n{2,}/).map(s => s.trim())
     .filter(s => s.length > 40 && !s.startsWith('>') && !s.startsWith('#'));
-  const hits = paras.filter(p => { const lp = p.toLowerCase(); return kw.some(w => lp.includes(w)); }).slice(0, 2);
+  const pick = kw => paras.filter(p => { const lp = p.toLowerCase(); return kw.some(w => lp.includes(w)); });
+  let hits = tagKw.length ? pick(tagKw) : [];
+  if (!hits.length && stemKw.length) hits = pick(stemKw.slice(0, 6));
+  hits = hits.slice(0, 2);
   if (!hits.length) return;
   const box = document.createElement('details');
   box.className = 'ai-tsec ai-script-quote'; box.open = true;
@@ -1213,6 +1220,7 @@ function startSession(o){
   if(!o.refs.length){ alert('该题组没有可做的题'); return; }
   S={...o, i:0, sel:null, revealed:false, fillVals:{}, slots:{}, startTs:Date.now(),subjectSeconds:{},subjectStart:0,
      simScore:(o.sim&&!o.review)?[]:null, review:!!o.review};   // simScore=本场判分明细(sim 结算用); review=出分后复盘
+  abForceReset();   // 新会话一律清 A-B: 防 src 相同(共用录音/重开同套)时循环残留进考试态(红线)
   lastNav=lastNav||'home';
   if(location.hash!=='#/do') location.hash='#/do';   // 会话占位 hash，返回时必有变化
   tReset(); tStart(); go('do'); renderQ(); STU=true;   // 计时先起, 再渲染（renderQ 内会刷计时显示, T0 必须已就位）
@@ -1262,11 +1270,12 @@ function renderQ(){
     window.__needListen=isListen&&r.kind==='choice'&&!S.revealed&&!answeredQ&&!played;
     $('d-rate').style.display=examListen?'none':'';
     $('d-track').style.pointerEvents=examListen?'none':'';
-    $('d-track').title=examListen?'正式考试模式：不可拖动进度':'点击跳转 · Z 设 A / X 设 B 循环播放';
+    $('d-track').title=examListen?'正式考试模式：不可拖动进度':(isListen?'点击跳转 · Z 设 A / X 设 B 循环播放':'点击跳转');
     $('d-play').disabled=examListen&&played;
     $('d-play').title=examListen?(played?'正式考试模式：每段录音只播一遍':'播放（只播一遍，结束后显示题目）'):'播放/暂停';
     $('d-prev').style.display=examListen?'none':'';
     $('d-abloop').style.display=examListen?'none':'';
+    $('d-reset').style.display=(S.sim&&!S.review)?'none':'';   // 考试相位没有"重置本组"(也防 simScore 与记录失配)
     abReset(src);
     if(window.__needListen&&au.paused) au.play().catch(()=>{});
     const mode=$('d-amode');
@@ -1281,6 +1290,7 @@ function renderQ(){
     ab.style.display='none';$('d-audio').pause();$('d-audio').removeAttribute('src');$('d-audio').load();
     window.__needListen=false;
     $('d-rate').style.display='';$('d-track').style.pointerEvents='';$('d-prev').style.display='';
+    $('d-reset').style.display=(S.sim&&!S.review)?'none':'';
     $('d-abloop').style.display='none';abReset(null);
   }
   let h='';
@@ -1840,6 +1850,7 @@ $('d-rate').onclick=()=>{ auRateIx=(auRateIx+1)%RATES.length; auRate=RATES[auRat
 /* ---- A-B 循环(精听, r50): 解析相位/复盘可用; 考试相位(未判分听力)控件整体隐藏 ----
    A=循环起点 B=循环终点, B 后回跳 A 无限循环; 换题(换 src)自动清除。快捷键 Z/X/C。 */
 const AB={a:null,b:null,src:null};
+function abForceReset(){AB.src=null;AB.a=null;AB.b=null;abPaint();}   // 换场强制清(重开同套/共用录音场景)
 function abReset(src){ if(AB.src!==src){AB.src=src;AB.a=null;AB.b=null;} abPaint(); }
 function abPaint(){
   const au=$('d-audio'),range=$('d-ab-range');if(!range)return;
@@ -1872,7 +1883,9 @@ $('d-next').onclick=()=>{
   if($('d-next').textContent==='返回错题本'){nav('review');return;}
   if($('d-next').textContent==='返回整套列表'){nav('sets');return;}
   if($('d-next').textContent==='下一题'){ nextQ(); return; }
-  if($('d-next').textContent==='重新开始'){ tReset();tStart();STU=true;S.timedKey=null;S.i=0;S.sel=null;S.revealed=false;S.fillVals={};S.slots={};renderQ(); return; }
+  if($('d-next').textContent==='重新开始'){ tReset();tStart();STU=true;S.timedKey=null;S.i=0;S.sel=null;S.revealed=false;S.fillVals={};S.slots={};
+    if(Array.isArray(S.simScore))S.simScore.length=0;   // 二刷同一套: 结算明细从零重记, 不与上一场叠加
+    abForceReset();renderQ(); return; }
   confirmQ();
 };
 $('d-prev').onclick=()=>{ if(!S||S.i<=0) return; if(!simCanJump(S.i-1)){alert('正式考试规则：进入下一篇文章后，不能返回前面的文章。');return;} S.i--; S.sel=null; S.revealed=false; S.fillVals={}; S.slots={}; renderQ(); };
