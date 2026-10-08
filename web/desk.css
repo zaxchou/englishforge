@@ -1116,24 +1116,17 @@ body.vfull .cs-status button:hover{background:#28392d;border-color:#4d6350}
 #v-review .phead .r{display:flex;align-items:center;flex-wrap:wrap;gap:10px}
 #rv-batch{font-size:13px;min-height:36px;padding:7px 12px}
 
-/* ==== style block 24: 侧栏=深夜书房的墨绿书墙, 内容区=暖纸桌面 ====
-   之前侧栏(#e9eee5)与内容(#f2f0e9)同为 ~93% 明度浅色, 中缝只有 1px 细线,
-   导航轨读不出是独立表面(r48 用户反馈"背景色区分更大")。
-   现在侧栏沉到品牌墨绿(与 --t1 #29382f 同族加深, 不引入新色相),
-   明度差 13.3:1, 分层靠色不靠线也不靠影(评审: 投影中性灰落在暖纸上有
-   "浮起的抽屉"感, 删, 书墙贴着桌面); 亮绿 T. logo 在深底上成为锚点。
-   选中态=纸色药丸(和内容桌面同色, "在书墙上点亮桌面"), 墨绿字。 */
-.top{background:#24322a;border-right:0}
+/* ==== style block 24: 侧栏=鼠尾草绿浅栏, 内容区=暖纸桌面(r49 降档定案) ====
+   演进史: 原 #e9eee5 与内容 #f2f0e9 同明度仅 1px 细线(读不出两个表面) ->
+   墨绿 #24322a 书墙(13.3:1, 用户:太重) -> 现档: **加深鼠尾草 #dbe4d0**,
+   比原档深约一个明度级+色相偏绿, 与暖纸形成冷/暖分区; 边界换深鼠尾草细线。
+   选中态=品牌绿实心药丸(var(--acc))+纸白字(墨绿版用纸色药丸, 浅色版灰绿
+   药丸 #d8e2d2 就是当年拉不开的那个); 悬停=白 55% 药丸(变亮语言不变)。
+   文字沿用原浅色系令牌(#4b5b4d/#254638), 略加深角标label保对比。 */
+.top{background:#dbe4d0;border-right:1px solid rgba(41,56,47,.16)}
+.brand-caption,.nav-label{color:#5c6b5e}
+.nav button:hover:not(.on){background:rgba(255,255,255,.55)}
+.nav button.on{background:var(--acc);color:#f6f8f1}
 @media(max-width:700px){
-  html{scrollbar-color:#aeb8a8 transparent} /* 深色顶栏右侧不再压白轨灰拇指 */
-}
-.brand .brand-name{color:#f2f0e9}
-.brand .brand-lab{color:rgba(242,240,233,.62)}
-.brand-caption,.nav-label{color:rgba(242,240,233,.45)}
-.nav button{color:rgba(242,240,233,.75)}
-.nav button:hover:not(.on){color:#f2f0e9;background:rgba(255,255,255,.07)}
-.nav button.on{background:#f2f0e9;color:#24322a}
-.nav button:focus-visible{outline-color:#f2f0e9;outline-offset:2px}
-@media(max-width:700px){
-  .top{background:#24322a;border-bottom:0}
+  .top{background:#dbe4d0;border-bottom:1px solid rgba(41,56,47,.16)}
 }
