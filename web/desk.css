@@ -1130,3 +1130,36 @@ body.vfull .cs-status button:hover{background:#28392d;border-color:#4d6350}
 @media(max-width:700px){
   .top{background:#dbe4d0;border-bottom:1px solid rgba(41,56,47,.16)}
 }
+
+/* ==== style block 25: 精听 A-B 循环 + sim 结算 + 回看本节(r50) ====
+   红线: 考试相位(未判分听力)控件由 JS 整体隐藏, 这里只管出现后的样子。 */
+.ab .tr{position:relative}
+.ab-range{position:absolute;top:-1px;height:5px;left:0;width:0;display:none;
+  background:rgba(49,90,71,.30);border-left:1px solid #315a47;border-right:1px solid #315a47;pointer-events:none}
+.abloop{display:inline-flex;gap:3px;align-items:center;flex-shrink:0}
+.abloop .rate{min-width:24px;padding:2px 7px;text-align:center;border:1px solid var(--line2);border-radius:3px}
+.abloop .rate.on{background:#2c503a;border-color:#2c503a;color:#fff}
+/* 解析面板迷你播放器的 A-B/变速 */
+.ai-player .ap-track{position:relative}
+.ap-range{position:absolute;left:0;top:-2px;height:7px;width:0;display:none;
+  background:rgba(49,90,71,.28);border-left:1px solid #315a47;border-right:1px solid #315a47}
+.ap-ab{display:inline-flex;gap:2px;margin-left:6px}
+.ap-b{border:1px solid var(--line2);background:none;border-radius:3px;font-size:10px;line-height:1;
+  padding:3px 6px;cursor:pointer;color:var(--t2)}
+.ap-b:hover{background:var(--mark)}
+.ap-b.on{background:#2c503a;border-color:#2c503a;color:#fff}
+.ap-rate{min-width:34px}
+.ai-head .ai-lesson{margin-left:8px}
+.ai-script-quote .ai-passage{margin:6px 0}
+.ai-script-quote .ai-note{margin-top:8px}
+/* sim 整套结算屏 */
+.sim-score{display:flex;flex-direction:column;gap:7px;margin:12px 0 4px}
+.sim-row{display:flex;align-items:baseline;gap:10px}
+.sim-row .k{font-size:13px;color:var(--t1);font-weight:500;flex:none}
+.sim-row .dots{flex:1;border-bottom:1px dashed var(--line);transform:translateY(-3px)}
+.sim-row .v{font-size:13px;color:var(--t2);font-variant-numeric:tabular-nums;flex:none}
+.sim-row .v b{font-size:17px;color:var(--t1);font-weight:600}
+.sim-row .p{font-size:12px;color:var(--t3);min-width:44px;text-align:right;font-variant-numeric:tabular-nums;flex:none}
+/* 错题本/解析的回看本节 */
+.op-lesson{background:var(--card);border:1px solid var(--line2);color:var(--t2);position:relative}
+.op-lesson:hover{background:var(--mark)}
