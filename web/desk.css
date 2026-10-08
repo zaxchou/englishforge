@@ -1163,3 +1163,17 @@ body.vfull .cs-status button:hover{background:#28392d;border-color:#4d6350}
 /* 错题本/解析的回看本节 */
 .op-lesson{background:var(--card);border:1px solid var(--line2);color:var(--t2);position:relative}
 .op-lesson:hover{background:var(--mark)}
+
+/* ==== r50 补: 做题页 gen 解析块独立成卡 + 回看本节收进卡内 ====
+   .gq-in 在课后练面板里有 .gq-card 包着, 在做题页 #d-fb 里是裸文本,
+   回看按钮曾 append 在块外顶着视口左缘(用户截图: 太丑)。
+   现在与上方 .fb 卡同一语言(白卡+边线), 按钮做成安静绿描边, 箭头 hover 右移。 */
+#d-fb .gq-in{margin:12px 0 0;background:var(--card);border:1px solid var(--line);border-radius:4px}
+#d-fb .gq-back{display:inline-flex;align-items:center;gap:7px;margin-top:12px;
+  border:1px solid #cddcc2;border-radius:4px;background:#f7faf3;color:#3d6a52;
+  font-size:12px;line-height:1;padding:7px 13px;cursor:pointer;
+  transition:background .12s,border-color .12s}
+#d-fb .gq-back:hover{background:#eef4e7;border-color:#b9c9ab}
+#d-fb .gq-back .ar{transition:transform .15s ease}
+#d-fb .gq-back:hover .ar{transform:translateX(2px)}
+@media(max-width:700px){#d-fb .gq-in{margin:12px 16px 0}}

@@ -1636,11 +1636,12 @@ function recordChoice(silent){
     ok, 'Q'+r.q.no, null, r.q.qid);
   if(r.gen){
     const m=REC.mistakes[r.q.qid];if(m){m.stem=r.gen.stem;recSave();}
-    $('d-fb').insertAdjacentHTML('beforeend','<div class="gq-in"><p>'+esc(r.gen.explain||'')+'</p>'+
-      Object.entries(r.gen.options).filter(([,o])=>typeof o==='object'&&o.note).map(([k,o])=>'<p>'+esc(k+' · '+o.note)+'</p>').join('')+'</div>');
     const glid=genLessonIdOf(r.q.qid);
+    $('d-fb').insertAdjacentHTML('beforeend','<div class="gq-in"><p>'+esc(r.gen.explain||'')+'</p>'+
+      Object.entries(r.gen.options).filter(([,o])=>typeof o==='object'&&o.note).map(([k,o])=>'<p>'+esc(k+' · '+o.note)+'</p>').join('')+
+      (glid?'<button class="gq-back" data-lesson="'+esc(glid)+'" title="跳到视频课这一节（视频 · 讲义 · 课稿）">回看本节<span class="ar">→</span></button>':'')+
+      '</div>');
     if(glid){
-      $('d-fb').insertAdjacentHTML('beforeend','<button class="gq-ghost" data-lesson="'+esc(glid)+'" title="跳到视频课这一节（视频 · 讲义 · 课稿）">回看本节 →</button>');
       const lb=$('d-fb').querySelector('[data-lesson]'); if(lb)lb.onclick=()=>{location.hash='#/course/'+glid;};
     }
   }
