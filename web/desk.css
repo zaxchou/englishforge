@@ -1115,3 +1115,25 @@ body.vfull .cs-status button:hover{background:#28392d;border-color:#4d6350}
 #v-review .phead{flex-wrap:wrap;gap:10px}
 #v-review .phead .r{display:flex;align-items:center;flex-wrap:wrap;gap:10px}
 #rv-batch{font-size:13px;min-height:36px;padding:7px 12px}
+
+/* ==== style block 24: 侧栏=深夜书房的墨绿书墙, 内容区=暖纸桌面 ====
+   之前侧栏(#e9eee5)与内容(#f2f0e9)同为 ~93% 明度浅色, 中缝只有 1px 细线,
+   导航轨读不出是独立表面(r48 用户反馈"背景色区分更大")。
+   现在侧栏沉到品牌墨绿(与 --t1 #29382f 同族加深, 不引入新色相),
+   明度差 13.3:1, 分层靠色不靠线也不靠影(评审: 投影中性灰落在暖纸上有
+   "浮起的抽屉"感, 删, 书墙贴着桌面); 亮绿 T. logo 在深底上成为锚点。
+   选中态=纸色药丸(和内容桌面同色, "在书墙上点亮桌面"), 墨绿字。 */
+.top{background:#24322a;border-right:0}
+@media(max-width:700px){
+  html{scrollbar-color:#aeb8a8 transparent} /* 深色顶栏右侧不再压白轨灰拇指 */
+}
+.brand .brand-name{color:#f2f0e9}
+.brand .brand-lab{color:rgba(242,240,233,.62)}
+.brand-caption,.nav-label{color:rgba(242,240,233,.45)}
+.nav button{color:rgba(242,240,233,.75)}
+.nav button:hover:not(.on){color:#f2f0e9;background:rgba(255,255,255,.07)}
+.nav button.on{background:#f2f0e9;color:#24322a}
+.nav button:focus-visible{outline-color:#f2f0e9;outline-offset:2px}
+@media(max-width:700px){
+  .top{background:#24322a;border-bottom:0}
+}
