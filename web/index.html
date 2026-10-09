@@ -632,20 +632,21 @@ function mergeRemote(remote, baseOpt, localOpt) {
   // baseOpt/localOpt 供单测注入, 生产走闭包默认。
   const merged=recClone(remote), base=baseOpt!==undefined?baseOpt:(recBase||{}), RECv=localOpt!==undefined?localOpt:REC;
   const conflicts=[];
-  for(const field of ['qtimes','mistakes','course','writing','drafts']) {   // attempts 单独走并集(见下), 不做键级替换
+  for(const field of ['mistakes','course','writing','drafts']) {   // attempts 单独走并集(见下); qtimes 单独走数值合并(见下)
     const l=RECv[field]||{}, b=base[field]||{}, r=remote[field]||{};
     merged[field]={...r};
     for(const key of new Set([...Object.keys(b),...Object.keys(l)])) {
       const ls=JSON.stringify(l[key]),bs=JSON.stringify(b[key]),rs=JSON.stringify(r[key]);
       if(ls===bs) continue;
-      if(key in l) merged[field][key]=l[key]; else delete merged[field][key];
+      if(key in l) merged[field][key]=l[key]; else delete merged[field][key];   // 本地删除(如不再训练)在合并中保持删除
       if(rs!==bs && rs!==ls) conflicts.push(field+'/'+key);
     }
   }
-  // attempts: 仅本地有=直接并入; 双端同键各改=history 并集(按 事件t+answer+ok 去重), n/right/st/last 由并集重算——不丢任何一端的作答史
+  // attempts: 仅本地有=直接并入; 双端同键各改=history 并集(按 事件t+answer+ok 去重), n/right/st/last 由并集重算——不丢任何一端的作答史;
+  // 本地已删(重置本组)且 base 有=保持删除, 否则被重置掉的作答会从服务端复活
   {
     merged.attempts={...(remote.attempts||{})};
-    const l=RECv.attempts||{};
+    const l=RECv.attempts||{}, bA=base.attempts||{};
     for(const key of Object.keys(l)) {
       const lv=l[key], rv=merged.attempts[key];
       if(!lv) continue;
@@ -661,13 +662,17 @@ function mergeRemote(remote, baseOpt, localOpt) {
         st:lasth.ok===true?'done':(lasth.ok===false?'wrong':'submitted'),
         last:lasth.t, last_answer:lasth.answer};
     }
+    for(const key of Object.keys(merged.attempts)) {
+      if(!(key in l) && (key in bA)) { delete merged.attempts[key]; conflicts.push('attempts/'+key); }
+    }
   }
-  // 数值型累计键(qtimes 键值秒数 / study 的日期与 today/total): 双端各自从 base 涨 → 本端+远端-base; base 缺失取大者; 非数值键本地优先
+  // 数值型累计键(qtimes 键值秒数 / study 的日期与 today/total): 双端各自从 base 涨 → 本端+远端-base; base 缺失取大者; 非数值键本地优先;
+  // 本地已删(重置本组清 qtimes)且 base 有=保持删除
   for(const field of ['qtimes','study']) {
     const l=RECv[field]||{}, b=base[field]||{}, r=remote[field]||{};
     merged[field]={...r};
     for(const key of new Set([...Object.keys(b),...Object.keys(l)])) {
-      if(!(key in l)) continue;
+      if(!(key in l)) { if(key in b) delete merged[field][key]; continue; }
       if(typeof l[key]!=='number') { merged[field][key]=l[key]; continue; }
       const lv=l[key], bv=Number(b[key])||0, rv=(typeof r[key]==='number')?r[key]:null;
       merged[field][key]= (rv!=null && key in b) ? Math.round(lv+rv-bv) : Math.max(lv,rv);
