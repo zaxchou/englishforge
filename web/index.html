@@ -2135,6 +2135,9 @@ function renderGenQuiz() {
     const coreIds = live.filter(q => q.tier !== 'ext').map(q => q.id);
     const extIds = live.filter(q => q.tier === 'ext').map(q => q.id);
     const s = gqStats(qz, coreIds);
+    const seStat = gqStats(qz, extIds);
+    const extRec = REC.course['gq:' + st.lessonId];
+    const extDone = !!(extRec && extRec.extDone);
     const fam = (qz.families || []).map(x => '<span title="' + esc(x.gloss || '') + '">' + esc(x.name) + '</span>').join('');
     body.innerHTML = '<div class="gq-in">'
       + (qz.scope ? '<p class="gq-scope">' + esc(qz.scope) + (qz.pages && qz.pages.length ? '（讲义第 ' + Math.min(...qz.pages) + '–' + Math.max(...qz.pages) + ' 页）' : '') + '</p>' : '')
@@ -2149,9 +2152,10 @@ function renderGenQuiz() {
         + '<button class="gq-ghost" id="gq-regen">重新生成</button>'
         + '<button class="pri" id="gq-start">开始复习 →</button></div>' : '')
       + (extIds.length ? '<div class="gq-row' + (coreIds.length ? ' gq-row-ext' : '') + '"><b>扩展挑战 · ' + extIds.length + ' 题</b>'
-        + '<span class="gq-stat">' + (coreIds.length ? '课堂未展开讲的词，复习完再挑战' : '本节课堂未展开讲解，题目全部为扩展题') + '</span>'
+        + (extDone ? '<span class="gq-tag">已练</span>' : '')
+        + '<span class="gq-stat">' + (seStat.n ? ('已练 ' + seStat.right + '/' + seStat.n + ' 正确') : '未做过') + (seStat.lastT ? ' · 最近 ' + new Date(seStat.lastT).toLocaleDateString() : '') + '</span>'
         + '<span class="grow"></span>'
-        + '<button class="' + (coreIds.length ? 'gq-ghost' : 'pri') + '" id="gq-start-ext">' + (coreIds.length ? '做扩展 →' : '开始练习 →') + '</button></div>' : '')
+        + '<button class="' + (coreIds.length ? 'gq-ghost' : 'pri') + '" id="gq-start-ext">' + (extDone ? '再练扩展 →' : (coreIds.length ? '做扩展 →' : '开始练习 →')) + '</button></div>' : '')
       + '</div>';
     if (coreIds.length) $('gq-start').onclick = () => gqStart(coreIds, 'core');
     const se = $('gq-start-ext');
@@ -2328,8 +2332,12 @@ function gqMarkPracticed() {
   const st = GQ_UI;
   if (!st.lessonId) return;
   const k = 'gq:' + st.lessonId;
-  if (!(REC.course[k] && REC.course[k].done)) {
-    REC.course[k] = { done: 1, t: Date.now() }; recSave();
+  const rec = REC.course[k] = REC.course[k] || {};
+  if (st.run === 'ext') {
+    // 扩展挑战独立记录(r57): 不点亮课节绿句点(那是"课堂复习完成"的语义), 面板内显示「已练」
+    if (!rec.extDone) { rec.extDone = 1; rec.extT = Date.now(); recSave(); gqRefreshList(); }
+  } else if (!rec.done) {
+    rec.done = 1; rec.t = Date.now(); recSave();
     gqRefreshList();   // 当屏看到句点亮起
   }
 }
