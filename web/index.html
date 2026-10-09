@@ -595,7 +595,7 @@ const recClone = x => JSON.parse(JSON.stringify(x));
 function saveStatus(msg) {
   let el = $('save-status');
   if (!el) { el = document.createElement('div'); el.id='save-status'; el.setAttribute('role','status');
-    el.style.cssText='position:fixed;bottom:12px;right:12px;z-index:999;background:#fff;padding:12px;border:1px solid #c88;max-width:380px';
+    el.style.cssText='position:fixed;bottom:12px;right:12px;z-index:999;background:#fff5ed;padding:12px 14px;border:2px solid var(--bad,#A32D2D);border-radius:6px;max-width:380px;box-shadow:0 4px 16px #28352a22';
     document.body.appendChild(el); }
   el.replaceChildren(document.createTextNode(msg+' '));
   if(msg) {
@@ -610,6 +610,19 @@ function saveStatus(msg) {
 function recSave() {
   recDirty=true; recEpoch++; clearTimeout(recT);
   recT=setTimeout(flushRecords,400);
+}
+function recSaveNow() {
+  // 作答判分等关键写入: 跳过 400ms 防抖立即上送(用户要求"每题都直接和服务器交互"),
+  // 失败由 flushRecords 的退避重试兜底, 数据不会无声滞留。
+  recDirty=true; recEpoch++; clearTimeout(recT); clearTimeout(recRetryT);
+  flushRecords();
+}
+let recRetryT=null, recRetryBackoff=0;
+function recScheduleRetry(){
+  if(recRetryT) return;   // 已有重试在排队
+  recRetryBackoff=Math.min(recRetryBackoff?recRetryBackoff*2:3000,30000);   // 3s→6s→12s→24s→30s 封顶
+  const wait=recRetryBackoff;
+  recRetryT=setTimeout(()=>{ recRetryT=null; if(recDirty) flushRecords(); },wait);
 }
 // Three-way merge only non-conflicting fields. Same-field conflicts retain local work and ask for recovery.
 function mergeRemote(remote, baseOpt, localOpt) {
@@ -682,9 +695,9 @@ async function flushRecords() {
     const ack=await r.json();
     recBase={...snapshot,revision:ack.revision,saved_at:ack.saved_at};
     REC.revision=ack.revision;REC.saved_at=ack.saved_at;
-    recDirty=recEpoch!==epoch;saveStatus('');
+    recDirty=recEpoch!==epoch;saveStatus('');recRetryBackoff=0;
     if(recDirty) recT=setTimeout(flushRecords,400);
-  } catch(e) {saveStatus(e.message);} finally {recSaving=false;}
+  } catch(e) {saveStatus(e.message+'（每 3 秒自动重试，也可导出留底）'); recScheduleRetry();} finally {recSaving=false;}
 }
 async function recResync() {
   if(recDirty || recSaving) return;
@@ -856,7 +869,7 @@ function recAttempt(ref, ok, answer, secs) {
     else m.due = Date.now() + next*864e5;
     m.last = Date.now();
   }
-  recSave();
+  recSaveNow();   // 每题判分立即上送(r53), 失败走退避重试——数据不滞留
 }
 function setWritingDraft(qidKey, text, submitted) {
   const w = REC.writing[qidKey] = REC.writing[qidKey] || {text:'', updated:0, submitted:false};
