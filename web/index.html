@@ -612,22 +612,57 @@ function recSave() {
   recT=setTimeout(flushRecords,400);
 }
 // Three-way merge only non-conflicting fields. Same-field conflicts retain local work and ask for recovery.
-function mergeRemote(remote) {
-  const merged=recClone(remote), base=recBase||{};
-  for(const field of ['attempts','qtimes','mistakes','course','study','writing','drafts']) {
-    const l=REC[field]||{}, b=base[field]||{}, r=remote[field]||{};
+function mergeRemote(remote, baseOpt, localOpt) {
+  // r52 重写: 合并永不 throw(旧版双端同字段各改过就抛"多窗口记录冲突", 页面从此保存失败,
+  // 数据滞留内存数小时/数天——生产 spir/spectvis 事故根因)。
+  // 策略: 键级本地优先; attempts 同键双改=按时间戳并集重算; qtimes/study 数值键=双端增量合并; 冲突键记 __mergeConflicts 供审计。
+  // baseOpt/localOpt 供单测注入, 生产走闭包默认。
+  const merged=recClone(remote), base=baseOpt!==undefined?baseOpt:(recBase||{}), RECv=localOpt!==undefined?localOpt:REC;
+  const conflicts=[];
+  for(const field of ['qtimes','mistakes','course','writing','drafts']) {   // attempts 单独走并集(见下), 不做键级替换
+    const l=RECv[field]||{}, b=base[field]||{}, r=remote[field]||{};
     merged[field]={...r};
     for(const key of new Set([...Object.keys(b),...Object.keys(l)])) {
       const ls=JSON.stringify(l[key]),bs=JSON.stringify(b[key]),rs=JSON.stringify(r[key]);
       if(ls===bs) continue;
-      if(rs!==bs && rs!==ls) throw new Error('多窗口记录冲突：请导出当前记录后再刷新合并');
       if(key in l) merged[field][key]=l[key]; else delete merged[field][key];
+      if(rs!==bs && rs!==ls) conflicts.push(field+'/'+key);
     }
   }
-  if(JSON.stringify(REC.feedback)!==JSON.stringify(base.feedback)) {
-    if(JSON.stringify(remote.feedback)!==JSON.stringify(base.feedback)) throw new Error('复盘记录冲突');
-    merged.feedback=recClone(REC.feedback);
+  // attempts: 仅本地有=直接并入; 双端同键各改=history 并集(按 事件t+answer+ok 去重), n/right/st/last 由并集重算——不丢任何一端的作答史
+  {
+    merged.attempts={...(remote.attempts||{})};
+    const l=RECv.attempts||{};
+    for(const key of Object.keys(l)) {
+      const lv=l[key], rv=merged.attempts[key];
+      if(!lv) continue;
+      if(!rv) { merged.attempts[key]=lv; continue; }
+      if(!Array.isArray(lv.history)||!Array.isArray(rv.history)) { merged.attempts[key]=lv; conflicts.push('attempts/'+key); continue; }
+      const seen=new Set((rv.history||[]).map(h=>h.t+'|'+(h.answer==null?'':String(h.answer))+'|'+(h.ok==null?'':String(h.ok))));
+      const hist=[...(rv.history||[]),...(lv.history||[]).filter(h=>!seen.has(h.t+'|'+(h.answer==null?'':String(h.answer))+'|'+(h.ok==null?'':String(h.ok))))];
+      if(hist.length>Math.max(lv.history.length,rv.history.length)) conflicts.push('attempts/'+key);
+      hist.sort((x,y)=>x.t-y.t);
+      const lasth=hist[hist.length-1];
+      merged.attempts[key]={...lv, history:hist,
+        n:hist.length, right:hist.filter(h=>h.ok===true).length,
+        st:lasth.ok===true?'done':(lasth.ok===false?'wrong':'submitted'),
+        last:lasth.t, last_answer:lasth.answer};
+    }
   }
+  // 数值型累计键(qtimes 键值秒数 / study 的日期与 today/total): 双端各自从 base 涨 → 本端+远端-base; base 缺失取大者; 非数值键本地优先
+  for(const field of ['qtimes','study']) {
+    const l=RECv[field]||{}, b=base[field]||{}, r=remote[field]||{};
+    merged[field]={...r};
+    for(const key of new Set([...Object.keys(b),...Object.keys(l)])) {
+      if(!(key in l)) continue;
+      if(typeof l[key]!=='number') { merged[field][key]=l[key]; continue; }
+      const lv=l[key], bv=Number(b[key])||0, rv=(typeof r[key]==='number')?r[key]:null;
+      merged[field][key]= (rv!=null && key in b) ? Math.round(lv+rv-bv) : Math.max(lv,rv);
+    }
+  }
+  // feedback: 本地优先(旧版冲突时 throw, 一并取消)
+  if(JSON.stringify(RECv.feedback)!==JSON.stringify(base.feedback)) merged.feedback=recClone(RECv.feedback);
+  merged.__mergeConflicts=conflicts;
   return merged;
 }
 async function flushRecords() {
