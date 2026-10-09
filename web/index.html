@@ -705,7 +705,7 @@ async function flushRecords() {
   } catch(e) {saveStatus(e.message+'（每 3 秒自动重试，也可导出留底）'); recScheduleRetry();} finally {recSaving=false;}
 }
 async function recResync() {
-  if(recDirty || recSaving) return;
+  if(recDirty || recSaving || recAttQueue.length) return;   // 有待传作答时不拉远端覆盖本地
   const epoch=recEpoch;
   try {const j=await api('/api/records');
     if(recDirty || recSaving || recEpoch!==epoch) return;
@@ -878,7 +878,36 @@ function recAttempt(ref, ok, answer, secs) {
     else m.due = Date.now() + next*864e5;
     m.last = Date.now();
   }
-  recSaveNow();   // 每题判分立即上送(r53), 失败走退避重试——数据不滞留
+  // r56: 作答走 /api/records/attempt 增量直送(服务端=唯一真源, 逐题落盘),
+  // 不再依赖全量快照——快照覆盖/合并/关页都影响不到它。失败进 localStorage 持久队列自动补传。
+  recAttemptSend({ ref: {qid: ref.qid, set: ref.set, subj: ref.subj, mk: ref.mk, gkey: ref.gkey},
+    ok: ok === null ? null : ok === true, answer, secs: Math.round(secs) });
+}
+/* 作答增量队列: localStorage 持久(浏览器崩溃/关页不丢), 逐条上送, 失败退避 3s→30s */
+let recAttQueue = [];
+try { recAttQueue = JSON.parse(localStorage.getItem('tfl-att-queue') || '[]'); if (!Array.isArray(recAttQueue)) recAttQueue = []; } catch (e) { recAttQueue = []; }
+let recAttSending = false, recAttBackoff = 0;
+function recPersistAttQueue() { try { localStorage.setItem('tfl-att-queue', JSON.stringify(recAttQueue)); } catch (e) {} }
+function recAttemptSend(item) { recAttQueue.push(item); recPersistAttQueue(); recFlushAttempts(); }
+function recFlushAttempts() {
+  if (recAttSending || !recAttQueue.length) return;
+  if (!recReady) { setTimeout(recFlushAttempts, 3000); return; }   // 记录未读取前不上送, 防乱序覆盖
+  recAttSending = true;
+    fetch('/api/records/attempt', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(recAttQueue[0]) })
+    .then(r => r.json().then(j => { if (!r.ok) throw new Error('status ' + r.status); return j; }))
+    .then(j => {
+      if (j.attempt) REC.attempts[recAttQueue[0].ref.qid] = j.attempt;   // 服务端真源回写本地显示层
+      recAttQueue.shift(); recPersistAttQueue(); recAttBackoff = 0; recAttSending = false;
+      saveStatus('');
+      if (recAttQueue.length) recFlushAttempts();
+    })
+    .catch(() => {
+      recAttSending = false;
+      recAttBackoff = Math.min(recAttBackoff ? recAttBackoff * 2 : 3000, 30000);
+      saveStatus('有 ' + recAttQueue.length + ' 条作答已暂存在本机，网络恢复后自动补传，不会丢失');
+      setTimeout(recFlushAttempts, recAttBackoff);
+    });
 }
 function setWritingDraft(qidKey, text, submitted) {
   const w = REC.writing[qidKey] = REC.writing[qidKey] || {text:'', updated:0, submitted:false};
@@ -1959,7 +1988,10 @@ $('d-reset').onclick=async function(){
   });
   if(!qids.length) return;
   if(!confirm('清空本组全部作答记录（含用时与错题），重新开始？')) return;
-  qids.forEach(k=>{ delete REC.attempts[k]; delete REC.qtimes[k]; delete REC.mistakes[k]; delete REC.writing[k];delete (REC.drafts||{})[k]; });
+  qids.forEach(k=>{
+    delete REC.attempts[k]; delete REC.qtimes[k]; delete REC.mistakes[k]; delete REC.writing[k];delete (REC.drafts||{})[k];
+    recAttemptSend({ ref: {qid: k}, delete: true });   // r56: 删除也走增量端点, 否则全量 union 会把它复活
+  });
   recSave();
   S.i=0; S.sel=null; S.revealed=false; S.fillVals={}; S.slots={}; S.audioDone={};
   S.timedKey=null;tReset();tStart();STU=true;renderQ();
@@ -3080,6 +3112,7 @@ async function boot(){
     CATALOG=cat; COURSES=courses; CURATED=curated&&curated.lessons?curated.lessons:(curated||{});
     LESSON_HANDOUT_MAP=hmap||{};
     REC=Object.assign(REC,recs);recBase=recClone(REC);recReady=true;
+    recFlushAttempts();   // 启动即补传上次滞留的作答队列(r56)
     renderHome();
     route();
     document.querySelectorAll('.seg').forEach(moveThumb);

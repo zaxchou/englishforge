@@ -957,6 +957,33 @@ function recordsSave(next) {
   if (fs.existsSync(RECORDS_FILE)) fs.copyFileSync(RECORDS_FILE, RECORDS_FILE + '.bak');
   fs.renameSync(tmp, RECORDS_FILE);
 }
+/* 单题作答状态机(r56, 唯一真源): 客户端 recAttempt 的服务端版本, 语义逐行对齐;
+   writing/speaking 不判 ok(与 recordsLoad 的归零语义一致)。delete 变体供重置本组。 */
+function serverRecAttempt(store, ref, inc) {
+  const k = ref.qid;
+  if (inc.delete) { delete store.attempts[k]; delete store.qtimes[k]; delete store.mistakes[k]; delete store.writing[k]; return null; }
+  const ok = (ref.subj === 'writing' || ref.subj === 'speaking') ? null : (inc.ok === null || inc.ok === undefined ? null : !!inc.ok);
+  const a = store.attempts[k] = store.attempts[k] || { st: 'doing', n: 0, right: 0, history: [] };
+  a.n++; a.last = Date.now(); a.last_answer = inc.answer;
+  a.history.push({ t: Date.now(), answer: inc.answer, ok: ok, secs: Math.round(inc.secs || 0) });
+  if (ok === true) { a.right++; a.st = 'done'; }
+  else if (ok === false) a.st = 'wrong';
+  else a.st = 'submitted';
+  store.qtimes[k] = (store.qtimes[k] || 0) + Math.round(inc.secs || 0);
+  const m = store.mistakes[k];
+  if (ok === false) {
+    store.mistakes[k] = (m && !m.cleared)
+      ? { ...m, n_wrong: (m.n_wrong || 0) + 1, stage: 0, due: Date.now() + 864e5, last: Date.now(), set: ref.set, subj: ref.subj, mk: ref.mk, gkey: ref.gkey }
+      : { n_wrong: 1, stage: 0, added: Date.now(), due: Date.now() + 864e5, last: Date.now(), set: ref.set, subj: ref.subj, mk: ref.mk, gkey: ref.gkey };
+  } else if (ok === true && m && !m.cleared && Date.now() >= (m.due || 0)) {
+    const next = [3, 7, 14][m.stage] || 14;
+    m.stage = (m.stage || 0) + 1;
+    if (m.stage >= 4) m.cleared = true;
+    else m.due = Date.now() + next * 864e5;
+    m.last = Date.now();
+  }
+  return a;
+}
 function nextRecords(incoming) {
   if (!incoming || typeof incoming !== 'object' || Array.isArray(incoming)) throw new Error('invalid records');
   const next = {...RECORDS};
@@ -964,6 +991,9 @@ function nextRecords(incoming) {
     if (k === 'drafts' && !incoming[k]) {next[k]={};continue;}
     if (k === 'families' && !incoming[k]) {next[k]={};continue;}   // r16 前的旧标签页没有 families, 兼容而非报错
     if (!incoming[k] || typeof incoming[k] !== 'object' || Array.isArray(incoming[k])) throw new Error('invalid ' + k);
+    // attempts/qtimes/mistakes(r56): 键级并集(incoming 优先)——作答已走 /api/records/attempt
+    // 增量通道, 旧标签页的全量快照不得抹掉其它端增量写入的键。
+    if (k === 'attempts' || k === 'qtimes' || k === 'mistakes') { next[k] = { ...(RECORDS[k] || {}), ...(incoming[k] || {}) }; continue; }
     next[k] = incoming[k];
   }
   if (!Array.isArray(incoming.feedback)) throw new Error('invalid feedback');
@@ -1076,6 +1106,26 @@ const handler = async (req, res) => {
         return sendJSON(res, 200, { ok: true, revision:RECORDS.revision, saved_at: RECORDS.saved_at });
       }
       return sendJSON(res, 405, { error: 'method' });
+    }
+
+    /* ---- API: 单题作答增量上送(r56, 服务端=唯一真源) ----
+       客户端每题判分即 POST 本端点; 服务端执行唯一一份状态机(n/history/st/right/last/
+       qtimes/mistakes 1-3-7-14 调度), 立即落盘。无 revision 检查: 单条 append 语义,
+       多端并发天然可合并, 浏览器崩溃/关页不再丢作答。delete:true = 重置本组的单题删除。 */
+    if (p === '/api/records/attempt') {
+      if (req.method !== 'POST') return sendJSON(res, 405, { error: 'method' });
+      const origin = req.headers.origin;
+      if (origin && origin !== `http://${req.headers.host}` && origin !== `https://${req.headers.host}`) return sendJSON(res, 403, { error: 'cross-origin write rejected' });
+      if (!(req.headers['content-type'] || '').toLowerCase().startsWith('application/json')) return sendJSON(res, 415, { error: 'application/json required' });
+      const body = await readBody(req);
+      let inc; try { inc = JSON.parse(body.toString('utf8') || '{}'); } catch (e) { return sendJSON(res, 400, { error: 'bad json' }); }
+      const ref = inc.ref || {};
+      if (!ref.qid || typeof ref.qid !== 'string' || !/^[\w.\-/]{1,120}$/.test(ref.qid)) return sendJSON(res, 400, { error: 'qid required' });
+      let a;
+      try { a = serverRecAttempt(RECORDS, ref, inc); } catch (e) { return sendJSON(res, 400, { error: e.message }); }
+      RECORDS.saved_at = new Date().toISOString();
+      try { recordsSave(RECORDS); } catch (e) { console.error('[attempt]', e.message); return sendJSON(res, 503, { error: 'records not persisted' }); }
+      return sendJSON(res, 200, { ok: true, attempt: a, revision: RECORDS.revision, saved_at: RECORDS.saved_at });
     }
 
     /* ---- API: AI 助教错题解析 ---- */
