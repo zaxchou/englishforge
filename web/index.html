@@ -726,8 +726,12 @@ document.addEventListener('visibilitychange',()=>{
 window.addEventListener('beforeunload',e=>{
   checkpointCourse();
   if(!recDirty) return;
-  // A beacon cannot report a conflict/disk error; keep a visible unload guard for unsaved work.
-  if(recReady && !recSaving) navigator.sendBeacon('/api/records',new Blob([JSON.stringify({...REC,revision:recBase?.revision||0})],{type:'application/json'}));
+  if(recReady && !recSaving){
+    // beacon 已把整份记录交给浏览器排队发送(页面关闭后仍会送达), 不再拦弹窗——
+    // 旧版无条件弹窗把用户拦在旧版本页面上不敢刷新, 数据反而一直滞留(spectvis 事故)。
+    navigator.sendBeacon('/api/records',new Blob([JSON.stringify({...REC,revision:recBase?.revision||0})],{type:'application/json'}));
+    return;
+  }
   e.preventDefault();e.returnValue='学习记录尚未保存';
 });
 function studyTick(sec) {
