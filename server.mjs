@@ -751,6 +751,97 @@ async function aiExplainGen(qidStr, course, mk, no, force) {
   return { text, cached: false, q: qPub };
 }
 
+/* ---------- 背单词（万词班词库 + SM-2 间隔重复） ----------
+   词库: build/vocab/cfcm-words.json（pipeline/build_vocab.py 三源对齐产物, 只读）。
+   调度: SM-2 纯函数, 参数与 beizitie 一致（学习阶梯 1/3/10 分钟 → 毕业 → 间隔×ease）。
+   状态存 records.vocab（词键 → {e,i,s,r,due,n,at,born}）, 判分走 /api/vocab/grade 增量直写(r56 模式)。 */
+const VOCAB_BANK_FILE = path.join(BUILD_DIR, 'vocab', 'cfcm-words.json');
+let VOCAB_BANK = null, VOCAB_INDEX = null;
+const vocabKey = s => String(s || '').toLowerCase().replace(/\s+/g, '');
+function vocabIndex() {
+  if (!VOCAB_INDEX) {
+    VOCAB_BANK = JSON.parse(fs.readFileSync(VOCAB_BANK_FILE, 'utf8'));
+    VOCAB_INDEX = new Map();
+    for (const b of VOCAB_BANK.batches) for (const w of b.words)
+      VOCAB_INDEX.set(vocabKey(w.w), { w: w.w, ipa: w.ipa, def: w.def, sen: w.sen, senZh: w.senZh, lesson: w.lesson, batch: b.id, root: b.root, gloss: b.gloss });
+  }
+  return VOCAB_INDEX;
+}
+const SM2_DEF = { INITIAL_EASE: 2.5, MIN_EASE: 1.3, EASY_BONUS: 1.3, AGAIN: -0.2, HARD: -0.15, EASY: 0.15, GRAD: 1440, EASY_GRAD: 5760, STEPS: [1, 3, 10] };
+/* 发音: Qwen3-TTS(EnglishForge 同链路)。密钥走环境(TFL_TTS_* / 兼容 QWEN_TTS_*), 词级 WAV 永久缓存到 records 卷。
+   返回的 RIFF 头 data 长度是占位值, 必须按实际字节重写, 否则时长/播放异常。 */
+const TTS_CFG = {
+  key: process.env.TFL_TTS_KEY || process.env.QWEN_TTS_API_KEY || '',
+  url: process.env.TFL_TTS_URL || process.env.QWEN_TTS_ENDPOINT || '',
+  model: process.env.TFL_TTS_MODEL || 'qwen3-tts-flash',
+  voice: process.env.TFL_TTS_VOICE || 'Cherry',
+};
+const TTS_CACHE_DIR = path.join(RECORDS_DIR, 'tts-cache');
+function ttsWavParse(buf) {
+  if (buf.length < 44 || buf.toString('ascii', 0, 4) !== 'RIFF' || buf.toString('ascii', 8, 12) !== 'WAVE') throw new Error('NOT_A_WAV');
+  let off = 12, fmt = null, dataBytes = 0, headerBytes = 44;
+  while (off + 8 <= buf.length) {
+    const id = buf.toString('ascii', off, off + 4), size = buf.readUInt32LE(off + 4);
+    if (id === 'fmt ') fmt = { channels: buf.readUInt16LE(off + 10), sampleRate: buf.readUInt32LE(off + 12), bits: buf.readUInt16LE(off + 22) };
+    else if (id === 'data') { dataBytes = size; headerBytes = off + 8; break; }
+    off += 8 + size + (size % 2);
+  }
+  if (!fmt || !fmt.sampleRate) throw new Error('BAD_WAV_FMT');
+  const actual = buf.length - headerBytes;
+  if (dataBytes <= 0 || dataBytes > actual) dataBytes = actual;
+  return { fmt, dataBytes, headerBytes, durationMs: Math.round(dataBytes / (fmt.sampleRate * fmt.channels * fmt.bits / 8) * 1000) };
+}
+function ttsWavFix(buf) {
+  const p = ttsWavParse(buf), fixed = Buffer.from(buf);
+  fixed.writeUInt32LE(buf.length - 8, 4);
+  fixed.writeUInt32LE(p.dataBytes, p.headerBytes - 4);
+  return fixed;
+}
+async function ttsSynthToFile(word) {
+  const cacheFile = path.join(TTS_CACHE_DIR, createHash('sha256').update(TTS_CFG.model + '|' + TTS_CFG.voice + '|' + word).digest('hex') + '.wav');
+  try { ttsWavParse(fs.readFileSync(cacheFile)); return cacheFile; } catch (e) {}   // 缓存损坏按缺失处理
+  if (!TTS_CFG.key || !TTS_CFG.url) throw new Error('TTS 未配置（缺少 TFL_TTS_KEY / TFL_TTS_URL）');
+  const r = await fetch(TTS_CFG.url, {
+    method: 'POST', headers: { Authorization: 'Bearer ' + TTS_CFG.key, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: TTS_CFG.model, input: { text: word, voice: TTS_CFG.voice } }),
+    signal: AbortSignal.timeout(30000),
+  });
+  if (!r.ok) throw new Error('TTS 接口 ' + r.status);
+  const url = (await r.json())?.output?.audio?.url;
+  if (!url) throw new Error('TTS 响应无音频');
+  const fixed = ttsWavFix(Buffer.from(await (await fetch(url)).arrayBuffer()));
+  if (ttsWavParse(fixed).durationMs < 200) throw new Error('TTS 音频过短');
+  fs.mkdirSync(TTS_CACHE_DIR, { recursive: true });
+  const tmp = cacheFile + '.tmp';
+  fs.writeFileSync(tmp, fixed); fs.renameSync(tmp, cacheFile);
+  return cacheFile;
+}
+/* s: -1 新卡 / 0..2 学习阶梯步 / 99 已毕业。rating: 1重来 2困难 3良好 4简单。间隔单位=分钟。 */
+function sm2Grade(rating, prev, now) {
+  const e0 = prev ? prev.e : SM2_DEF.INITIAL_EASE, i0 = prev ? prev.i : 0, s0 = prev ? prev.s : -1, r0 = prev ? prev.r : 0;
+  const graduated = s0 === 99;
+  let e = e0, i = i0, s = s0, r = r0;
+  if (rating === 1) { e = Math.max(SM2_DEF.MIN_EASE, e + SM2_DEF.AGAIN); i = SM2_DEF.STEPS[0]; s = 0; r = 0; }
+  else if (rating === 2) {
+    e = Math.max(SM2_DEF.MIN_EASE, e + SM2_DEF.HARD);
+    if (graduated) { i = Math.round(i * 1.2); r++; }
+    else if (s0 === -1) { i = SM2_DEF.STEPS[1]; s = 1; r = 0; }
+    else { i = i0; }   // 学习阶梯: 保持当前步
+  } else if (rating === 3) {
+    if (graduated) { i = Math.round(i * e); r++; }
+    else if (s0 === -1) { i = SM2_DEF.STEPS[2]; s = 2; r = 1; }
+    else if (s0 < SM2_DEF.STEPS.length - 1) { s = s0 + 1; i = SM2_DEF.STEPS[s]; r++; }
+    else { s = 99; i = SM2_DEF.GRAD; r++; }
+  } else {
+    e = Math.max(SM2_DEF.MIN_EASE, e + SM2_DEF.EASY);
+    if (graduated) i = Math.round(i * e * SM2_DEF.EASY_BONUS);
+    else { s = 99; i = SM2_DEF.EASY_GRAD; }   // 学习中/新卡: 直接毕业
+    r++;
+  }
+  if (i < 1) i = 1;
+  return { e: Math.round(e * 1000) / 1000, i, s, r, due: now + i * 60000 };
+}
+
 /* ---------- 题库目录（启动时缓存） ---------- */
 function fillCount(g) {
   const text=String(g.passage||'').replace(/▢/g,'_').replace(/([A-Za-z'’\-])(_+)/g,(m,c,u)=>c+' '+u.split('').join(' '));
@@ -1116,6 +1207,18 @@ function nextRecords(incoming) {
   }
   if (!Array.isArray(incoming.feedback)) throw new Error('invalid feedback');
   next.feedback = incoming.feedback;
+  /* 背单词(可选字段, 旧页面快照里没有): absent 即保留服务端; present 时按词键级合并,
+     at 时间戳新者胜——快照里的乐观判分不得回退判分端点已落盘的权威态。 */
+  next.vocab = { ...(RECORDS.vocab || {}) };
+  if (incoming.vocab && typeof incoming.vocab === 'object' && !Array.isArray(incoming.vocab))
+    for (const [vk, vv] of Object.entries(incoming.vocab)) {
+      if (!vv || typeof vv !== 'object' || Array.isArray(vv) || !Number.isFinite(vv.due)) continue;
+      const ex = next.vocab[vk];
+      if (!ex || (Number(vv.at) || 0) >= (Number(ex.at) || 0)) next.vocab[vk] = vv;
+    }
+  next.vocabCfg = (incoming.vocabCfg && typeof incoming.vocabCfg === 'object' && !Array.isArray(incoming.vocabCfg) && Number.isFinite(Number(incoming.vocabCfg.daily)))
+    ? { daily: Math.min(200, Math.max(0, Math.round(Number(incoming.vocabCfg.daily)))) }
+    : (RECORDS.vocabCfg || { daily: 20 });
   next.revision = (RECORDS.revision || 0) + 1;
   next.saved_at = new Date().toISOString();
   return next;
@@ -1287,6 +1390,70 @@ const handler = async (req, res) => {
       RECORDS=next;
       return sendJSON(res, 200, { ok: true, attentionSaved, attempt: a, mistake:next.mistakes[ref.qid]||null,
         qtime:next.qtimes[ref.qid]||0,revision:next.revision,saved_at:next.saved_at });
+    }
+
+    /* ---- API: 背单词词库（只读, 一次全量, 客户端会话内缓存） ---- */
+    if (p === '/api/vocab/bank') {
+      if (req.method !== 'GET') return sendJSON(res, 405, { error: 'method' });
+      try { return sendJSON(res, 200, { ok: true, bank: vocabIndex() ? VOCAB_BANK : null }); }
+      catch (e) { return sendJSON(res, 500, { error: '词库读取失败: ' + e.message }); }
+    }
+
+    /* ---- API: 背单词判分（SM-2, 服务端唯一真源, r56 同款增量直写） ---- */
+    if (p === '/api/vocab/grade') {
+      if (req.method !== 'POST') return sendJSON(res, 405, { error: 'method' });
+      const origin = req.headers.origin;
+      if (origin && origin !== `http://${req.headers.host}` && origin !== `https://${req.headers.host}`) return sendJSON(res, 403, { error: 'cross-origin write rejected' });
+      if (!(req.headers['content-type'] || '').toLowerCase().startsWith('application/json')) return sendJSON(res, 415, { error: 'application/json required' });
+      const body = await readBody(req);
+      let inc; try { inc = JSON.parse(body.toString('utf8') || '{}'); } catch (e) { return sendJSON(res, 400, { error: 'bad json' }); }
+      const key = vocabKey(inc.word);
+      if (!key || key.length > 60) return sendJSON(res, 400, { error: 'word required' });
+      const card = vocabIndex().get(key);
+      if (!card) return sendJSON(res, 400, { error: '词不在词库' });
+      // Copy, persist, then publish(与 attempt 端点同纪律)
+      const next = JSON.parse(JSON.stringify(RECORDS));
+      next.vocab = next.vocab || {};
+      let st = null;
+      if (inc.delete) {
+        delete next.vocab[key];
+      } else {
+        if (!Number.isInteger(inc.rating) || inc.rating < 1 || inc.rating > 4) return sendJSON(res, 400, { error: 'rating must be 1-4' });
+        if (inc.at !== undefined && !Number.isFinite(Number(inc.at))) return sendJSON(res, 400, { error: 'invalid at' });
+        if (inc.secs !== undefined && (!Number.isFinite(inc.secs) || inc.secs < 0 || inc.secs > 3600)) return sendJSON(res, 400, { error: 'invalid seconds' });
+        const existing = next.vocab[key];
+        if (existing && Number.isFinite(Number(inc.at)) && existing.at === Number(inc.at)) {
+          st = existing;   // 幂等: 快照已带上这条乐观判分, 补传不再重复套 SM-2
+        } else {
+          const now = Date.now();
+          st = sm2Grade(inc.rating, existing || null, now);
+          st.n = (existing ? existing.n || 0 : 0) + 1;
+          st.at = now;
+          if (!existing) st.born = now;   // 新学引入时间(每日配额与打卡统计用)
+          next.vocab[key] = st;
+        }
+      }
+      next.revision = (RECORDS.revision || 0) + 1;
+      next.saved_at = new Date().toISOString();
+      try { recordsSave(next); } catch (e) { console.error('[vocab]', e.message); return sendJSON(res, 503, { error: 'records not persisted' }); }
+      RECORDS = next;
+      return sendJSON(res, 200, { ok: true, st, revision: next.revision, saved_at: next.saved_at });
+    }
+
+    /* ---- API: 背单词发音（只合成词库内的词, 防滥用） ---- */
+    const mTts = p.match(/^\/api\/vocab\/tts$/);
+    if (mTts) {
+      if (req.method !== 'GET') return sendJSON(res, 405, { error: 'method' });
+      const word = new URL(req.url, 'http://x').searchParams.get('w') || '';
+      const card = vocabIndex().get(vocabKey(word));
+      if (!card) return sendJSON(res, 400, { error: '词不在词库' });
+      try {
+        const f = await ttsSynthToFile(card.w);
+        return sendFile(req, res, f);
+      } catch (e) {
+        const code = /未配置/.test(e.message) ? 503 : 502;
+        return sendJSON(res, code, { error: e.message });
+      }
     }
 
     /* ---- API: AI 助教错题解析 ---- */
