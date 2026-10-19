@@ -1,0 +1,3 @@
+import assert from 'node:assert/strict';import fs from 'node:fs';import {selectRound} from '../web/review/model.mjs';
+const bank=JSON.parse(fs.readFileSync(new URL('../web/review/bank.json',import.meta.url),'utf8'));
+assert.deepEqual(selectRound(bank,[],Date.now(),['object']).map(q=>q.unit),['object']);assert.equal(selectRound(bank,[],Date.now(),['root','root','reject']).length,2);assert.equal(selectRound(bank,[],Date.now(),['root','reject','project','eject']).length,3);assert.throws(()=>selectRound(bank,[],Date.now(),['not-real']));console.log('optional selection: exact unit, duplicates, maximum three and invalid selection passed');

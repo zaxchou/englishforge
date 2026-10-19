@@ -17,7 +17,7 @@ CUR=$(cat "$PROJ/VERSION")
 
 rm -rf "$REL"
 mkdir -p "$REL"
-cp "$PROJ/server.mjs" "$PROJ/VERSION" "$REL/"
+cp "$PROJ/server.mjs" "$PROJ/review-hub.mjs" "$PROJ/VERSION" "$REL/"
 cp -r "$PROJ/web" "$PROJ/data" "$PROJ/build" "$REL/"
 # 已知调试残留不进发布包（工作树里的原件不动，等用户手动清理）
 rm -f "$REL/web/_desk_body.html"
@@ -27,7 +27,7 @@ rm -f "$REL/web/_desk_body.html"
   echo "{"
   echo "  \"version\": \"$VER\","
   echo "  \"created\": \"$(date '+%F %T')\","
-  echo "  \"contents\": [\"server.mjs\", \"VERSION\", \"web/\", \"data/\", \"build/\"],"
+  echo "  \"contents\": [\"server.mjs\", \"review-hub.mjs\", \"VERSION\", \"web/\", \"data/\", \"build/\"],"
   echo "  \"excluded\": [\"records\", \"docs\", \"pipeline\", \"deploy\", \"releases\", \"skills\", \"server.log\"]"
   echo "}"
 } > "$REL/manifest.release.json"

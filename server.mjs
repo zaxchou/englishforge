@@ -19,6 +19,8 @@
    - 学习记录持久化目录 records/ 与可再生目录 build/ 分离。
    - 素材根可被 --root / TFL_ROOT 覆盖（Windows 映射盘与 NAS 挂载兼容）。
    ============================================================ */
+import { createReviewHub } from './review-hub.mjs';
+import { validateEvent, linkCoachEvidence } from './web/review/model.mjs';
 import http from 'node:http';
 import https from 'node:https';
 import fs from 'node:fs';
@@ -174,7 +176,7 @@ async function aiExplain(qidStr, force) {
     if (AI_CACHE.has(qidStr)) {
       return { text: AI_CACHE.get(qidStr), cached: true, q: (AI_STORE[qidStr] && AI_STORE[qidStr].q) || undefined };
     }
-    if (AI_STORE[qidStr]) {
+    if (explanationCurrent(qidStr)) {
       const hit = AI_STORE[qidStr];
       if (AI_CACHE.size >= AI_CACHE_MAX) AI_CACHE.delete(AI_CACHE.keys().next().value);
       AI_CACHE.set(qidStr, hit.text);
@@ -257,6 +259,37 @@ async function aiExplain(qidStr, force) {
 const GQ_STORE_FILE = path.join(RECORDS_DIR, 'generated-quizzes.json');
 let GQ_STORE = {};
 try { GQ_STORE = JSON.parse(fs.readFileSync(GQ_STORE_FILE, 'utf8')).items || {}; } catch (e) {}
+// 审核修订随发布包下发；不覆盖生产缓存与用户历史。签名漂移的题隔离，不能猜测套用补丁。
+function canonicalJSON(value) {
+  if(Array.isArray(value))return '['+value.map(canonicalJSON).join(',')+']';
+  if(value&&typeof value==='object')return '{'+Object.keys(value).sort().map(k=>JSON.stringify(k)+':'+canonicalJSON(value[k])).join(',')+'}';
+  return JSON.stringify(value);
+}
+function quizSignature(q){return createHash('sha256').update(canonicalJSON(q)).digest('hex');}
+const QUIZ_PATCH_STATUS={applied:[],quarantined:[]};
+const patchFile=path.join(BUILD_DIR,'quiz-overrides.json');
+if(fs.existsSync(patchFile)) {
+  const patch=JSON.parse(fs.readFileSync(patchFile,'utf8'));
+  if(patch.version!==1||!Array.isArray(patch.entries))throw new Error('Invalid reviewed quiz overrides');
+  for(const entry of patch.entries) {
+    const quiz=GQ_STORE[entry.lessonId];if(!quiz)continue;
+    const ix=quiz.questions.findIndex(q=>q.id===entry.id);if(ix<0)continue;
+    const signature=quizSignature(quiz.questions[ix]);
+    if(quizSignature(entry.question)!==entry.afterSha256)throw new Error('Reviewed question signature invalid: '+entry.qid);
+    if(signature===entry.beforeSha256||signature===entry.afterSha256) {
+      quiz.questions[ix]=JSON.parse(JSON.stringify(entry.question));QUIZ_PATCH_STATUS.applied.push(entry.qid);
+    } else {
+      quiz.bad=[...new Set([...(quiz.bad||[]),entry.id])];QUIZ_PATCH_STATUS.quarantined.push(entry.qid);
+      console.warn('[quiz-review] signature drift, quarantined:',entry.qid);
+    }
+  }
+}
+function quizRevision(qid) {
+  const [set,course,lesson,,number]=String(qid||'').split('/');if(set!=='gen')return 0;
+  const quiz=GQ_STORE[course+'-'+String(Number(lesson)).padStart(2,'0')];
+  return quiz?.questions?.find(q=>q.id==='q'+Number(number))?.revisionAt||0;
+}
+function explanationCurrent(qid){return !!AI_STORE[qid]&&(AI_STORE[qid].at||0)>=quizRevision(qid);}
 function gqSave() {
   try {
     fs.mkdirSync(RECORDS_DIR, { recursive: true });
@@ -381,6 +414,12 @@ async function genQuiz(lessonId, force) {
   try { return await job; } finally { GQ_INFLIGHT.delete(lessonId); }
 }
 async function genQuizInner(lessonId, force) {
+  const officialHit = GQ_STORE[lessonId];
+  if (officialHit && officialHit.src === 'official') {
+    // 官方课后练习: 固定题目导入件, 无 AI 生成环节; force 也不重出（前端已隐藏该按钮）
+    if (force) throw new Error('官方课后练习是老师出的固定题目，不重新生成');
+    return { quiz: officialHit, cached: true };
+  }
   if (!force) {
     const hit = GQ_STORE[lessonId];
     if (hit && hit.v === AI_QV) return { quiz: hit, cached: true };
@@ -645,7 +684,7 @@ async function gradeTiers(scriptMd, questions) {
 async function aiExplainGen(qidStr, course, mk, no, force) {
   if (!force) {
     if (AI_CACHE.has(qidStr)) return { text: AI_CACHE.get(qidStr), cached: true, q: (AI_STORE[qidStr] && AI_STORE[qidStr].q) || undefined };
-    if (AI_STORE[qidStr]) {
+    if (explanationCurrent(qidStr)) {
       const hit = AI_STORE[qidStr];
       if (AI_CACHE.size >= AI_CACHE_MAX) AI_CACHE.delete(AI_CACHE.keys().next().value);
       AI_CACHE.set(qidStr, hit.text);
@@ -805,7 +844,35 @@ function buildCatalog() {
   list.sort((a, b) => a.id.localeCompare(b.id));
   return list;
 }
+function availableCount(name,sub) {
+  if(sub.blocked_reason)return 0;
+  let n=0;
+  for(const m of sub.modules||[])for(const g of m.groups||[]){
+    if(g.kind==='fill_in_blank')n+=fillCount(g);
+    else n+=(g.questions||[]).filter(q=>name!=='listening'||q.audio||g.audio).length;
+  }
+  for(const t of sub.tasks||[]){const items=t.items||t.sentences||[];
+    if(name!=='speaking'){n+=items.length||((t.prompt_lines?.length||t.body?.length)?1:0);continue;}
+    for(const it of items){
+      if(!it.audio)continue;const low=it.audio.toLowerCase();
+      if(/listening|听力/.test(low)&&!/speaking|口语/.test(low))continue;
+      const match=low.match(/speaking_(listen_repeat|take_interview)_q0*(\d+)(?:\D|$)/);
+      const kind={TASK1:'listen_repeat',TASK2:'take_interview'}[t.task];
+      if(match&&((kind&&kind!==match[1])||Number(match[2])!==Number(it.no)))continue;
+      n++;
+    }
+  }
+  return n;
+}
 const CATALOG = buildCatalog();
+for(const set of CATALOG){
+  const j=JSON.parse(fs.readFileSync(path.join(DATA_DIR,set.id,set.id+'.json'),'utf8'));
+  set.available_q=0;
+  for(const [name,st]of Object.entries(set.subjects)){
+    st.available_q=availableCount(name,j.subjects[name]);st.unavailable_q=Math.max(0,st.q-st.available_q);
+    set.available_q+=st.available_q;
+  }
+}
 const SET_INDEX = Object.fromEntries(CATALOG.map(s => [s.id, s]));
 
 /* ---------- 课程目录（scan_courses.py 产物） ---------- */
@@ -813,6 +880,8 @@ let COURSES = null;
 /* 视频时长: 管线在 catalog 里留了 duration_sec 槽位但为 null（源只读、无 ffprobe 依赖），
    这里零依赖解析 mp4/mov 容器的 moov→mvhd（vince mp4 与新D方 mov 同为 ISO-BMFF 家族）。 */
 const DUR_MEMO = new Map();
+/* 炒粉炒面万词班素材目录名（JunEnglish 下的兄弟目录）。目录更名（如去掉「待更新」）时同步改这里。 */
+const CFCM_DIR = '炒粉炒面万词班（待更新）';
 function videoAbsFromUrl(u) {
   const s = String(u || '');
   const dec = x => { try { return decodeURIComponent(x); } catch { return x; } };
@@ -820,6 +889,8 @@ function videoAbsFromUrl(u) {
   if (m) return path.join(SIB, 'vince托福课', dec(m[1]));
   m = s.match(/^\/media\/ndf\/([^/]+)\/(.+)$/);
   if (m) return path.join(SIB, '新D方', '新D方新托福全套', dec(m[1]), dec(m[2]));
+  m = s.match(/^\/media\/cfcm\/(.+)$/);
+  if (m) return path.join(SIB, CFCM_DIR, dec(m[1]));
   return null;
 }
 function mvhdSeconds(buf) {
@@ -907,7 +978,7 @@ function familiesAggregate() {
     return e;
   };
   for (const qz of Object.values(GQ_STORE)) {
-    if (!qz || qz.v !== AI_QV) continue;
+    if (!qz || (qz.v !== AI_QV && qz.src !== 'official')) continue;
     const badSet = new Set(qz.bad || []);
     const liveQs = (qz.questions || []).filter(q => !badSet.has(q.id));
     for (const fam of (qz.families || [])) {
@@ -923,23 +994,53 @@ function familiesAggregate() {
         if (e.items.some(x => (x.stem || '').toLowerCase().replace(/____+/g, ' ').replace(/[\s「」“”"'（）()。.,，?？!！:：;；]/g, '') === sk)) continue;   // 家族聚合跨课去重(同题干多课重复不再翻倍)
         e.items.push({ qid: 'gen/' + qz.course + '/' + qz.lessonNo + '/quiz/' + Number(String(q.id).slice(1)),
           stem: q.stem, options: q.options, answer: q.answer, explain: q.explain, tags: q.tags,
-          course: qz.course, lessonNo: qz.lessonNo });
+          course: qz.course, lessonNo: qz.lessonNo, revisionAt: q.revisionAt || 0 });
       }
     }
   }
   return [...map.values()];
 }
 
+const REVIEW_BANK=JSON.parse(fs.readFileSync(path.join(__dirname,'web/review/bank.json'),'utf8'));
+const REVIEW_CATALOG=JSON.parse(fs.readFileSync(path.join(__dirname,'web/review/catalog.json'),'utf8')).lessons;
+const REVIEW_BANKS=new Map(REVIEW_CATALOG.map(item=>[item.lesson,JSON.parse(fs.readFileSync(path.join(__dirname,'web/review',item.file),'utf8'))]));
+const REVIEW_FILE=path.join(RECORDS_DIR,'course-review.json');
+let REVIEW_EVENTS=[],REVIEW_LOAD_ERROR=false;
+try{if(fs.existsSync(REVIEW_FILE)){const j=JSON.parse(fs.readFileSync(REVIEW_FILE,'utf8'));if(!Array.isArray(j.events)||j.events.some(e=>!e||typeof e.id!=='string'||!Number.isFinite(e.at))||new Set(j.events.map(e=>e.id)).size!==j.events.length)throw Error('invalid review store');REVIEW_EVENTS=j.events;}}catch(e){REVIEW_LOAD_ERROR=true;console.error('[course-review]',e.message);}
+function saveReview(events){fs.mkdirSync(RECORDS_DIR,{recursive:true});const tmp=REVIEW_FILE+'.tmp',fd=fs.openSync(tmp,'w');try{fs.writeFileSync(fd,JSON.stringify({version:1,events},null,2));fs.fsyncSync(fd);}finally{fs.closeSync(fd);}fs.renameSync(tmp,REVIEW_FILE);}
+
 /* ---------- 学习记录（records/records.json，服务端唯一真源） ---------- */
 const RECORDS_FILE = path.join(RECORDS_DIR, 'records.json');
 let RECORDS = { version: 1, attempts: {}, course: {}, study: {}, qtimes: {}, mistakes: {}, families: {}, feedback: [], saved_at: null };
+// 只对题库中已核验的组句题作参考匹配；作文和口语始终不作客观判分。
+const SENTENCE_REFERENCES = new Map();
+for (const set of CATALOG) {
+  try {
+    const j=JSON.parse(fs.readFileSync(path.join(DATA_DIR,set.id,set.id+'.json'),'utf8'));
+    const sub=j.subjects?.writing;if(!sub||sub.blocked_reason)continue;
+    for(const t of sub.tasks||[])if(t.type==='sentence_construction') {
+      const key=taskKey(sub,t);
+      for(const it of t.items||t.sentences||[])if(it.reference_verified&&it.reference_answer)
+        SENTENCE_REFERENCES.set([set.id,'writing',key,key,it.no].join('/'),it.reference_answer);
+    }
+  } catch(e) { console.warn('[sentence-reference]',set.id,e.message); }
+}
+const sentenceNorm = s => (String(s||'').toLowerCase().replace(/[‘’]/g,"'").match(/[a-z0-9]+(?:'[a-z0-9]+)*/g)||[]).join(' ');
+function attemptVerdict(ref,inc) {
+  const subject=String(ref.qid||'').split('/')[1];
+  if(subject==='writing'||subject==='speaking') {
+    const reference=SENTENCE_REFERENCES.get(ref.qid);
+    return reference&&typeof inc.answer==='string'?sentenceNorm(inc.answer)===sentenceNorm(reference):null;
+  }
+  return inc.ok==null?null:!!inc.ok;
+}
 function recordsLoad() {
   try {
     const j = JSON.parse(fs.readFileSync(RECORDS_FILE, 'utf8'));
     if(!j || typeof j!=='object' || Array.isArray(j)) throw new Error('invalid records schema');
     RECORDS = { ...RECORDS, ...j };
     for(const [qid,a] of Object.entries(RECORDS.attempts || {})) {
-      if(['writing','speaking'].includes(qid.split('/')[1])) {
+      if(['writing','speaking'].includes(qid.split('/')[1]) && !SENTENCE_REFERENCES.has(qid)) {
         a.st='submitted';a.right=0;
         for(const h of a.history || []) h.ok=null;
       }
@@ -958,30 +1059,37 @@ function recordsSave(next) {
   fs.renameSync(tmp, RECORDS_FILE);
 }
 /* 单题作答状态机(r56, 唯一真源): 客户端 recAttempt 的服务端版本, 语义逐行对齐;
-   writing/speaking 不判 ok(与 recordsLoad 的归零语义一致)。delete 变体供重置本组。 */
+   作文/口语不判分，核验组句题由题库参考重新判定。delete 变体供重置本组。 */
 function serverRecAttempt(store, ref, inc) {
   const k = ref.qid;
-  if (inc.delete) { delete store.attempts[k]; delete store.qtimes[k]; delete store.mistakes[k]; delete store.writing[k]; return null; }
-  const ok = (ref.subj === 'writing' || ref.subj === 'speaking') ? null : (inc.ok === null || inc.ok === undefined ? null : !!inc.ok);
+  const now=Date.now(), t=Number.isFinite(inc.t)&&inc.t>0?Math.min(inc.t,now+300000):now;
+  if (inc.delete) { delete store.attempts[k]; delete store.qtimes[k]; delete store.mistakes[k]; delete store.writing[k]; delete (store.drafts||{})[k]; return null; }
+  const ok = attemptVerdict(ref,inc);
   const a = store.attempts[k] = store.attempts[k] || { st: 'doing', n: 0, right: 0, history: [] };
-  a.n++; a.last = Date.now(); a.last_answer = inc.answer;
-  a.history.push({ t: Date.now(), answer: inc.answer, ok: ok, secs: Math.round(inc.secs || 0) });
+  a.n++; a.last = t; a.last_answer = inc.answer;
+  a.history.push({ id:inc.id, t, answer: inc.answer, ok: ok, secs: Math.round(inc.secs || 0),...(typeof inc.unsure==='boolean'?{unsure:inc.unsure}:{}) });
   if (ok === true) { a.right++; a.st = 'done'; }
   else if (ok === false) a.st = 'wrong';
   else a.st = 'submitted';
   store.qtimes[k] = (store.qtimes[k] || 0) + Math.round(inc.secs || 0);
+  const revision = quizRevision(k);
+  // A current-version answer starts a fresh review schedule; old history remains intact.
+  if (t >= revision && store.mistakes[k] && (store.mistakes[k].last || 0) < revision) delete store.mistakes[k];
   const m = store.mistakes[k];
-  if (ok === false) {
+  if (t >= revision && ok === false && (!m || t >= (m.last||0))) {
     store.mistakes[k] = (m && !m.cleared)
-      ? { ...m, n_wrong: (m.n_wrong || 0) + 1, stage: 0, due: Date.now() + 864e5, last: Date.now(), set: ref.set, subj: ref.subj, mk: ref.mk, gkey: ref.gkey }
-      : { n_wrong: 1, stage: 0, added: Date.now(), due: Date.now() + 864e5, last: Date.now(), set: ref.set, subj: ref.subj, mk: ref.mk, gkey: ref.gkey };
-  } else if (ok === true && m && !m.cleared && Date.now() >= (m.due || 0)) {
+      ? { ...m, n_wrong: (m.n_wrong || 0) + 1, stage: 0, due: t + 864e5, last: t, set: ref.set, subj: ref.subj, mk: ref.mk, gkey: ref.gkey }
+      : { n_wrong: 1, stage: 0, added: t, due: t + 864e5, last: t, set: ref.set, subj: ref.subj, mk: ref.mk, gkey: ref.gkey };
+  } else if (t >= revision && ok === true && inc.unsure!==true && m && !m.cleared && t >= (m.last||0) && t >= (m.due || 0)) {
     const next = [3, 7, 14][m.stage] || 14;
     m.stage = (m.stage || 0) + 1;
     if (m.stage >= 4) m.cleared = true;
-    else m.due = Date.now() + next * 864e5;
-    m.last = Date.now();
+    else m.due = t + next * 864e5;
+    m.last = t;
   }
+  a.history.sort((x,y)=>x.t-y.t);
+  const latest=a.history.at(-1);a.n=a.history.length;a.right=a.history.filter(h=>h.ok===true).length;
+  a.last=latest.t;a.last_answer=latest.answer;a.st=latest.ok===true?'done':latest.ok===false?'wrong':'submitted';
   return a;
 }
 function nextRecords(incoming) {
@@ -991,9 +1099,19 @@ function nextRecords(incoming) {
     if (k === 'drafts' && !incoming[k]) {next[k]={};continue;}
     if (k === 'families' && !incoming[k]) {next[k]={};continue;}   // r16 前的旧标签页没有 families, 兼容而非报错
     if (!incoming[k] || typeof incoming[k] !== 'object' || Array.isArray(incoming[k])) throw new Error('invalid ' + k);
-    // attempts/qtimes/mistakes(r56): 键级并集(incoming 优先)——作答已走 /api/records/attempt
-    // 增量通道, 旧标签页的全量快照不得抹掉其它端增量写入的键。
-    if (k === 'attempts' || k === 'qtimes' || k === 'mistakes') { next[k] = { ...(RECORDS[k] || {}), ...(incoming[k] || {}) }; continue; }
+    // 作答/用时/复习调度归增量端点；全量快照仅接收错题题干与明确移出动作。
+    if (k === 'attempts' || k === 'qtimes') { next[k] = RECORDS[k] || {}; continue; }
+    if (k === 'mistakes') {
+      next[k]=JSON.parse(JSON.stringify(RECORDS[k]||{}));
+      for(const [qid,m] of Object.entries(incoming[k])) {
+        const existing=next[k][qid];if(!existing||!m)continue;
+        if(typeof m.stem==='string')existing.stem=m.stem;
+        if(m.cleared && Number(m.cleared_at)>=(existing.last||0) && Number(m.cleared_at)>(existing.cleared_at||0)) {
+          existing.cleared=true;existing.cleared_at=m.cleared_at;
+        }
+      }
+      continue;
+    }
     next[k] = incoming[k];
   }
   if (!Array.isArray(incoming.feedback)) throw new Error('invalid feedback');
@@ -1003,6 +1121,7 @@ function nextRecords(incoming) {
   return next;
 }
 recordsLoad();
+const REVIEW_HUB=createReviewHub({web:WEB_DIR,records:()=>RECORDS,setRecords:x=>{RECORDS=x;},save:recordsSave,recordAttempt:serverRecAttempt,quizzes:()=>GQ_STORE,banks:()=>[...REVIEW_BANKS.values()],reviewEvents:()=>REVIEW_EVENTS,ai:AI_CFG});
 
 /* ---------- HTTP 基础 ---------- */
 const MIME = {
@@ -1085,11 +1204,33 @@ const handler = async (req, res) => {
       const id = mHand[1];
       if (!/^[\w.\-]+$/.test(id) || id.includes('..')) return sendJSON(res, 400, { error: 'bad id' });
       try {
-        return sendJSON(res, 200, JSON.parse(fs.readFileSync(path.join(notesDir, id + '.json'), 'utf8')));
+        const note=JSON.parse(fs.readFileSync(path.join(notesDir,id+'.json'),'utf8'));
+        note.pages=(note.pages||[]).map(pg=>{const file='p'+String(pg.page).padStart(4,'0')+'.jpg';return fs.existsSync(path.join(BUILD_DIR,'courses','slide_images',id,file))?{...pg,image:'/media/slides/'+encodeURIComponent(id)+'/'+file}:pg;});
+        return sendJSON(res,200,note);
       } catch (e) { return sendJSON(res, 404, { error: 'handout not extracted' }); }
     }
 
     /* ---- API: 学习记录 ---- */
+    if(await REVIEW_HUB.handle(req,res,p,readBody,sendJSON))return;
+    if(p==='/api/course-review/catalog'){
+      if(req.method!=='GET')return sendJSON(res,405,{error:'method not allowed'});
+      const lessons=REVIEW_CATALOG.filter(item=>item.lesson===REVIEW_BANK.lesson||RECORDS.course[item.lesson]?.done).map(item=>{const bank=REVIEW_BANKS.get(item.lesson),ids=new Set(bank.units.map(u=>u.id)),checked=new Set(REVIEW_HUB.events().filter(e=>e.version===bank.version&&ids.has(e.unit)&&e.phase==='check'&&e.outcome!=='skipped').map(e=>e.unit));return {...item,checkedUnitCount:checked.size};});
+      return sendJSON(res,200,{lessons,scope:'已完成的词汇课；复习覆盖与视频完成分开'});
+    }
+    if(p==='/api/course-review'){
+      if(REVIEW_LOAD_ERROR)return sendJSON(res,503,{error:'review store unavailable'});
+      if(req.method==='GET')return sendJSON(res,200,{events:REVIEW_HUB.events()});
+      if(req.method!=='POST')return sendJSON(res,405,{error:'method not allowed'});
+      if(req.headers.origin&&![`http://${req.headers.host}`,`https://${req.headers.host}`].includes(req.headers.origin))return sendJSON(res,403,{error:'cross-origin write rejected'});
+      if(!(req.headers['content-type']||'').toLowerCase().startsWith('application/json'))return sendJSON(res,415,{error:'application/json required'});
+      let input,event;try{input=JSON.parse(await readBody(req,8192));const bank=REVIEW_BANKS.get(input.lesson||REVIEW_BANK.lesson);if(!bank||(bank.lesson!==REVIEW_BANK.lesson&&!RECORDS.course[bank.lesson]?.done))throw Error('lesson not available');const q=bank.units.find(u=>u.id===input.unit)?.questions.find(q=>q.id===input.question);const prior=REVIEW_EVENTS.find(e=>e.id===input.id);if(prior)input.preCue=prior.preCue===true;else if(q?.kind==='short'&&REVIEW_EVENTS.some(e=>e.id!==input.id&&e.version===bank.version&&e.unit===input.unit&&e.outcome!=='skipped'&&Date.now()-e.at<86400000))input.preCue=true;event=validateEvent(bank,input);}catch(e){return sendJSON(res,400,{error:e.message});}
+      const old=REVIEW_EVENTS.find(e=>e.id===event.id);
+      if(old){const keys=['version','unit','question','phase','kind','value','choice'];if(keys.some(k=>old[k]!==event[k])||JSON.stringify(old.trail)!==JSON.stringify(event.trail)||old.coachVersion!==event.coachVersion)return sendJSON(res,409,{error:'event id reused'});return sendJSON(res,200,{event:old,duplicate:true});}
+      event=linkCoachEvidence(event,REVIEW_EVENTS);
+      const next=[...REVIEW_EVENTS,event];try{saveReview(next);}catch(e){return sendJSON(res,503,{error:'review not persisted'});}
+      REVIEW_EVENTS=next;return sendJSON(res,200,{event});
+    }
+
     if (p === '/api/records') {
       if (req.method === 'GET') return sendJSON(res, 200, RECORDS);
       if (req.method === 'POST') {
@@ -1098,9 +1239,11 @@ const handler = async (req, res) => {
         if(!(req.headers['content-type']||'').toLowerCase().startsWith('application/json')) return sendJSON(res,415,{error:'application/json required'});
         const body = await readBody(req);
         let inc; try { inc = JSON.parse(body.toString('utf8') || '{}'); } catch (e) { return sendJSON(res, 400, { error: 'bad json' }); }
+        if (inc?.attemptProtocol !== 2) return sendJSON(res,426,{error:'请刷新页面以使用新的逐题保存协议；旧页面记录请先导出'});
+        if (inc?.snapshotId && RECORDS.snapshotEvents?.[inc.snapshotId]) return sendJSON(res,200,{ok:true,duplicate:true,revision:RECORDS.revision,saved_at:RECORDS.saved_at});
         if (inc?.revision !== (RECORDS.revision || 0)) return sendJSON(res, 409, {error:'records conflict', revision:RECORDS.revision || 0});
         let next;
-        try { next = nextRecords(inc); } catch (e) { return sendJSON(res, 400, {error:e.message}); }
+        try { next = nextRecords(inc); if(inc.snapshotId){if(typeof inc.snapshotId!=='string'||!/^[\w-]{8,100}$/.test(inc.snapshotId))throw Error('invalid snapshot id');next.snapshotEvents={...(RECORDS.snapshotEvents||{}),[inc.snapshotId]:true};} } catch (e) { return sendJSON(res, 400, {error:e.message}); }
         try { recordsSave(next); } catch (e) { console.error('[records]',e.message); return sendJSON(res, 503, {error:'records not persisted'}); }
         RECORDS = next;
         return sendJSON(res, 200, { ok: true, revision:RECORDS.revision, saved_at: RECORDS.saved_at });
@@ -1119,13 +1262,31 @@ const handler = async (req, res) => {
       if (!(req.headers['content-type'] || '').toLowerCase().startsWith('application/json')) return sendJSON(res, 415, { error: 'application/json required' });
       const body = await readBody(req);
       let inc; try { inc = JSON.parse(body.toString('utf8') || '{}'); } catch (e) { return sendJSON(res, 400, { error: 'bad json' }); }
+      if (!inc || typeof inc !== 'object' || Array.isArray(inc)) return sendJSON(res, 400, {error:'object required'});
       const ref = inc.ref || {};
       if (!ref.qid || typeof ref.qid !== 'string' || !/^[\w.\-/]{1,120}$/.test(ref.qid)) return sendJSON(res, 400, { error: 'qid required' });
+      if (!inc.id) return sendJSON(res,426,{error:'请刷新页面后补传，作答需要稳定事件标识'});
+      if (inc.id !== undefined && (typeof inc.id !== 'string' || !/^[\w-]{8,100}$/.test(inc.id))) return sendJSON(res,400,{error:'invalid event id'});
+      if(inc.unsure!==undefined&&typeof inc.unsure!=='boolean')return sendJSON(res,400,{error:'unsure must be boolean'});
+      if (!inc.delete && inc.ok != null && typeof inc.ok !== 'boolean') return sendJSON(res,400,{error:'ok must be boolean or null'});
+      if (inc.secs !== undefined && (!Number.isFinite(inc.secs) || inc.secs < 0 || inc.secs > 86400)) return sendJSON(res,400,{error:'invalid seconds'});
+      if (inc.id && RECORDS.attemptEvents?.[inc.id]) {
+        if (RECORDS.attemptEvents[inc.id].qid !== ref.qid) return sendJSON(res,409,{error:'event id already used'});
+        return sendJSON(res,200,{ok:true,duplicate:true,attentionSaved:!!inc.unsure&&REVIEW_HUB.pool().some(x=>x.qid===ref.qid&&RECORDS.reviewHub?.attention?.[ref.qid]?.signature===x.signature&&!RECORDS.reviewHub.attention[ref.qid].cleared),attempt:RECORDS.attempts[ref.qid]||null,
+          mistake:RECORDS.mistakes[ref.qid]||null,qtime:RECORDS.qtimes[ref.qid]||0,revision:RECORDS.revision,saved_at:RECORDS.saved_at});
+      }
+      // Copy, persist, then publish. Failed writes leave the acknowledged state untouched.
+      const next = JSON.parse(JSON.stringify(RECORDS));
       let a;
-      try { a = serverRecAttempt(RECORDS, ref, inc); } catch (e) { return sendJSON(res, 400, { error: e.message }); }
-      RECORDS.saved_at = new Date().toISOString();
-      try { recordsSave(RECORDS); } catch (e) { console.error('[attempt]', e.message); return sendJSON(res, 503, { error: 'records not persisted' }); }
-      return sendJSON(res, 200, { ok: true, attempt: a, revision: RECORDS.revision, saved_at: RECORDS.saved_at });
+      let attentionSaved=false;
+      try { a = serverRecAttempt(next, ref, inc);if(!inc.delete)attentionSaved=REVIEW_HUB.recordConfidence(next,ref.qid,inc); } catch (e) { return sendJSON(res, 400, { error: e.message }); }
+      if (inc.id) { next.attemptEvents=next.attemptEvents||{};next.attemptEvents[inc.id]={qid:ref.qid}; }
+      next.revision=(RECORDS.revision||0)+1;
+      next.saved_at = new Date().toISOString();
+      try { recordsSave(next); } catch (e) { console.error('[attempt]', e.message); return sendJSON(res, 503, { error: 'records not persisted' }); }
+      RECORDS=next;
+      return sendJSON(res, 200, { ok: true, attentionSaved, attempt: a, mistake:next.mistakes[ref.qid]||null,
+        qtime:next.qtimes[ref.qid]||0,revision:next.revision,saved_at:next.saved_at });
     }
 
     /* ---- API: AI 助教错题解析 ---- */
@@ -1134,7 +1295,7 @@ const handler = async (req, res) => {
       if (origin && origin !== `http://${req.headers.host}` && origin !== `https://${req.headers.host}`) return sendJSON(res, 403, { error: 'cross-origin rejected' });
       if (req.method === 'GET') return sendJSON(res, 200, {
         ok: true,
-        qids: Object.keys(AI_STORE),
+        qids: Object.keys(AI_STORE).filter(explanationCurrent),
         legacy: Object.keys(AI_STORE).filter(q => !AI_STORE[q].v),   // 旧版本生成的解析（升级后可重生成）
       });
       if (req.method !== 'POST') return sendJSON(res, 405, { error: 'method' });
@@ -1197,12 +1358,17 @@ const handler = async (req, res) => {
       if (origin && origin !== `http://${req.headers.host}` && origin !== `https://${req.headers.host}`) return sendJSON(res, 403, { error: 'cross-origin rejected' });
       if (req.method === 'GET') return sendJSON(res, 200, {
         ok: true,
-        lessons: Object.keys(GQ_STORE).filter(k => GQ_STORE[k] && GQ_STORE[k].v === AI_QV),
+        // official 条目（老师官方课后练习, 导入件）不随 AI_QV 升版消失
+        lessons: Object.keys(GQ_STORE).filter(k => GQ_STORE[k] && (GQ_STORE[k].v === AI_QV || GQ_STORE[k].src === 'official')),
         v: AI_QV,
+        patchStatus: QUIZ_PATCH_STATUS,
+        completionRevisions: Object.fromEntries(Object.entries(GQ_STORE).map(([lid,qz])=>[lid,{
+          core:Math.max(0,...(qz.questions||[]).filter(q=>!(qz.bad||[]).includes(q.id)&&q.tier!=='ext').map(q=>q.revisionAt||0)),
+          ext:Math.max(0,...(qz.questions||[]).filter(q=>!(qz.bad||[]).includes(q.id)&&q.tier==='ext').map(q=>q.revisionAt||0))}])) ,
         revisions: Object.fromEntries(Object.values(GQ_STORE).flatMap(qz => (qz.questions || []).filter(q => q.revisionAt).map(q => ['gen/' + qz.course + '/' + qz.lessonNo + '/quiz/' + Number(String(q.id).slice(1)), q.revisionAt]))),
       });
       if (req.method !== 'POST') return sendJSON(res, 405, { error: 'method' });
-      if (!AI_CFG.key) return sendJSON(res, 503, { error: 'AI 未配置（服务端缺少 TFL_AI_KEY）' });
+
       const body = await readBody(req);
       let inc; try { inc = JSON.parse(body.toString('utf8') || '{}'); } catch (e) { return sendJSON(res, 400, { error: 'bad json' }); }
       const t0 = Date.now();
@@ -1246,6 +1412,15 @@ const handler = async (req, res) => {
       if (!dir.startsWith(path.normalize(base) + path.sep)) return sendJSON(res, 400, { error: 'bad course dir' });
       const abs = path.normalize(path.join(dir, mNdf[2]));
       if (!abs.startsWith(dir + path.sep)) return sendJSON(res, 400, { error: 'bad path' });
+      if (!MEDIA_EXT.has(path.extname(abs).toLowerCase())) return sendJSON(res, 403, { error: 'ext not allowed' });
+      return sendFile(req, res, abs);
+    }
+    /* ---- 媒体: 炒粉炒面万词班课 ---- */
+    const mCfcm = p.match(/^\/media\/cfcm\/(.+)$/);
+    if (mCfcm) {
+      const base = path.resolve(SIB, CFCM_DIR);
+      const abs = path.normalize(path.join(base, mCfcm[1]));
+      if (!abs.startsWith(base + path.sep)) return sendJSON(res, 400, { error: 'bad path' });
       if (!MEDIA_EXT.has(path.extname(abs).toLowerCase())) return sendJSON(res, 403, { error: 'ext not allowed' });
       return sendFile(req, res, abs);
     }

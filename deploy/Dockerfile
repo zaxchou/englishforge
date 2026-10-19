@@ -5,7 +5,7 @@
 FROM node:22-alpine
 WORKDIR /app
 ENV NODE_ENV=production TZ=Asia/Shanghai
-COPY server.mjs VERSION ./
+COPY server.mjs review-hub.mjs VERSION ./
 COPY web ./web
 COPY data ./data
 COPY build ./build

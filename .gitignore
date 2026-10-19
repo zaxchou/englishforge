@@ -35,3 +35,11 @@ README-入口.md
 
 # ---- AI 助教密钥（本地开发用；绝不入库）----
 .env.local
+
+# Private study material and deployment backups must stay on the local NAS.
+deploy/backups/
+web/review/bank.json
+web/review/banks/
+web/review/catalog.json
+web/review/question-map.json
+web/review/preview.html

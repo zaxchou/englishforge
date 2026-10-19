@@ -22,6 +22,10 @@ COMPOSE_FILE="$PROJ/deploy/production/compose.yaml"
 
 # Synology 非交互 shell 的 PATH 不含 docker（/usr/local/bin），必须补
 export PATH=/usr/local/bin:$PATH
+docker(){
+  if [ "$(id -u)" -eq 0 ]; then /usr/local/bin/docker "$@";
+  else sudo -n /usr/local/bin/docker "$@"; fi
+}
 command -v docker >/dev/null || { echo "错误：找不到 docker（需要 ContainerManager 套件）" >&2; exit 1; }
 
 [ -d "$REL" ] || { echo "错误：$REL 不存在。先在开发机跑：sh deploy/prepare-release.sh $VER" >&2; exit 1; }
@@ -44,6 +48,25 @@ echo "[1/4] 构建镜像 toefl-lab:$VER（纯搬运，无编译，应很快）"
 docker build -f "$PROJ/deploy/Dockerfile" -t "toefl-lab:$VER" "$REL"
 T1=$(date +%s)
 
+BACKUP_DIR="$PROJ/deploy/backups/$VER-$(date +%Y%m%d%H%M%S)"
+mkdir -p "$BACKUP_DIR"
+cp "$ENV_FILE" "$BACKUP_DIR/compose.env"
+RECORDS_PATH="$(dirname "$PROJ")/data/toefl-lab-production/records"
+[ -d "$RECORDS_PATH" ] || { echo "正式记录目录不存在，拒绝切换版本" >&2; exit 1; }
+cp -a "$RECORDS_PATH" "$BACKUP_DIR/records"
+CHANGED=0
+release_exit(){
+  result=$?
+  trap - EXIT
+  if [ "$result" -ne 0 ] && [ "$CHANGED" -eq 1 ]; then
+    echo "发布失败，恢复上一版服务配置（学习记录不倒退）" >&2
+    cp "$BACKUP_DIR/compose.env" "$ENV_FILE"
+    docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --force-recreate || echo "自动恢复失败，请立即检查该服务" >&2
+  fi
+  exit "$result"
+}
+trap release_exit EXIT
+CHANGED=1
 echo "[2/4] 更新 .env 版本标签"
 sed -i "s/^TOEFLAB_TAG=.*/TOEFLAB_TAG=$VER/" "$ENV_FILE"
 grep -q "^TOEFLAB_TAG=$VER\$" "$ENV_FILE" || { echo "错误：.env 标签更新失败" >&2; exit 1; }
@@ -53,7 +76,7 @@ docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --force-recreate
 T2=$(date +%s)
 
 echo "[4/4] 健康检查 + 版本断言"
-PORT=$(grep -E '^TOEFLAB_PORT=' "$ENV_FILE" | cut -d= -f2 | tr -d ' ')
+PORT=$(grep -E '^TOEFLAB_PORT=' "$ENV_FILE" | cut -d= -f2 | tr -d ' \r')
 PORT=${PORT:-8018}
 i=0
 while [ $i -lt 60 ]; do
@@ -71,15 +94,9 @@ while [ $i -lt 60 ]; do
       case "$BODY" in
         *"\"version\":\"$VER\""*)
           T3=$(date +%s)
-          # 清理本项目的旧镜像(保留当前 $VER 与运行容器的镜像)与旧发布包(保留最近 3 个供回滚)
-          KEEP="toefl-lab:$VER $(docker ps --filter name=toefl-lab --format '{{.Image}}')"
-          docker images --format '{{.Repository}}:{{.Tag}}' toefl-lab | while read -r img; do
-            case " $KEEP " in *" $img "*) continue ;; esac
-            docker rmi "$img" >/dev/null 2>&1 || true
-          done
-          docker image prune -f >/dev/null 2>&1 || true
-          ls -1t "$PROJ/releases" 2>/dev/null | tail -n +4 | while read -r d; do rm -rf "$PROJ/releases/$d"; done
-          echo "完成：健康检查与版本断言通过，$VER 已上线（https://$(grep -E '^NAS_IP=' "$ENV_FILE" | cut -d= -f2):$PORT）"
+          # Long-term user authorization: project-only image cleanup, preserve rollback and data.
+          sh "$PROJ/deploy/clean-project-images.sh" "$VER" || echo "镜像清理未全部完成，发布结果保留" >&2
+          echo "完成：健康检查与版本断言通过，$VER 已上线（https://$(grep -E '^NAS_IP=' "$ENV_FILE" | cut -d= -f2 | tr -d '\r'):$PORT）"
           echo "阶段耗时：构建 $((T1-T0))s · 换标签 $((T2-T1))s · 重建+断言 $((T3-T2))s · 总计 $((T3-T0))s"
           exit 0
           ;;

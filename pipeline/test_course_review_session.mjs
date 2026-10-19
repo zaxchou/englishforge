@@ -1,0 +1,6 @@
+import fs from 'node:fs';import assert from 'node:assert/strict';import {restoreSession,selectRound,validateEvent,summarize} from '../web/review/model.mjs';
+const b=JSON.parse(fs.readFileSync(new URL('../web/review/bank.json',import.meta.url),'utf8'));const qs=selectRound(b,[]);const e=validateEvent(b,{id:'cr-session-test-001',version:b.version,unit:qs[0].unit,question:qs[0].id,phase:'check',rating:'fuzzy'});
+const s={version:b.version,id:'s1',items:qs,step:1,answers:[e],finished:false,ui:{view:'check'},draft:{unit:qs[1].unit,question:qs[1].id,phase:'check',selected:qs[1].options[0],checked:true}};
+assert.equal(restoreSession(b,s,[e]).step,1);assert.throws(()=>restoreSession(b,{...s,answers:null},[e]));assert.throws(()=>restoreSession(b,{...s,answers:[{...e,id:'not-saved'}]},[e]));assert.throws(()=>restoreSession(b,{...s,items:[]},[e]));
+const poisoned={...s,items:s.items.map((q,i)=>i===1?{...q,prompt:'FAKE',answer:'FAKE'}:q)};assert.notEqual(restoreSession(b,poisoned,[e]).items[1].prompt,'FAKE');
+const supp={...e,id:'cr-session-help-001',phase:'supplement',value:'good'};assert.equal(summarize(b,[supp])[0].status,'刚补过，待复查');console.log('session shape, verified evidence, canonical question restoration and supplement status passed');

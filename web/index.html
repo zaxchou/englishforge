@@ -124,6 +124,7 @@ details.ai-tsec[open] summary{margin-bottom:8px}
       <button data-v="drill" title="专项训练"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.6"/></svg><span class="nv-t">专项训练</span></button>
       <button data-v="sets" title="整套练习"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M12 3.5 20.5 8 12 12.5 3.5 8Z"/><path d="M4.5 12.5 12 16.5l7.5-4"/><path d="M4.5 16.5 12 20.5l7.5-4"/></svg><span class="nv-t">整套练习</span></button>
       <button data-v="course" title="视频课"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M10 8.5 16 12l-6 3.5Z"/></svg><span class="nv-t">视频课</span></button>
+      <button data-v="memory" id="course-memory-link" title="课程轻复习"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 11a8 8 0 1 1 1 6M4 4v7h7"/></svg><span class="nv-t">课程复习</span></button>
       <button data-v="review" title="错题本"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M5 4.5h13.5V20H6.8A1.8 1.8 0 0 1 5 18.2Z"/><path d="M9 4.5V20"/></svg><span class="nv-t">错题本</span></button>
       <button data-v="stats" title="数据分析"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 20h16"/><path d="M7.5 16.5v-5"/><path d="M12 16.5V7"/><path d="M16.5 16.5v-8"/></svg><span class="nv-t">数据分析</span></button>
     </div>
@@ -132,6 +133,7 @@ details.ai-tsec[open] summary{margin-bottom:8px}
 
 <div class="wrap">
 
+<div class="view" id="v-memory"><div id="course-memory-content"><p role="status">正在读取课程复习…</p></div></div>
 <!-- ============ 研读桌（首页） ============ -->
 <div class="view on" id="v-home">
   <header class="lead"><div class="desk-kicker">TOEFL · 听 / 读 / 写 / 说</div>
@@ -234,7 +236,8 @@ details.ai-tsec[open] summary{margin-bottom:8px}
 <div class="view" id="v-course">
   <div class="bhead"><h2 class="pt">视频课</h2><span class="ct" id="cs-ct"></span></div>
   <p class="sub">选择课节，配合讲义学习，再练对应题</p>
-  <div class="csplit">
+  <div class="csplit" id="cs-layout">
+    <button class="cs-outline-toggle" id="cs-outline-toggle" aria-expanded="false" onclick="csToggleOutline()">课程目录</button>
     <aside class="csnav-col"><div class="csnav" id="cs-nav"></div></aside>
     <section class="csmain" id="cs-main"></section>
   </div>
@@ -390,7 +393,7 @@ function aiPanelRender(ex) {
   const key = /^[A-Da-d]$/.test(String(q.answer || '').trim()) ? String(q.answer).trim().toUpperCase() : '';
   const mineKeys = (key && q.mine ? String(q.mine).toUpperCase().match(/\b[A-D]\b/g) : null) || [];
   h += '<div class="ai-q"><div class="k">本题</div>';
-  if (q.stem) h += '<div class="ai-stem">' + esc(q.stem) + '</div>';
+  if (q.stem) h += '<div class="ai-stem">' + quizInline(q.stem) + '</div>';
   if (hasOpts) {
     h += '<div class="ai-opts">' + Object.entries(q.options).map(([k, v]) => {
       const isKey = k === key, isMine = mineKeys.includes(k);
@@ -590,7 +593,7 @@ function wireAiRegen(qid, panel, btn) {
 /* ---------- 学习记录（服务端唯一真源） ---------- */
 let REC = {attempts:{}, qtimes:{}, mistakes:{}, course:{}, study:{}, writing:{}, drafts:{}, feedback:[]};
 let recT = null, recDirty = false, recReady = false, recSaving = false;
-let recBase = null, recEpoch = 0;
+let recBase = null, recEpoch = 0, recSnapshotId=null,recSnapshotEpoch=-1;
 const recClone = x => JSON.parse(JSON.stringify(x));
 function saveStatus(msg) {
   let el = $('save-status');
@@ -600,9 +603,9 @@ function saveStatus(msg) {
   el.replaceChildren(document.createTextNode(msg+' '));
   if(msg) {
     const exp=document.createElement('button'); exp.textContent='导出未保存记录';
-    exp.onclick=()=>{const url=URL.createObjectURL(new Blob([JSON.stringify(REC)],{type:'application/json'}));
+    exp.onclick=()=>{recLoadAttQueue();const url=URL.createObjectURL(new Blob([JSON.stringify({records:REC,pendingAttempts:recAttQueue})],{type:'application/json'}));
       const a=document.createElement('a');a.href=url;a.download='toefl-records-backup.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
-    const retry=document.createElement('button');retry.textContent='重试保存';retry.onclick=flushRecords;
+    const retry=document.createElement('button');retry.textContent='重试保存';retry.onclick=()=>{flushRecords();recFlushAttempts();};
     el.append(exp,retry);
   }
   el.hidden=!msg;
@@ -614,7 +617,7 @@ function recSave() {
 function recSaveNow() {
   // 作答判分等关键写入: 跳过 400ms 防抖立即上送(用户要求"每题都直接和服务器交互"),
   // 失败由 flushRecords 的退避重试兜底, 数据不会无声滞留。
-  recDirty=true; recEpoch++; clearTimeout(recT); clearTimeout(recRetryT);
+  recDirty=true; recEpoch++; clearTimeout(recT); clearTimeout(recRetryT);recRetryT=null;
   flushRecords();
 }
 let recRetryT=null, recRetryBackoff=0;
@@ -632,43 +635,31 @@ function mergeRemote(remote, baseOpt, localOpt) {
   // baseOpt/localOpt 供单测注入, 生产走闭包默认。
   const merged=recClone(remote), base=baseOpt!==undefined?baseOpt:(recBase||{}), RECv=localOpt!==undefined?localOpt:REC;
   const conflicts=[];
-  for(const field of ['mistakes','course','writing','drafts']) {   // attempts 单独走并集(见下); qtimes 单独走数值合并(见下)
+  for(const field of ['mistakes','course','writing','drafts','families']) {   // attempts 单独走并集(见下); qtimes 单独走数值合并(见下)
     const l=RECv[field]||{}, b=base[field]||{}, r=remote[field]||{};
     merged[field]={...r};
     for(const key of new Set([...Object.keys(b),...Object.keys(l)])) {
       const ls=JSON.stringify(l[key]),bs=JSON.stringify(b[key]),rs=JSON.stringify(r[key]);
       if(ls===bs) continue;
-      if(key in l) merged[field][key]=l[key]; else delete merged[field][key];   // 本地删除(如不再训练)在合并中保持删除
+      if(key in l) {
+        if(field==='course'&&l[key]&&r[key]) {
+          const entry={...r[key]};for(const prop of new Set([...Object.keys(b[key]||{}),...Object.keys(l[key])])) {
+            if(JSON.stringify(l[key][prop])!==JSON.stringify((b[key]||{})[prop])) {
+              if(prop==='bookmarks'){
+                entry.bookmarks={...(r[key].bookmarks||{})};
+                for(const [id,mark] of Object.entries(l[key].bookmarks||{}))if(JSON.stringify(mark)!==JSON.stringify(b[key]?.bookmarks?.[id]))entry.bookmarks[id]=mark;
+              }else if(prop in l[key])entry[prop]=l[key][prop];else delete entry[prop];
+            }
+          }merged[field][key]=entry;
+        } else merged[field][key]=l[key];
+      } else delete merged[field][key];   // 本地删除(如不再训练)在合并中保持删除
       if(rs!==bs && rs!==ls) conflicts.push(field+'/'+key);
     }
   }
-  // attempts: 仅本地有=直接并入; 双端同键各改=history 并集(按 事件t+answer+ok 去重), n/right/st/last 由并集重算——不丢任何一端的作答史;
-  // 本地已删(重置本组)且 base 有=保持删除, 否则被重置掉的作答会从服务端复活
-  {
-    merged.attempts={...(remote.attempts||{})};
-    const l=RECv.attempts||{}, bA=base.attempts||{};
-    for(const key of Object.keys(l)) {
-      const lv=l[key], rv=merged.attempts[key];
-      if(!lv) continue;
-      if(!rv) { merged.attempts[key]=lv; continue; }
-      if(!Array.isArray(lv.history)||!Array.isArray(rv.history)) { merged.attempts[key]=lv; conflicts.push('attempts/'+key); continue; }
-      const seen=new Set((rv.history||[]).map(h=>h.t+'|'+(h.answer==null?'':String(h.answer))+'|'+(h.ok==null?'':String(h.ok))));
-      const hist=[...(rv.history||[]),...(lv.history||[]).filter(h=>!seen.has(h.t+'|'+(h.answer==null?'':String(h.answer))+'|'+(h.ok==null?'':String(h.ok))))];
-      if(hist.length>Math.max(lv.history.length,rv.history.length)) conflicts.push('attempts/'+key);
-      hist.sort((x,y)=>x.t-y.t);
-      const lasth=hist[hist.length-1];
-      merged.attempts[key]={...lv, history:hist,
-        n:hist.length, right:hist.filter(h=>h.ok===true).length,
-        st:lasth.ok===true?'done':(lasth.ok===false?'wrong':'submitted'),
-        last:lasth.t, last_answer:lasth.answer};
-    }
-    for(const key of Object.keys(merged.attempts)) {
-      if(!(key in l) && (key in bA)) { delete merged.attempts[key]; conflicts.push('attempts/'+key); }
-    }
-  }
+  // 作答与题目用时由增量端点拥有；快照只合并非作答字段。
   // 数值型累计键(qtimes 键值秒数 / study 的日期与 today/total): 双端各自从 base 涨 → 本端+远端-base; base 缺失取大者; 非数值键本地优先;
   // 本地已删(重置本组清 qtimes)且 base 有=保持删除
-  for(const field of ['qtimes','study']) {
+  for(const field of ['study']) {
     const l=RECv[field]||{}, b=base[field]||{}, r=remote[field]||{};
     merged[field]={...r};
     for(const key of new Set([...Object.keys(b),...Object.keys(l)])) {
@@ -680,6 +671,8 @@ function mergeRemote(remote, baseOpt, localOpt) {
   }
   // feedback: 本地优先(旧版冲突时 throw, 一并取消)
   if(JSON.stringify(RECv.feedback)!==JSON.stringify(base.feedback)) merged.feedback=recClone(RECv.feedback);
+  merged.attempts=recClone(remote.attempts||{});merged.qtimes={...(remote.qtimes||{})};
+  recOverlayPending(merged);
   merged.__mergeConflicts=conflicts;
   return merged;
 }
@@ -689,10 +682,16 @@ async function flushRecords() {
   recSaving=true;
   try {
     const snapshot=recClone(REC), epoch=recEpoch;
-    snapshot.revision=recBase?.revision||0;
-    const r=await fetch('/api/records',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(snapshot)});
+    if(recSnapshotEpoch!==epoch||!recSnapshotId){recSnapshotId=recEventId();recSnapshotEpoch=epoch;}
+    snapshot.revision=recBase?.revision||0;snapshot.attemptProtocol=2;snapshot.snapshotId=recSnapshotId;
+    const r=await fetch('/api/records',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(snapshot),signal:AbortSignal.timeout(15000)});
     if(r.status===409) {
       const remote=await api('/api/records');
+      if(remote.snapshotEvents?.[snapshot.snapshotId]){
+        REC=mergeRemote(remote,snapshot,REC);recBase=recClone(remote);recDirty=recEpoch!==epoch;
+        if(!recDirty){try{localStorage.removeItem('tfl-record-recovery');}catch(e){}}
+        recSaving=false;if(recDirty)return await flushRecords();return;
+      }
       const merged=mergeRemote(remote); REC=merged;recBase=recClone(remote);
       recSaving=false;return await flushRecords();
     }
@@ -700,7 +699,8 @@ async function flushRecords() {
     const ack=await r.json();
     recBase={...snapshot,revision:ack.revision,saved_at:ack.saved_at};
     REC.revision=ack.revision;REC.saved_at=ack.saved_at;
-    recDirty=recEpoch!==epoch;saveStatus('');recRetryBackoff=0;
+    recDirty=recEpoch!==epoch;if(!recDirty){try{localStorage.removeItem('tfl-record-recovery');}catch(e){}}
+    if(!recAttQueue.length)saveStatus('');recRetryBackoff=0;
     if(recDirty) recT=setTimeout(flushRecords,400);
   } catch(e) {saveStatus(e.message+'（每 3 秒自动重试，也可导出留底）'); recScheduleRetry();} finally {recSaving=false;}
 }
@@ -708,7 +708,7 @@ async function recResync() {
   if(recDirty || recSaving || recAttQueue.length) return;   // 有待传作答时不拉远端覆盖本地
   const epoch=recEpoch;
   try {const j=await api('/api/records');
-    if(recDirty || recSaving || recEpoch!==epoch) return;
+    if(recDirty || recSaving || recAttQueue.length || recEpoch!==epoch) return;
     REC=Object.assign(REC,j);recBase=recClone(REC);recReady=true;
     refreshCurrent();
   }catch(e){saveStatus('无法同步学习记录；本页记录已保留');}
@@ -721,18 +721,19 @@ function refreshCurrent(){
 }
 window.addEventListener('focus',recResync);
 document.addEventListener('visibilitychange',()=>{
+  gqStudyGate();
   if(document.hidden) {checkpointCourse();if(recDirty)flushRecords();} else recResync();
 });
 window.addEventListener('beforeunload',e=>{
-  checkpointCourse();
-  if(!recDirty) return;
-  if(recReady && !recSaving){
-    // beacon 已把整份记录交给浏览器排队发送(页面关闭后仍会送达), 不再拦弹窗——
-    // 旧版无条件弹窗把用户拦在旧版本页面上不敢刷新, 数据反而一直滞留(spectvis 事故)。
-    navigator.sendBeacon('/api/records',new Blob([JSON.stringify({...REC,revision:recBase?.revision||0})],{type:'application/json'}));
-    return;
-  }
-  e.preventDefault();e.returnValue='学习记录尚未保存';
+  checkpointCourse();const attemptsBackedUp=recPersistAttQueue();
+  if(!attemptsBackedUp&&recAttQueue.length){e.preventDefault();e.returnValue="作答尚未保存，请保持页面打开并导出备份";return;}
+  // A successful beacon enqueue is not a server acknowledgement (it can return 409).
+  // Preserve unsaved non-attempt work locally before permitting a close.
+  if(!recDirty)return;
+  let backedUp=false;
+  try{if(recSnapshotEpoch!==recEpoch||!recSnapshotId){recSnapshotId=recEventId();recSnapshotEpoch=recEpoch;}localStorage.setItem('tfl-record-recovery',JSON.stringify({base:recBase,local:REC,snapshotId:recSnapshotId,at:Date.now()}));backedUp=true;}catch(e){}
+  if(recReady&&!recSaving)navigator.sendBeacon('/api/records',new Blob([JSON.stringify({...REC,attemptProtocol:2,snapshotId:recSnapshotId,revision:recBase?.revision||0})],{type:'application/json'}));
+  if(!backedUp){e.preventDefault();e.returnValue='学习记录尚未保存，请导出备份';}
 });
 function studyTick(sec) {
   recDirty=true;recEpoch++;
@@ -854,61 +855,97 @@ async function normSet(id) {
 }
 
 /* ---------- 记录写入 ---------- */
-function recAttempt(ref, ok, answer, secs) {
+function applyLocalAttempt(store, ref, inc) {
   const k = ref.qid;
-  const a = REC.attempts[k] = REC.attempts[k] || {st:'doing', n:0, right:0, history:[]};
-  a.n++; a.last = Date.now(); a.last_answer = answer;
-  a.history.push({t: Date.now(), answer, ok: ok === null ? null : ok === true, secs: Math.round(secs)});
+  if(inc.id && (store.attemptEvents?.[inc.id] || store.attempts[k]?.history?.some(h=>h.id===inc.id)))return store.attempts[k]||null;
+  const now=Date.now(), t=Number.isFinite(inc.t)&&inc.t>0?Math.min(inc.t,now+300000):now;
+  if (inc.delete) { delete store.attempts[k]; delete store.qtimes[k]; delete store.mistakes[k]; delete store.writing[k]; delete (store.drafts||{})[k]; return null; }
+  const subject=String(ref.qid||'').split('/')[1];
+  const ok = (subject==='speaking'||(subject==='writing'&&!ref.verifiedSentence)) ? null : (inc.ok == null ? null : !!inc.ok);
+  const a = store.attempts[k] = store.attempts[k] || { st: 'doing', n: 0, right: 0, history: [] };
+  a.n++; a.last = t; a.last_answer = inc.answer;
+  a.history.push({ id:inc.id, t, answer: inc.answer, ok: ok, secs: Math.round(inc.secs || 0),...(typeof inc.unsure==='boolean'?{unsure:inc.unsure}:{}) });
   if (ok === true) { a.right++; a.st = 'done'; }
   else if (ok === false) a.st = 'wrong';
-  else a.st = 'submitted';   // 已提交但未判定，不能称通过
-  REC.qtimes[k] = (REC.qtimes[k]||0) + Math.round(secs);
-  const m = REC.mistakes[k];
-  if (ok === false) {
-    REC.mistakes[k] = (m && !m.cleared) ?
-      {...m, n_wrong: (m.n_wrong||0)+1, stage: 0, due: Date.now()+864e5, last: Date.now(),
-       set: ref.set, subj: ref.subj, mk: ref.mk, gkey: ref.gkey} :
-      {n_wrong: 1, stage: 0, added: Date.now(), due: Date.now()+864e5, last: Date.now(),
-       set: ref.set, subj: ref.subj, mk: ref.mk, gkey: ref.gkey};
-  } else if (ok === true && m && !m.cleared && Date.now() >= (m.due||0)) {
-    // 复习答对：按 3/7/14 天推进；14 天后再答对才移出
-    const next = [3,7,14][m.stage] || 14;
-    m.stage = (m.stage||0) + 1;
+  else a.st = 'submitted';
+  store.qtimes[k] = (store.qtimes[k] || 0) + Math.round(inc.secs || 0);
+  const revision = (typeof GQ_REVISIONS === 'undefined' ? 0 : GQ_REVISIONS[k] || 0);
+  // A current-version answer starts a fresh review schedule; old history remains intact.
+  if (t >= revision && store.mistakes[k] && (store.mistakes[k].last || 0) < revision) delete store.mistakes[k];
+  const m = store.mistakes[k];
+  if (t >= revision && ok === false && (!m || t >= (m.last||0))) {
+    store.mistakes[k] = (m && !m.cleared)
+      ? { ...m, n_wrong: (m.n_wrong || 0) + 1, stage: 0, due: t + 864e5, last: t, set: ref.set, subj: ref.subj, mk: ref.mk, gkey: ref.gkey }
+      : { n_wrong: 1, stage: 0, added: t, due: t + 864e5, last: t, set: ref.set, subj: ref.subj, mk: ref.mk, gkey: ref.gkey };
+  } else if (t >= revision && ok === true && inc.unsure!==true && m && !m.cleared && t >= (m.last||0) && t >= (m.due || 0)) {
+    const next = [3, 7, 14][m.stage] || 14;
+    m.stage = (m.stage || 0) + 1;
     if (m.stage >= 4) m.cleared = true;
-    else m.due = Date.now() + next*864e5;
-    m.last = Date.now();
+    else m.due = t + next * 864e5;
+    m.last = t;
   }
-  // r56: 作答走 /api/records/attempt 增量直送(服务端=唯一真源, 逐题落盘),
-  // 不再依赖全量快照——快照覆盖/合并/关页都影响不到它。失败进 localStorage 持久队列自动补传。
-  recAttemptSend({ ref: {qid: ref.qid, set: ref.set, subj: ref.subj, mk: ref.mk, gkey: ref.gkey},
-    ok: ok === null ? null : ok === true, answer, secs: Math.round(secs) });
+  a.history.sort((x,y)=>x.t-y.t);
+  const latest=a.history.at(-1);a.n=a.history.length;a.right=a.history.filter(h=>h.ok===true).length;
+  a.last=latest.t;a.last_answer=latest.answer;a.st=latest.ok===true?'done':latest.ok===false?'wrong':'submitted';
+  return a;
 }
-/* 作答增量队列: localStorage 持久(浏览器崩溃/关页不丢), 逐条上送, 失败退避 3s→30s */
-let recAttQueue = [];
-try { recAttQueue = JSON.parse(localStorage.getItem('tfl-att-queue') || '[]'); if (!Array.isArray(recAttQueue)) recAttQueue = []; } catch (e) { recAttQueue = []; }
-let recAttSending = false, recAttBackoff = 0;
-function recPersistAttQueue() { try { localStorage.setItem('tfl-att-queue', JSON.stringify(recAttQueue)); } catch (e) {} }
-function recAttemptSend(item) { recAttQueue.push(item); recPersistAttQueue(); recFlushAttempts(); }
-function recFlushAttempts() {
-  if (recAttSending || !recAttQueue.length) return;
-  if (!recReady) { setTimeout(recFlushAttempts, 3000); return; }   // 记录未读取前不上送, 防乱序覆盖
-  recAttSending = true;
-    fetch('/api/records/attempt', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(recAttQueue[0]) })
-    .then(r => r.json().then(j => { if (!r.ok) throw new Error('status ' + r.status); return j; }))
-    .then(j => {
-      if (j.attempt) REC.attempts[recAttQueue[0].ref.qid] = j.attempt;   // 服务端真源回写本地显示层
-      recAttQueue.shift(); recPersistAttQueue(); recAttBackoff = 0; recAttSending = false;
-      saveStatus('');
-      if (recAttQueue.length) recFlushAttempts();
-    })
-    .catch(() => {
-      recAttSending = false;
-      recAttBackoff = Math.min(recAttBackoff ? recAttBackoff * 2 : 3000, 30000);
-      saveStatus('有 ' + recAttQueue.length + ' 条作答已暂存在本机，网络恢复后自动补传，不会丢失');
-      setTimeout(recFlushAttempts, recAttBackoff);
-    });
+function recAttempt(ref, ok, answer, secs, confidence=null) {
+  const item={id:recEventId(),t:Date.now(),ref:{qid:ref.qid,set:ref.set,subj:ref.subj,mk:ref.mk,gkey:ref.gkey,verifiedSentence:!!ref.verifiedSentence},ok:ok==null?null:ok===true,answer,secs:Math.max(0,Math.round(secs||0)),...(confidence?{unsure:confidence.unsure===true}:{})};
+  applyLocalAttempt(REC,item.ref,item);recAttemptSend(item);return item;
 }
+function recEventId(){return typeof crypto.randomUUID==='function'?crypto.randomUUID():Date.now().toString(36)+'-'+Math.random().toString(36).slice(2)+'-'+Math.random().toString(36).slice(2);}
+const ATT_PREFIX='tfl-att-item:';
+let recAttQueue=[],recAttSending=false,recAttBackoff=0,recAttRetry=null;
+function recLegacyId(item,index){const text=JSON.stringify(item)+'|'+index;let h=2166136261;for(let i=0;i<text.length;i++)h=Math.imul(h^text.charCodeAt(i),16777619);return 'legacy-'+(h>>>0).toString(16)+'-'+index;}
+function recLoadAttQueue(){
+  const map=new Map(recAttQueue.map(item=>[item.id,item]));
+  try{
+    const old=JSON.parse(localStorage.getItem('tfl-att-queue')||'[]');
+    if(Array.isArray(old)&&old.length){old.forEach((item,i)=>{
+      if(!item?.ref?.qid)return;item={...item,id:item.id||recLegacyId(item,i),t:item.t||Date.now()};
+      localStorage.setItem(ATT_PREFIX+item.id,JSON.stringify(item));map.set(item.id,item);
+    });localStorage.removeItem('tfl-att-queue');}
+    for(let i=0;i<localStorage.length;i++){const key=localStorage.key(i);if(!key?.startsWith(ATT_PREFIX))continue;
+      const item=JSON.parse(localStorage.getItem(key));if(item?.id&&item.ref?.qid)map.set(item.id,item);
+    }
+  }catch(e){saveStatus('本机待传记录读取异常，请导出备份后重试');}
+  recAttQueue=[...map.values()].sort((a,b)=>(a.t||0)-(b.t||0));
+}
+function recPersistAttQueue(){
+  try{for(const item of recAttQueue)localStorage.setItem(ATT_PREFIX+item.id,JSON.stringify(item));return true;}
+  catch(e){saveStatus('本机存储不可用，作答仍在当前页，请保持页面打开并导出备份');return false;}
+}
+function recOverlayPending(store=REC){for(const item of recAttQueue)applyLocalAttempt(store,item.ref,item);}
+function recAttemptSend(item){
+  item={...item,id:item.id||recEventId(),t:item.t||Date.now()};
+  recEpoch++;recLoadAttQueue();recAttQueue.push(item);recPersistAttQueue();recFlushAttempts();
+}
+async function recFlushAttempts(){
+  if(recAttSending)return;
+  recLoadAttQueue();if(!recAttQueue.length)return;
+  if(!recReady){if(!recAttRetry)recAttRetry=setTimeout(()=>{recAttRetry=null;recFlushAttempts();},3000);return;}
+  recAttSending=true;const item=recAttQueue[0];
+  try{
+    const r=await fetch('/api/records/attempt',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(item),signal:AbortSignal.timeout(15000)});
+    const j=await r.json();if(!r.ok)throw Error('status '+r.status);
+    recAttQueue=recAttQueue.filter(x=>x.id!==item.id);
+    try{localStorage.removeItem(ATT_PREFIX+item.id);}catch(e){}
+    const k=item.ref.qid;
+    if(j.attempt)REC.attempts[k]=j.attempt;else delete REC.attempts[k];
+    if(j.mistake){const local=REC.mistakes[k];REC.mistakes[k]=j.mistake;if(local?.stem)REC.mistakes[k].stem=local.stem;if(local?.cleared_at>=(j.mistake.last||0)){REC.mistakes[k].cleared=local.cleared;REC.mistakes[k].cleared_at=local.cleared_at;}}else delete REC.mistakes[k];
+    REC.qtimes[k]=j.qtime||0;if(item.delete){delete REC.qtimes[k];delete (REC.writing||{})[k];delete (REC.drafts||{})[k];}
+    recOverlayPending();recAttBackoff=0;gqAttemptAcknowledged(item,j);
+    if(!recDirty)saveStatus('');
+  }catch(e){
+    recAttBackoff=Math.min(recAttBackoff?recAttBackoff*2:3000,30000);
+    if(recPersistAttQueue())saveStatus('有 '+recAttQueue.length+' 条作答待补传，已暂存在本机，将自动重试');
+    if(!recAttRetry)recAttRetry=setTimeout(()=>{recAttRetry=null;recFlushAttempts();},recAttBackoff);
+  }finally{recAttSending=false;}
+  if(!recAttBackoff&&recAttQueue.length)recFlushAttempts();
+}
+recLoadAttQueue();
+window.addEventListener('storage',e=>{if(e.key?.startsWith(ATT_PREFIX)){recLoadAttQueue();recFlushAttempts();}});
+window.addEventListener('online',()=>{recFlushAttempts();if(recDirty)flushRecords();});
 function setWritingDraft(qidKey, text, submitted) {
   const w = REC.writing[qidKey] = REC.writing[qidKey] || {text:'', updated:0, submitted:false};
   w.text = text; w.updated = Date.now();
@@ -954,7 +991,25 @@ function tReset(){ if(TICK) clearInterval(TICK); TICK=null;
   const b=$('d-pause'); if(b) b.textContent='暂停'; }
 
 /* ---------- 视图切换（带 hash 定位） ---------- */
+let courseMemoryPromise=null;
+function mountCourseMemory(){
+ if(courseMemoryPromise)return courseMemoryPromise.then(()=>{$('course-memory-content').dispatchEvent(new Event('course-review-activate'));});
+ const host=$('course-memory-content');
+ courseMemoryPromise=import('/review/app.mjs').then(m=>m.mountReview(host)).catch(()=>{
+   const target=host.shadowRoot||host;target.replaceChildren();const text=document.createElement('p');text.textContent='课程复习未能加载，请重试。';
+   const retry=document.createElement('button');retry.textContent='重试';retry.onclick=()=>{courseMemoryPromise=null;mountCourseMemory();};target.append(text,retry);
+ });return courseMemoryPromise;
+}
 let lastNav='home';
+function revealCurrentNav(){
+  const current=document.querySelector('.nav button.on');
+  if(current?.scrollIntoView)current.scrollIntoView({block:'nearest',inline:'center'});
+}
+let navResizeFrame=null;
+window.addEventListener('resize',()=>{
+  if(navResizeFrame!==null)cancelAnimationFrame(navResizeFrame);
+  navResizeFrame=requestAnimationFrame(()=>{navResizeFrame=null;revealCurrentNav();});
+});
 function go(v){
   const isTask=(v==='do');
   if(v!=='course')document.body.classList.remove('vfull');   // 任何非课程视图都不留在铺满态(含做题, 否则考试页滚动被锁)
@@ -962,7 +1017,14 @@ function go(v){
   if(v!=='course'&&GQ_TICK){clearInterval(GQ_TICK);GQ_TICK=null;}   /* 离开课程页: 课后练计时即停(回到同节 quiz 相位会自动重开) */
   document.querySelectorAll('.nav button').forEach(x=>x.classList.toggle('on',x.dataset.v===v));
   const navOn=document.querySelector('.nav button.on');   // 窄屏导航横向滚动时, 当前项要滚入视野
-  if(navOn&&navOn.scrollIntoView) navOn.scrollIntoView({block:'nearest',inline:'center'});
+  if(navOn&&navOn.scrollIntoView){
+    navOn.scrollIntoView({block:'nearest',inline:'center'});
+    // Fonts can change the mobile rail width after the initial route.
+    if(document.fonts)document.fonts.ready.then(()=>requestAnimationFrame(()=>{
+      const current=document.querySelector('.nav button.on');
+      if(current?.scrollIntoView)current.scrollIntoView({block:'nearest',inline:'center'});
+    }));
+  }
   document.querySelectorAll('.view').forEach(x=>x.classList.remove('on'));
   $('v-'+v).classList.add('on');
   document.querySelectorAll('.seg').forEach(moveThumb);
@@ -972,6 +1034,8 @@ function go(v){
   if(v==='course') renderCourse();
   if(v==='review') renderReview();
   if(v==='stats') renderStats();
+  if(v==='memory') mountCourseMemory();
+  gqStudyGate();
   window.scrollTo(0,0);
 }
 function nav(v){
@@ -984,15 +1048,16 @@ function route(){
   const h=(location.hash||'#/home').replace(/^#\//,'');
   const [v,arg]=h.split('/');
   if(v==='do'){ if(!S) go('home'); else go('do'); return; }   // 做题会话不外链；无会话回首页
-  if(['home','drill','sets','course','review','stats'].includes(v)){
+  if(['home','drill','sets','course','memory','review','stats'].includes(v)){
     if(v==='drill'&&arg&&SUBN[arg]) drillTab(arg);
-    if(v==='course'&&arg){ go('course'); setTimeout(()=>openLessonById(decodeURIComponent(arg)),80); return; }
+    if(v==='course'&&arg){const f=courseFind(decodeURIComponent(arg));if(f){csSel={c:f.c.id,l:f.ix};csPick=f.c.id;}go('course');return;}
     go(v);
   } else go('home');
 }
 window.addEventListener('hashchange',route);
 window.goBack=function(){ nav(lastNav||'home'); };
 document.querySelectorAll('.nav button').forEach(b=>{ b.onclick=()=>nav(b.dataset.v); });
+
 document.getElementById('sb-brand').onclick=()=>{
   if (matchMedia('(max-width:700px)').matches) return;   /* ≤700 顶栏横向, 折叠无意义 */
   const min=document.documentElement.classList.toggle('sb-min');
@@ -1026,7 +1091,7 @@ function renderHome(){
   // 最近在看 = 记录时间最新的课, 不排除已看完的(重看也要能接上); 题组类似取最近作答
   let lastL=null,lastLT=0;
   for(const [k,c] of Object.entries(REC.course||{}))
-    if(c.at&&c.at>lastLT){lastLT=c.at;lastL=k;}
+    if(c.at&&c.at>lastLT&&courseFind(k)){lastLT=c.at;lastL=k;}
   let lastQ=null,lastT=0;
   for(const [k,a] of scopedEntries(REC.attempts))
     if(a.last&&a.last>lastT){lastT=a.last;lastQ=k;}
@@ -1036,8 +1101,8 @@ function renderHome(){
     const cp=REC.course[lastL];
     const watching=lastLT>=lastT;
     ch+=`<div class="cont${watching?'':' dim'}"><span class="pill t">视频课</span>
-      <div class="ct2"><b>${esc(lessonTitle(lastL))}</b><span>${cp.done&&!watching?'已看完':'看到 '+fmt(cp.pos||0)}</span></div>
-      <button data-go="course/${encodeURIComponent(lastL)}">${cp.done&&!watching?'重温':'继续看'} →</button></div>`;
+      <div class="ct2"><b>${esc(lessonTitle(lastL))}</b><span>${cp.done?'视频已看完':'看到 '+fmt(cp.pos||0)}${gqCompleted(lastL)?' · 本节已练':''}</span></div>
+      <button data-go="course/${encodeURIComponent(lastL)}">${cp.tab==='practice'?'继续练习':cp.tab==='notes'?'继续笔记':cp.tab==='script'?'继续课稿':cp.done?'复习本节':'继续看'} →</button></div>`;
   }
   if(lastQ){
     const [qs,subj]=lastQ.split('/');
@@ -1056,7 +1121,7 @@ function renderHome(){
   for(const [k,a] of scopedEntries(REC.attempts)){
     const sj=k.split('/')[1];
     if(!(sj in tot)) continue;
-    if(a.st==='done'||a.st==='wrong'){done[sj]=(done[sj]||0)+1;right[sj]=(right[sj]||0)+(a.st==='done'?1:0);}
+    if(a.st==='done'||a.st==='wrong'||a.st==='submitted'){done[sj]=(done[sj]||0)+1;right[sj]=(right[sj]||0)+(a.st==='done'?1:0);}
   }
   for(const [k,m] of scopedEntries(REC.mistakes)) if(!m.cleared) wrongIn[k.split('/')[1]]=(wrongIn[k.split('/')[1]]||0)+1;
   let ix=0, doneAny=0;
@@ -1067,12 +1132,13 @@ function renderHome(){
     doneAny+=d;
     const pct=t?Math.round(d/t*100):0;
     const barW=d?Math.max(pct,3):0;   // 刚起步也要看得见(最小 3%), 与未开始区分
-    const acc=d?Math.round(r/d*100):null;
+    const judged=scopedEntries(REC.attempts).filter(([k,a])=>k.split('/')[1]===sj&&(a.st==='done'||a.st==='wrong')).length;
+    const acc=judged?Math.round(r/judged*100):null;
     hsub+=`<article class="srow2${d?'':' zero'}" data-subj="${sj}">
       <span class="num">0${ix}</span>
       <div class="si"><strong>${SUBN[sj]}</strong>
         <div class="pb2"><i style="width:${barW}%"></i></div>
-        <p>已练 ${d}/${t} 题${acc!=null?'<span class="p-acc"> · 正确率 '+acc+'%</span>':''}${w?' · 错题在册 '+w:''}</p></div>
+        <p>已练 ${d}/${t} 题${(()=>{const available=CATALOK().reduce((sum,set)=>sum+(set.subjects[sj]?.available_q??set.subjects[sj]?.q??0),0);return available<t?' · 可练 '+available+'（缺素材 '+(t-available)+'）':'';})()}${acc!=null?'<span class="p-acc"> · 正确率 '+acc+'%</span>':''}${w?' · 错题在册 '+w:''}</p></div>
       ${acc!=null?`<span class="acc2"><b>${acc}%</b><span>正确率</span></span>`:'<span class="acc2 acc-empty">—</span>'}
       <button data-drill2="${sj}">${d?(pct>=100?'重练':'继续'):'开始'} →</button></article>`;
   }
@@ -1094,7 +1160,7 @@ function renderHome(){
       <button data-go="review">${ms.length?'去复习 →':'查看 →'}</button></div>`;
   let nL=0,nC=0,nWatched=0;
   ((COURSES&&COURSES.series)||[]).forEach(s=>(s.courses||[]).forEach(c=>{nL+=c.lesson_count||0;nC++;}));
-  nWatched=Object.values(REC.course||{}).filter(c=>c.done).length;
+  nWatched=courseWatchedCount();
   $('hm-cs-ct').textContent='共 '+nL+' 节 · '+nC+' 门课';
   $('hm-course').innerHTML=`<div class="mini"><div class="mv">${nWatched}</div>
       <div class="mk">节已看完 · 配讲义</div>
@@ -1104,8 +1170,8 @@ function renderHome(){
 
   /* ---- 学习数据摘要 ---- */
   const atts=scopedEntries(REC.attempts).filter(([k])=>!k.startsWith('gen/'));   // 课后练(gen)不入备考口径
-  let nA=0,nR=0;
-  atts.forEach(([,a])=>{nA+=(a.n||0);nR+=(a.right||0);});
+  let nA=0,nR=0,nJudge=0;
+  atts.forEach(([,a])=>{nA+=(a.n||0);for(const event of a.history||[]){if(typeof event.ok==='boolean'){nJudge++;if(event.ok)nR++;}}});
   const qSec=Object.keys(REC.qtimes||{}).length?Object.values(REC.qtimes||{}).reduce((a,b)=>a+b,0):0;
   const days=new Array(14).fill(0),daysBad=new Array(14).fill(0);
   const today=new Date(); today.setHours(0,0,0,0);
@@ -1124,7 +1190,7 @@ function renderHome(){
     }).join('')}</div><div class="dlab">${days.map((_,i)=>`<span>${i+1}</span>`).join('')}</div></div>
     <div class="hm-nums">
       <div class="n"><b>${nA}</b><span>累计作答</span></div>
-      <div class="n"><b>${nA?Math.round(nR/Math.max(1,nR+(nA-nR))*100)+'%':'—'}</b><span>正确率</span></div>
+      <div class="n"><b>${nJudge?Math.round(nR/nJudge*100)+'%':'—'}</b><span>正确率</span></div>
       <div class="n"><b>${(st.total||0)>=3600?((st.total||0)/3600).toFixed(1)+'h':fmt(st.total||0)}</b><span>总时长</span></div>
     </div></div>
     <button class="hm-more" data-go="stats">完整数据分析 →</button>`;
@@ -1228,7 +1294,7 @@ function renderSets(){
     const ORD={listening:0,reading:1,writing:2,speaking:3};
     const cells=Object.entries(s.subjects||{}).filter(([k,v])=>v.q||v.blocked_reason)
       .sort((a,b)=>(ORD[a[0]]??9)-(ORD[b[0]]??9))
-      .map(([k,v])=>v.blocked_reason?`<span class="c unavailable" title="${esc(v.blocked_reason)}"><i></i>${SUBN[k]||k} 暂不可练</span>`:`<span class="c ${s.grade==='A'?'s-full':'s-part'}"><i></i>${SUBN[k]||k} ${v.q}</span>`).join('');
+      .map(([k,v])=>v.blocked_reason?`<span class="c unavailable" title="${esc(v.blocked_reason)}"><i></i>${SUBN[k]||k} 暂不可练</span>`:`<span class="c ${s.grade==='A'?'s-full':'s-part'}"><i></i>${SUBN[k]||k} ${v.available_q??v.q}/${v.q} 可练${v.unavailable_q?' · 缺素材 '+v.unavailable_q:''}</span>`).join('');
     return `<div class="srow rise" style="--i:${ix}" data-set="${esc(s.id)}">
       <span class="id">${esc(s.id)}</span>
       <span class="stag ${tag[0]}">${s.grade==='A'?'素材 A':(s.grade||'—')}</span>
@@ -1239,7 +1305,7 @@ function renderSets(){
     r.onclick=()=>enterSet(r.dataset.set);
   });
   $('sets-ct').textContent=list.length+' / '+sets.length+' 套';
-  $('sets-sub').textContent=sets.filter(s=>s.grade==='A').length+' 套四科素材 · 不等于全题型可在线练习 · 时间上限为参考值（未按官方 2026 版核验）· 中途退出进度保留';
+  $('sets-sub').textContent=sets.filter(s=>s.grade==='A').length+' 套四科素材 · 不等于全题型可在线练习 · 时间上限为参考值（未按官方 2026 版核验）· 作答记录保留，重新进入会开启新一轮';
 }
 document.querySelectorAll('#sets-filter button').forEach(b=>{
   b.onclick=()=>{ setFilterF=b.dataset.f;
@@ -1251,17 +1317,20 @@ document.querySelectorAll('#sets-filter button').forEach(b=>{
 let S=null;
 async function enterSet(id){
   const n=await normSet(id);
-  const refs=[];
+  const refs=[],omitted=[];
   for(const subj of ['listening','reading','writing','speaking']){
-    const s=n.subjects[subj]; if(!s||s.blocked_reason) continue;
+    const s=n.subjects[subj]; if(!s)continue;if(s.blocked_reason){omitted.push(SUBN[subj]+'暂不可练');continue;}
     for(const m of s.modules) for(const g of m.groups){
       if(g.type==='fill') refs.push({kind:'fill',set:id,subj,mk:m.mk,gkey:g.key,group:g});
-      else g.questions.forEach(q=>refs.push({kind:'choice',set:id,subj,mk:m.mk,gkey:g.key,group:g,q}));
+      else g.questions.forEach(q=>{if(subj==='listening'&&!q.audio&&!g.audio){omitted.push('缺少听力音频');return;}refs.push({kind:'choice',set:id,subj,mk:m.mk,gkey:g.key,group:g,q});});
     }
-    for(const t of s.tasks) for(const it of t.items)
-      refs.push({kind:subj==='writing'?'write':'speak',set:id,subj,mk:t.key,task:t,it});
+    for(const t of s.tasks) for(const it of t.items){
+      if(subj==='speaking'&&!it.audio){omitted.push('缺少口语音频');continue;}
+      refs.push({kind:subj==='writing'?'write':'speak',set:id,subj,mk:t.key,task:t,it});}
+
   }
-  startSession({title:id+' · 整套', subj:'listening', refs, sim:true});
+  if(omitted.length)alert('本套素材不完整：'+[...new Set(omitted)].join('、')+'。本轮只练可用内容，缺项已跳过，不是完整四科模考。');
+  startSession({title:id+' · '+(omitted.length?'可用部分':'整套'), subj:refs[0]?.subj||'listening', refs, sim:true});
 }
 async function openQuestion(key){
   const [set,subj,mk,type,no]=key.split('/');
@@ -1324,6 +1393,7 @@ function renderQ(){
   stopTaskTimer();
   if(NEXT_T){clearInterval(NEXT_T);NEXT_T=null;}
   $('d-next').textContent=S.review?'下一题':'确认答案'; $('d-next').className='pri';
+  $('d-next').disabled=r.subj==='listening'&&r.kind==='choice'&&!r.q.audio&&!r.group.audio&&!S.review;
   const key=((r.q||r.it)?.qid||[r.set,r.subj,r.mk,'fill',r.gkey].join('/'))+(S.batchReview?'/due-review':'');
   if(S.timedKey!==key){S.timedKey=key;S.startTs=Date.now();QACC=0;Q0=Date.now();S.answerSec=null;const draft=S.batchReview?null:REC.drafts?.[key];if(draft&&!S.revealed){S.sel=draft.sel??null;S.fillVals={...draft.fillVals};S.slots={...draft.slots};}}
   // 复盘模式(sim 出分后回看): 整题恒为已判分相位, 作答从记录还原, 不再接收作答也不再写记录
@@ -1342,7 +1412,7 @@ function renderQ(){
     ab.style.display='';
     const au=$('d-audio'),src='/media/set/'+encodeURIComponent(r.set)+'/'+rel;
     if(au.getAttribute('src')!==src) au.src=src;
-    au.playbackRate=auRate;
+    au.playbackRate=S.sim&&!S.review?1:auRate;
     $('d-prog').style.width='0%'; $('d-time').textContent='00:00 / --:--';
     $('d-play-ic').innerHTML='<path d="M3 2 L9 6 L3 10 Z" fill="#1C1C1A"/>';
     // ---- 听力正式考试模式: 只播一遍, 播完才出题, 不可拖拽/倍速/回上一题 ----
@@ -1353,7 +1423,7 @@ function renderQ(){
     const played=!!S.audioDone[src];
     const answeredQ=!!(r.q&&REC.attempts[r.q.qid]);
     const examListen=isListen&&!S.revealed&&!S.review;
-    window.__needListen=isListen&&r.kind==='choice'&&!S.revealed&&!answeredQ&&!played;
+    window.__needListen=isListen&&r.kind==='choice'&&!S.revealed&&!(S.sim?false:answeredQ)&&!played;
     $('d-rate').style.display=examListen?'none':'';
     $('d-track').style.pointerEvents=examListen?'none':'';
     $('d-track').title=examListen?'正式考试模式：不可拖动进度':(isListen?'点击跳转 · Z 设 A / X 设 B 循环播放':'点击跳转');
@@ -1387,14 +1457,14 @@ function renderQ(){
       r.group.passage_paragraphs.forEach((text,index)=>{
         h+=`<div class="qd">第 ${index+1} 段</div><div class="passage">`;
         if(index+1===r.q.selection_paragraph){
-          Object.entries(r.q.options).forEach(([k,v])=>{let cls='opt';const rightK=answerKeyOf(r.q);if(S.revealed){if(k===rightK)cls+=' right';else if(k===S.sel)cls+=' wrong';}else if(k===S.sel)cls+=' sel';h+=`<div class="${cls}" data-k="${k}" role="button" tabindex="0" aria-pressed="${S.sel===k}" aria-disabled="${S.revealed}"><span>${esc(v)}</span></div>`;});
+          Object.entries(r.q.options).forEach(([k,v])=>{let cls='opt';const rightK=answerKeyOf(r.q);if(S.revealed){if(k===rightK)cls+=' right';else if(k===S.sel)cls+=' wrong';}else if(k===S.sel)cls+=' sel';h+=`<div class="${cls}" data-k="${k}" role="button" tabindex="0" aria-pressed="${S.sel===k}" aria-disabled="${S.revealed}"><span>${quizInline(v)}</span></div>`;});
         }else h+=esc(text);
         h+='</div>';
       });
     }else{
       if(r.group.passage&&r.group.passage.length>10&&r.group.kind!=='listening_segment')h+=`<div class="passage">${esc(r.group.passage)}</div>`;
       const gate=!!window.__needListen;
-      if(!gate)h+=`<div class="qt">Q${r.q.no}. ${esc(r.q.stem)}</div>`;
+      if(!gate)h+=`<div class="qt">Q${r.q.no}. ${quizInline(r.q.stem)}</div>`;
       if(r.subj==='listening'){
         if(r.q.audio_caveat) h+=`<div class="caveat-strip">⚠ ${esc(r.q.audio_caveat)}</div>`;
         if(gate){
@@ -1406,7 +1476,7 @@ function renderQ(){
           h+=`<div class="listening-guide"><b>${response?'听一句话，选择最合适的回应':'听对话或讲座，回答问题'}</b><p>${response?'听清对方说的话，再从 A–D 选择你会怎样回应。选项不是录音的逐字稿，不需要与录音说同一句话。':'依据录音回答当前问题。相邻几道题可能共用同一段录音，请注意题号和录音范围。'}</p><p>选择后点“确认答案”，确认后不能回改，点「下一题」继续（与正式考试一致：手动前进、不可回看）。</p></div>`;
         }
       }
-      if(!gate)'ABCD'.split('').forEach(k=>{const v=r.q.options[k];if(v==null)return;let cls='opt';const rightK=answerKeyOf(r.q);if(S.revealed){if(k===rightK)cls+=' right';else if(k===S.sel)cls+=' wrong';}else if(k===S.sel)cls+=' sel';h+=`<div class="${cls}" data-k="${k}" role="button" tabindex="0" aria-pressed="${S.sel===k}" aria-disabled="${S.revealed}"><span class="ol">${k}</span><span>${esc(v)}</span></div>`;});
+      if(!gate)'ABCD'.split('').forEach(k=>{const v=r.q.options[k];if(v==null)return;let cls='opt';const rightK=answerKeyOf(r.q);if(S.revealed){if(k===rightK)cls+=' right';else if(k===S.sel)cls+=' wrong';}else if(k===S.sel)cls+=' sel';h+=`<div class="${cls}" data-k="${k}" role="button" tabindex="0" aria-pressed="${S.sel===k}" aria-disabled="${S.revealed}"><span class="ol">${k}</span><span>${quizInline(v)}</span></div>`;});
     }
   } else if(r.kind==='fill'){
     const g=r.group;
@@ -1628,17 +1698,16 @@ function groupRange(ix){
   return [min,max];
 }
 function simCanJump(ix){
-  if(!S.sim) return true;
-  const [cmin]=groupRange(S.i);
-  // 统一规则: 不能回看当前组之前的任何题(官方核心=不可回看);
-  // 向前自由——含跨科目前进(离开听力节去阅读是单向的官方节转换)。
-  return ix>=cmin;
+  if(!S.sim || S.review) return true;
+  if(ix===S.i)return true;
+  if(curRef().subj==='reading') {const [min,max]=groupRange(S.i);return ix>=min&&ix<=max+1;}
+  return ix===S.i+1;
 }
 function jumpToQuestion(ix){
   if(!S||!S.refs[ix])return;
   if(ix===S.i){$('d-body').scrollIntoView({block:'start'});return;}
   if(!simCanJump(ix)){
-    alert('正式考试规则：不能返回已经过的部分（听力逐题锁定；阅读进入下一篇后不可回看）。');
+    alert('本套训练规则：按顺序推进；阅读仅可回看当前题组，不能直接跳到后面的科目。');
     return;
   }
   saveQuestionDraft();
@@ -1680,6 +1749,7 @@ function renderQbar(){
 }
 /* 确认 / 判分 */
 function confirmQ(){
+  if(curRef().subj==='listening'&&curRef().kind==='choice'&&!curRef().q.audio&&!curRef().group.audio&&!S.review){alert('本题缺少对应听力录音，只能预览题面，暂不能提交为听力练习。');return;}
   const r=curRef();
   if(r.kind==='choice'){
     if(r.subj==='listening'&&!r.q.audio&&!r.group.audio){nextQ();return;}
@@ -1733,8 +1803,8 @@ function recordChoice(silent){
   if(r.gen){
     const m=REC.mistakes[r.q.qid];if(m){m.stem=r.gen.stem;recSave();}
     const glid=genLessonIdOf(r.q.qid);
-    $('d-fb').insertAdjacentHTML('beforeend','<div class="gq-in"><p>'+esc(r.gen.explain||'')+'</p>'+
-      Object.entries(r.gen.options).filter(([,o])=>typeof o==='object'&&o.note).map(([k,o])=>'<p>'+esc(k+' · '+o.note)+'</p>').join('')+
+    $('d-fb').insertAdjacentHTML('beforeend','<div class="gq-in"><p>'+quizInline(r.gen.explain||'')+'</p>'+
+      Object.entries(r.gen.options).filter(([,o])=>typeof o==='object'&&o.note).map(([k,o])=>'<p>'+quizInline(k+' · '+o.note)+'</p>').join('')+
       (glid?'<button class="gq-back" data-lesson="'+esc(glid)+'" title="跳到视频课这一节（视频 · 讲义 · 课稿）">回看本节<span class="ar">→</span></button>':'')+
       '</div>');
     if(glid){
@@ -1753,6 +1823,7 @@ function recordFill(){
     const v=S.fillVals[i]!=null?S.fillVals[i]:'';
     if(!q.answer){
       recAttempt({qid:q.qid,set:r.set,subj:r.subj,mk:r.mk,gkey:r.gkey}, null, v, secs/Math.max(1,g.parsed.length));
+      if(silent&&Array.isArray(S.simScore))S.simScore.push({qid:q.qid,subj:r.subj,ok:null});
       if(!silent) rows.push({label:'Q'+q.no, v:'素材缺官方答案，不作判分（已记录你的作答）', cls:'na'});
       return;
     }
@@ -1786,7 +1857,7 @@ function submitOpen(){
     setWritingDraft(r.it.qid,sentence,true);
     if(r.it.reference_verified&&r.it.reference_answer){
       const ok=sentenceNorm(sentence)===sentenceNorm(r.it.reference_answer);
-      recAttempt({qid:r.it.qid,set:r.set,subj:r.subj,mk:r.mk,gkey:'-'},ok,sentence,qUsedSec());
+      recAttempt({qid:r.it.qid,set:r.set,subj:r.subj,mk:r.mk,gkey:'-',verifiedSentence:true},ok,sentence,qUsedSec());
       if(simSilent){ if(Array.isArray(S.simScore))S.simScore.push({qid:r.it.qid,subj:r.subj,ok}); nextQ(); return; }
       S.answerSec=qUsedSec();S.revealed=true;
       renderFB([{label:'你的句子',v:sentence,cls:ok?'ok':'bad'},{label:'原资料参考',v:r.it.reference_answer,cls:'right'}],ok,'Q'+r.it.no,ok?'符合参考答案':'未匹配参考答案',r.it.qid);
@@ -1830,7 +1901,7 @@ function renderFB(rows, ok, noLabel, heading, aiQid){
         <span class="v mine ok">${esc(rows[0].v)}<i class="okmark">正确</i></span></div></div>`
     :`<div class="cmp2">${rows.map(x=>
       `<div class="r"><span class="k">${esc(x.label)}</span>
-        <span class="v ${x.cls==='right'?'right':(x.cls==='ok'?'mine ok':(x.cls==='na'?'':'mine bad'))}" ${x.cls==='na'?'style="color:var(--t2)"':''}>${esc(x.v)}</span></div>`).join('')}</div>`;
+        <span class="v ${x.cls==='right'?'right':(x.cls==='ok'?'mine ok':(x.cls==='na'?'':'mine bad'))}" ${x.cls==='na'?'style="color:var(--t2)"':''}>${quizInline(x.v)}</span></div>`).join('')}</div>`;
   $('d-fb').innerHTML=`<div class="fb ${ok?'ok':'bad'}">
     <div class="h"><span class="ic">${ok?'✓':'×'}</span>
       <span class="tt">${esc(heading||(ok?'答对':'答错'))}</span>
@@ -1846,7 +1917,7 @@ function renderFB(rows, ok, noLabel, heading, aiQid){
 }
 function nextQ(){
   if(NEXT_T){clearInterval(NEXT_T);NEXT_T=null;}
-  if(S.i<S.refs.length-1){ S.i++; S.sel=null; S.revealed=false; S.fillVals={}; S.slots={}; renderQ(); }
+  if(S.i<S.refs.length-1){ saveQuestionDraft();S.i++; S.sel=null; S.revealed=false; S.fillVals={}; S.slots={}; renderQ(); }
   else finishSession();
 }
 function finishSession(){
@@ -1869,6 +1940,8 @@ function finishSession(){
   if(S.sim&&Array.isArray(S.simScore)){
     // sim 结算: 整套交卷才出分。按 qid 去重(阅读组内可回跳改答案, 以最后一次为准), 按科目汇总。
     const last={}; S.simScore.forEach(x=>{last[x.qid]=x;});
+    const expected=S.refs.flatMap(r=>r.kind==='fill'?r.group.parsed.map(q=>q.qid):[r.q?.qid||r.it?.qid]);
+    const unanswered=expected.filter(k=>!last[k]).length;
     const per={}; let unjudged=0;
     Object.values(last).forEach(x=>{
       if(x.ok!==true&&x.ok!==false){unjudged++;return;}
@@ -1880,6 +1953,7 @@ function finishSession(){
     }).join('')||'<p class="qd">本套没有可判分的题（素材缺官方答案），作答已记录。</p>';
     $('d-fb').innerHTML=`<div class="fb ok"><div class="h"><span class="ic">✓</span><span class="tt">整套完成</span></div>
       <div class="sim-score">${rowsHtml}</div>
+      ${unanswered?`<p class="qd">本轮另有 ${unanswered} 题未作答；以上正确率仅针对已提交、可判分的题。</p>`:''}
       ${unjudged?`<p class="qd">另有 ${unjudged} 项无官方判分依据（写作/口语已记录，可对照参考复盘）。</p>`:''}
       <p class="qd">考试过程中不显示对错与解析（与正式考试一致）；错题已进错题本，按 1/3/7/14 节奏安排复习。</p>
       <div class="fb-ops"><button class="pri" id="sim-review">复盘本套 · 逐题看解析与精听</button></div></div>`;
@@ -1974,8 +2048,8 @@ $('d-next').onclick=()=>{
     abForceReset();renderQ(); return; }
   confirmQ();
 };
-$('d-prev').onclick=()=>{ if(!S||S.i<=0) return; if(!simCanJump(S.i-1)){alert('正式考试规则：进入下一篇文章后，不能返回前面的文章。');return;} S.i--; S.sel=null; S.revealed=false; S.fillVals={}; S.slots={}; renderQ(); };
-$('d-skip').onclick=()=>{ if(!S||S.i>=S.refs.length-1) return; S.i++; S.sel=null; S.revealed=false; S.fillVals={}; S.slots={}; renderQ(); };
+$('d-prev').onclick=()=>{ if(!S||S.i<=0) return; if(!simCanJump(S.i-1)){alert('正式考试规则：进入下一篇文章后，不能返回前面的文章。');return;} saveQuestionDraft();S.i--; S.sel=null; S.revealed=false; S.fillVals={}; S.slots={}; renderQ(); };
+$('d-skip').onclick=()=>{ if(!S||S.i>=S.refs.length-1) return; saveQuestionDraft();S.i++; S.sel=null; S.revealed=false; S.fillVals={}; S.slots={}; renderQ(); };
 // 重置本组: 清掉该组每道题的作答/用时/错题记录（草稿一并清），立即落盘
 $('d-reset').onclick=async function(){
   if(!S) return;
@@ -2046,13 +2120,14 @@ window.csVfull=function(){
   document.body.classList.toggle('vfull');
   const b=document.getElementById('cs-vfull');
   if(b) b.textContent=document.body.classList.contains('vfull')?'退出铺满':'铺满窗口';
+  gqStudyGate();
 };
 document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&document.body.classList.contains('vfull')) csVfull(); });
 /* 课后练键盘流(r31): A–D/1–4 作答, Enter/→ 下一题, ← 上一题; 仅做题相位+面板在场, 输入框聚焦与铺满态不响应;
    修饰键组合(Ctrl+A 全选等)不吞; 焦点在按钮上时 Enter/方向键交还原生 click(防双重触发) */
 document.addEventListener('keydown',e=>{
   if(document.body.classList.contains('vfull'))return;
-  if(GQ_UI.phase!=='quiz'||!document.getElementById('gq-body'))return;
+  if(!gqActive())return;
   if(e.ctrlKey||e.metaKey||e.altKey)return;
   if(e.target&&/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName||''))return;
   const qz=GQ_UI.quiz; if(!qz)return;
@@ -2081,25 +2156,37 @@ window.csDone=function(cid,ix){
   checkpointCourse();
   const turnedOn=!(p&&p.done);
   REC.course[l.id]={...REC.course[l.id],done:turnedOn,at:Date.now()};
-  recSave(); renderCourseNav(); renderCourseMain();
-  if(turnedOn) csNextLesson();   // 标记完成即进下一节; 取消看完不跳
+  recSave(); renderCourseNav(); csCompletionUI(turnedOn); // 留在本节，不重载播放器
 };
 /* ---------- 课后练（AI 按教材讲义生成, gen qid 判分入库; 2026-10-06 P1） ---------- */
-const GEN_COURSE = 'ndf-01';   // MVP: 词汇课先行(讲义文字层完整)
+let GQ_COMPLETION_REVISIONS={}, GQ_REVISIONS={};
+function gqCompleted(lid,ext=false){const r=REC.course['gq:'+lid];return !!(ext?r?.extDone:r?.done)&&(ext?r.extT||0:r.t||0)>=(GQ_COMPLETION_REVISIONS[lid]?.[ext?'ext':'core']||0);}
+const GEN_COURSE = 'ndf-01';   // AI 生成链路的课程; 课后练入口见 GEN_COURSES
+/* 已开通课后练的课程: ndf-01=AI 按课稿生成; cfcm-01=老师官方课后练习(导入件) */
+const GEN_COURSES = new Set(['ndf-01', 'cfcm-01']);
 const GQ_UI = { lessonId:null, phase:'idle', quiz:null, order:[], ix:0, answers:{}, wrong:[],
                 qAt:0, err:'', checked:false, busy:false, run:'core' };
 let GQ_REDO = null;   // 错题本「重做」带来的待重做队列 {lessonId, qids}
 /* 课后练做题期间计入学习时长(与 drill/视频同口径: 每秒累加, 切走标签页不记, 结算即停) */
 let GQ_TICK = null;
+function gqActive(){
+  const lesson=courseById(csSel.c)?.lessons[csSel.l],pane=$('cs-mat-practice');
+  return GQ_UI.phase==='quiz' && !!document.querySelector('#v-course.on') &&
+    !document.hidden && !document.body.classList.contains('vfull') &&
+    !!pane && pane.style.display!=='none' && !!document.getElementById('gq-body') &&
+    !!lesson && lesson.id===GQ_UI.lessonId;
+}
 function gqStudyGate() {
-  const on = GQ_UI.phase === 'quiz';
-  if (on && !GQ_TICK) GQ_TICK = setInterval(() => {
-    /* 面板已不在场(离页/切走)一律不记, 防计时器漏跑虚增时长 */
-    if (!document.hidden && GQ_UI.phase === 'quiz' && document.getElementById('gq-body')) {
-      studyTick(1); if ((REC.study.total || 0) % 5 === 0) recSave();
-    }
-  }, 1000);
-  else if (!on && GQ_TICK) { clearInterval(GQ_TICK); GQ_TICK = null; }
+  const on=gqActive(),st=GQ_UI,now=Date.now();
+  if(st.phase==='quiz'){
+    if(!on && !st.tabPausedAt)st.tabPausedAt=now;
+    if(on && st.tabPausedAt){st.qAt+=Math.max(0,now-st.tabPausedAt);st.tabPausedAt=0;}
+  }
+  if(on && !GQ_TICK)GQ_TICK=setInterval(()=>{
+    if(!gqActive()){gqStudyGate();return;}
+    if(!$('cs-video')||$('cs-video').paused){studyTick(1);if((REC.study.total||0)%5===0)recSave();}
+  },1000);
+  else if(!on && GQ_TICK){clearInterval(GQ_TICK);GQ_TICK=null;}
 }
 function gqQid(quiz, q) { return 'gen/' + quiz.course + '/' + quiz.lessonNo + '/quiz/' + Number(String(q.id).slice(1)); }
 function gqRef(quiz, q) { return { qid: gqQid(quiz, q), set: 'gen', subj: quiz.course, mk: String(quiz.lessonNo), gkey: 'quiz' }; }
@@ -2121,6 +2208,8 @@ function renderGenQuiz() {
   gqStudyGate();   // quiz 相位→计时开, 其余相位→停(切课/结算自动停)
   const st = GQ_UI, qz = st.quiz;
   $('gq-meta').textContent = qz ? (qz.questions.length - (qz.bad || []).length + ' 题') : '';
+  if(st.phase==='idle'&&st.loading){body.innerHTML='<div class="gq-in"><p class="gq-note" role="status">正在读取本节课后练…</p></div>';return;}
+  if(st.phase==='idle'&&st.err){body.innerHTML='<div class="gq-in"><p class="gq-note">'+esc(st.err)+'</p><button id="gq-retry">重试读取</button></div>';$('gq-retry').onclick=()=>{st.checked=false;st.err='';const c=courseById(csSel.c);wireGenQuiz(c,c.lessons[csSel.l]);};return;}
   if (st.phase === 'idle') {
     body.innerHTML = '<div class="gq-in"><p class="gq-note">按本节讲义内容出 8~12 道题（词根词缀 / 搭配辨析 / 词义与例句填空），错题自动进错题本。首次生成约需 10~30 秒，之后永久保存、可反复练习。</p>'
       + (st.err ? '<div class="na-box">' + esc(st.err) + '</div>' : '')
@@ -2137,8 +2226,10 @@ function renderGenQuiz() {
     const s = gqStats(qz, coreIds);
     const seStat = gqStats(qz, extIds);
     const extRec = REC.course['gq:' + st.lessonId];
-    const extDone = !!(extRec && extRec.extDone);
+    const extDone = extIds.length>0&&seStat.n===extIds.length;
     const fam = (qz.families || []).map(x => '<span title="' + esc(x.gloss || '') + '">' + esc(x.name) + '</span>').join('');
+    const official = qz.src === 'official';   // 老师官方课后练习: 固定题目, 无「重新生成」
+    const coreLabel = official ? '官方课后练习' : '课堂复习';
     body.innerHTML = '<div class="gq-in">'
       + (qz.scope ? '<p class="gq-scope">' + esc(qz.scope) + (qz.pages && qz.pages.length ? '（讲义第 ' + Math.min(...qz.pages) + '–' + Math.max(...qz.pages) + ' 页）' : '') + '</p>' : '')
       + (fam ? '<div class="gq-chips">' + fam + '</div>' : '')
@@ -2146,21 +2237,21 @@ function renderGenQuiz() {
         + ((qz.inventory.words || []).length + (qz.inventory.affixes || []).length + (qz.inventory.roots || []).length)
         + ' 项（词/词缀/词根分列）</summary><div class="ws">' + gqInvChips(qz) + '</div></details>' : '')
       + (st.err ? '<div class="na-box">' + esc(st.err) + '</div>' : '')
-      + (coreIds.length ? '<div class="gq-row"><b>课堂复习 · ' + coreIds.length + ' 题</b>'
-        + '<span class="gq-stat">' + (s.n ? ('已练 ' + s.right + '/' + s.n + ' 正确') : '未做过') + (s.lastT ? ' · 最近 ' + new Date(s.lastT).toLocaleDateString() : '') + '</span>'
+      + (coreIds.length ? '<div class="gq-row"><b>' + coreLabel + ' · ' + coreIds.length + ' 题</b>'
+        + '<span class="gq-stat">' + (s.n ? ('已练 ' + s.n + '/' + coreIds.length + ' · 正确 ' + s.right + '/' + s.n) : '未做过') + (s.lastT ? ' · 最近 ' + new Date(s.lastT).toLocaleDateString() : '') + '</span>'
         + '<span class="grow"></span>'
-        + '<button class="gq-ghost" id="gq-regen">重新生成</button>'
-        + '<button class="pri" id="gq-start">开始复习 →</button></div>' : '')
+        + (official ? '' : '<button class="gq-ghost" id="gq-regen">重新生成</button>')
+        + '<button class="pri" id="gq-start">'+(s.n&&s.n<coreIds.length?'继续未练 '+(coreIds.length-s.n)+' 题':s.n?'再练本节':official?'开始练习':'开始复习')+' →</button>'+(s.n&&s.n<coreIds.length?'<button id="gq-all">从头重练</button>':'')+'</div>' : '')
       + (extIds.length ? '<div class="gq-row' + (coreIds.length ? ' gq-row-ext' : '') + '"><b>扩展挑战 · ' + extIds.length + ' 题</b>'
         + (extDone ? '<span class="gq-tag">已练</span>' : '')
-        + '<span class="gq-stat">' + (seStat.n ? ('已练 ' + seStat.right + '/' + seStat.n + ' 正确') : '未做过') + (seStat.lastT ? ' · 最近 ' + new Date(seStat.lastT).toLocaleDateString() : '') + '</span>'
+        + '<span class="gq-stat">' + (seStat.n ? ('已练 ' + seStat.n + '/' + extIds.length + ' · 正确 ' + seStat.right + '/' + seStat.n) : '未做过') + (seStat.lastT ? ' · 最近 ' + new Date(seStat.lastT).toLocaleDateString() : '') + '</span>'
         + '<span class="grow"></span>'
         + '<button class="' + (coreIds.length ? 'gq-ghost' : 'pri') + '" id="gq-start-ext">' + (extDone ? '再练扩展 →' : (coreIds.length ? '做扩展 →' : '开始练习 →')) + '</button></div>' : '')
       + '</div>';
-    if (coreIds.length) $('gq-start').onclick = () => gqStart(coreIds, 'core');
+    if(coreIds.length){$('gq-start').onclick=()=>{const rest=gqRemaining(qz,coreIds);gqStart(rest.length?rest:coreIds,'core');};const all=$('gq-all');if(all)all.onclick=()=>gqStart(coreIds,'core');}
     const se = $('gq-start-ext');
-    if (se) se.onclick = () => gqStart(extIds, 'ext');
-    $('gq-regen').onclick = async () => {
+    if(se)se.onclick=()=>{const rest=gqRemaining(qz,extIds);gqStart(rest.length?rest:extIds,'ext');};
+    if($('gq-regen'))$('gq-regen').onclick = async () => {
       if (!confirm('重新生成会替换本节现有题目（作答记录保留），继续？')) return;
       gqGenerate(true);
     };
@@ -2170,10 +2261,10 @@ function renderGenQuiz() {
     const tag = done && (q.tags || []).length ? '<span class="gq-tag">' + esc(q.tags.join(' · ')) + '</span>' : '';
     body.innerHTML = '<div class="gq-in">'
       + '<div class="gq-prog">' + (st.run === 'ext' ? '扩展 · ' : '') + '第 ' + (st.ix + 1) + ' / ' + st.order.length + ' 题' + tag + '</div>'
-      + '<div class="gq-stem">' + esc(q.stem) + '</div>'
+      + '<div class="gq-stem">' + quizInline(q.stem) + '</div>'
       + '<div class="gq-opts">' + Object.entries(q.options).map(([k, v]) =>
-          '<div class="opt gq-opt' + (done ? (k === q.answer ? ' right' : (done.letter === k ? ' wrong' : '')) : '') + '" data-k="' + k + '"><span class="ol">' + k + '</span>' + esc(typeof v === 'object' ? (v.t || '') : v) + '</div>').join('') + '</div>'
-      + '<div id="gq-fb"></div><div class="gq-nav" id="gq-nav"></div></div>';
+          '<div class="opt gq-opt' + (done ? (k === q.answer ? ' right' : (done.letter === k ? ' wrong' : '')) : '') + '" data-k="' + k + '"><span class="ol">' + k + '</span><span class="gq-option-text">' + quizInline(typeof v === 'object' ? (v.t || '') : v) + '</span></div>').join('') + '</div>'
+      + (!done ? '<label class="gq-note" style="display:block;padding:12px 0"><input type="checkbox" id="gq-unsure"> 不太确定／靠排除选的</label>' : '') + '<div id="gq-fb"></div><div class="gq-nav" id="gq-nav"></div></div>';
     gqPaintNav(q, done);
     if (!done) {
       body.querySelectorAll('.gq-opt').forEach(el => {
@@ -2185,17 +2276,24 @@ function renderGenQuiz() {
   } else if (st.phase === 'result') {
     const right = st.order.filter(id => st.answers[id] && st.answers[id].ok).length;
     const wrongIds = st.order.filter(id => st.answers[id] && !st.answers[id].ok);
+    const otherRun=st.run==='ext'?'core':'ext';
+    const otherIds=gqTierIds(qz,otherRun);
+    const otherRemaining=gqRemaining(qz,otherIds);
+    const otherLabel=otherRun==='ext'?'扩展题':'普通题';
     body.innerHTML = '<div class="gq-in">'
       + '<div class="gq-sum"><b>' + right + ' / ' + st.order.length + '</b> 正确'
       + (st.run === 'ext' ? ' · 扩展挑战' : '')
       + (wrongIds.length ? '' : ' · 全对，漂亮') + '</div>'
       + (wrongIds.length ? '<div class="gq-wronglist"><div class="k">错题（已自动进错题本，1 天后复习）</div>'
           + wrongIds.map(id => { const q = qz.questions.find(x => x.id === id); return '<div class="w">· ' + esc(String(q.stem).slice(0, 60)) + '</div>'; }).join('') + '</div>' : '')
-      + '<div class="gq-row"><span class="grow"></span>'
+      + '<div class="gq-row"><button id="gq-overview">返回练习总览</button><span class="grow"></span>'
+      + (otherIds.length?'<button id="gq-switch-tier">'+(otherRemaining.length?'继续做':'重练')+otherLabel+' →</button>':'')
       + (wrongIds.length ? '<button id="gq-redo">重做错题 →</button>' : '')
       + '<button class="pri" id="gq-again">' + (st.run === 'ext' ? '再练扩展' : '再练一遍') + '</button></div>'
       + (qz.inventory ? '<details class="gq-inv" open><summary>本节词表过一遍 · 深绿=已被题目覆盖，描边=靠这张表记住</summary>'
         + '<div class="ws">' + gqInvChips(qz) + '</div></details>' : '') + '</div>';
+    $('gq-overview').onclick=gqOverview;
+    if($('gq-switch-tier'))$('gq-switch-tier').onclick=()=>gqStartTier(otherRun);
     if (wrongIds.length) $('gq-redo').onclick = () => gqStart(wrongIds.slice(), st.run);
     $('gq-again').onclick = () => gqStart(st.order.slice(), st.run);   // 再练同一组(课堂/扩展各回各的)
   }
@@ -2215,6 +2313,19 @@ function gqInvChips(qz) {
   };
   return mk('词', inv.words, 'w') + mk('词缀', inv.affixes, 'a') + mk('词根', inv.roots, 'r');
 }
+function gqAttemptAcknowledged(item,j){
+ if(!item.unsure||!GQ_UI.quiz)return;const q=GQ_UI.quiz.questions.find(q=>gqQid(GQ_UI.quiz,q)===item.ref.qid),done=q&&GQ_UI.answers[q.id];if(!done||done.eventId!==item.id)return;
+ done.confidencePending=false;done.needsReview=j.attentionSaved===true;done.confidenceUnavailable=!done.needsReview;
+ if(gqActive()&&GQ_UI.order[GQ_UI.ix]===q.id)gqPaintAnswered(q,done);
+}
+async function gqAttention(q,done,active){
+ if(done.confidencePending)return;
+ const qid=gqQid(GQ_UI.quiz,q),button=$('gq-attention'),status=$('gq-attention-status');if(button)button.disabled=true;
+ try{const sort=x=>Array.isArray(x)?x.map(sort):x&&typeof x==='object'?Object.fromEntries(Object.keys(x).sort().map(k=>[k,sort(x[k])])):x;
+ const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(sort(q))));const signature=Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,'0')).join('');
+ const r=await fetch('/api/review-hub/attention',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({qid,signature,active}),signal:AbortSignal.timeout(15000)});const j=await r.json();if(!r.ok)throw Error(j.error||'保存失败');done.needsReview=active;if(button?.isConnected)button.textContent=active?'已加入巩固 · 取消标记':'这处还没掌握，加入复习';if(status?.isConnected)status.textContent=active?'会混入课程复习，保留实际对错，不新增每日任务。':'已取消标记。';
+ }catch(e){if(status?.isConnected)status.textContent='标记未保存：'+e.message+'，可点击重试。';}finally{if(button?.isConnected)button.disabled=false;}
+}
 function gqPaintAnswered(q, done) {
   const fb = $('gq-fb');
   let kp = '';
@@ -2222,11 +2333,12 @@ function gqPaintAnswered(q, done) {
   if (firstOpt && typeof firstOpt === 'object') {   // V2: 每个选项都带知识点(含义/为何对错)
     kp = '<div class="gq-kp"><div class="k">选项知识点</div>'
       + Object.entries(q.options).map(([k, o]) =>
-        '<div class="o' + (k === q.answer ? ' right' : (done.letter === k ? ' mine' : '')) + '"><b>' + k + '</b> ' + esc(o.t || '')
-        + (o.note ? '<span> — ' + esc(o.note) + '</span>' : '') + '</div>').join('') + '</div>';
+        '<div class="o' + (k === q.answer ? ' right' : (done.letter === k ? ' mine' : '')) + '"><b>' + k + '</b> ' + quizInline(o.t || '')
+        + (o.note ? '<span> — ' + quizInline(o.note) + '</span>' : '') + '</div>').join('') + '</div>';
   }
   if (fb) {
-    fb.innerHTML = '<div class="gq-fb ' + (done.ok ? 'ok' : 'bad') + '"><b>' + (done.ok ? '答对了' : '答错了 · 正确答案 ' + esc(q.answer)) + '</b><span class="gq-fb-x"> ' + esc(q.explain) + '</span></div>' + kp;
+    fb.innerHTML = '<div class="gq-fb ' + (done.ok ? 'ok' : 'bad') + '"><b>' + (done.ok ? '答对了' : '答错了 · 正确答案 ' + esc(q.answer)) + '</b><span class="gq-fb-x"> ' + quizInline(q.explain) + '</span></div>' + kp + '<div style="padding:12px 0"><button id="gq-attention"'+(done.confidencePending?' disabled':'')+'>'+ (done.confidencePending?'不确定标记随答案保存中…':done.needsReview?'已加入巩固 · 取消标记':'这处还没掌握，加入复习')+'</button><p class="gq-note" id="gq-attention-status">'+(done.confidencePending?'答案与不确定标记已进入补传队列，联网后会自动保存。':done.confidenceUnavailable?'不确定已记录；此题暂不在可调度的复习范围。':done.unsure?'你标记了不确定；实际对错保留。':'')+'</p></div>';
+    $('gq-attention').onclick=()=>gqAttention(q,done,!done.needsReview);
     fb.scrollIntoView({ behavior: 'smooth', block: 'nearest' });   // 判分结果送到眼前, 粘底条保持按钮可见
   }
 }
@@ -2240,19 +2352,24 @@ function gqPaintNav(q, done) {
     + '<span class="pc">' + (st.ix + 1) + ' / ' + st.order.length + '</span>'
     + '<span class="grow"></span>'
     + (st.ix > 0 ? '<button class="gq-ghost" id="gq-prev">← 上一题</button>' : '')
+    + '<button class="gq-ghost" id="gq-overview">返回总览</button>'
     + '<button class="gq-ghost" id="gq-bad">这题有问题</button>'
     + '<button class="pri" id="gq-next"' + (done ? '' : ' disabled') + '>' + (done ? (last ? '看结果 →' : '下一题 →') : '点击选项或按 A–D 作答') + '</button>';
   $('gq-next').onclick = gqNext;
+  $('gq-overview').onclick=gqOverview;
   const prevBtn = $('gq-prev');
   if (prevBtn) prevBtn.onclick = gqPrev;
   const badBtn = $('gq-bad');
   if (badBtn) badBtn.onclick = () => { if (confirm('标记为坏题？这题会从练习中隐藏。')) gqMarkBad(q.id); };
 }
 function gqScrollToCard() {
+  const pane=$('cs-mat-practice'),stick=document.querySelector('.csmain .cs-stick');
+  if(pane&&stick&&getComputedStyle(stick).display==='grid'){pane.scrollTop=0;return;}
   const c = document.querySelector('.gq-card');
   if (c) c.scrollIntoView({ block: 'start' });   // 换题后新题干固定从视口顶开始, 消灭"往上拉"
 }
 function gqPrev() {
+  if(!gqActive())return;
   const st = GQ_UI;
   if (st.ix <= 0) return;
   st.ix--; renderGenQuiz(); gqScrollToCard();   // 回看的题带完整判分+解析(done 相位渲染)
@@ -2279,30 +2396,50 @@ async function gqGenerate(force) {
     if ($('gq-body')) renderGenQuiz();
   }
 }
+function gqTierIds(qz,run){
+  return (qz?.questions||[]).filter(q=>!(qz.bad||[]).includes(q.id)&&(run==='ext'?q.tier==='ext':q.tier!=='ext')).map(q=>q.id);
+}
+function gqOverview(){
+  if(!GQ_UI.quiz)return;
+  GQ_UI.phase='ready';
+  renderGenQuiz();gqScrollToCard();
+}
+function gqStartTier(run){
+  const ids=gqTierIds(GQ_UI.quiz,run);
+  if(!ids.length){gqOverview();return;}
+  const remaining=gqRemaining(GQ_UI.quiz,ids);
+  gqStart(remaining.length?remaining:ids,run);
+}
 function gqStart(ids, run) {
+  if($('cs-mat-practice'))csSelectTab('practice');
   const st = GQ_UI;
+  if(!ids.length){gqOverview();return;}
   st.order = ids.slice(); st.ix = 0; st.answers = {}; st.wrong = []; st.run = run || 'core';
-  st.phase = 'quiz'; st.qAt = Date.now();
+  st.phase = 'quiz';st.tabPausedAt=0;st.qAt=Date.now();
   renderGenQuiz();
   gqScrollToCard();
 }
 function gqPick(q, letter) {
+  if(!gqActive())return;
+  gqStudyGate();
   const st = GQ_UI, qz = st.quiz;
   if (st.answers[q.id]) return;   // 已作答, 防重复判分
   const ok = letter === q.answer;
-  const secs = (Date.now() - st.qAt) / 1000;
+  const secs = Math.max(0,(Date.now() - st.qAt) / 1000);
   const ref = gqRef(qz, q);
-  recAttempt(ref, ok, letter, secs);
+  const unsure=$('gq-unsure')?.checked===true;const attempt=recAttempt(ref, ok, letter, secs,{unsure});
   if (REC.mistakes[ref.qid]) REC.mistakes[ref.qid].stem = q.stem;   // 错题本可显示的题干快照(P2 用)
   if (!ok && !st.wrong.includes(q.id)) st.wrong.push(q.id);
-  st.answers[q.id] = { letter, ok };
+  st.answers[q.id] = { letter, ok, unsure, eventId:attempt.id, confidencePending:unsure };
+  if($('gq-unsure'))$('gq-unsure').disabled=true;
   document.querySelectorAll('#gq-body .gq-opt').forEach(el => {
     el.onclick = null;
     if (el.dataset.k === q.answer) el.classList.add('right');
     else if (el.dataset.k === letter) el.classList.add('wrong');
   });
-  gqPaintAnswered(q, { letter, ok });
-  gqPaintNav(q, { letter, ok });   // 解锁下一题 + 挂上坏题标记
+  gqPaintAnswered(q, st.answers[q.id]);
+  gqPaintNav(q, st.answers[q.id]);
+  // The original answer queue persists the confidence marker in the same transaction.   // 解锁下一题 + 挂上坏题标记
 }
 function gqMarkBad(qid) {
   const st = GQ_UI, qz = st.quiz;
@@ -2318,6 +2455,7 @@ function gqMarkBad(qid) {
   renderGenQuiz();
 }
 function gqNext() {
+  if(!gqActive())return;
   const st = GQ_UI;
   if (st.ix + 1 >= st.order.length) {
     gqMarkPracticed();   // 全部做完: 列表绿句点(r33)
@@ -2330,13 +2468,16 @@ function gqNext() {
 /* 课后练完成标记: 存 REC.course['gq:<lessonId>'], 列表绿句点; 视频看完=course[l.id].done */
 function gqMarkPracticed() {
   const st = GQ_UI;
-  if (!st.lessonId) return;
+  if (!st.lessonId || !st.quiz) return;
+  const live = st.quiz.questions.filter(q => !(st.quiz.bad || []).includes(q.id) && (st.run === 'ext' ? q.tier === 'ext' : q.tier !== 'ext'));
+  // Redoing a subset must not certify an otherwise unfinished lesson.
+  if (!live.length || gqStats(st.quiz, live.map(q => q.id)).n !== live.length) return;
   const k = 'gq:' + st.lessonId;
   const rec = REC.course[k] = REC.course[k] || {};
   if (st.run === 'ext') {
     // 扩展挑战独立记录(r57): 不点亮课节绿句点(那是"课堂复习完成"的语义), 面板内显示「已练」
-    if (!rec.extDone) { rec.extDone = 1; rec.extT = Date.now(); recSave(); gqRefreshList(); }
-  } else if (!rec.done) {
+    if (!gqCompleted(st.lessonId,true)) { rec.extDone = 1; rec.extT = Date.now(); recSave(); gqRefreshList(); }
+  } else if (!gqCompleted(st.lessonId)) {
     rec.done = 1; rec.t = Date.now(); recSave();
     gqRefreshList();   // 当屏看到句点亮起
   }
@@ -2346,12 +2487,27 @@ function gqRefreshList() {
 }
 function gqBackfillPracticed(lessonId, qz) {
   const k = 'gq:' + lessonId;
-  if (REC.course[k] && REC.course[k].done) return;
+  const cutoff=Math.max(0,...qz.questions.filter(q=>!(qz.bad||[]).includes(q.id)&&q.tier!=='ext').map(q=>q.revisionAt||0));
   const live = qz.questions.filter(q => !(qz.bad || []).includes(q.id) && q.tier !== 'ext');   // 课堂复习做完即算
   const all = live.length > 0 && live.every(q => { const a = REC.attempts[gqQid(qz, q)]; return a && a.history && a.history.some(h => !q.revisionAt || (h.t || 0) >= q.revisionAt); });
-  if (all) { REC.course[k] = { done: 1, t: Date.now() }; recSave(); gqRefreshList(); }
+  if (all && (!REC.course[k]?.done || (REC.course[k].t||0)<cutoff)) { REC.course[k] = { ...(REC.course[k]||{}), done: 1, t: Date.now() }; recSave(); gqRefreshList(); }
+  else if (!all && REC.course[k]?.done) { REC.course[k].done = 0; recSave(); gqRefreshList(); }
 }
 /* ---------- 课稿(逐字稿校对版) tab ---------- */
+// Quiz text permits inline emphasis/code only; all input is escaped before HTML insertion.
+// Match within words too: de**scribe** must preserve the highlighted root.
+function quizInline(value) {
+  const text = String(value == null ? '' : value);
+  const tokens = /\*\*([^*\n]+)\*\*|`([^`\n]+)`/g;
+  let html = '', at = 0, match;
+  while ((match = tokens.exec(text))) {
+    html += esc(text.slice(at, match.index));
+    html += match[1] !== undefined ? '<strong>' + esc(match[1]) + '</strong>' : '<code>' + esc(match[2]) + '</code>';
+    at = tokens.lastIndex;
+  }
+  return (html + esc(text.slice(at))).replace(/\r?\n/g, '<br>');
+}
+
 function mdRender(md) {
   const lines = esc(md).split(/\n/);
   let h = '', inUl = false;
@@ -2374,28 +2530,52 @@ function wireScriptTab(c, l) {
   $('cs-mat-handout').style.display = ''; $('cs-mat-script').style.display = 'none';
   document.querySelectorAll('.htabs button').forEach(x => x.classList.toggle('on', x.dataset.h === 'handout'));
   gqBindTabs();
-  if (c.id !== GEN_COURSE) return;
+  if (c.id !== GEN_COURSE) return;   /* 课稿=AI 生成链路(ndf-01)独有; 官方练习课程无逐字稿 */
   SCRIPT_MD = null; SCRIPT_LESSON = null;
   api('/api/lesson-script/' + encodeURIComponent(l.id)).then(r => {
-    if (!r.md || SCRIPT_LESSON === l.id) return;
+    if(!btn.isConnected||!r.md||SCRIPT_LESSON===l.id)return;
     SCRIPT_MD = r.md; SCRIPT_LESSON = l.id;
-    btn.style.display = ''; $('cs-script-body').innerHTML = mdRender(r.md);
+    btn.style.display='';$('cs-script-body').innerHTML=mdRender(r.md);if(REC.course[l.id]?.tab==='script')csSelectTab('script');
   }).catch(() => {});
 }
-function gqBindTabs() {   // tab 按钮随每节课重渲染, 绑定必须在每次渲染后执行(顶层一次性绑定绑不到新按钮)
-  document.querySelectorAll('.htabs button').forEach(b => {
-    b.onclick = () => {
-      document.querySelectorAll('.htabs button').forEach(x => x.classList.toggle('on', x === b));
-      const script = b.dataset.h === 'script';
-      $('cs-mat-handout').style.display = script ? 'none' : '';
-      $('cs-mat-script').style.display = script ? '' : 'none';
-      $('cs-mat-r').style.display = script ? 'none' : '';
-    };
+function csSelectTab(name){
+  document.querySelectorAll('.htabs button').forEach(b=>{const on=b.dataset.h===name;b.classList.toggle('on',on);b.setAttribute('aria-selected',String(on));});
+  for(const key of ['handout','script','practice','notes']){const pane=$('cs-mat-'+key);if(pane)pane.style.display=key===name?'':'none';}
+  $('cs-mat-r').style.display=name==='handout'?'':'none';
+  $('cs-mat-t').textContent={handout:'本节讲义',script:'本节课稿',practice:'本节练习',notes:'本节笔记'}[name];
+  const l=courseById(csSel.c)?.lessons[csSel.l];
+  if(l&&REC.course[l.id]?.tab!==name){REC.course[l.id]={...REC.course[l.id],tab:name,at:Date.now()};recSave();}
+  gqStudyGate();
+}
+function gqBindTabs(){
+  document.querySelectorAll('.htabs button').forEach(b=>{b.setAttribute('aria-controls','cs-mat-'+b.dataset.h);b.onclick=()=>csSelectTab(b.dataset.h);
+    b.onkeydown=e=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;const tabs=[...document.querySelectorAll('.htabs button')].filter(x=>x.style.display!=='none');const ix=tabs.indexOf(b),target=e.key==='Home'?0:e.key==='End'?tabs.length-1:(ix+(e.key==='ArrowRight'?1:-1)+tabs.length)%tabs.length;e.preventDefault();tabs[target].focus();csSelectTab(tabs[target].dataset.h);};
   });
 }
+function csToggleOutline(){const box=$('cs-layout'),btn=$('cs-outline-toggle');const on=box.classList.toggle('outline-open');btn.setAttribute('aria-expanded',String(on));if(on)requestAnimationFrame(()=>renderCourseNav());}
+function csCompletionUI(done){
+  const count=$('cs-ct');if(count){const total=(COURSES?.series||[]).reduce((n,s)=>n+(s.courses||[]).reduce((k,c)=>k+(c.lessons||[]).length,0),0);count.textContent=courseWatchedCount()+' / '+total+' 节';}
+  const st=$('cs-status');if(st){const pill=st.querySelector('.pill');if(pill){pill.className='pill '+(done?'q':'t');pill.textContent=done?'已看完':'未看完';}const b=$('cs-done-btn');if(b)b.textContent=done?'取消看完':'标记看完';}
+  const end=$('cs-complete');if(end)end.style.display=done?'':'none';
+}
+function csBookmarks(l){
+  const box=$('cs-bookmarks');if(!box)return;
+  const entries=Object.entries(REC.course[l.id]?.bookmarks||{}).filter(([,b])=>b&&!b.deleted).sort((a,b)=>a[1].pos-b[1].pos);
+  box.innerHTML=entries.length?entries.map(([id,b])=>`<div class="cs-bookmark"><button data-seek="${esc(id)}">${fmt(b.pos)} · ${esc(b.text||'时间书签')}</button><button class="cs-bookmark-delete" data-delete="${esc(id)}" aria-label="删除 ${esc(b.text||'时间书签')}">删除</button></div>`).join(''):'<p class="gq-note">遇到值得回看的地方，记下当前时间和一句笔记。</p>';
+  box.querySelectorAll('[data-seek]').forEach(b=>b.onclick=()=>{const mark=REC.course[l.id]?.bookmarks?.[b.dataset.seek],v=$('cs-video');if(mark&&v&&Number.isFinite(v.duration))v.currentTime=Math.min(mark.pos,v.duration);});
+  box.querySelectorAll('[data-delete]').forEach(b=>b.onclick=()=>{const id=b.dataset.delete,record=REC.course[l.id]||{};REC.course[l.id]={...record,bookmarks:{...record.bookmarks,[id]:{...record.bookmarks[id],deleted:true,at:Date.now()}}};recSave();csBookmarks(l);});
+}
+function csSaveBookmark(l){
+  const v=$('cs-video'),input=$('cs-note');if(!v||v.readyState<1){$('cs-note-status').textContent='视频还未加载，请稍后再记时间。';return;}
+  const text=input.value.trim().slice(0,2000),record=REC.course[l.id]||{},id=crypto.randomUUID();
+  if(Object.values(record.bookmarks||{}).some(b=>!b.deleted&&b.pos===v.currentTime&&b.text===text)){ $('cs-note-status').textContent='这一条已记下。';return;}
+  REC.course[l.id]={...record,bookmarks:{...record.bookmarks,[id]:{pos:v.currentTime,text,at:Date.now()}},at:Date.now()};
+  recSave();csBookmarks(l);$('cs-note-status').textContent='已加入笔记；同步状态见页面保存提示。';
+}
+function gqRemaining(quiz,ids){return ids.filter(id=>gqStats(quiz,[id]).n===0);}
 
 async function wireGenQuiz(c, l) {
-  if (c.id !== GEN_COURSE) { if (GQ_TICK) { clearInterval(GQ_TICK); GQ_TICK = null; } return; }   /* 非词汇课: 面板不渲染, 计时必须先停 */
+  if (!GEN_COURSES.has(c.id)) { if (GQ_TICK) { clearInterval(GQ_TICK); GQ_TICK = null; } return; }   /* 非课后练课程: 面板不渲染, 计时必须先停 */
   const body = $('gq-body'); if (!body) return;
   if (GQ_UI.lessonId !== l.id) {
     Object.assign(GQ_UI, { lessonId: l.id, phase: 'idle', quiz: null, order: [], ix: 0,
@@ -2404,17 +2584,19 @@ async function wireGenQuiz(c, l) {
   renderGenQuiz();
   const st = GQ_UI;
   if (st.phase !== 'idle' || st.checked || st.busy) return;
-  st.checked = true;   // 本节只查一次生成状态
+  st.checked=true;st.loading=true;renderGenQuiz(); // 查询失败提供读取重试，不诱导重新生成
   try {
     const have = await api('/api/ai/quiz');
-    if (!have.lessons.includes(l.id)) { if (body.isConnected && st.lessonId === l.id) renderGenQuiz(); return; }
+    GQ_COMPLETION_REVISIONS=have.completionRevisions||{};GQ_REVISIONS=have.revisions||{};
+    if(!have.lessons.includes(l.id)){st.loading=false;if($('gq-body')?.isConnected&&st.lessonId===l.id)renderGenQuiz();return;}
     const r = await api('/api/ai/quiz', { method: 'POST',
       headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lessonId: l.id }) });
-    if (body.isConnected && st.lessonId === l.id && st.phase === 'idle') {
+    if ($('gq-body')?.isConnected && st.lessonId === l.id && st.phase === 'idle') {
       st.quiz = r.quiz; st.phase = 'ready'; renderGenQuiz();
       gqBackfillPracticed(l.id, r.quiz);   // 改造前已做完的课: 打开即补绿句点
     }
-  } catch (e) { /* 查询失败保持 idle, 按钮仍可手动生成 */ }
+  } catch(e){if(st.lessonId===l.id)st.err='本节课后练暂时读取失败，已有练习记录保留。请重试。';}
+  finally{if(st.lessonId===l.id){st.loading=false;if(st.phase==='idle')renderGenQuiz();}}
   gqConsumeRedo(l.id);
 }
 /* 错题本「重做」→ 课程页面板进入错题模式(只做错的题) */
@@ -2438,9 +2620,12 @@ function gqConsumeRedo(lessonId) {
   }, 80);
 }
 
+function courseWatchedCount(){
+  return (COURSES?.series||[]).reduce((n,s)=>n+(s.courses||[]).reduce((k,c)=>k+(c.lessons||[]).filter(l=>REC.course[l.id]?.done).length,0),0);
+}
 function renderCourse(){
   const t=((COURSES&&COURSES.series)||[]).reduce((a,s)=>a+(s.courses||[]).reduce((b,c)=>b+(c.lesson_count||0),0),0);
-  const d=Object.values(REC.course||{}).filter(x=>x.done).length;
+  const d=courseWatchedCount();
   $('cs-ct').textContent=d+' / '+t+' 节';
   if(csSel.c==null){
     // 继续上次: 优先跳到最近观看的课节 (含未看完的), 没有记录才选第一个未看完的(新东方系列优先)
@@ -2495,7 +2680,7 @@ function renderCourseNav(){
       +'<span class="pn '+(cd===tot&&tot?'full':'')+'">'+cd+'/'+tot+'</span></div></div>';
     c.lessons.forEach((l,li)=>{
       const done=REC.course[l.id]&&REC.course[l.id].done;
-      const qd=c.id===GEN_COURSE&&REC.course['gq:'+l.id]&&REC.course['gq:'+l.id].done;
+      const qd=GEN_COURSES.has(c.id)&&gqCompleted(l.id);
       const on=(csSel.c===c.id&&csSel.l===li);
       const st= done&&qd ? checkSvg+'<i class="q"></i>'
               : done    ? checkSvg
@@ -2522,9 +2707,22 @@ function renderCourseNav(){
     }
   }
 }
+// 物理页码、明确终点及跨册范围；同页小节可共用边界页，不再按下一课推猜。
+function selectLessonHandoutPages(notes,hm){
+  const all=notes.flatMap(n=>(n.pages||[]).map(pg=>({...pg,note_id:n.id,source_file:(n.source_file||n.id).split('/').pop()}))).filter(pg=>pg.image||pg.text&&pg.text.trim());
+  if(!hm||hm.status==='not_located'||!hm.page)return {pages:all,scopeNote:'',mapped:false};
+  const ranges=hm.segments||[{nid:hm.nid,page:hm.page,end_page:hm.end_page}];
+  if(!ranges.length||ranges.some(r=>!Number.isInteger(r.page)||!Number.isInteger(r.end_page)||r.page<1||r.end_page<r.page||!notes.some(n=>n.id===r.nid&&(n.pages||[]).some(p=>p.page===r.page)&&(n.pages||[]).some(p=>p.page===r.end_page))))return {pages:all,scopeNote:'',mapped:false,invalid:true};
+  const pages=ranges.flatMap(r=>all.filter(p=>p.note_id===r.nid&&p.page>=r.page&&p.page<=r.end_page));
+  if(!pages.length&&!notes.some(n=>n.slide_images))return {pages:all,scopeNote:'',mapped:false,invalid:true};
+  const scopeNote=' · '+ranges.map(r=>((notes.find(n=>n.id===r.nid)||{}).source_file||r.nid).split('/').pop()+' 第 '+r.page+'–'+r.end_page+' 页').join('；');
+  return {pages,scopeNote,mapped:true};
+}
+
 function renderCourseMain(){
   checkpointCourse(true);currentVideoCheckpoint=null;
   const el=$('cs-main');
+  $('cs-layout').classList.remove('outline-open');$('cs-outline-toggle').setAttribute('aria-expanded','false');
   const c=courseById(csSel.c);
   if(!c||!c.lessons.length){ el.innerHTML='<div class="card" style="padding:32px;text-align:center">从左侧选一节开始</div>'; return; }
   const l=c.lessons[Math.max(0,Math.min(csSel.l==null?0:csSel.l,c.lessons.length-1))];
@@ -2537,26 +2735,30 @@ function renderCourseMain(){
       ${cur&&cur.notes_verified?'<span class="chip a">讲义已核读</span>':''}</div>
     <div class="cs-stage">
       <video class="tfl" id="cs-video" controls preload="metadata" src="${esc(l.video)}"></video>
-      <div class="cs-status"><span class="pill ${p.done?'q':'t'}">${p.done?'已看完':'未看完'}</span>
-        ${(!p.done&&p.pos>10)?`<span class="pill">上次看到 ${fmt(p.pos)} · 已自动定位</span>`:''}
+      <div class="cs-status" id="cs-status"><span class="pill ${p.done?'q':'t'}">${p.done?'已看完':'未看完'}</span>
+        ${(!p.done&&p.pos>10)?`<span class="pill" id="cs-resume">上次看到 ${fmt(p.pos)}</span>`:''}
         <span class="grow"></span>
+        <label class="cs-speed">速度 <select id="cs-speed" aria-label="播放速度">${[0.75,1,1.25,1.5,1.75,2,2.5].map(n=>`<option value="${n}">${n}×</option>`).join('')}</select></label>
         <button id="cs-vfull" onclick="csVfull()">${document.body.classList.contains('vfull')?'退出铺满':'铺满窗口'}</button>
         <button id="cs-done-btn" onclick="csDone('${esc(c.id)}',${csSel.l})">${p.done?'取消看完':'标记看完'}</button></div>
     </div>
     <div class="na-box" id="cs-vnote" style="display:none"></div>
-    ${cur&&cur.practice?`<div class="cs-act"><div class="l"><span class="k">看完练</span><b>${esc(cur.practice.label)}</b>
+    <div class="cs-complete" id="cs-complete" style="display:${p.done?'':'none'}"><span>本节视频已看完</span><button class="pri" onclick="csSelectTab('${GEN_COURSES.has(c.id)||cur?.practice?'practice':'handout'}')">${GEN_COURSES.has(c.id)||cur?.practice?'练本节':'复习讲义'}</button>${csSel.l<c.lessons.length-1?'<button onclick="csNextLesson()">下一节 →</button>':'<span>已到课程最后一节</span>'}</div>
+    <div class="card cs-materials" style="margin-top:16px;overflow:hidden">
+      <div class="phead"><div class="l"><b id="cs-mat-t">本节讲义</b>
+        <span class="htabs" role="tablist" aria-label="本节学习资料"><button class="on" data-h="handout" role="tab" aria-selected="true">讲义</button><button data-h="script" id="cs-tab-script" role="tab" style="display:none">课稿</button><button data-h="practice" role="tab">练习</button><button data-h="notes" role="tab">笔记</button></span></div>
+        <div class="r" id="cs-mat-r">${originals.map(x=>`<a class="orig-link" href="${esc(x.url)}" target="_blank" rel="noopener">原版：${esc(x.file.split('/').pop())} ↗</a>`).join(' ')}</div></div>
+      <div id="cs-mat-handout">    ${cur?.notes_verified&&cur.key_points?.length?`<div class="handout" style="margin:16px 0 0"><h5>本节学习提示</h5><ul>${cur.key_points.map(point=>`<li style="margin:8px 0;line-height:1.7">${esc(point)}</li>`).join('')}</ul><p style="font-size:12px;color:var(--t2)">依据讲义整理，不是老师逐字原话。来源：${esc(cur.notes_source||'课程讲义')}</p></div>`:''}
+<div class="handout-scroll"><div class="handout" id="cs-handout" style="background:none;border-radius:0"><div class="skl"><i style="width:62%"></i><i style="width:88%"></i><i style="width:76%"></i><i style="width:38%"></i></div></div></div></div>
+      <div id="cs-mat-script" style="display:none"><div class="md-body" id="cs-script-body"><p class="gq-note">加载中…</p></div></div>
+      <div id="cs-mat-practice" style="display:none">    ${cur&&cur.practice?`<div class="cs-act"><div class="l"><span class="k">看完练</span><b>${esc(cur.practice.label)}</b>
       <span class="why">${esc(cur.why||'')}</span></div>
       <button class="pri" id="cs-goquiz">练这组 →</button></div>`:''}
-    ${cur?.notes_verified&&cur.key_points?.length?`<div class="handout" style="margin:16px 0 0"><h5>本节学习提示</h5><ul>${cur.key_points.map(point=>`<li style="margin:8px 0;line-height:1.7">${esc(point)}</li>`).join('')}</ul><p style="font-size:12px;color:var(--t2)">依据讲义整理，不是老师逐字原话。来源：${esc(cur.notes_source||'课程讲义')}</p></div>`:''}
-    ${c.id===GEN_COURSE?`<div class="card gq-card" style="margin-top:16px">
-      <div class="phead"><div class="l"><b>课后练 · 按本节教材生成</b></div><div class="r" id="gq-meta"></div></div>
+    ${GEN_COURSES.has(c.id)?`<div class="card gq-card" style="margin-top:16px">
+      <div class="phead"><div class="l"><b>${c.id==='cfcm-01'?'课后练 · 老师出的本节配套练习':'课后练 · 按本节教材生成'}</b></div><div class="r" id="gq-meta"></div></div>
       <div id="gq-body"></div></div>`:''}
-    <div class="card" style="margin-top:16px;overflow:hidden">
-      <div class="phead"><div class="l"><b id="cs-mat-t">本节讲义</b>
-        <span class="htabs"><button class="on" data-h="handout">讲义</button><button data-h="script" id="cs-tab-script" style="display:none">课稿</button></span></div>
-        <div class="r" id="cs-mat-r">${originals.map(x=>`<a class="orig-link" href="${esc(x.url)}" target="_blank" rel="noopener">原版：${esc(x.file)} ↗</a>`).join(' ')}</div></div>
-      <div id="cs-mat-handout"><div class="handout-scroll"><div class="handout" id="cs-handout" style="background:none;border-radius:0"><div class="skl"><i style="width:62%"></i><i style="width:88%"></i><i style="width:76%"></i><i style="width:38%"></i></div></div></div></div>
-      <div id="cs-mat-script" style="display:none"><div class="md-body" id="cs-script-body"><p class="gq-note">加载中…</p></div></div>
+${!GEN_COURSES.has(c.id)&&!cur?.practice?'<div class="empty">本节尚无核验过的配套题组。可以先复习讲义，再去专项训练选题。</div>':''}</div>
+      <div id="cs-mat-notes" style="display:none"><div class="cs-note-editor"><label for="cs-note">记录当前视频时间，可附一句笔记</label><textarea id="cs-note" rows="3" maxlength="2000" placeholder="这段讲解有什么值得回看？"></textarea><button id="cs-note-save">记下当前时间</button><span id="cs-note-status" role="status"></span></div><div id="cs-bookmarks"></div></div>
     </div>
     <div class="linkbar" id="cs-link" style="margin-top:16px"></div>
   </div>`;
@@ -2564,29 +2766,46 @@ function renderCourseMain(){
   if(p&&p.wt===undefined&&p.pos) p.wt=Math.floor(p.pos);   // 存量课: 已看进度作观看秒数下限
   courseWatchTarget=l.id;
   wireGenQuiz(c, l);   // 课后练(仅 GEN_COURSE)
-  wireScriptTab(c, l);   // 课稿 tab
+  wireScriptTab(c,l);
+  csBookmarks(l);$('cs-note-save').onclick=()=>csSaveBookmark(l);
+  const noteInput=$('cs-note');try{noteInput.value=localStorage.getItem('tfl-note-draft:'+l.id)||'';}catch{}
+  noteInput.oninput=()=>{try{localStorage.setItem('tfl-note-draft:'+l.id,noteInput.value);}catch{}};
+  const requested=p.tab;if(['practice','notes'].includes(requested))csSelectTab(requested);
+  const speed=$('cs-speed');let savedRate=1;try{savedRate=Number(localStorage.getItem('tfl-video-rate'))||1;}catch{}
+  if(![0.75,1,1.25,1.5,1.75,2,2.5].includes(savedRate))savedRate=1;
+  speed.value=String(savedRate);v.playbackRate=savedRate;
+  speed.onchange=()=>{v.playbackRate=Number(speed.value);};
+  v.addEventListener('ratechange',()=>{speed.value=String(v.playbackRate);try{localStorage.setItem('tfl-video-rate',String(v.playbackRate));}catch{}});
+  $('cs-outline-toggle').textContent='课程目录 · 第 '+(csSel.l+1)+'/'+c.lessons.length+' 节';
+  history.replaceState(null,'','#/course/'+encodeURIComponent(l.id));
   v.addEventListener('error',()=>{
     const nn=$('cs-vnote');
     nn.style.display='';
     nn.innerHTML='浏览器无法播放该文件（格式或编码不支持，源文件为 .'+esc((l.video_file||'').split('.').pop())+'）。'+
-      '需要转码生成项目内衍生文件才能播放——本批未做，源素材保持只读未动。';
+      '请打开原视频观看，或重试加载。<a href="'+esc(l.video)+'" target="_blank" rel="noopener">打开原视频 ↗</a> <button id="cs-video-retry">重试</button>';$('cs-video-retry').onclick=()=>v.load();
   });
-  v.addEventListener('loadedmetadata',()=>{ if(p.pos&&p.pos<v.duration-5) v.currentTime=p.pos; });
+  v.addEventListener('loadedmetadata',()=>{
+    $('cs-vnote').style.display='none';const resume=$('cs-resume');
+    if(p.pos&&p.pos<v.duration-5){v.currentTime=p.pos;if(resume)resume.textContent='上次看到 '+fmt(p.pos)+' · 已定位';}
+    else if(resume)resume.textContent='上次看到片尾 · 本次从头开始';
+  });
   let lastSavedPos=p.pos??null,played=false;
-  const markDoneOnce=(inPlace)=>{ const cur=REC.course[l.id]; if(cur&&cur.done) return;   // 看完自动标看完(手动按钮保留)
-    REC.course[l.id]={...cur,done:true,at:Date.now()}; recSave();
-    if(inPlace){   // 片尾前 3 秒的兜底: 原地改状态条, 不重渲染(重渲染会重载视频, 打断最后几秒)
-      const st=$('cs-status');
-      if(st){ const pill=st.querySelector('.pill'); if(pill){pill.className='pill q';pill.textContent='已看完';}
-        const db=st.querySelector('#cs-done-btn'); if(db)db.textContent='取消看完'; }
-      renderCourseNav();   // 只重绘左栏列表(不碰视频), 勾选即时跟上
-    } else { renderCourseNav(); renderCourseMain(); } };
+  const markDoneOnce=()=>{const cur=REC.course[l.id];if(cur&&cur.done)return;
+    REC.course[l.id]={...cur,done:true,at:Date.now()};recSave();renderCourseNav();csCompletionUI(true);};
   const savePosition=(pause=false)=>{if(pause&&!v.paused)v.pause();const pos=v.currentTime;
-    if(Number.isFinite(v.duration)&&v.duration>0&&pos>=v.duration-3) markDoneOnce(true);   // 兜底: 到达片尾即算看完, 不依赖 ended 事件(原地更新, 不打断最后几秒)
     if(Number.isFinite(pos)&&(v.readyState>=1||pos>0)&&pos!==lastSavedPos&&(pos>0||played)){lastSavedPos=pos;REC.course[l.id]={...REC.course[l.id],pos,at:Date.now()};recSave();}};
   currentVideoCheckpoint=savePosition;
   v.addEventListener('pause',()=>savePosition());
-  v.addEventListener('ended',()=>{ savePosition(); markDoneOnce(false); csNextLesson(); });   // 播完自动进下一节(阈值兜底不跳, 等真正 ended)
+  v.addEventListener('seeking',()=>{played=false;});
+  v.addEventListener('playing',()=>{played=true;});
+  v.addEventListener('ended',()=>{
+    savePosition();
+    // Completion means normal playback reached the ending, not whole-lesson coverage.
+    // A paused seek/bookmark cannot complete a video. Require an actually played tail.
+    const ranges=v.played,d=v.duration,tail=Math.min(3,d);
+    if(played&&!v.seeking&&Number.isFinite(d)&&d>0&&ranges)
+      for(let i=0;i<ranges.length;i++)if(ranges.start(i)<=d-tail&&ranges.end(i)>=d-.25){markDoneOnce();break;}
+  });
   let posT=0;
   v.addEventListener('timeupdate',()=>{
     const now=Date.now();
@@ -2598,32 +2817,43 @@ function renderCourseMain(){
     if((REC.study.total||0)%5===0)recSave();}},1000);});
   v.addEventListener('play',()=>{played=true;STU=true;}); v.addEventListener('pause',()=>STU=false);
   const hand=$('cs-handout');
-  const notesIds=(c.notes_ids||[]).includes(l.id)?[l.id]:(c.notes_ids||[]);
-  const hm=((LESSON_HANDOUT_MAP[c.id]||{}).lessons||{})[l.id];   // 课节→讲义页映射(r41): 有则默认只展示本节相关页
+  const hm=((LESSON_HANDOUT_MAP[c.id]||{}).lessons||{})[l.id];
+  const mappedIds=hm?.page?[...new Set((hm.segments||[{nid:hm.nid}]).map(r=>r.nid))]:[];
+  const notesIds=mappedIds.length&&mappedIds.every(id=>(c.notes_ids||[]).includes(id))?mappedIds:(c.notes_ids||[]).includes(l.id)?[l.id]:(c.notes_ids||[]);
+  let readerLabel=null;
+  if(originals.length){const reader=document.createElement('div');reader.className='cs-reader-tools';reader.innerHTML='<span id="cs-reader-scope">核对讲义页码中…</span><button id="cs-reader-view" disabled>提取文本</button>';$('cs-mat-handout').prepend(reader);readerLabel=$('cs-reader-scope');$('cs-reader-view').onclick=()=>{const text=hand.classList.toggle('text-mode');$('cs-reader-view').textContent=text?'讲义页图':'提取文本';};}
+
   if((c.notes_ids||[]).length||l.handout_file){
-    Promise.all((notesIds.length?notesIds:c.notes_ids||[]).map(id=>
-      api('/api/handout/'+encodeURIComponent(id)).catch(()=>null))).then(async list=>{
-      if(!hand.isConnected)return;
-      const notes=list.filter(Boolean);
-      const allPages=notes.flatMap(x=>(x.pages||[]).map(pg=>({...pg,source_file:x.source_file||x.id}))).filter(pg=>pg.text&&pg.text.trim());
-      let pages=allPages, scopeNote='';
-      if(hm&&hm.page){   // 本节窗口: 映射页起(含), 到下一个有映射的课节的页为止(即本节讲的页范围), 至少 2 页
-        const ordered=Object.entries(((LESSON_HANDOUT_MAP[c.id]||{}).lessons)||{}).map(([lid,m])=>({lid,page:m.page,nid:m.nid})).sort((a,b)=>a.page-b.page);
-        const at=ordered.findIndex(x=>x.lid===l.id);
-        const nextAt=ordered.slice(at+1).find(x=>!hm.nid||x.nid===hm.nid);
-        const p0=hm.page, p1=nextAt?nextAt.page-1:Math.min(hm.page+5, Math.max(...pages.filter(pg=>!hm.nid||pg.source_file===(notes.find(x=>x.id===hm.nid)||{}).source_file).map(pg=>pg.page)));
-        const inScope=pages.filter(pg=>pg.page>=p0&&pg.page<=Math.max(p1,p0+1)&&(!hm.nid||pg.source_file===(notes.find(x=>x.id===hm.nid)||{}).source_file));
-        if(inScope.length){ pages=inScope; scopeNote=' · 本节相关第 '+p0+'–'+Math.max(p1,p0+1)+' 页'; }
+    let handoutRequest=0;
+    const loadHandout=()=>{
+    const request=++handoutRequest;
+    if(readerLabel)readerLabel.textContent='正在读取本节讲义…';
+    return Promise.all((notesIds.length?notesIds:c.notes_ids||[]).map(id=>
+      api('/api/handout/'+encodeURIComponent(id)).catch(()=>({id,loadError:true})))).then(async list=>{
+      if(!hand.isConnected||request!==handoutRequest)return;
+      const failed=list.filter(x=>x?.loadError);
+      if(failed.length){
+        if(readerLabel)readerLabel.textContent='讲义读取失败 · 已保留当前课节和视频';
+        hand.innerHTML='<div class="empty" role="status">部分讲义未能读取（'+failed.length+'份）。请重试；这不表示原资料缺失。<br><button id="cs-handout-retry">重试读取讲义</button></div>';
+        const retry=hand.querySelector('#cs-handout-retry');
+        if(retry)retry.onclick=()=>{retry.disabled=true;retry.textContent='读取中…';loadHandout();};
+        return;
       }
+      const notes=list.filter(Boolean);
+      const selected=selectLessonHandoutPages(notes,hm);
+      let pages=selected.pages,scopeNote=selected.scopeNote;
+      const scopeLabel=selected.invalid?'页码映射不可用 · 完整讲义':hm?.status==='not_located'?'本节未找到配套正文 · 可浏览课程完整讲义':hm?.status==='shared_overview'?'共用概览 · 详细内容见逐字稿':hm?.status==='dedicated'?'本节配套整份讲义':selected.mapped?'已核对正文页码':'未核验本节页码 · 完整讲义';
+      if(readerLabel){readerLabel.textContent=scopeLabel+scopeNote;const images=pages.some(pg=>pg.image);if(images)readerLabel.textContent+=' · 点页图放大';$('cs-reader-view').disabled=!images;if(!images)$('cs-reader-view').textContent='暂无页图';}
+      if(hm?.reason){const tip=document.createElement('div');tip.className='empty';tip.textContent=hm.reason;hand.before(tip);}
       if(pages.length){
         const show=pages.slice(0,8);
-        hand.innerHTML=`<h5>讲义文本 <span class="tag-src">提取自源文件${esc(scopeNote)} · 共 ${pages.length} 页</span></h5>`+
-          show.map(pg=>`<div class="hslide"><div class="pg">${esc(pg.source_file||'')} · 第 ${pg.page} 页</div><div class="tx">${esc(pg.text.slice(0,600))}${pg.text.length>600?'…':''}</div></div>`).join('')+
-          (allPages.length>show.length||show.some(pg=>pg.text.length>600)?`<div style="padding-top:10px"><button id="cs-hmore">展开完整讲义（${allPages.length} 页）</button></div>`:'');
+        hand.innerHTML=`<h5>讲义阅读 <span class="tag-src">来源：原讲义${esc(scopeNote)} · 共 ${pages.length} 页</span></h5>`+
+          show.map(pg=>`<div class="hslide ${pg.image?'reader-page':''}"><div class="pg">${esc(pg.source_file||'')} · 第 ${pg.page} 页</div>${pg.image?`<a href="${esc(pg.image)}" target="_blank" rel="noopener" aria-label="放大讲义第 ${pg.page} 页"><img loading="lazy" src="${esc(pg.image)}" alt="${esc(pg.source_file)} 第 ${pg.page} 页"></a>`: ''}<div class="tx">${esc((pg.text||'').slice(0,600))}${(pg.text||'').length>600?'…':''}</div></div>`).join('')+
+          (pages.length>show.length||show.some(pg=>(pg.text||'').length>600)?`<div style="padding-top:10px"><button id="cs-hmore">展开${scopeNote?'本节':'当前'}完整讲义（${pages.length} 页）</button></div>`:'');
         const more=hand.querySelector('#cs-hmore');
         if(more) more.onclick=()=>{
-          hand.innerHTML=`<h5>讲义文本 <span class="tag-src">完整讲义 · 共 ${allPages.length} 页</span></h5>`+
-            allPages.map(pg=>`<div class="hslide"><div class="pg">${esc(pg.source_file||'')} · 第 ${pg.page} 页</div><div class="tx">${esc(pg.text)}</div></div>`).join('');
+          hand.innerHTML=`<h5>讲义阅读 <span class="tag-src">${scopeNote?'本节相关页':'完整讲义'} · 共 ${pages.length} 页</span></h5>`+
+            pages.map(pg=>`<div class="hslide ${pg.image?'reader-page':''}"><div class="pg">${esc(pg.source_file||'')} · 第 ${pg.page} 页</div>${pg.image?`<a href="${esc(pg.image)}" target="_blank" rel="noopener" aria-label="放大讲义第 ${pg.page} 页"><img loading="lazy" src="${esc(pg.image)}" alt="${esc(pg.source_file)} 第 ${pg.page} 页"></a>`:''}<div class="tx">${esc(pg.text||'')}</div></div>`).join('');
         };
         return;
       }
@@ -2640,6 +2870,7 @@ function renderCourseMain(){
         if(!hand.isConnected)return;
         const ok=exts.filter(Boolean);
         if(ok.length){
+          if(readerLabel){readerLabel.textContent=scopeLabel+' · 图片版讲义 · 共 '+ok.length+' 页';$('cs-reader-view').disabled=true;$('cs-reader-view').textContent='图片版讲义';}
           hand.innerHTML=`<h5>讲义页图 <span class="tag-src">图片版讲义（视频截图帧）· 共 ${ok.length} 页 · 来源 ${esc(notes[0].source_file)}</span></h5>`+
             ok.slice(0,4).map(f=>`<div class="hslide"><div class="pg">第 ${parseInt(f.slice(1,3),10)} 页</div>
               <img loading="lazy" style="max-width:100%;border:1px solid var(--line);border-radius:4px" src="/media/slides/${encodeURIComponent(nid)}/${f}" alt="讲义第 ${parseInt(f.slice(1,3),10)} 页"></div>`).join('')+
@@ -2653,10 +2884,11 @@ function renderCourseMain(){
           return;
         }
       }
-      hand.innerHTML='<div class="empty">讲义为图片版且页图未抽取（重跑 pipeline/scan_courses.py 可生成）。</div>';
+      hand.innerHTML='<div class="empty">这份讲义暂时没有可展示的文字或页图，可打开上方原版讲义。</div>';
     });
+    };loadHandout();
   } else {
-    hand.innerHTML='<div class="empty">该课暂无讲义文本。</div>';
+    hand.innerHTML='<div class="empty">'+esc(hm?.reason||'该课暂无讲义文本。')+'</div>';if(readerLabel)readerLabel.textContent='暂无核验页码，请查看完整原讲义';
   }
   const gq=$('cs-goquiz');
   if(gq) gq.onclick=async()=>{
@@ -2665,7 +2897,7 @@ function renderCourseMain(){
     else await enterGroup(pr.set,pr.subject,'m'+pr.module,pr.group);
   };
   const link=$('cs-link');
-  if(cur&&cur.practice){ link.style.display='none'; }
+  if(GEN_COURSES.has(c.id)||cur?.practice){link.style.display='none';}
   else {
     link.style.display='';
     link.innerHTML=`<span class="k" style="color:var(--t2)">本节暂无指定题组（方法课后去「${SUBN[c.subject]||'专项'}」按题型挑题）</span>
@@ -2782,7 +3014,9 @@ async function startFamReview(key) {
   if (!f || !f.items.length) return;
   // 题池: 到期的错题优先(按 mistakes 在册排序), 其余按原序
   const items = f.items.slice().sort((a, b) => {
-    const ma = REC.mistakes[a.qid], mb = REC.mistakes[b.qid];
+    const oldA = REC.mistakes[a.qid], oldB = REC.mistakes[b.qid];
+    const ma = oldA && (oldA.last || 0) >= (a.revisionAt || 0) ? oldA : null;
+    const mb = oldB && (oldB.last || 0) >= (b.revisionAt || 0) ? oldB : null;
     return (mb && !mb.cleared ? 1 : 0) - (ma && !ma.cleared ? 1 : 0);
   }).slice(0, 8);
   Object.assign(FAM_UI, { key, items, ix: 0, answers: {}, anyWrong: false });
@@ -2796,9 +3030,9 @@ function renderFamQuiz() {
   list.innerHTML = '<div style="padding:18px 20px 20px">'
     + '<div class="gq-prog">家族复习 · 第 ' + (st.ix + 1) + ' / ' + st.items.length + ' 题'
     + '<button class="gq-ghost" id="fam-quit">退出复习</button></div>'
-    + '<div class="gq-stem">' + esc(item.stem) + '</div>'
+    + '<div class="gq-stem">' + quizInline(item.stem) + '</div>'
     + '<div class="gq-opts">' + Object.entries(item.options).map(([k, v]) =>
-        '<div class="opt gq-opt" data-k="' + k + '"><span class="ol">' + k + '</span>' + esc(typeof v === 'object' ? (v.t || '') : v) + '</div>').join('') + '</div>'
+        '<div class="opt gq-opt" data-k="' + k + '"><span class="ol">' + k + '</span><span class="gq-option-text">' + quizInline(typeof v === 'object' ? (v.t || '') : v) + '</span></div>').join('') + '</div>'
     + '<div id="fam-fb"></div><div class="gq-nav" id="fam-nav"></div></div>';
   $('fam-quit').onclick = () => { FAM_UI.key = null; renderFamilies(); };
   if (done) {
@@ -2807,7 +3041,7 @@ function renderFamQuiz() {
       else if (el.dataset.k === done.letter) el.classList.add('wrong');
       el.onclick = null;
     });
-    $('fam-fb').innerHTML = '<div class="gq-fb ' + (done.ok ? 'ok' : 'bad') + '"><b>' + (done.ok ? '答对了' : '答错了 · 正确答案 ' + esc(item.answer)) + '</b> ' + esc(item.explain) + '</div>';
+    $('fam-fb').innerHTML = '<div class="gq-fb ' + (done.ok ? 'ok' : 'bad') + '"><b>' + (done.ok ? '答对了' : '答错了 · 正确答案 ' + esc(item.answer)) + '</b> ' + quizInline(item.explain) + '</div>';
     $('fam-nav').innerHTML = '<span class="grow"></span><button class="pri" id="fam-next">' + (st.ix + 1 >= st.items.length ? '完成 →' : '下一题 →') + '</button>';
     $('fam-next').onclick = famNext;
     return;
@@ -2898,9 +3132,22 @@ async function startDueReview(button){
   finally{button.disabled=false;button.textContent='复习全部到期题';}
 }
 
+function reviewEntries(records) {
+  return [...scopedEntries(records), ...Object.entries(records || {}).filter(([k]) => k.startsWith('gen/'))];
+}
+async function renderVoiceReview(){
+  let box=$('rv-voice');if(!box){box=document.createElement('section');box.id='rv-voice';$('rv-list').before(box);}box.innerHTML='';
+  try{
+    const j=await api('/api/review-hub/mistakes');if(!j.items?.length)return;
+    box.innerHTML='<h3 style="margin:24px 0 12px">AI抽查 · '+j.items.length+' 个词需巩固</h3>'+j.items.map(m=>`<div class="witem"><div class="c"><div class="q">${esc(m.word)}</div><p>${esc(m.reason)}</p><p class="small muted">你的回答：${esc(m.answer)} · 本课参考：${esc(m.reference)}</p></div><div class="ops"><button data-voice-unit="${esc(m.unit)}">再抽查这个词</button><a href="/#/course/${esc(m.lesson)}">回看本课</a></div></div>`).join('');
+    box.querySelectorAll('[data-voice-unit]').forEach(b=>b.onclick=()=>{const unit=b.dataset.voiceUnit;sessionStorage.setItem('tfl-review-hub-request',JSON.stringify({unit}));location.hash='#/memory';});
+  }catch{box.innerHTML='<p class="muted">AI抽查错题暂未读取，请重新进入错题本。</p>';}
+}
+window.addEventListener('review-hub-saved',async()=>{try{const remote=await api('/api/records');REC=mergeRemote(remote);recBase=recClone(remote);}catch{}});
 async function renderReview(){
   $('rv-batch').hidden=true;
-  if (RV_TAB === 'families') return renderFamilies();
+  if (RV_TAB === 'families') {if($('rv-voice'))$('rv-voice').innerHTML='';return renderFamilies();}
+  await renderVoiceReview();
   $('rv-ph-t').textContent = '待复习';
   // gen(课后练)错题不在 catalog set 里, scopedEntries 会滤掉 —— 手动并进来
   // Revised questions keep historical attempts, but old mistakes are not current weaknesses.
@@ -2909,10 +3156,10 @@ async function renderReview(){
             ...Object.entries(REC.mistakes||{}).filter(([k,m])=>k.startsWith('gen/')&&m&&!m.cleared && (!revisions[k] || (m.last || 0) >= revisions[k]))];
   const dueN=ms.filter(([,m])=>(m.due||0)<=Date.now()).length;
   $('rv-stats').innerHTML=[
-    ['错题总数',ms.length,''],
+    ['题目错题',ms.length,''],
     ['今日到期',dueN,dueN?'warn':''],
-    ['已移出训练',scopedEntries(REC.mistakes).filter(([,m])=>m.cleared).length,''],
-    ['累计作答',scopedEntries(REC.attempts).filter(([k])=>!k.startsWith('gen/')).reduce((a,[,x])=>a+(x.n||0),0),''],
+    ['已移出训练',reviewEntries(REC.mistakes).filter(([k,m])=>m.cleared && (!revisions[k] || (m.last||0)>=revisions[k])).length,''],
+    ['累计作答',reviewEntries(REC.attempts).reduce((a,[,x])=>a+(x.n||0),0),''],
   ].map(([k,v,c])=>`<div class="wk"><div class="k" style="font-size:12px;color:var(--t2)">${k}</div>
     <div style="font-size:20px;font-weight:500;line-height:1.2${c==='warn'?';color:var(--warn)':''}">${v}</div></div>`).join('');
   $('rv-due').textContent=dueN?('今天 '+dueN+' 题到期'):'';
@@ -2921,7 +3168,7 @@ async function renderReview(){
   batch.textContent='复习全部到期题 · '+dueN;
   batch.onclick=()=>startDueReview(batch);
   if(!ms.length){
-    $('rv-list').innerHTML='<div class="empty">还没有错题。做题答错会自动进这里。</div>';
+    $('rv-list').innerHTML='<div class="empty">'+($('rv-voice')?.querySelector('.witem')?'暂无其他题目错题。':'还没有错题。做题答错会自动进这里。')+'</div>';
     return;
   }
   ms.sort((a,b)=>(a[1].due||0)-(b[1].due||0));
@@ -3111,15 +3358,20 @@ $('d-audio').addEventListener('timeupdate',()=>{const a=$('d-audio');audioTrack.
 /* ---------- 启动 ---------- */
 async function boot(){
   try{
-    const [cat,courses,recs,curated,hmap]=await Promise.all([
+    const [cat,courses,recs,curated,hmap,quizMeta]=await Promise.all([
       api('/api/catalog'), api('/api/courses'),
       api('/api/records'),
       fetch('curated.json').then(r=>r.json()).catch(()=>({})),
       fetch('lesson-handout-map.json').then(r=>r.json()).catch(()=>({})),
+      api('/api/ai/quiz').catch(()=>({})),
     ]);
     CATALOG=cat; COURSES=courses; CURATED=curated&&curated.lessons?curated.lessons:(curated||{});
-    LESSON_HANDOUT_MAP=hmap||{};
+    LESSON_HANDOUT_MAP=hmap||{};GQ_COMPLETION_REVISIONS=quizMeta.completionRevisions||{};GQ_REVISIONS=quizMeta.revisions||{};
     REC=Object.assign(REC,recs);recBase=recClone(REC);recReady=true;
+    try{const recovery=JSON.parse(localStorage.getItem('tfl-record-recovery')||'null');
+      if(recovery?.local){if(recovery.snapshotId&&recs.snapshotEvents?.[recovery.snapshotId])localStorage.removeItem('tfl-record-recovery');else {REC=mergeRemote(recs,recovery.base||{},recovery.local);recDirty=true;recEpoch++;recSnapshotId=recovery.snapshotId||recEventId();recSnapshotEpoch=recEpoch;recT=setTimeout(flushRecords,400);}}
+    }catch(e){saveStatus('本机恢复记录无法读取，请导出备份');}
+    recOverlayPending();
     recFlushAttempts();   // 启动即补传上次滞留的作答队列(r56)
     renderHome();
     route();

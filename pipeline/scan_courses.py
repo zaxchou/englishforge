@@ -166,6 +166,26 @@ def scan_vince(root: Path, notes_dir: Path, build: Path):
             "courses": out}
 
 
+# Display titles only: keep source filenames, lesson IDs and media URLs unchanged.
+VOCAB_ROOT_FORMS = {
+    "scribscript": "scrib / script", "spectvis": "spect / vis",
+    "versvert": "vers / vert", "vocnouncedict": "voc / nounce / dict",
+    "pelpuls": "pel / puls", "cedceedcess": "ced / ceed / cess",
+    "optsn": "opt / sn", "humanthropgen": "hum / anthrop / gen",
+    "capsci": "cap / sci", "candflamphoto": "cand / flam / photo",
+    "amtim": "am / tim",
+}
+
+
+def vocab_lesson_title(title: str) -> str:
+    """Readable labels based on reviewed transcript root groupings; no guessed splits."""
+    match = re.fullmatch(r"(基础|核心|进阶)词汇之(?:词根)?\s*([a-z]+)", title.strip())
+    if not match:
+        return title
+    roots = VOCAB_ROOT_FORMS.get(match.group(2), match.group(2))
+    return f"{match.group(1)}词汇 · 词根 {roots}"
+
+
 def scan_ndf(root: Path, notes_dir: Path):
     """新D方新托福全套：01~07 课目录，.mov 课节 + PDF 讲义。"""
     base = root / "新D方" / "新D方新托福全套"
@@ -192,7 +212,7 @@ def scan_ndf(root: Path, notes_dir: Path):
             lessons.append({
                 "id": f"ndf-{no}-{t.group(1)}" if t else f"ndf-{no}-{len(lessons)+1}",
                 "no": t.group(1) if t else None,
-                "title": t.group(2) if t else v.stem,
+                "title": vocab_lesson_title(t.group(2) if t else v.stem) if no == "01" else (t.group(2) if t else v.stem),
                 "video": f"/media/ndf/{enc(d.name)}/{enc(v.name)}",
                 "video_file": v.name, "video_size": v.stat().st_size,
                 "duration_sec": None,
@@ -201,18 +221,125 @@ def scan_ndf(root: Path, notes_dir: Path):
              "title": d.name, "subject": subj, "teacher": teacher,
              "lessons": lessons, "lesson_count": len(lessons),
              "handout_pdfs": [], "notes_ids": [], "notes_status": "none"}
-        for i, pdf in enumerate(sorted(d.glob("*.pdf"))):
-            c["handout_pdfs"].append(pdf.name)
+        pdfs = sorted(d.glob("*.pdf")) + sorted(p for p in d.rglob("*.pdf") if p.parent != d)
+        for i, pdf in enumerate(pdfs):
+            relative = pdf.relative_to(d).as_posix()
+            c["handout_pdfs"].append(relative)
             nid = f"ndf-{no}-h{i+1}"
             pages = pdf_pages(pdf)
             if pages:
-                notes_write(notes_dir, nid, "pdf", pdf.name, pages)
+                notes_write(notes_dir, nid, "pdf", relative, pages)
                 c["notes_ids"].append(nid)
-                c["notes_status"] = "extracted" if c["notes_status"] != "none" else c["notes_status"]
+                c["notes_status"] = "extracted"
+        # Explicit dedicated mappings are review-owned. Preserve their one-file links
+        # after a rescan; never infer a match from nearest filename or page.
+        mapping_file = notes_dir.parent / "lesson-handout-map.json"
+        if mapping_file.exists():
+            mapping = json.loads(mapping_file.read_text(encoding="utf-8"))
+            for lesson in lessons:
+                match = mapping.get(c["id"], {}).get("lessons", {}).get(lesson["id"], {})
+                if match.get("status") != "dedicated" or match.get("nid") not in c["notes_ids"]:
+                    continue
+                note = json.loads((notes_dir / (match["nid"] + ".json")).read_text(encoding="utf-8"))
+                relative = note["source_file"]
+                if relative in c["handout_pdfs"]:
+                    lesson["handout_file"] = relative
+                    lesson["handout"] = f"/media/ndf/{enc(d.name)}/{enc(relative)}"
         courses.append(c)
     return {"id": "ndf", "name": "新D方 新托福全套",
             "note": f"{len(courses)} 门课 · {sum(c['lesson_count'] for c in courses)} 节 · 配 PDF 讲义",
             "courses": courses}
+
+
+CN_DIGITS = {"一": 1, "二": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9}
+
+
+def cn2int(s: str) -> int:
+    """中文数字课号（本课程范围 1~99）：十/廿组合，如 三十六 -> 36。"""
+    s = s.strip()
+    if s.isdigit():
+        return int(s)
+    if s == "十":
+        return 10
+    total, rest = 0, s
+    if "十" in rest:
+        head, rest = rest.split("十", 1)
+        total += CN_DIGITS[head] * 10 if head else 10
+    if rest:
+        total += CN_DIGITS[rest]
+    return total
+
+
+CFCM_DIR = "炒粉炒面万词班（待更新）"
+CFCM_LESSON_HEAD = re.compile(r"万词班第([一二三四五六七八九十百零]+|\d+)课讲义（(\d+) 个）")
+CFCM_ROOT_HEAD = re.compile(r"词根\d+：([A-Za-z][A-Za-z \-]*?)，([^（]+)（(\d+) 个）")
+
+
+def scan_cfcm(root: Path, notes_dir: Path):
+    """炒粉炒面万词班（最终季 36 节）：视频 + 合订本讲义按课边界拆页。
+
+    讲义是一份 582 页 PDF，每课以「万词班第X课讲义（N 个）」标题行开始；
+    逐课切成独立 notes（nid=课节 id，页码在本课内重新从 1 计），
+    前端讲义 tab 命中 notes_ids 含课节 id 的分支即一课一份。
+    官方课后练习由 import_cfcm_quiz.py 另行解析导入，不在本扫描内。"""
+    base = root / CFCM_DIR
+    if not base.is_dir():
+        return None
+    handout = base / "资料合集" / "1.直播课讲义+ppt" / "（1）1-36课讲义.pdf"
+    if not handout.is_file():
+        print(f"  ! cfcm 讲义缺失: {handout}", file=sys.stderr)
+        return None
+    pages = pdf_pages(handout)
+    if not pages:
+        return None
+    starts = []   # (页下标0, 课号, 词数)
+    for i, pg in enumerate(pages):
+        m = CFCM_LESSON_HEAD.search(pg["text"])
+        if m:
+            starts.append((i, cn2int(m.group(1)), int(m.group(2))))
+    nos = [no for _, no, _ in starts]
+    if nos != list(range(1, len(nos) + 1)):
+        print(f"  ! cfcm 课边界异常: {len(nos)} 课, 序列 {nos[:6]}...{nos[-3:]}", file=sys.stderr)
+        return None
+
+    # 每课的词根清单（标题用）与词表（解释溯源用，import_cfcm_quiz.py 复读同一逻辑）
+    lessons, notes_ids, total_words = [], [], 0
+    for i, (idx0, no, wc) in enumerate(starts):
+        end = starts[i + 1][0] if i + 1 < len(starts) else len(pages)
+        seg = [pg["text"] for pg in pages[idx0:end]]
+        seg_text = "\n".join(seg)
+        roots = [r.strip() for r, _g, _n in
+                 ((m.group(1), m.group(2), m.group(3)) for m in CFCM_ROOT_HEAD.finditer(seg_text))]
+        title = f"第{no:02d}课"
+        if roots:
+            title += " · " + " / ".join(roots[:3]) + ("…" if len(roots) > 3 else "")
+        nid = f"cfcm-01-{no:02d}"
+        notes_write(notes_dir, nid, "pdf", handout.name,
+                    [{"page": j + 1, "text": t} for j, t in enumerate(seg)])
+        notes_ids.append(nid)
+        total_words += wc
+        # 视频文件名是中文数字（[1]--第一课.mp4 … [36]--第三十六课.mp4）；
+        # 文件名含字面方括号，glob 的 [] 是字符类语法，故用前缀匹配。
+        vid = next((p for p in base.iterdir()
+                    if p.name.startswith(f"[{no}]--") and p.suffix == ".mp4"), None)
+        if vid is None:
+            print(f"  ! cfcm 第{no}课视频缺失", file=sys.stderr)
+            continue
+        lessons.append({
+            "id": nid, "no": str(no).zfill(2), "title": title,
+            "raw_title": vid.stem, "cn_title": vid.stem.split("--", 1)[-1],
+            "video": f"/media/cfcm/{enc(vid.name)}", "video_file": vid.name,
+            "video_size": vid.stat().st_size, "duration_sec": None,
+            "words": wc, "root_count": len(roots),
+        })
+    c = {"id": "cfcm-01", "series": "cfcm", "no": 1, "unit": "词汇",
+         "title": "万词班·最终季", "raw_title": base.name,
+         "subject": "vocab", "teacher": "炒面学姐",
+         "lessons": lessons, "lesson_count": len(lessons),
+         "handout_pdfs": [], "notes_ids": notes_ids, "notes_status": "extracted"}
+    return {"id": "cfcm", "name": "炒粉炒面万词班",
+            "note": f"{len(lessons)} 节 · {total_words} 词 · 老师官方课后练习",
+            "courses": [c]}
 
 
 def main():
@@ -229,6 +356,9 @@ def main():
     n = scan_ndf(root, notes_dir)
     if n:
         series.append(n)
+    cf = scan_cfcm(root, notes_dir)
+    if cf:
+        series.append(cf)
     catalog = {
         "generated": date.today().isoformat(),
         "status_rule": ("notes_status=extracted 表示讲义文本已提取（草稿）；"

@@ -1,0 +1,6 @@
+---
+description: TOEFL Lab NAS发布和项目镜像清理的长期用户授权
+alwaysApply: true
+---
+
+用户已明确授权自动发布和清理，不再逐版本确认。遵守项目AGENTS.md及docs/deployment-authorization.md中的范围、备份、验证和保留回滚要求。
