@@ -1300,5 +1300,7 @@ body.vfull .cs-stage video.tfl{max-height:none}
   .vb-rate{grid-template-columns:repeat(2,1fr)}
   .vb-quota{margin-left:0}
 }
-.vb-speak{background:none;border:1px solid var(--line);border-radius:999px;width:34px;height:34px;display:inline-flex;align-items:center;justify-content:center;color:var(--t2);cursor:pointer;vertical-align:8px;margin-left:10px}
+.vb-speak{padding:0;background:none;border:1px solid var(--line);border-radius:999px;width:34px;height:34px;display:inline-flex;align-items:center;justify-content:center;color:var(--t2);cursor:pointer;vertical-align:8px;margin-left:10px}
 .vb-speak:hover{color:var(--acc);border-color:var(--accln);background:var(--accbg)}
+
+.vb-speak svg{flex:none;width:17px;height:17px}

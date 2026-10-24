@@ -643,7 +643,7 @@ function mergeRemote(remote, baseOpt, localOpt) {
   // baseOpt/localOpt 供单测注入, 生产走闭包默认。
   const merged=recClone(remote), base=baseOpt!==undefined?baseOpt:(recBase||{}), RECv=localOpt!==undefined?localOpt:REC;
   const conflicts=[];
-  for(const field of ['mistakes','course','writing','drafts','families','vocab']) {   // attempts 单独走并集(见下); qtimes 单独走数值合并(见下)
+  for(const field of ['mistakes','course','writing','drafts','families']) {   // attempts 单独走并集(见下); qtimes 单独走数值合并(见下)
     const l=RECv[field]||{}, b=base[field]||{}, r=remote[field]||{};
     merged[field]={...r};
     for(const key of new Set([...Object.keys(b),...Object.keys(l)])) {
@@ -728,11 +728,12 @@ function refreshCurrent(){
   if(!CATALOG) return;
   renderHome();
   const v=(location.hash||'#/home').split('/')[1];
-  if(v==='drill')renderDrill();if(v==='sets')renderSets();if(v==='stats')renderStats();if(v==='review')renderReview();
+  if(v==='vocab'){vbRender();vbFlushQueue();}if(v==='drill')renderDrill();if(v==='sets')renderSets();if(v==='stats')renderStats();if(v==='review')renderReview();
 }
 window.addEventListener('focus',recResync);
 document.addEventListener('visibilitychange',()=>{
   gqStudyGate();
+  vbStudyGate(); if(!document.hidden){vbRender();vbFlushQueue();}
   if(document.hidden) {checkpointCourse();if(recDirty)flushRecords();} else recResync();
 });
 window.addEventListener('beforeunload',e=>{
@@ -1027,7 +1028,8 @@ function go(v){
   if(!isTask) {checkpointCourse(true);lastNav=v; if(TICK) {TACC=usedSec();QACC=qUsedSec();clearInterval(TICK);TICK=null;} STU=false; $('d-audio').pause();const cv=$('cs-video');if(cv)cv.pause();document.querySelectorAll('.ai-audio').forEach(a=>a.pause());} else if(S && !TICK && !T_PAUSED) tStart();
   if(v!=='course'&&GQ_TICK){clearInterval(GQ_TICK);GQ_TICK=null;}   /* 离开课程页: 课后练计时即停(回到同节 quiz 相位会自动重开) */
   if(v!=='vocab'&&VB_TICK){clearInterval(VB_TICK);VB_TICK=null;}   /* 离开背单词页: 秒表即停 */
-  if(v!=='vocab'&&VB_AUDIO){try{VB_AUDIO.pause();}catch(e){}}
+  if(v!=='vocab'&&VB_WAKE){clearTimeout(VB_WAKE);VB_WAKE=null;}
+  if(v!=='vocab'&&VB_AUDIO){try{VB_AUDIO.pause();window.speechSynthesis?.cancel();}catch(e){}}
   document.querySelectorAll('.nav button').forEach(x=>x.classList.toggle('on',x.dataset.v===v));
   const navOn=document.querySelector('.nav button.on');   // 窄屏导航横向滚动时, 当前项要滚入视野
   if(navOn&&navOn.scrollIntoView){
@@ -2352,7 +2354,8 @@ function gqPaintAnswered(q, done) {
   }
   if (fb) {
     fb.innerHTML = '<div class="gq-fb ' + (done.ok ? 'ok' : 'bad') + '"><b>' + (done.ok ? '答对了' : '答错了 · 正确答案 ' + esc(q.answer)) + '</b><span class="gq-fb-x"> ' + quizInline(q.explain) + '</span></div>' + kp + '<div style="padding:12px 0"><button id="gq-attention"'+(done.confidencePending?' disabled':'')+'>'+ (done.confidencePending?'不确定标记随答案保存中…':done.needsReview?'已加入巩固 · 取消标记':'这处还没掌握，加入复习')+'</button><p class="gq-note" id="gq-attention-status">'+(done.confidencePending?'答案与不确定标记已进入补传队列，联网后会自动保存。':done.confidenceUnavailable?'不确定已记录；此题暂不在可调度的复习范围。':done.unsure?'你标记了不确定；实际对错保留。':'')+'</p></div>';
-    $('gq-attention').onclick=()=>gqAttention(q,done,!done.needsReview);
+    if(GQ_UI.quiz.course==='ndf-01'&&GQ_UI.quiz.lessonNo>=1&&GQ_UI.quiz.lessonNo<=23)$('gq-attention').onclick=()=>gqAttention(q,done,!done.needsReview);
+    else { $('gq-attention').hidden=true; $('gq-attention-status').textContent='此题的作答与不确定状态会保留；尚未接入课程复习调度。'; }
     fb.scrollIntoView({ behavior: 'smooth', block: 'nearest' });   // 判分结果送到眼前, 粘底条保持按钮可见
   }
 }
@@ -2636,8 +2639,9 @@ function gqConsumeRedo(lessonId) {
 
 /* ---------- 背单词（万词班词库 · SM-2 间隔重复, beizitie 同参数） ---------- */
 const VB = { bank:null, order:null, cur:null, revealed:false, hint:false, loading:false, err:'' };
-let VB_TICK=null, VB_QUEUE_T=null;
-const VB_QKEY='tfl-vb-queue';
+let VB_TICK=null, VB_QUEUE_T=null, VB_WAKE=null, VB_FLUSHING=false, VB_SPOKEN=null;
+const VB_QKEY='tfl-vb-queue', VB_PREFIX='tfl-vb-event:';
+const VB_ACK={}, VB_DAYS={}, VB_SEEN=new Set();
 function vbKey(s){ return String(s||'').toLowerCase().replace(/\s+/g,''); }
 /* 与 server.mjs sm2Grade 逐行同参: s -1新/0..2学习阶梯/99毕业; 评分即调度, 本地先行乐观更新 */
 const SM2C={ MIN_EASE:1.3, AGAIN:-0.2, HARD:-0.15, EASY:0.15, GRAD:1440, EASY_GRAD:5760, STEPS:[1,3,10] };
@@ -2663,7 +2667,7 @@ async function vbLoadBank(){
   if(VB.bank||VB.loading) return;
   VB.loading=true; vbRender();
   try{
-    const j=await api('/api/vocab/bank');
+    const j=await api('/api/vocab/bank',{signal:AbortSignal.timeout(15000)});
     VB.bank=j.bank;
     VB.order=[];
     for(const b of VB.bank.batches) for(const w of b.words) VB.order.push({w:w.w, ipa:w.ipa, def:w.def, sen:w.sen, senZh:w.senZh, lesson:w.lesson, k:vbKey(w.w), root:b.root, gloss:b.gloss, batch:b.id});
@@ -2671,23 +2675,63 @@ async function vbLoadBank(){
   }catch(e){ VB.err='词库读取失败'; }
   VB.loading=false; vbRender();
 }
-function vbCounts(){
-  const now=Date.now(), t0=new Date(); t0.setHours(0,0,0,0);
-  let learn=0, due=0, newToday=0, total=0;
-  const days={};
-  for(const st of Object.values(REC.vocab||{})){
-    total++;
-    if(Number.isFinite(st.at)) days[new Date(st.at).toDateString()]=1;
-    if(Number(st.born||0)>=t0.getTime()) newToday++;
-    if(Number(st.due||0)<=now){ st.s===99?due++:learn++; }
+function vbDay(at=Date.now()){return new Date(at+8*3600000).toISOString().slice(0,10);}
+function vbPending(){
+  const q=[];
+  for(let i=0;i<localStorage.length;i++){
+    const key=localStorage.key(i); if(!key?.startsWith(VB_PREFIX))continue;
+    const item=JSON.parse(localStorage.getItem(key));
+    if(!item||!item.id||!item.word||![1,2,3,4].includes(item.rating)||!Number.isFinite(item.at))throw Error('待传背词记录损坏，请先导出');
+    q.push(item);
   }
-  let streak=0; const day=new Date(t0);
-  if(!days[day.toDateString()]) day.setDate(day.getDate()-1);   // 今天还没学不断签
-  while(days[day.toDateString()]){ streak++; day.setDate(day.getDate()-1); }
-  return {learn, due, newToday, total, streak};
+  return q.sort((a,b)=>a.at-b.at||a.id.localeCompare(b.id));
+}
+function vbMigrateQueue(){
+  const raw=localStorage.getItem(VB_QKEY); if(!raw)return;
+  const old=JSON.parse(raw); if(!Array.isArray(old))throw Error('旧背词队列异常');
+  for(const item of old){
+    if(!item?.word||![1,2,3,4].includes(item.rating)||!Number.isFinite(item.at))throw Error('旧背词记录异常，请导出');
+    const id='legacy-'+item.at+'-'+encodeURIComponent(vbKey(item.word));
+    localStorage.setItem(VB_PREFIX+id,JSON.stringify({...item,id,legacy:true}));
+  }
+  localStorage.removeItem(VB_QKEY); // 所有条目独立落盘后才删除旧数组
+}
+function vbNewer(st,old){return !old||st.n>old.n||(st.n===old.n&&st.at>=old.at);}
+function vbState(){
+  const state={...(REC.vocab||{})};
+  for(const [k,st] of Object.entries(VB_ACK))if(vbNewer(st,state[k]))state[k]=st;
+  try{for(const e of vbPending()){
+    if(VB_SEEN.has(e.id)||REC.vocabEvents?.[e.id])continue;
+    const key=vbKey(e.word), prev=state[key], st=sm2Local(e.rating,prev||null,e.at);
+    Object.assign(st,{n:(prev?.n||0)+1,at:e.at});
+    if(!prev)st.born=e.at;else if(prev.born)st.born=prev.born;
+    state[key]=st;
+  }}catch(e){VB.err=e.message;}
+  return state;
+}
+function vbCounts(){
+  const now=Date.now(), today=vbDay(), state=vbState();
+  let learn=0,due=0,newToday=0,total=0;
+  const days={}; for(const [day,stats] of Object.entries({...REC.vocabDays,...VB_DAYS}))if(stats.grades>0)days[day]=1;
+  for(const st of Object.values(state)){
+    total++; if(st.born&&vbDay(st.born)===today)newToday++;
+    if(Number(st.due||0)<=now){st.s===99?due++:learn++;}
+  }
+  let pendingNew=0;const seen=new Set([...Object.keys(REC.vocab||{}),...Object.keys(VB_ACK)]);
+  try{for(const e of vbPending()){
+    if(VB_SEEN.has(e.id)||REC.vocabEvents?.[e.id])continue;
+    days[vbDay(e.at)]=1;const k=vbKey(e.word);
+    if(!seen.has(k)&&vbDay(e.at)===today)pendingNew++;seen.add(k);
+  }}catch(e){VB.err=e.message;}
+  newToday=Math.max(newToday,Math.max(REC.vocabDays?.[today]?.introduced||0,VB_DAYS[today]?.introduced||0)+pendingNew);
+  let streak=0, day=Date.parse(today+'T00:00:00Z');
+  const key=()=>new Date(day).toISOString().slice(0,10);
+  if(!days[key()])day-=86400000;
+  while(days[key()]){streak++;day-=86400000;}
+  return {learn,due,newToday,total,streak};
 }
 function vbPick(){
-  const now=Date.now(), V=REC.vocab||{};
+  const now=Date.now(), V=vbState();
   let best=null;
   for(const c of VB.order){ const st=V[c.k]; if(st&&st.s!==-1&&st.s!==99&&Number(st.due)<=now&&(!best||st.due<best.st.due)) best={c,st}; }
   if(best) return best;                                          // 1) 学习阶梯到期(分钟级, 当场回收)
@@ -2700,9 +2744,10 @@ function vbPick(){
   }
   return null;
 }
-function mountVocab(){ vbLoadBank(); vbRender(); }
+function mountVocab(){ try{vbMigrateQueue();}catch(e){VB.err=e.message;} vbLoadBank(); vbRender(); vbFlushQueue(); }
 function vbRender(){
-  const body=$('vb-body'); if(!body) return;
+  const body=$('vb-body'); if(!body||!document.querySelector('#v-vocab.on')) return;
+  clearTimeout(VB_WAKE);VB_WAKE=null;
   if(VB.loading){ body.innerHTML='<div class="card" style="padding:28px;text-align:center;color:var(--t2)">正在读取词库…</div>'; return; }
   if(!VB.bank){
     body.innerHTML='<div class="card" style="padding:28px;text-align:center">'+esc(VB.err||'词库未加载')+' <button id="vb-retry">重试</button></div>';
@@ -2713,18 +2758,20 @@ function vbRender(){
   $('vb-ct').textContent='已学 '+c.total+' / '+VB.order.length;
   const pick=VB.cur?{c:VB.cur}:vbPick();
   VB.cur=pick?pick.c:null;
-  const top='<div class="vb-top">'
+  let pending=0;try{pending=vbPending().length;}catch(e){VB.err=e.message;}
+  const status=VB.err|| (pending?'有 '+pending+' 条评分等待同步，保留本页或稍后自动补传。':'');
+  const top=(status?'<p role="status" class="vb-note">'+esc(status)+' <button id="vb-sync">重试保存</button> <button id="vb-export">导出待传记录</button></p>':'')+'<div class="vb-top">'
     + '<span class="vb-stat">到期 <b>'+c.due+'</b> · 学习中 <b>'+c.learn+'</b></span>'
-    + '<span class="vb-stat">新词今天 <b>'+Math.min(c.newToday,quota)+'</b>/'+quota+'</span>'
+    + '<span class="vb-stat">新词今天 <b>'+c.newToday+'</b>/'+quota+'</span>'
     + '<span class="vb-stat">连续 <b>'+c.streak+'</b> 天</span>'
     + '<span class="vb-quota">配额 <button id="vb-q-less" aria-label="减少新词配额">−</button><b id="vb-q-n">'+quota+'</b><button id="vb-q-more" aria-label="增加新词配额">+</button></span>'
     + '</div>';
   if(!VB.cur){
     body.innerHTML=top+'<div class="vb-card"><div class="vb-done">今日队列完成 ✓</div>'
       + '<p class="vb-note">已学 '+c.total+' / '+VB.order.length+' 词。到期复习会在这里等你；想多学新词就调上面的配额。</p></div>';
-    vbWireQuota(); return;
+    VB_SPOKEN=null;vbWireQuota();vbStudyGate();vbScheduleWake();return;
   }
-  const cur=VB.cur, st=REC.vocab[cur.k]||null;
+  const cur=VB.cur, st=vbState()[cur.k]||null;
   const isNew=!st;
   let h=top+'<div class="vb-card" id="vb-card">'
     + '<div class="vb-meta">'+(isNew?'<span class="vb-tag new">新词</span>':'<span class="vb-tag">复习</span>')+'第 '+cur.lesson+' 课 · 词根 '+esc(cur.root)+'</div>'
@@ -2753,17 +2800,20 @@ function vbRender(){
   const lesson=$('vb-lesson'); if(lesson) lesson.onclick=()=>nav('course/cfcm-01-'+String(cur.lesson).padStart(2,'0'));
   body.querySelectorAll('.vb-rate button').forEach(b=>b.onclick=()=>vbGrade(Number(b.dataset.r)));
   const sp=$('vb-speak'); if(sp) sp.onclick=()=>vbSpeak(VB.cur.w);
-  vbSpeak(cur.w);   // 出卡即读; 首卡若被自动播放策略拦下, 点喇叭重读
+  if(VB_SPOKEN!==cur.k){VB_SPOKEN=cur.k;vbSpeak(cur.w);} // 同卡重绘不重复请求音频
   vbStudyGate();   // cur 已定, 计时门按最终状态重估
 }
 let VB_AUDIO=null;
 function vbSpeak(w){
   /* 双层发音: 服务端 Qwen3-TTS 优先(配额/网络失败自动降级), 浏览器本地语音兜底(离线可用) */
   try{
+    window.speechSynthesis?.cancel();
     if(VB_AUDIO){VB_AUDIO.onerror=null;VB_AUDIO.pause();}
     VB_AUDIO=new Audio('/api/vocab/tts?w='+encodeURIComponent(w));
-    VB_AUDIO.onerror=()=>vbSpeakLocal(w);
-    VB_AUDIO.play().catch(()=>vbSpeakLocal(w));
+    const audio=VB_AUDIO;
+    const fallback=()=>{if(VB_AUDIO===audio&&VB.cur?.w===w&&document.querySelector('#v-vocab.on'))vbSpeakLocal(w);};
+    audio.onerror=fallback;
+    audio.play().catch(fallback);
   }catch(e){ vbSpeakLocal(w); }
 }
 function vbSpeakLocal(w){
@@ -2775,6 +2825,12 @@ function vbSpeakLocal(w){
   }catch(e){}
 }
 function vbWireQuota(){
+  const sync=$('vb-sync');if(sync)sync.onclick=()=>vbFlushQueue();
+  const exp=$('vb-export');if(exp)exp.onclick=()=>{
+    const data={};for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k===VB_QKEY||k?.startsWith(VB_PREFIX))data[k]=localStorage.getItem(k);}
+    const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));
+    const a=document.createElement('a');a.href=url;a.download='toefl-vocab-pending.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  };
   const less=$('vb-q-less'), more=$('vb-q-more'); if(!less) return;
   const set=n=>{REC.vocabCfg={daily:Math.min(200,Math.max(0,n))};recSave();vbRender();};
   less.onclick=()=>set(((REC.vocabCfg&&REC.vocabCfg.daily)||0)-5);
@@ -2782,41 +2838,56 @@ function vbWireQuota(){
 }
 function vbReveal(){ if(!VB.cur) return; VB.revealed=true; vbRender(); }
 async function vbGrade(rating){
-  const cur=VB.cur; if(!cur||!VB.revealed) return;
-  const now=Date.now(), prev=REC.vocab[cur.k]||null;
-  const st=sm2Local(rating, prev, now);
-  st.n=(prev?prev.n||0:0)+1; st.at=now; if(!prev) st.born=now;
-  REC.vocab[cur.k]=st; recSave();
-  VB.cur=null; VB.revealed=false; VB.hint=false;
-  vbRender();
-  try{
-    const j=await api('/api/vocab/grade',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({word:cur.w,rating,at:now})});
-    if(j.st){ REC.vocab[cur.k]=j.st; recSave(); }   // 服务端权威态回写(at=服务器钟)
-  }catch(e){
-    try{ const q=JSON.parse(localStorage.getItem(VB_QKEY)||'[]'); q.push({word:cur.w,rating,at:now}); localStorage.setItem(VB_QKEY,JSON.stringify(q.slice(-800))); }catch(_e){}
-    if(!VB_QUEUE_T) VB_QUEUE_T=setTimeout(vbFlushQueue, 20000);
-  }
+  const cur=VB.cur;if(!cur||!VB.revealed||![1,2,3,4].includes(rating))return;
+  const event={id:recEventId(),word:cur.w,rating,at:Date.now()};
+  try{vbMigrateQueue();vbPending();localStorage.setItem(VB_PREFIX+event.id,JSON.stringify(event));}
+  catch(e){VB.err='评分未保存，请保持本页并释放浏览器存储后重试。'+e.message;vbRender();return;}
+  VB.cur=null;VB.revealed=false;VB.hint=false;VB_SPOKEN=null;VB.err='';
+  vbRender();vbFlushQueue();
 }
 async function vbFlushQueue(){
-  VB_QUEUE_T=null;
-  let q=[]; try{ q=JSON.parse(localStorage.getItem(VB_QKEY)||'[]'); }catch(e){}
-  if(!q.length||!recReady) { if(q.length&&!VB_QUEUE_T) VB_QUEUE_T=setTimeout(vbFlushQueue,30000); return; }
-  let i=0;
-  for(;i<q.length;i++){
-    try{ await api('/api/vocab/grade',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(q[i])}); }
-    catch(e){ break; }   // 顺序保真: 失败即停, 其余连同失败项留队
+  if(VB_FLUSHING)return;VB_FLUSHING=true;clearTimeout(VB_QUEUE_T);VB_QUEUE_T=null;
+  try{
+    vbMigrateQueue();
+    if(!recReady)return;
+    for(const event of vbPending()){
+      const payload=event.legacy?{word:event.word,rating:event.rating,at:event.at}:event;
+      const j=await api('/api/vocab/grade',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),signal:AbortSignal.timeout(15000)});
+      if(!j.ok||(!event.legacy&&j.id!==event.id))throw Error('评分确认不匹配，已保留待传记录');
+      VB_SEEN.add(event.id);
+      const key=vbKey(event.word);REC.vocab ||= {};
+      if(j.st&&vbNewer(j.st,VB_ACK[key]))VB_ACK[key]=j.st;
+      if(j.st&&vbNewer(j.st,REC.vocab[key]))REC.vocab[key]=j.st;
+      REC.vocabDays ||= {};
+      for(const [day,st] of Object.entries(j.vocabDays||{})){
+        const old=VB_DAYS[day]||REC.vocabDays[day]||{};
+        VB_DAYS[day]=REC.vocabDays[day]={grades:Math.max(old.grades||0,st.grades||0),introduced:Math.max(old.introduced||0,st.introduced||0)};
+      }
+      localStorage.removeItem(VB_PREFIX+event.id); // 只确认这一条，不能删除并发新增事件
+    }
+    VB.err='';
+  }catch(e){VB.err='背词保存未完成：'+e.message;}
+  finally{
+    VB_FLUSHING=false;
+    try{if(vbPending().length||localStorage.getItem(VB_QKEY))VB_QUEUE_T=setTimeout(vbFlushQueue,10000);}catch(e){}
+    vbRender();
   }
-  const rest=q.slice(i);
-  try{ rest.length?localStorage.setItem(VB_QKEY,JSON.stringify(rest)):localStorage.removeItem(VB_QKEY); }catch(e){}
-  if(rest.length&&!VB_QUEUE_T) VB_QUEUE_T=setTimeout(vbFlushQueue,30000);
+}
+function vbScheduleWake(){
+  if(document.hidden||!document.querySelector('#v-vocab.on'))return;
+  let wait=60000;
+  for(const st of Object.values(vbState()))if(st.due>Date.now())wait=Math.min(wait,st.due-Date.now());
+  VB_WAKE=setTimeout(()=>{VB_WAKE=null;vbRender();},Math.max(100,wait));
 }
 function vbStudyGate(){
   const on=!!document.querySelector('#v-vocab.on')&&!!VB.cur&&!document.hidden;
-  if(on&&!VB_TICK) VB_TICK=setInterval(()=>{ if(!document.querySelector('#v-vocab.on')||document.hidden){vbStudyGate();return;} studyTick(1); if((REC.study.total||0)%5===0)recSave(); },1000);
+  if(on&&!VB_TICK) VB_TICK=setInterval(()=>{if(!VB.cur||!document.querySelector('#v-vocab.on')||document.hidden){vbStudyGate();return;}studyTick(1);if((REC.study.total||0)%5===0)recSave();},1000);
   else if(!on&&VB_TICK){clearInterval(VB_TICK);VB_TICK=null;}
 }
+window.addEventListener('online',()=>{vbFlushQueue();});
+window.addEventListener('storage',e=>{if(e.key?.startsWith(VB_PREFIX)){vbRender();vbFlushQueue();}});
 document.addEventListener('keydown', e=>{
-  if(location.hash.indexOf('#/vocab')!==0) return;
+  if(e.repeat||location.hash.indexOf('#/vocab')!==0) return;
   if(e.target&&/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
   if(!VB.cur) return;
   if(e.code==='Space'||e.key===' '){ e.preventDefault(); VB.revealed?vbGrade(3):vbReveal(); }

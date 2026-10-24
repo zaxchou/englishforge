@@ -779,14 +779,14 @@ const TTS_CFG = {
 const TTS_CACHE_DIR = path.join(RECORDS_DIR, 'tts-cache');
 function ttsWavParse(buf) {
   if (buf.length < 44 || buf.toString('ascii', 0, 4) !== 'RIFF' || buf.toString('ascii', 8, 12) !== 'WAVE') throw new Error('NOT_A_WAV');
-  let off = 12, fmt = null, dataBytes = 0, headerBytes = 44;
+  let off = 12, fmt = null, dataBytes = 0, headerBytes = 44, hasData = false;
   while (off + 8 <= buf.length) {
     const id = buf.toString('ascii', off, off + 4), size = buf.readUInt32LE(off + 4);
-    if (id === 'fmt ') fmt = { channels: buf.readUInt16LE(off + 10), sampleRate: buf.readUInt32LE(off + 12), bits: buf.readUInt16LE(off + 22) };
-    else if (id === 'data') { dataBytes = size; headerBytes = off + 8; break; }
+    if (id === 'fmt ' && size >= 16 && off + 24 <= buf.length) fmt = { channels: buf.readUInt16LE(off + 10), sampleRate: buf.readUInt32LE(off + 12), bits: buf.readUInt16LE(off + 22) };
+    else if (id === 'data') { hasData = true; dataBytes = size; headerBytes = off + 8; break; }
     off += 8 + size + (size % 2);
   }
-  if (!fmt || !fmt.sampleRate) throw new Error('BAD_WAV_FMT');
+  if (!hasData || !fmt || !fmt.sampleRate || !fmt.channels || ![8,16,24,32].includes(fmt.bits)) throw new Error('BAD_WAV_FMT');
   const actual = buf.length - headerBytes;
   if (dataBytes <= 0 || dataBytes > actual) dataBytes = actual;
   return { fmt, dataBytes, headerBytes, durationMs: Math.round(dataBytes / (fmt.sampleRate * fmt.channels * fmt.bits / 8) * 1000) };
@@ -797,7 +797,14 @@ function ttsWavFix(buf) {
   fixed.writeUInt32LE(p.dataBytes, p.headerBytes - 4);
   return fixed;
 }
-async function ttsSynthToFile(word) {
+const TTS_INFLIGHT = new Map();
+function ttsSynthToFile(word) {
+  const key = TTS_CFG.model + '|' + TTS_CFG.voice + '|' + word;
+  if (TTS_INFLIGHT.has(key)) return TTS_INFLIGHT.get(key);
+  const job = ttsSynthUncached(word).finally(() => TTS_INFLIGHT.delete(key));
+  TTS_INFLIGHT.set(key, job); return job;
+}
+async function ttsSynthUncached(word) {
   const cacheFile = path.join(TTS_CACHE_DIR, createHash('sha256').update(TTS_CFG.model + '|' + TTS_CFG.voice + '|' + word).digest('hex') + '.wav');
   try { ttsWavParse(fs.readFileSync(cacheFile)); return cacheFile; } catch (e) {}   // 缓存损坏按缺失处理
   if (!TTS_CFG.key || !TTS_CFG.url) throw new Error('TTS 未配置（缺少 TFL_TTS_KEY / TFL_TTS_URL）');
@@ -809,12 +816,25 @@ async function ttsSynthToFile(word) {
   if (!r.ok) throw new Error('TTS 接口 ' + r.status);
   const url = (await r.json())?.output?.audio?.url;
   if (!url) throw new Error('TTS 响应无音频');
-  const fixed = ttsWavFix(Buffer.from(await (await fetch(url)).arrayBuffer()));
+  const audio = await fetch(url, {signal:AbortSignal.timeout(30000)});
+  if (!audio.ok || !audio.body) throw new Error('TTS 音频下载失败');
+  const chunks=[]; let size=0;
+  for await (const chunk of audio.body) {
+    size+=chunk.length;
+    if (size>5*1024*1024) throw new Error('TTS 音频过大');
+    chunks.push(chunk);
+  }
+  const fixed = ttsWavFix(Buffer.concat(chunks));
   if (ttsWavParse(fixed).durationMs < 200) throw new Error('TTS 音频过短');
   fs.mkdirSync(TTS_CACHE_DIR, { recursive: true });
   const tmp = cacheFile + '.tmp';
   fs.writeFileSync(tmp, fixed); fs.renameSync(tmp, cacheFile);
   return cacheFile;
+}
+function vocabStateValid(st) {
+  return st && [0,1,2,99].includes(st.s) && Number.isFinite(st.e) && st.e>=1.3 &&
+    Number.isFinite(st.i) && st.i>=1 && Number.isFinite(st.due) && st.due>0 &&
+    Number.isInteger(st.r) && st.r>=0 && Number.isInteger(st.n) && st.n>=0;
 }
 /* s: -1 新卡 / 0..2 学习阶梯步 / 99 已毕业。rating: 1重来 2困难 3良好 4简单。间隔单位=分钟。 */
 function sm2Grade(rating, prev, now) {
@@ -1207,15 +1227,10 @@ function nextRecords(incoming) {
   }
   if (!Array.isArray(incoming.feedback)) throw new Error('invalid feedback');
   next.feedback = incoming.feedback;
-  /* 背单词(可选字段, 旧页面快照里没有): absent 即保留服务端; present 时按词键级合并,
-     at 时间戳新者胜——快照里的乐观判分不得回退判分端点已落盘的权威态。 */
-  next.vocab = { ...(RECORDS.vocab || {}) };
-  if (incoming.vocab && typeof incoming.vocab === 'object' && !Array.isArray(incoming.vocab))
-    for (const [vk, vv] of Object.entries(incoming.vocab)) {
-      if (!vv || typeof vv !== 'object' || Array.isArray(vv) || !Number.isFinite(vv.due)) continue;
-      const ex = next.vocab[vk];
-      if (!ex || (Number(vv.at) || 0) >= (Number(ex.at) || 0)) next.vocab[vk] = vv;
-    }
+  // 调度及事件账本只能由增量端点更新，旧页面快照也不能回写。
+  next.vocab = RECORDS.vocab || {};
+  next.vocabEvents = RECORDS.vocabEvents || {};
+  next.vocabDays = RECORDS.vocabDays || {};
   next.vocabCfg = (incoming.vocabCfg && typeof incoming.vocabCfg === 'object' && !Array.isArray(incoming.vocabCfg) && Number.isFinite(Number(incoming.vocabCfg.daily)))
     ? { daily: Math.min(200, Math.max(0, Math.round(Number(incoming.vocabCfg.daily)))) }
     : (RECORDS.vocabCfg || { daily: 20 });
@@ -1411,33 +1426,38 @@ const handler = async (req, res) => {
       if (!key || key.length > 60) return sendJSON(res, 400, { error: 'word required' });
       const card = vocabIndex().get(key);
       if (!card) return sendJSON(res, 400, { error: '词不在词库' });
-      // Copy, persist, then publish(与 attempt 端点同纪律)
-      const next = JSON.parse(JSON.stringify(RECORDS));
-      next.vocab = next.vocab || {};
-      let st = null;
-      if (inc.delete) {
-        delete next.vocab[key];
-      } else {
-        if (!Number.isInteger(inc.rating) || inc.rating < 1 || inc.rating > 4) return sendJSON(res, 400, { error: 'rating must be 1-4' });
-        if (inc.at !== undefined && !Number.isFinite(Number(inc.at))) return sendJSON(res, 400, { error: 'invalid at' });
-        if (inc.secs !== undefined && (!Number.isFinite(inc.secs) || inc.secs < 0 || inc.secs > 3600)) return sendJSON(res, 400, { error: 'invalid seconds' });
-        const existing = next.vocab[key];
-        if (existing && Number.isFinite(Number(inc.at)) && existing.at === Number(inc.at)) {
-          st = existing;   // 幂等: 快照已带上这条乐观判分, 补传不再重复套 SM-2
-        } else {
-          const now = Date.now();
-          st = sm2Grade(inc.rating, existing || null, now);
-          st.n = (existing ? existing.n || 0 : 0) + 1;
-          st.at = now;
-          if (!existing) st.born = now;   // 新学引入时间(每日配额与打卡统计用)
-          next.vocab[key] = st;
-        }
+      if (inc.delete) return sendJSON(res, 400, { error: '不支持删除学习记录' });
+      if (!Number.isInteger(inc.rating) || inc.rating < 1 || inc.rating > 4 || !Number.isFinite(inc.at) || inc.at <= 0 || inc.at > 8640000000000000)
+        return sendJSON(res, 400, { error: 'invalid rating/at' });
+      // 兼容旧离线队列；新页面在请求前持久化随机 ID。时钟只作事件元数据。
+      const fingerprint = JSON.stringify([key, inc.rating, inc.at]);
+      const id = inc.id === undefined ? 'legacy-' + createHash('sha256').update(fingerprint).digest('hex') : inc.id;
+      if (typeof id !== 'string' || !/^[\w-]{8,100}$/.test(id)) return sendJSON(res, 400, { error: 'invalid event id' });
+      if (['__proto__','constructor','prototype'].includes(id)) return sendJSON(res, 400, {error:'invalid event id'});
+      const oldEvent = Object.hasOwn(RECORDS.vocabEvents || {}, id) ? RECORDS.vocabEvents[id] : null;
+      if (oldEvent) {
+        if (oldEvent.fingerprint !== fingerprint) return sendJSON(res, 409, { error: 'event id reused with different payload' });
+        return sendJSON(res, 200, { ok:true, duplicate:true, id, st:RECORDS.vocab?.[key] || null, vocabDays:RECORDS.vocabDays || {}, revision:RECORDS.revision });
       }
+      const existing = Object.hasOwn(RECORDS.vocab || {}, key) ? RECORDS.vocab[key] : null;
+      if (existing && !vocabStateValid(existing)) return sendJSON(res, 409, { error: '已有调度异常，记录已保留，请导出并检查' });
+      const next = JSON.parse(JSON.stringify(RECORDS)), now = Date.now();
+      const st = sm2Grade(inc.rating, existing || null, now);
+      st.n = (existing?.n || 0) + 1; st.at = now;
+      if (!vocabStateValid(st)) return sendJSON(res, 409, {error:'调度结果异常，原记录已保留'});
+      if (!existing) st.born = now;
+      else if (Number.isFinite(existing.born) && existing.born > 0) st.born = existing.born;
+      next.vocab ||= {}; next.vocab[key] = st;
+      next.vocabEvents ||= {}; next.vocabEvents[id] = {fingerprint, key, at:now, introduced:!existing};
+      next.vocabDays ||= {};
+      const day = new Date(now + 8*3600000).toISOString().slice(0,10); // 本地 NAS 用户时区 Asia/Shanghai
+      const daily = next.vocabDays[day] ||= {grades:0, introduced:0};
+      daily.grades++; if (!existing) daily.introduced++;
       next.revision = (RECORDS.revision || 0) + 1;
-      next.saved_at = new Date().toISOString();
+      next.saved_at = new Date(now).toISOString();
       try { recordsSave(next); } catch (e) { console.error('[vocab]', e.message); return sendJSON(res, 503, { error: 'records not persisted' }); }
       RECORDS = next;
-      return sendJSON(res, 200, { ok: true, st, revision: next.revision, saved_at: next.saved_at });
+      return sendJSON(res, 200, { ok:true, id, st, vocabDays:next.vocabDays, revision:next.revision, saved_at:next.saved_at });
     }
 
     /* ---- API: 背单词发音（只合成词库内的词, 防滥用） ---- */

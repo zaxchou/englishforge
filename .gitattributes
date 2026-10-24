@@ -1,0 +1,2 @@
+# NAS release scripts require a literal LF version tag.
+VERSION text eol=lf

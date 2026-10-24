@@ -30,7 +30,7 @@ OUT = ROOT / "build" / "vocab" / "cfcm-words.json"
 
 ROOT_HEAD = re.compile(r"词根\d+：([A-Za-z][A-Za-z \-]*?)，([^（]+)（(\d+) 个）")
 WORD_ENTRY = re.compile(r"^([A-Za-z][A-Za-z'’\- ]{0,40})\n(/[^/\n]+/)\n(.+?)$", re.M)
-SENT_HEAD = re.compile(r"^([A-Za-z][A-Za-z'’\-]{1,40})\s+[–—]\s+(.+)$")
+SENT_HEAD = re.compile(r"^([A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ'’ \-]{0,60}?)\s*[–—]\s*(.*)$")
 CJK = re.compile(r"[\u4e00-\u9fff]")
 NS = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"
 
@@ -53,38 +53,62 @@ def parse_handout():
     return words
 
 
+def sentence_key(word):
+    return re.sub(r"\s+", "", re.sub(r"[‐‑‒]", "-", word.lower()))
+
+
 def parse_sentences():
-    """例句 PDF → 每课 word -> {en, zh}。条目行 `word – sentence`，译文以 CJK 行开始。"""
-    doc = pymupdf.open(str(SENT_PDF))
-    lines = []
-    for p in doc:
-        lines.extend(p.get_text().splitlines())
-        lines.append("")
+    """明确词头、英中状态和跨页边界；不明英文不接到上一词译文。"""
     out, lesson, cur = {}, 0, None
-    for ln in lines:
+    audit = {"quarantine": [], "entries": 0}
+    with pymupdf.open(str(SENT_PDF)) as doc:
+        lines = []
+        for page in doc:
+            # 页码不属于例句；跨页保留当前词和语言状态。
+            lines.extend(t for t in page.get_text().splitlines() if not re.fullmatch(r"\s*\d+\s*", t))
+    text = "\n".join(lines).translate(str.maketrans({"‐": "-", "‑": "-", "‒": "-"}))
+    text = re.sub(r"(?<=[A-Za-z])\s*-\s*(?=[A-Za-z])", "-", text)
+    # 部分词头、分隔破折号和例句被 PDF 拆成三行。
+    text = re.sub(r"(?m)^([A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ'’ \-]{0,60})\n\s*([–—])\s*", r"\1 \2 ", text)
+    for line_no, ln in enumerate(text.splitlines(), 1):
         t = ln.strip()
         if not t:
             continue
-        mh = re.match(rf"^第([一二三四五六七八九十百零]+|\d+)课\s*[:：]?\s*$", t)
+        mh = re.match(r"^第([一二三四五六七八九十百零]+|\d+)课\s*[:：]?\s*$", t)
         if mh:
             n = int(mh.group(1)) if mh.group(1).isdigit() else cn2int(mh.group(1))
             lesson, cur = n, None
             out.setdefault(n, {})
             continue
         ms = SENT_HEAD.match(t)
-        if ms and lesson and not CJK.search(t):
-            cur = ms.group(1).strip().lower()
-            out[lesson].setdefault(cur, {"en": ms.group(2).strip(), "zh": ""})
+        if ms and lesson and not CJK.search(ms.group(1)):
+            cur = sentence_key(ms.group(1))
+            entry = {"en": ms.group(2).strip(), "zh": "", "unsafe": False}
+            if cur in out[lesson]:
+                audit["quarantine"].append({"lesson": lesson, "word": cur, "line": line_no, "reason": "duplicate head"})
+                entry["unsafe"] = True
+            out[lesson][cur] = entry
+            audit["entries"] += 1
             continue
         if cur is None:
+            if lesson:
+                audit["quarantine"].append({"lesson": lesson, "line": line_no, "text": t, "reason": "no head"})
             continue
-        e = out[lesson].get(cur)
-        if e is None:
-            continue
-        if CJK.search(t) or e["zh"]:
+        e = out[lesson][cur]
+        if CJK.search(t):
             e["zh"] += t
+        elif e["zh"]:
+            # 不明英文可能是未识别的新词头，隔离当前例句而非串卡。
+            e["unsafe"] = True
+            audit["quarantine"].append({"lesson": lesson, "word": cur, "line": line_no, "text": t, "reason": "English after translation"})
         else:
-            e["en"] += " " + t
+            e["en"] = (e["en"] + " " + t).strip()
+    for entries in out.values():
+        for entry in entries.values():
+            if entry["unsafe"] or not entry["en"] or not entry["zh"]:
+                entry["en"] = entry["zh"] = ""
+    OUT.parent.mkdir(parents=True, exist_ok=True)
+    (OUT.parent / "sentence-parse-audit.json").write_text(json.dumps(audit, ensure_ascii=False, indent=2), encoding="utf-8")
     return out
 
 
@@ -171,7 +195,7 @@ def main():
                         n_dup += 1
                         seen[key]["also"].append(lesson)
                         continue
-                    s = sentences.get(lesson, {}).get(key) or sentences.get(lesson, {}).get(key.replace(" ", ""))
+                    s = sentences.get(lesson, {}).get(sentence_key(w))
                     sen, senzh = (s["en"], s["zh"]) if s else ("", "")
                     if sen:
                         n_sen += 1
