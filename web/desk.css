@@ -1304,3 +1304,18 @@ body.vfull .cs-stage video.tfl{max-height:none}
 .vb-speak:hover{color:var(--acc);border-color:var(--accln);background:var(--accbg)}
 
 .vb-speak svg{flex:none;width:17px;height:17px}
+
+/* ============================================================
+   block 27 · 做题主视觉（course quiz 态收起视频）+ 背词边界
+   ============================================================ */
+.cs-stick .cs-vdock{display:none;align-items:center;gap:12px;background:var(--sunk);border:1px solid var(--line);border-radius:10px;padding:9px 14px;font-size:13px}
+.cs-stick.qz .cs-vdock{display:flex}
+.cs-stick.qz .cs-stage video.tfl{display:none}
+.cs-stick.qz .cs-status{display:none}
+.cs-vdock .vd-t{font-weight:600;color:var(--t1);max-width:40%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cs-vdock .vd-run{color:var(--t2)}
+.cs-vdock button{border:1px solid var(--line);background:var(--card);border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer;color:var(--t1)}
+.cs-vdock button:hover{background:var(--hover)}
+.cs-vdock button.pri{border-color:var(--accln);color:var(--acc);background:var(--accbg)}
+.vb-rate-hint{margin:10px 0 0;font-size:11px;color:var(--t3);text-align:center}
+@media(max-width:700px){.cs-vdock{flex-wrap:wrap}.cs-vdock .vd-t{max-width:100%}}

@@ -48,6 +48,16 @@ def cn2int(s):
 ROOT_HEAD = re.compile(r"词根\d+：([A-Za-z][A-Za-z \-]*?)，([^（]+)（(\d+) 个）")
 WORD_ENTRY = re.compile(r"^([A-Za-z][A-Za-z’’\- ]{0,40})\n(/[^/\n]+/)\n(.+)$", re.M)
 
+# 官方练习书印错的答案勘误（2026-10-24 全量 900 题 AI 复核 + 人工终审, docs/cfcm-quiz-verification/）。
+# 仅 5 题官方标记明显语义/词性错误; 导入时 answer 改为勘误字母, 原印保留在 official 字段供审计。
+ERRATA = {
+    ("cfcm-01-02", 15): ("D", "空格应为形容词 spacious(宽敞的); 官方原印 C=span 是名词/动词"),
+    ("cfcm-01-02", 23): ("D", "Dr. 是 Doctor 的缩写 abbreviation; 官方原印 B=brief 词性不合"),
+    ("cfcm-01-02", 25): ("D", "no air can get in 应为 airtight(密封); 官方原印 A=airy 语义相反"),
+    ("cfcm-01-23", 8): ("B", "飓风的彻底破坏应为 wreck; 官方原印 C=wrath(愤怒)不通"),
+    ("cfcm-01-36", 25): ("A", "空格需名词 salience(显著性); 官方原印 D=salient 是形容词"),
+}
+
 
 def handout_words():
     """每课 词 -> (词根, 词根释义, 词条释义)；来源=讲义拆分逻辑，与 scan_courses.py 同一标题行。"""
@@ -241,6 +251,21 @@ def main():
                 q["tags"] = []
             q["id"] = f"q{i + 1}"
             q["answer"] = ans
+            er = ERRATA.get((f"cfcm-01-{no:02d}", num))
+            if er:
+                q["official"] = ans
+                q["answer"] = er[0]
+                q["errataNote"] = er[1]
+                # 溯源按勘误后的答案词重建(原印词的讲义条目不再适用)
+                w2 = None
+                word2 = re.sub(r"[^a-z' \-]", "", q["options"][er[0]].lower()).strip().replace(" ", "")
+                for cand in inflect(word2):
+                    w2 = wm.get(cand) or gword.get(cand)
+                    if w2:
+                        break
+                if w2:
+                    q["explain"] = f"{w2['root']}（{w2['gloss']}）· 讲义：{w2['def']}"
+                    q["tags"] = [w2["root"]] if w2["root"] else []
             built.append(q)
         if built:
             entries.append({

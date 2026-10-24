@@ -1111,6 +1111,13 @@ function renderHome(){
   let lastQ=null,lastT=0;
   for(const [k,a] of scopedEntries(REC.attempts))
     if(a.last&&a.last>lastT){lastT=a.last;lastQ=k;}
+  /* 今天的行动: 到期复习与背单词纳入首屏(有剩余才出现, 不造新任务) */
+  const dueNow=scopedEntries(REC.mistakes).filter(([,m])=>!m.cleared&&(m.due||0)<=Date.now()).length;
+  const t0=new Date();t0.setHours(0,0,0,0);
+  const vbQuota=(REC.vocabCfg&&Number.isFinite(Number(REC.vocabCfg.daily)))?REC.vocabCfg.daily:20;
+  const vbNewToday=Object.values(REC.vocab||{}).filter(st=>Number(st.born||0)>=t0.getTime()).length;
+  const vbDueN=Object.values(REC.vocab||{}).filter(st=>Number(st.due||0)<=Date.now()).length;
+  const vbNewLeft=Math.max(0,vbQuota-vbNewToday), vbLeft=vbDueN+vbNewLeft;
   // 视频与题取"更近"的那个做主卡, 另一个做副卡; 都没有则给引导
   let ch='';
   if(lastL){
@@ -1120,6 +1127,14 @@ function renderHome(){
       <div class="ct2"><b>${esc(lessonTitle(lastL))}</b><span>${cp.done?'视频已看完':'看到 '+fmt(cp.pos||0)}${gqCompleted(lastL)?' · 本节已练':''}</span></div>
       <button data-go="course/${encodeURIComponent(lastL)}">${cp.tab==='practice'?'继续练习':cp.tab==='notes'?'继续笔记':cp.tab==='script'?'继续课稿':cp.done?'复习本节':'继续看'} →</button></div>`;
   }
+  if(dueNow>0)
+    ch+=`<div class="cont"><span class="pill t">到期复习</span>
+      <div class="ct2"><b>错题到期了</b><span>现在可复习 ${dueNow} 题</span></div>
+      <button data-go="review">去复习 →</button></div>`;
+  if(vbLeft>0)
+    ch+=`<div class="cont"><span class="pill t">背单词</span>
+      <div class="ct2"><b>今天的背单词</b><span>还剩 ${vbLeft} 张${vbDueN?('（到期 '+vbDueN+' · 新词 '+vbNewLeft+'）'):('（新词 '+vbNewLeft+'）')}</span></div>
+      <button data-go="vocab">去背 →</button></div>`;
   if(lastQ){
     const [qs,subj]=lastQ.split('/');
     ch+=`<div class="cont"><span class="pill t">专项训练</span>
@@ -1170,9 +1185,9 @@ function renderHome(){
   /* ---- 错题本 / 视频课 待办 ---- */
   const ms=scopedEntries(REC.mistakes).filter(([,m])=>!m.cleared);
   const dueN=ms.filter(([,m])=>(m.due||0)<=Date.now()).length;
-  $('hm-rv-ct').textContent=dueN?('今日到期 '+dueN+' 题'):'今日无到期';
+  $('hm-rv-ct').textContent=dueN?('现在可复习 '+dueN+' 题'):(ms.length?'今日已清 · 无到期':'今日无到期');
   $('hm-review').innerHTML=`<div class="mini"><div class="mv${dueN?'':' zero'}">${dueN||ms.length||'0'}</div>
-      <div class="mk">${ms.length?('题在册 · 最早 '+Math.max(1,Math.ceil((Math.min(...ms.map(([,m])=>m.due||Date.now()))-Date.now())/864e5))+' 天后复习'):'还没有错题'}</div>
+      <div class="mk">${ms.length?(dueN?('现在可复习 · 共 '+ms.length+' 题在册'):('下次复习 · 最早 '+Math.max(1,Math.ceil((Math.min(...ms.map(([,m])=>m.due||Date.now()))-Date.now())/864e5))+' 天后')):'还没有错题'}</div>
       <button data-go="review">${ms.length?'去复习 →':'查看 →'}</button></div>`;
   let nL=0,nC=0,nWatched=0;
   ((COURSES&&COURSES.series)||[]).forEach(s=>(s.courses||[]).forEach(c=>{nL+=c.lesson_count||0;nC++;}));
@@ -2222,6 +2237,7 @@ function gqStats(quiz, ids) {
 function renderGenQuiz() {
   const body = $('gq-body'); if (!body) return;
   gqStudyGate();   // quiz 相位→计时开, 其余相位→停(切课/结算自动停)
+  csVDockPaint();  // 收起条的题号随进度刷新
   const st = GQ_UI, qz = st.quiz;
   $('gq-meta').textContent = qz ? (qz.questions.length - (qz.bad || []).length + ' 题') : '';
   if(st.phase==='idle'&&st.loading){body.innerHTML='<div class="gq-in"><p class="gq-note" role="status">正在读取本节课后练…</p></div>';return;}
@@ -2353,7 +2369,9 @@ function gqPaintAnswered(q, done) {
         + (o.note ? '<span> — ' + quizInline(o.note) + '</span>' : '') + '</div>').join('') + '</div>';
   }
   if (fb) {
-    fb.innerHTML = '<div class="gq-fb ' + (done.ok ? 'ok' : 'bad') + '"><b>' + (done.ok ? '答对了' : '答错了 · 正确答案 ' + esc(q.answer)) + '</b><span class="gq-fb-x"> ' + quizInline(q.explain) + '</span></div>' + kp + '<div style="padding:12px 0"><button id="gq-attention"'+(done.confidencePending?' disabled':'')+'>'+ (done.confidencePending?'不确定标记随答案保存中…':done.needsReview?'已加入巩固 · 取消标记':'这处还没掌握，加入复习')+'</button><p class="gq-note" id="gq-attention-status">'+(done.confidencePending?'答案与不确定标记已进入补传队列，联网后会自动保存。':done.confidenceUnavailable?'不确定已记录；此题暂不在可调度的复习范围。':done.unsure?'你标记了不确定；实际对错保留。':'')+'</p></div>';
+    fb.innerHTML = '<div class="gq-fb ' + (done.ok ? 'ok' : 'bad') + '"><b>' + (done.ok ? '答对了' : '答错了 · 正确答案 ' + esc(q.answer)) + '</b><span class="gq-fb-x"> ' + quizInline(q.explain) + '</span></div>'
+      + (q.errataNote ? '<p class="gq-note" style="margin:8px 0 0">官方练习书原印答案 ' + esc(q.official) + '，经全量复核勘误为 ' + esc(q.answer) + '：' + esc(q.errataNote) + '</p>' : '')
+      + kp + '<div style="padding:12px 0"><button id="gq-attention"'+(done.confidencePending?' disabled':'')+'>'+ (done.confidencePending?'不确定标记随答案保存中…':done.needsReview?'已加入巩固 · 取消标记':'这处还没掌握，加入复习')+'</button><p class="gq-note" id="gq-attention-status">'+(done.confidencePending?'答案与不确定标记已进入补传队列，联网后会自动保存。':done.confidenceUnavailable?'不确定已记录；此题暂不在可调度的复习范围。':done.unsure?'你标记了不确定；实际对错保留。':'')+'</p></div>';
     if(GQ_UI.quiz.course==='ndf-01'&&GQ_UI.quiz.lessonNo>=1&&GQ_UI.quiz.lessonNo<=23)$('gq-attention').onclick=()=>gqAttention(q,done,!done.needsReview);
     else { $('gq-attention').hidden=true; $('gq-attention-status').textContent='此题的作答与不确定状态会保留；尚未接入课程复习调度。'; }
     fb.scrollIntoView({ behavior: 'smooth', block: 'nearest' });   // 判分结果送到眼前, 粘底条保持按钮可见
@@ -2419,6 +2437,7 @@ function gqTierIds(qz,run){
 function gqOverview(){
   if(!GQ_UI.quiz)return;
   GQ_UI.phase='ready';
+  csQuizFocus(false);   // 回总览: 视频恢复
   renderGenQuiz();gqScrollToCard();
 }
 function gqStartTier(run){
@@ -2433,8 +2452,33 @@ function gqStart(ids, run) {
   if(!ids.length){gqOverview();return;}
   st.order = ids.slice(); st.ix = 0; st.answers = {}; st.wrong = []; st.run = run || 'core';
   st.phase = 'quiz';st.tabPausedAt=0;st.qAt=Date.now();
+  csQuizFocus(true);   // 做题主视觉: 视频收起为一行入口, 题干进首屏
   renderGenQuiz();
   gqScrollToCard();
+}
+/* 做题主视觉: practice+quiz 态收起视频为一行可恢复入口(题干首屏); 离开做题恢复 */
+function csQuizFocus(on){
+  const stick=document.querySelector('.cs-stick');
+  if(!stick)return;
+  const was=stick.classList.contains('qz');
+  stick.classList.toggle('qz',!!on);
+  if(on&&!was){const v=$('cs-video');if(v)v.pause();}
+  csVDockPaint();
+}
+function csVDockPaint(){
+  const dock=$('cs-vdock'),stick=document.querySelector('.cs-stick');
+  if(!dock||!stick)return;
+  const on=stick.classList.contains('qz');
+  dock.style.display=on?'':'none';
+  if(!on)return;
+  const inQuiz=GQ_UI.phase==='quiz'||GQ_UI.phase==='result';
+  const c=courseById(csSel.c),l=c&&c.lessons[csSel.l];
+  const run=GQ_UI.run==='ext'?'扩展挑战':'课堂复习';
+  const pos=inQuiz&&GQ_UI.order.length?('第 '+(GQ_UI.ix+1)+' / '+GQ_UI.order.length+' 题'):'练习中';
+  dock.innerHTML='<span class="vd-t">'+(l?esc(l.title):'')+'</span><span class="vd-run">'+run+(inQuiz?' · '+pos:'')+'</span><span class="grow"></span>'
+    +'<button id="vd-handout">返回讲义</button><button class="pri" id="vd-restore">恢复视频</button>';
+  $('vd-handout').onclick=()=>{csSelectTab('handout');};
+  $('vd-restore').onclick=()=>{csQuizFocus(false);const v=$('cs-video');if(v)v.scrollIntoView({block:'start',behavior:'smooth'});};
 }
 function gqPick(q, letter) {
   if(!gqActive())return;
@@ -2560,6 +2604,7 @@ function csSelectTab(name){
   for(const key of ['handout','script','practice','notes']){const pane=$('cs-mat-'+key);if(pane)pane.style.display=key===name?'':'none';}
   $('cs-mat-r').style.display=name==='handout'?'':'none';
   $('cs-mat-t').textContent={handout:'本节讲义',script:'本节课稿',practice:'本节练习',notes:'本节笔记'}[name];
+  if(name!=='practice')csQuizFocus(false);   // 离开练习 tab: 视频恢复
   const l=courseById(csSel.c)?.lessons[csSel.l];
   if(l&&REC.course[l.id]?.tab!==name){REC.course[l.id]={...REC.course[l.id],tab:name,at:Date.now()};recSave();}
   gqStudyGate();
@@ -2763,6 +2808,7 @@ function vbRender(){
   const top=(status?'<p role="status" class="vb-note">'+esc(status)+' <button id="vb-sync">重试保存</button> <button id="vb-export">导出待传记录</button></p>':'')+'<div class="vb-top">'
     + '<span class="vb-stat">到期 <b>'+c.due+'</b> · 学习中 <b>'+c.learn+'</b></span>'
     + '<span class="vb-stat">新词今天 <b>'+c.newToday+'</b>/'+quota+'</span>'
+    + '<span class="vb-stat">今天还剩 <b>'+(c.due+c.learn+Math.max(0,quota-c.newToday))+'</b> 张</span>'
     + '<span class="vb-stat">连续 <b>'+c.streak+'</b> 天</span>'
     + '<span class="vb-quota">配额 <button id="vb-q-less" aria-label="减少新词配额">−</button><b id="vb-q-n">'+quota+'</b><button id="vb-q-more" aria-label="增加新词配额">+</button></span>'
     + '</div>';
@@ -2789,8 +2835,10 @@ function vbRender(){
       + '<div class="vb-rate">'+[1,2,3,4].map(n=>{
           const pv=sm2Local(n, st, Date.now());
           const names={1:'重来',2:'困难',3:'良好',4:'简单'};
-          return '<button class="r'+n+'" data-r="'+n+'"><b>'+names[n]+'</b><span>'+vbIvl(pv.i)+'</span><span class="vb-kbd">'+n+'</span></button>';
-        }).join('')+'</div>';
+          const means={1:'完全想不起来',2:'想起来了但费劲',3:'正常想起',4:'一眼就懂'};
+          return '<button class="r'+n+'" data-r="'+n+'" title="'+means[n]+'"><b>'+names[n]+'</b><span>'+vbIvl(pv.i)+'</span><span class="vb-kbd">'+n+'</span></button>';
+        }).join('')+'</div>'
+      + '<p class="vb-rate-hint">重来=想不起来 · 困难=想起来了但费劲 · 良好=正常想起 · 简单=一眼就懂</p>';
   }
   h+='</div>';
   body.innerHTML=h;
@@ -3007,6 +3055,7 @@ function renderCourseMain(){
       <span class="src">${esc(c.title)} · 第 ${csSel.l+1}/${c.lessons.length} 节${l.duration_sec?(' · '+fmtDur(l.duration_sec)):''}</span>
       ${cur&&cur.notes_verified?'<span class="chip a">讲义已核读</span>':''}</div>
     <div class="cs-stage">
+      <div class="cs-vdock" id="cs-vdock" style="display:none"></div>
       <video class="tfl" id="cs-video" controls preload="metadata" src="${esc(l.video)}"></video>
       <div class="cs-status" id="cs-status"><span class="pill ${p.done?'q':'t'}">${p.done?'已看完':'未看完'}</span>
         ${(!p.done&&p.pos>10)?`<span class="pill" id="cs-resume">上次看到 ${fmt(p.pos)}</span>`:''}
@@ -3249,7 +3298,7 @@ async function renderFamilies() {
   $('rv-ct').textContent = live.length + ' 家族 · 今日 ' + dueN;
   stats.innerHTML = [
     ['家族', live.length, ''],
-    ['今日到期', dueN, dueN ? 'warn' : ''],
+    ['现在可复习', dueN, dueN ? 'warn' : ''],
     ['已毕业', doneN, ''],
   ].map(([k, v, c]) => '<div class="wk"><div class="k" style="font-size:12px;color:var(--t2)">' + k + '</div>'
     + '<div style="font-size:20px;font-weight:500;line-height:1.2' + (c === 'warn' ? ';color:var(--warn)' : '') + '">' + v + '</div></div>').join('');
@@ -3267,7 +3316,7 @@ async function renderFamilies() {
     const st = famStateOf(f.key);
     const due = st ? (st.due || 0) : 0;
     const col = !st ? 'var(--acc)' : (due <= Date.now() ? 'var(--bad)' : (due <= Date.now() + 3 * 864e5 ? 'var(--warn)' : 'var(--ok)'));
-    const dt = !st ? '新家族 · 未复习过' : (due <= Date.now() ? '今天该复习' : '距复习 ' + Math.max(1, Math.ceil((due - Date.now()) / 864e5)) + ' 天');
+    const dt = !st ? '新家族 · 未复习过' : (due <= Date.now() ? '现在可复习' : '距复习 ' + Math.max(1, Math.ceil((due - Date.now()) / 864e5)) + ' 天');
     return '<div class="famcard rise" style="border-left:3px solid ' + col + ';--i:' + ix + '">'
       + '<div class="h"><span class="nm">' + esc(f.name) + '</span>'
       + '<span class="gl">' + esc((f.kind === 'prefix' ? '前缀' : f.kind === 'suffix' ? '后缀' : '词根') + (f.gloss ? ' · ' + f.gloss : '')) + '</span>'
@@ -3430,7 +3479,7 @@ async function renderReview(){
   const dueN=ms.filter(([,m])=>(m.due||0)<=Date.now()).length;
   $('rv-stats').innerHTML=[
     ['题目错题',ms.length,''],
-    ['今日到期',dueN,dueN?'warn':''],
+    ['现在可复习',dueN,dueN?'warn':''],
     ['已移出训练',reviewEntries(REC.mistakes).filter(([k,m])=>m.cleared && (!revisions[k] || (m.last||0)>=revisions[k])).length,''],
     ['累计作答',reviewEntries(REC.attempts).reduce((a,[,x])=>a+(x.n||0),0),''],
   ].map(([k,v,c])=>`<div class="wk"><div class="k" style="font-size:12px;color:var(--t2)">${k}</div>
@@ -3456,7 +3505,7 @@ async function renderReview(){
     if(genQ){ main=stem; material='课后练 · 第 '+(Number(k.split('/')[2])||'?')+' 节'; }
     const due=m.due||0;
     const col=due<=Date.now()?'var(--bad)':(due<=Date.now()+3*864e5?'var(--warn)':'var(--ok)');
-    const dt=due<=Date.now()?'今天该复习':'距复习 '+Math.max(1,Math.ceil((due-Date.now())/864e5))+' 天';
+    const dt=due<=Date.now()?'现在可复习':'距复习 '+Math.max(1,Math.ceil((due-Date.now())/864e5))+' 天';
     const [set,subj]=k.split('/');
     return `<div class="witem rise" style="border-left:3px solid ${col};--i:${ix}">
       <div class="c">
@@ -3519,7 +3568,7 @@ function renderStats(){
   $('st-streak').textContent=String(st.days||0);
   const dueN=msAll.filter(([,m])=>(m.due||0)<=Date.now()).length;
   $('st-mist').textContent=String(msAll.length);
-  $('st-mist-l').textContent=dueN?('今日到期 '+dueN+' 题'):'待复习';
+  $('st-mist-l').textContent=dueN?('现在可复习 '+dueN+' 题'):'待复习';
   $('st-go-review').style.display=msAll.length?'':'none';
   $('st-go-review').onclick=()=>nav('review');
   /* 错题分布: 行可点 → 错题本 */

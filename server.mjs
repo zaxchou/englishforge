@@ -1174,7 +1174,12 @@ function recordsSave(next) {
 function serverRecAttempt(store, ref, inc) {
   const k = ref.qid;
   const now=Date.now(), t=Number.isFinite(inc.t)&&inc.t>0?Math.min(inc.t,now+300000):now;
-  if (inc.delete) { delete store.attempts[k]; delete store.qtimes[k]; delete store.mistakes[k]; delete store.writing[k]; delete (store.drafts||{})[k]; return null; }
+  if (inc.delete) {
+    delete store.attempts[k]; delete store.qtimes[k]; delete store.mistakes[k]; delete store.writing[k]; delete (store.drafts||{})[k];
+    // 事件登记表同步清理: 否则登记项成惰性残留, 且同事件 id 重放被"已用过"挡住
+    if (store.attemptEvents) for (const [id, e] of Object.entries(store.attemptEvents)) if (e && e.qid === k) delete store.attemptEvents[id];
+    return null;
+  }
   const ok = attemptVerdict(ref,inc);
   const a = store.attempts[k] = store.attempts[k] || { st: 'doing', n: 0, right: 0, history: [] };
   a.n++; a.last = t; a.last_answer = inc.answer;
