@@ -40,6 +40,18 @@ CHUNK_BANK = ROOT / "build" / "vocab" / "eplod-chunks.json"
 POS_WORDS = {"Phrase", "Verb", "Adjective", "Noun", "Adverb", "Expression", "Preposition", "Conjunction", "Interjection", "Pronoun"}
 FOOTER = re.compile(r"Visit the Online Review|Praxis Language|^\s*c⃝", re.M)
 
+# 官方分级表(每日英语听力口径, pipeline/eplod-levels.json): 365 期难度穿插,
+# PDF 标题的 level 命名混乱(Upper-Intermediate/Advanced), 排序与展示一律以本表为准。
+LEVEL_MAP_FILE = Path(__file__).resolve().parent / "eplod-levels.json"
+
+
+def load_level_map():
+    m = {}
+    for lv in json.loads(LEVEL_MAP_FILE.read_text(encoding="utf-8"))["levels"]:
+        for e in lv["eps"]:
+            m[e] = {"name": lv["name"], "zh": lv["zh"], "rank": lv["rank"]}
+    return m
+
 
 def norm_lig(s):
     return (s.replace("ﬁ", "fi").replace("ﬂ", "fl").replace("ﬀ", "ff").replace("ﬃ", "ffi").replace("ﬄ", "ffl"))
@@ -351,8 +363,17 @@ def ffprobe_sec(p):
         return None
 
 
-def update_catalog(ep_data, dur_pb):
+def update_catalog(ep_data, dur_pb, level_map):
     ep4 = str(ep_data["ep"]).zfill(4)
+    epn = int(ep_data["ep"])
+    off = level_map.get(epn)
+    if off:
+        if off["name"] != ep_data["level"]:
+            print(f"    !! 分级交叉校验: 官方表={off['name']} vs PDF标题={ep_data['level']} (期 {epn}, 以官方表为准)")
+        level = off["name"]
+        rank = off["rank"]
+    else:
+        level, rank = ep_data["level"], 9   # 未收录兜底排最后
     cat = {"generated": time.strftime("%F %T"), "kind": "eplod", "series": []}
     if CATALOG.exists():
         cat = json.loads(CATALOG.read_text(encoding="utf-8"))
@@ -365,11 +386,12 @@ def update_catalog(ep_data, dur_pb):
         c = {"id": "eplod-01", "title": "EnglishPod 精听深学", "kind": "eplod", "teacher": "Marco & Amira",
              "subject": "听力", "no": None, "lesson_count": 0, "lessons": []}
         s["courses"].append(c)
-    lesson = {"id": f"eplod-{ep4}", "title": f"#{ep4} {ep_data['title']}", "level": ep_data["level"],
+    lesson = {"id": f"eplod-{ep4}", "title": f"#{ep4} {ep_data['title']}", "level": level, "levelRank": rank,
               "channel": ep_data.get("channel") or "", "audio": audio_urls(ep4),
-              "duration_sec": dur_pb, "ep": int(ep_data["ep"])}
+              "duration_sec": dur_pb, "ep": epn}
     c["lessons"] = [l for l in c["lessons"] if l["id"] != lesson["id"]] + [lesson]
-    c["lessons"].sort(key=lambda x: x["ep"])
+    # 官方难度穿插: 目录按 级别 rank → 期号 排序
+    c["lessons"].sort(key=lambda x: (x.get("levelRank", 9), x["ep"]))
     c["lesson_count"] = len(c["lessons"])
     CATALOG.parent.mkdir(parents=True, exist_ok=True)
     CATALOG.write_text(json.dumps(cat, ensure_ascii=False, indent=1), encoding="utf-8")
@@ -464,7 +486,7 @@ def main():
             shutil.copy2(f, outd / name)   # 归一文件名, 与 /media/eplod/<ep>/dg.mp3 对齐
         BUILD_EP.mkdir(parents=True, exist_ok=True)
         (BUILD_EP / f"{ep}.json").write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
-        update_catalog(data, data["durations"]["pb"])
+        update_catalog(data, data["durations"]["pb"], load_level_map())
         print(f"    音频 → {outd}")
         print(f"    课节 → {BUILD_EP / (ep + '.json')}")
 
