@@ -16,11 +16,11 @@
   --ok:#0B7A4B; --okbg:#E8F4ED; --okln:rgba(11,122,75,.28);
   --bad:#A32D2D; --badbg:#FAEBEB; --badln:rgba(163,45,45,.28);
   --warn:#8A5A0B; --warnbg:#FBF1DE; --warnln:rgba(138,90,11,.28);
-  /* 2026-10-25 视觉升级(Vesper 参考): 强调色蓝→墨绿, 与品牌绿/鼠尾草侧栏一家;
-     线色转暖压浅(分层靠色); 圆角阶梯抬一档(--r 容器/--rs 控件), 大卡另加一档。 */
-  --acc:#1F6B52; --accbg:#E7F1EC; --accln:rgba(31,107,82,.26);
+  --acc:#2F5AA8; --accbg:#E9F0FA; --accln:rgba(47,90,168,.28);
   --glass:rgba(242,241,239,.86);
-  --r:14px; --rs:10px;
+  --r:8px; --rs:6px;
+  /* 以上 block1 变量全部是死值: 本文件是多主题叠加, 生效源在下方 style block4 的 :root。
+     改全局圆角/配色/线色一律去 block4 改(2026-10-25 Vesper 升级即在此改)。 */
   --sh:0 1px 2px rgba(0,0,0,.04);
   --mark:rgba(0,0,0,.055);
   /* ---- 字号尺度: 5 档, 每档一个角色, 不再多档 ----
@@ -1332,7 +1332,8 @@ body.vfull .cs-stage video.tfl{max-height:none}
 .ai-opt .ai-opt-note{color:var(--t2);font-size:12px}
 
 /* block 29 · UI 诊断二轮: 错题分组/背词折叠/讲义收起/dock 精简 */
-.rv-group{border:1px solid var(--line);border-radius:10px;background:var(--card);margin:0 0 12px;overflow:hidden}
+.hprog,.slist{overflow:hidden}   /* 14px 卡角内贴边行(srow2/srow)的 hover 矩形要被裁圆 */
+.rv-group{border:1px solid var(--line);border-radius:var(--rs);background:var(--card);margin:0 0 12px;overflow:hidden}
 .rv-group>summary{display:flex;align-items:center;gap:10px;padding:11px 16px;cursor:pointer;list-style:none;user-select:none;font-size:13px;color:var(--t1)}
 .rv-group>summary::-webkit-details-marker{display:none}
 .rv-group>summary:hover{background:var(--hover)}
