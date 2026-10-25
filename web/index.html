@@ -406,7 +406,9 @@ function aiPanelRender(ex) {
     h += '<div class="ai-opts">' + Object.entries(q.options).map(([k, v]) => {
       const isKey = k === key, isMine = mineKeys.includes(k);
       const tag = isKey ? '<i class="tg ok">✓ 正确答案</i>' : (isMine ? '<i class="tg bad">✗ 你当时错选</i>' : '');
-      return '<div class="ai-opt' + (isKey ? ' right' : (isMine ? ' mine' : '')) + '"><b>' + k + '</b><span>' + esc(v) + '</span>' + tag + '</div>';
+      const text = typeof v === 'object' ? (v.t || '') : v;
+      const note = typeof v === 'object' && v.note ? '<span class="ai-opt-note"> — ' + esc(v.note) + '</span>' : '';
+      return '<div class="ai-opt' + (isKey ? ' right' : (isMine ? ' mine' : '')) + '"><b>' + k + '</b><span>' + esc(text) + note + '</span>' + tag + '</div>';
     }).join('') + '</div>';
   } else {
     if (q.answer) h += '<div class="ai-ans"><span class="k2">正确答案</span><b>' + esc(q.answer) + '</b></div>';
@@ -2287,7 +2289,7 @@ function renderGenQuiz() {
         + '<button class="' + (coreIds.length ? 'gq-ghost' : 'pri') + '" id="gq-start-ext">' + (extDone ? '再练扩展 →' : (coreIds.length ? '做扩展 →' : '开始练习 →')) + '</button></div>' : '')
       + '</div>';
     if(coreIds.length){$('gq-start').onclick=()=>{const rest=gqRemaining(qz,coreIds);gqStart(rest.length?rest:coreIds,'core');};const all=$('gq-all');if(all)all.onclick=()=>gqStart(coreIds,'core');}
-    body.querySelectorAll('.gq-chip-link').forEach(b=>b.onclick=()=>gqOpenFamilies(b.dataset.root));
+    body.querySelectorAll('.gq-chip-link').forEach(b=>b.onclick=()=>gqOpenFamilies(b.dataset.root, GQ_UI.quiz.course));
     const famAllBtn=$('gq-fam-all'); if(famAllBtn) famAllBtn.onclick=()=>gqOpenFamilies(null);
     const se = $('gq-start-ext');
     if(se)se.onclick=()=>{const rest=gqRemaining(qz,extIds);gqStart(rest.length?rest:extIds,'ext');};
@@ -2382,10 +2384,10 @@ async function gqReviewAdd(q, done){
   }catch(e){if(status?.isConnected)status.textContent='标记未保存：'+e.message+'，可点击重试。';}
   finally{if(button?.isConnected)button.disabled=false;}
 }
-/* 词根 chips → 错题本「词根家族」tab; root 指定时滚动定位到该家族卡 */
+/* 词根 chips → 错题本「词根家族」tab; 定位优先本课程的家族 key(课程|词根), 避免命中别课程同名家族 */
 let GQ_FAM_JUMP = null;
-function gqOpenFamilies(root){
-  GQ_FAM_JUMP = root || null;
+function gqOpenFamilies(root, course){
+  GQ_FAM_JUMP = (course && root) ? (course + '|' + root) : (root || null);
   RV_TAB = 'families';
   nav('review');
 }
@@ -3362,12 +3364,12 @@ async function renderFamilies() {
   list.querySelectorAll('[data-fam]').forEach(b => {
     b.onclick = () => startFamReview(b.dataset.fam);
   });
-  if (GQ_FAM_JUMP) {   // 课后练词根 chips 跳入: 定位到对应家族卡
+  if (GQ_FAM_JUMP) {   // 课后练词根 chips 跳入: 定位到对应家族卡(精确 key 优先, 再退词根名)
     const jump = GQ_FAM_JUMP; GQ_FAM_JUMP = null;
-    const target = [...list.querySelectorAll('.famcard')].find(c => {
-      const b = c.querySelector('[data-fam]');
-      return b && (b.dataset.fam === jump || b.dataset.fam.endsWith('|' + jump));
-    });
+    const cards = [...list.querySelectorAll('.famcard')];
+    const keyOf = c => { const b = c.querySelector('[data-fam]'); return b ? b.dataset.fam : ''; };
+    const target = cards.find(c => keyOf(c) === jump)
+      || (!jump.includes('|') ? null : cards.find(c => keyOf(c).endsWith('|' + jump.split('|')[1])));
     if (target) {
       target.scrollIntoView({ block: 'center', behavior: 'smooth' });
       target.style.outline = '2px solid var(--accln)';

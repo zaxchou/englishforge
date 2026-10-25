@@ -1327,3 +1327,4 @@ body.vfull .cs-stage video.tfl{max-height:none}
 .gq-chip-link:hover{border-color:var(--accln);background:var(--accbg);color:var(--acc)}
 .gq-chip-link i{font-style:normal;color:var(--t3);margin-left:3px}
 .gq-fam-all{border:none;background:none;color:var(--acc);font-size:12px;cursor:pointer;text-decoration:underline;text-underline-offset:3px;margin-left:4px}
+.ai-opt .ai-opt-note{color:var(--t2);font-size:12px}
