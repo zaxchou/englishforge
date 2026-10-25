@@ -1126,12 +1126,12 @@ function renderHome(){
     const cp=REC.course[lastL];
     const watching=lastLT>=lastT;
     ch+=`<div class="cont${watching?'':' dim'}"><span class="pill t">视频课</span>
-      <div class="ct2"><b>${esc(lessonTitle(lastL))}</b><span>${cp.done?'视频已看完':'看到 '+fmt(cp.pos||0)}${gqCompleted(lastL)?' · 本节已练':''}</span></div>
+      <div class="ct2"><b>${esc(lessonTitle(lastL))}</b><span>${cp.done?'视频已看完':(cp.pos>10?('看到 '+fmt(cp.pos)):'还没开始看')}${gqCompleted(lastL)?' · 本节已练':''}</span></div>
       <button data-go="course/${encodeURIComponent(lastL)}">${cp.tab==='practice'?'继续练习':cp.tab==='notes'?'继续笔记':cp.tab==='script'?'继续课稿':cp.done?'复习本节':'继续看'} →</button></div>`;
   }
   if(dueNow>0)
     ch+=`<div class="cont"><span class="pill t">到期复习</span>
-      <div class="ct2"><b>错题到期了</b><span>现在可复习 ${dueNow} 题</span></div>
+      <div class="ct2"><b>错题本</b><span>现在可复习 ${dueNow} 题</span></div>
       <button data-go="review">去复习 →</button></div>`;
   if(vbLeft>0)
     ch+=`<div class="cont"><span class="pill t">背单词</span>
@@ -2491,7 +2491,8 @@ function gqStart(ids, run) {
   renderGenQuiz();
   gqScrollToCard();
 }
-/* 做题主视觉: practice+quiz 态收起视频为一行可恢复入口(题干首屏); 离开做题恢复 */
+/* 做题主视觉: practice+quiz 态收起视频为一行可恢复入口(题干首屏); 离开做题恢复.
+   vz=讲义对照模式(#6 收起视频看讲义), 与 qz 共用 dock, 三态: qz > vz > 常规 */
 function csQuizFocus(on){
   const stick=document.querySelector('.cs-stick');
   if(!stick)return;
@@ -2500,20 +2501,31 @@ function csQuizFocus(on){
   if(on&&!was){const v=$('cs-video');if(v)v.pause();}
   csVDockPaint();
 }
+function csVideoCollapse(on){
+  const stick=document.querySelector('.cs-stick');
+  if(!stick)return;
+  stick.classList.toggle('vz',!!on);
+  csVDockPaint();
+}
 function csVDockPaint(){
   const dock=$('cs-vdock'),stick=document.querySelector('.cs-stick');
   if(!dock||!stick)return;
-  const on=stick.classList.contains('qz');
-  dock.style.display=on?'':'none';
-  if(!on)return;
+  const qz=stick.classList.contains('qz'), vz=stick.classList.contains('vz');
+  dock.style.display=(qz||vz)?'':'none';
+  if(!qz&&!vz)return;
+  if(vz&&!qz){   // 讲义对照: 只留恢复入口
+    dock.innerHTML='<span class="vd-run">视频已收起 · 讲义对照模式</span><span class="grow"></span><button class="pri" id="vd-restore">恢复视频</button>';
+    $('vd-restore').onclick=()=>csVideoCollapse(false);
+    return;
+  }
   const inQuiz=GQ_UI.phase==='quiz'||GQ_UI.phase==='result';
   const c=courseById(csSel.c),l=c&&c.lessons[csSel.l];
   const run=GQ_UI.run==='ext'?'扩展挑战':'课堂复习';
   const pos=inQuiz&&GQ_UI.order.length?('第 '+(GQ_UI.ix+1)+' / '+GQ_UI.order.length+' 题'):'练习中';
-  dock.innerHTML='<span class="vd-t">'+(l?esc(l.title):'')+'</span><span class="vd-run">'+run+(inQuiz?' · '+pos:'')+'</span><span class="grow"></span>'
+  dock.innerHTML='<span class="vd-run">'+run+(inQuiz?' · '+pos:'')+'</span><span class="grow"></span>'
     +'<button id="vd-handout">返回讲义</button><button class="pri" id="vd-restore">恢复视频</button>';
-  $('vd-handout').onclick=()=>{csSelectTab('handout');};
-  $('vd-restore').onclick=()=>{csQuizFocus(false);const v=$('cs-video');if(v)v.scrollIntoView({block:'start',behavior:'smooth'});};
+  $('vd-handout').onclick=()=>{csQuizFocus(false);csVideoCollapse(true);csSelectTab('handout');};   // 讲义对照模式延续收起
+  $('vd-restore').onclick=()=>{csQuizFocus(false);csVideoCollapse(false);const v=$('cs-video');if(v)v.scrollIntoView({block:'start',behavior:'smooth'});};
 }
 function gqPick(q, letter) {
   if(!gqActive())return;
@@ -2865,8 +2877,10 @@ function vbRender(){
   } else {
     h+='<div class="vb-def">'+esc(cur.def)+'</div>'
       + '<div class="vb-root">词根 '+esc(cur.root)+'（'+esc(cur.gloss)+'）</div>'
-      + (cur.sen?'<div class="vb-sen"><p>'+esc(cur.sen)+'</p>'+(cur.senZh?'<p class="vb-senzh">'+esc(cur.senZh)+'</p>':'')+'</div>':'')
-      + '<button class="vb-lessonlink" id="vb-lesson">词在课中 → 第 '+cur.lesson+' 课讲义</button>'
+      /* 例句与出处收进折叠(窄屏默认收起): 评分按钮不滚即达; 桌面默认展开 */
+      + '<details class="vb-sen-wrap" id="vb-sen-wrap"'+(cur.sen&&matchMedia('(min-width:701px)').matches?' open':'')+'><summary>'+(cur.sen?'例句与出处':'词在课中')+'</summary>'
+          + (cur.sen?'<div class="vb-sen"><p>'+esc(cur.sen)+'</p>'+(cur.senZh?'<p class="vb-senzh">'+esc(cur.senZh)+'</p>':'')+'</div>':'')
+          + '<button class="vb-lessonlink" id="vb-lesson">词在课中 → 第 '+cur.lesson+' 课讲义</button></details>'
       + '<div class="vb-rate">'+[1,2,3,4].map(n=>{
           const pv=sm2Local(n, st, Date.now());
           const names={1:'重来',2:'困难',3:'良好',4:'简单'};
@@ -3097,6 +3111,7 @@ function renderCourseMain(){
         <span class="grow"></span>
         <label class="cs-speed">速度 <select id="cs-speed" aria-label="播放速度">${[0.75,1,1.25,1.5,1.75,2,2.5].map(n=>`<option value="${n}">${n}×</option>`).join('')}</select></label>
         <button id="cs-vfull" onclick="csVfull()">${document.body.classList.contains('vfull')?'退出铺满':'铺满窗口'}</button>
+        <button id="cs-vcol" onclick="csVideoCollapse(true)" title="收起视频，专心看讲义">收起视频</button>
         <button id="cs-done-btn" onclick="csDone('${esc(c.id)}',${csSel.l})">${p.done?'取消看完':'标记看完'}</button></div>
     </div>
     <div class="na-box" id="cs-vnote" style="display:none"></div>
@@ -3543,32 +3558,67 @@ async function renderReview(){
   }
   ms.sort((a,b)=>(a[1].due||0)-(b[1].due||0));
   await aiHave();   // 已生成清单, 按钮上标「已生成」
-  const items=await Promise.all(ms.map(async([k,m],ix)=>{
-    const genQ=k.startsWith('gen/');
-    const stem=m.stem||await stemOf(k);   // gen 题带题干快照, 不依赖题库
-    // 主角=题干; 材料名/题干拆开: "材料 · 题干" → 材料进元数据行
-    let main=stem, material='';
-    const sep=stem.indexOf(' · ');
-    if(sep>0){ material=stem.slice(0,sep); main=stem.slice(sep+3); }
-    if(genQ){ main=stem; material='课后练 · 第 '+(Number(k.split('/')[2])||'?')+' 节'; }
-    const due=m.due||0;
-    const col=due<=Date.now()?'var(--bad)':(due<=Date.now()+3*864e5?'var(--warn)':'var(--ok)');
-    const dt=due<=Date.now()?'现在可复习':'距复习 '+Math.max(1,Math.ceil((due-Date.now())/864e5))+' 天';
-    const [set,subj]=k.split('/');
-    return `<div class="witem rise" style="border-left:3px solid ${col};--i:${ix}">
+  /* 同源题收拢成组(真实题=套题·科目·模块; 课后练=课), 组可折叠; 组头给材料名, 行内不再显示 qid/材料名 */
+  const groupOf = k => k.startsWith('gen/') ? 'gen/' + k.split('/')[1] + '/' + k.split('/')[2] : k.split('/').slice(0, 3).join('/');
+  const groupName = (gk, genQ) => {
+    if (genQ) return '万词班课后练 · 第 ' + (Number(gk.split('/')[2]) || '?') + ' 课';
+    const [set, subj, mk] = gk.split('/');
+    const all = (CATALOG && (CATALOG.sets || CATALOG)) || [];
+    const st = all.find(s => s.id === set);
+    return (st ? (st.title || set) : set) + ' · ' + (SUBN[subj] || subj) + ' · 模块 ' + mk;
+  };
+  const groups = new Map();
+  for (const [k, m] of ms) {
+    const gk = groupOf(k), genQ = k.startsWith('gen/');
+    if (!groups.has(gk)) groups.set(gk, { genQ, items: [] });
+    groups.get(gk).items.push([k, m]);
+  }
+  const html = [];
+  let ix = 0;
+  const witemHtml = r => `<div class="witem rise" style="border-left:3px solid ${r.col};--i:${r.i}">
       <div class="c">
-        <div class="q" title="${esc(main)}">${esc(main)}</div>
-        <div class="m"><span class="m-src">${esc(material||SUBN[subj]||'')}</span>${material?' · ':''}${esc('错 '+(m.n_wrong||1)+' 次')} · <span class="m-due" style="color:${col}">${esc(dt)}</span><span class="m-qid">${esc(k)}</span></div>
+        <div class="q" data-stemfor="${esc(r.k)}" title="${esc(r.stem)}">${esc(r.stem) || esc(r.label + ' · 读取中…')}</div>
+        <div class="m">${esc('错 ' + (r.m.n_wrong || 1) + ' 次')} · <span class="m-due" style="color:${r.col}">${esc(r.dt)}</span></div>
       </div>
       <div class="ops">
-        <button class="op-ai${AI_HAVE_SET.has(k)?' have':''}" data-ai="${esc(k)}" title="${AI_HAVE_SET.has(k)?'已生成解析，点击秒开':'生成 AI 助教解析（约 2~4 秒）'}">AI解析</button>
-        ${genQ?`<button class="op-lesson" data-lesson="${esc(genLessonIdOf(k)||'')}" title="跳到视频课这一节（视频 · 讲义 · 课稿）">回看本节</button>`:''}
-        <button class="op-redo" data-redo="${esc(k)}" title="进入本题重做">重做</button>
-        <button class="op-clear" data-clear="${esc(k)}" title="移出错题本，不再安排复习">不再训练</button>
+        <button class="op-ai${AI_HAVE_SET.has(r.k) ? ' have' : ''}" data-ai="${esc(r.k)}" title="${AI_HAVE_SET.has(r.k) ? '已生成解析，点击秒开' : '生成 AI 助教解析（约 2~4 秒）'}">AI解析</button>
+        ${r.genQ ? `<button class="op-lesson" data-lesson="${esc(genLessonIdOf(r.k) || '')}" title="跳到视频课这一节（视频 · 讲义 · 课稿）">回看本节</button>` : ''}
+        <button class="op-redo" data-redo="${esc(r.k)}" title="进入本题重做">重做</button>
+        <button class="op-clear" data-clear="${esc(r.k)}" title="移出错题本，不再安排复习">不再训练</button>
       </div></div>
     <div class="ai-explain" hidden></div>`;
-  }));
-  $('rv-list').innerHTML=items.join('');
+  for (const [gk, g] of groups) {
+    const gDue = g.items.filter(([, m]) => (m.due || 0) <= Date.now()).length;
+    const rows = g.items.map(([k, m]) => {
+      const due = m.due || 0;
+      const col = due <= Date.now() ? 'var(--bad)' : (due <= Date.now() + 3 * 864e5 ? 'var(--warn)' : 'var(--ok)');
+      const dt = due <= Date.now() ? '现在可复习' : '距复习 ' + Math.max(1, Math.ceil((due - Date.now()) / 864e5)) + ' 天';
+      const [, subj] = k.split('/');
+      const genQ = k.startsWith('gen/');
+      const full = m.stem || '';
+      const sep = full.indexOf(' · ');
+      const stem = genQ ? full : (sep > 0 ? full.slice(sep + 3) : full);   // 材料名进组头, 行内只留题干
+      return { k, m, stem, col, dt, subj, label: SUBN[subj] || '', genQ, i: ix++ };
+    });
+    html.push('<details class="rv-group"'+(gDue ? ' open' : '')+'>'
+      + '<summary><b>' + esc(groupName(gk, g.genQ)) + '</b><span class="rg-n">' + rows.length + ' 题</span>'
+      + (gDue ? '<span class="rg-due">现在可复习 ' + gDue + '</span>' : '') + '</summary>'
+      + rows.map(r => witemHtml(r)).join('')
+      + '</details>');
+  }
+  $('rv-list').innerHTML = html.join('');
+  // 真实题题干异步补齐(组渲染后回填, 行内不再显示 qid)
+  for (const [, g] of groups) {
+    for (const it of g.items) {
+      const [k, m] = it;
+      if (m.stem) continue;
+      stemOf(k).then(stem => {
+        const sep = stem.indexOf(' · ');
+        const row = $('rv-list')?.querySelector('[data-stemfor="' + CSS.escape(k) + '"]');
+        if (row) row.textContent = sep > 0 ? stem.slice(sep + 3) : stem;
+      }).catch(() => {});
+    }
+  }
   $('rv-list').querySelectorAll('[data-redo]').forEach(b=>{
     b.onclick=async()=>{
       const k=b.dataset.redo;

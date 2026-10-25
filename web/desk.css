@@ -1328,3 +1328,32 @@ body.vfull .cs-stage video.tfl{max-height:none}
 .gq-chip-link i{font-style:normal;color:var(--t3);margin-left:3px}
 .gq-fam-all{border:none;background:none;color:var(--acc);font-size:12px;cursor:pointer;text-decoration:underline;text-underline-offset:3px;margin-left:4px}
 .ai-opt .ai-opt-note{color:var(--t2);font-size:12px}
+
+/* block 29 · UI 诊断二轮: 错题分组/背词折叠/讲义收起/dock 精简 */
+.rv-group{border:1px solid var(--line);border-radius:10px;background:var(--card);margin:0 0 12px;overflow:hidden}
+.rv-group>summary{display:flex;align-items:center;gap:10px;padding:11px 16px;cursor:pointer;list-style:none;user-select:none;font-size:13px;color:var(--t1)}
+.rv-group>summary::-webkit-details-marker{display:none}
+.rv-group>summary:hover{background:var(--hover)}
+.rv-group>summary::before{content:'▸';color:var(--t3);transition:transform .15s}
+.rv-group[open]>summary::before{transform:rotate(90deg)}
+.rv-group>summary b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rv-group .rg-n{color:var(--t3);font-size:12px;flex:none}
+.rv-group .rg-due{color:var(--bad);font-size:12px;flex:none}
+.rv-group .witem{margin:0;border-radius:0;border-left-width:3px}
+.vb-sen-wrap{margin-top:16px;border:1px solid var(--line);border-radius:8px;background:var(--sunk);padding:0 14px}
+.vb-sen-wrap>summary{cursor:pointer;user-select:none;font-size:12px;color:var(--t3);padding:9px 0;list-style:none}
+.vb-sen-wrap>summary::-webkit-details-marker{display:none}
+.vb-sen-wrap>summary::before{content:'▸ ';}
+.vb-sen-wrap[open]>summary::before{content:'▾ ';}
+.vb-sen-wrap[open]>summary{padding-bottom:0}
+.vb-sen-wrap .vb-sen{background:none;border-radius:0;padding:8px 0 4px;margin-top:0}
+.vb-sen-wrap .vb-lessonlink{margin:8px 0 10px}
+.cs-stick.vz .cs-stage video.tfl{display:none}
+.cs-stick.vz .cs-status{display:none}
+.vb-card{max-width:760px}
+.vb-word{font-size:56px}
+.vb-word .vb-speak{vertical-align:12px}
+@media(max-width:700px){
+  .vb-card{max-width:none}
+  .vb-word{font-size:36px}
+}
