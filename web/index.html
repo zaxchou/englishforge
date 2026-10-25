@@ -3133,7 +3133,7 @@ window.renderEplodMain=async function(c){
   EP.st.doneOf=i=>{const d=drill.dd[i],r=drill.rd[i];return !!(d&&d.acc!=null&&d.acc>=0.9&&r&&r.acc!=null&&r.acc>=0.9);};
   const firstTodo=()=>{const i=d.dialogue.findIndex((_,k)=>!EP.st.doneOf(k));return i<0?0:i;};
   EP.st.ai=firstTodo();
-  EP.st.bmode={}; EP.st.vmode={}; EP.st.lastMode='dict';
+  EP.st.amode={}; EP.st.lastMode='dict';
   el.innerHTML='<div class="cs-stick ep">'
     +'<div class="csp-meta"><h3>'+esc(l.title)+'</h3><span class="src">'+esc(c.title)+' · '+esc(d.level)+' · 第 '+(csSel.l+1)+'/'+c.lessons.length+' 节</span>'
     +(p.done?'<span class="pill q">已学完</span>':'')+'</div>'
@@ -3386,47 +3386,40 @@ function epRowHtml(i){
 function epBlockCard(i){
   const st=EP.st,drill=st.p.drill,u=epItems()[i];
   const acc=drill.dd[i]&&drill.dd[i].acc,rec=drill.rd[i]&&drill.rd[i].acc!=null?drill.rd[i]:null;
-  const mode=st.bmode[i]||st.lastMode;
+  const sd=(drill.sd&&drill.sd[i])||null;
+  const asr=!!st.d.asr;
+  const mode=st.amode[i]||st.lastMode;
   const sense=epSenseOf(u),zh=epZhOf(u);
   const plays=drill.playsS[i]||0;
+  const clue=zh.length?zh.join(' / '):(sense.length?sense.map(x=>x.zh).join(' / '):'（本句无中文线索，听原音背诵）');
+  const senseHtml=sense.length?sense.map(x=>'<span class="su"><b>'+esc(x.u)+'</b><i>'+esc(x.zh)+'</i></span>').join(''):'';
+  const orig=u.lines.map(x=>(x.spk?'<i class="spk">'+esc(x.spk)+'</i>':'')+'<span>'+esc(x.text)+'</span>').join(' ');
+  const seg=[['dict','听写'],['voice','朗读'],['type','默写']].map(m=>'<button data-m="'+m[0]+'"'+(mode===m[0]?' class="on"':'')+'>'+m[1]+'</button>').join('');
   let h='<div class="ep-bcard" data-i="'+i+'">'
     +'<div class="bh"><span class="no">#'+(i+1)+'/'+st.d.dialogue.length+'</span>'
     +'<button class="bp" title="播放本句">▶ 听</button><button class="bl" title="单句循环">↻</button>'
     +(drill.mode==='exam'?'<span class="dc">'+(3-Math.min(3,plays))+' 次可听</span>':'')
-    +'<span class="bmode"><button data-m="dict"'+(mode==='dict'?' class="on"':'')+'>听写</button><button data-m="recite"'+(mode==='recite'?' class="on"':'')+'>背诵</button></span>'
+    +'<span class="bmode">'+seg+'</span>'
     +'<span class="grow"></span>'
     +(acc!=null?'<span class="mini'+(acc>=0.9?' ok':'')+'">写'+Math.round(acc*100)+'%</span>':'')
     +(rec?'<span class="mini'+(rec.acc>=0.9?' ok':'')+'">背'+Math.round(rec.acc*100)+'%</span>':'')
     +'</div>'
+    +'<div class="rclue" style="display:'+(mode==='dict'?'none':'')+'">'+esc(clue)+'</div>'
     +'<div class="bbody bdict" style="display:'+(mode==='dict'?'':'none')+'">'
       +'<textarea class="dt" rows="2" placeholder="写出你听到的内容（Enter 提交）">'+(drill.dd[i]&&drill.dd[i].last!=null?esc(drill.dd[i].last):'')+'</textarea>'
       +'<div class="dr"></div></div>'
-    +'<div class="bbody brecite" style="display:'+(mode==='recite'?'':'none')+'">';
-  const clue=zh.length?zh.join(' / '):(sense.length?sense.map(x=>x.zh).join(' / '):'（本句无中文线索，听原音背诵）');
-  const senseHtml=sense.length?sense.map(x=>'<span class="su"><b>'+esc(x.u)+'</b><i>'+esc(x.zh)+'</i></span>').join(''):'';
-  const orig=u.lines.map(x=>(x.spk?'<i class="spk">'+esc(x.spk)+'</i>':'')+'<span>'+esc(x.text)+'</span>').join(' ');
-  const vmode=(st.vmode&&st.vmode[i])||'voice';
-  const sd=(drill.sd&&drill.sd[i])||null;
-  const recObj=drill.rd[i]||null;
-  const asr=!!st.d.asr;
-  h+='<div class="rclue">'+esc(clue)+'</div>'
-    +'<div class="ep-vseg"><button data-v="voice"'+(vmode==='voice'?' class="on"':'')+'>🎙 朗读</button><button data-v="type"'+(vmode==='type'?' class="on"':'')+'>⌨ 默写</button></div>'
-    +'<div class="vbody bvoice" style="display:'+(vmode==='voice'?'':'none')+'">'
+    +'<div class="bbody bvoice" style="display:'+(mode==='voice'?'':'none')+'">'
       +(asr
-        ?'<button class="ep-rec" data-i="'+i+'">'+(st.recording&&st.recording.i===i?'■ 停止 · <i class="rt">0:00</i>':'🎙 朗读这句')+'</button>'
-          +(recObj&&recObj.mode==='voice'&&recObj.dur?'<span class="ep-dur">用时 '+fmtDur(recObj.dur)+' / 原句 '+fmtDur(u.t1-u.t0)+(sd?' · <b class="ok">✓ 同速</b>':'')+'</span>':'')
-          +(recObj&&recObj.mode==='voice'?'<button class="elisten-me" data-i="'+i+'">▶ 回听我的录音</button>':'')
-        :'<p class="ep-note">朗读背诵需要转写服务（未配置 ASR），请用 ⌨ 默写。</p>')
-      +'<div class="dr"></div>'
-    +'</div>'
-    +'<div class="vbody btype" style="display:'+(vmode==='type'?'':'none')+'">'
-      +'<textarea class="dt" rows="2" placeholder="看中文线索，默写完整句子（Enter 提交）">'+(recObj&&recObj.last!=null&&recObj.mode!=='voice'?esc(recObj.last):'')+'</textarea>'
-      +'<div class="dr"></div>'
-    +'</div>'
-    +(senseHtml?'<div class="rsense" style="display:none">'+senseHtml+'</div>':'')
-    +'<div class="rorig" style="display:none">'+orig+'</div>'
-    +'<div class="rhints">'+(senseHtml?'<button class="h1">看意群积木</button>':'')+'<button class="h2">看原文</button><span class="grow"></span><span class="ep-note">通过线 90% · 同速线 1.15×</span></div>'
-    +'</div></div>';
+        ?'<div class="vrow"><button class="ep-rec" data-i="'+i+'">'+(st.recording&&st.recording.i===i?'■ 停止 · <i class="rt">0:00</i>':'🎙 朗读这句')+'</button>'
+          +(rec&&rec.mode==='voice'&&rec.dur?'<span class="ep-dur">用时 '+fmtDur(rec.dur)+' / 原句 '+fmtDur(u.t1-u.t0)+(sd?' · <b class="ok">✓ 同速</b>':'')+'</span>':'')
+          +(rec&&rec.mode==='voice'?'<button class="elisten-me" data-i="'+i+'">▶ 回听我的录音</button>':'')+'</div>'
+        :'<p class="ep-note">朗读背诵需要转写服务（未配置 ASR），请用默写。</p>')
+      +'<div class="dr"></div></div>'
+    +'<div class="bbody btype" style="display:'+(mode==='type'?'':'none')+'">'
+      +'<textarea class="dt" rows="2" placeholder="看中文线索，默写完整句子（Enter 提交）">'+(rec&&rec.mode!=='voice'&&rec.last!=null?esc(rec.last):'')+'</textarea>'
+      +'<div class="dr"></div></div>'
+    +'<div class="rhints" style="display:'+(mode==='dict'?'none':'')+'">'+(senseHtml?'<button class="h1">看意群积木</button>':'')+'<button class="h2">看原文</button><span class="grow"></span><span class="ep-note">通过线 90% · 同速线 1.15×</span></div>'
+    +'</div>';
   return h;
 }
 
@@ -3447,7 +3440,7 @@ function epGo(i,play){
   const st=EP.st;if(!st)return;
   const n=st.d.dialogue.length;
   i=Math.max(0,Math.min(n-1,i));
-  st.ai=i;st.lastMode=st.bmode[i]||st.lastMode;
+  st.ai=i;
   epRenderList();
   const card=$('ep-blist').querySelector('.ep-bcard');
   if(card){
@@ -3493,12 +3486,15 @@ function epWireCard(card){
     st.markSeek&&st.markSeek();
     a.currentTime=u.t0;a.play().catch(()=>{});
   };
-  /* 听写|背诵 小切换 */
+  /* 三练法切换: 听写 / 朗读 / 默写 */
   card.querySelectorAll('.bmode button').forEach(b=>b.onclick=()=>{
-    st.bmode[i]=b.dataset.m;st.lastMode=b.dataset.m;
+    st.amode[i]=b.dataset.m;st.lastMode=b.dataset.m;
     card.querySelectorAll('.bmode button').forEach(x=>x.classList.toggle('on',x===b));
     card.querySelector('.bdict').style.display=b.dataset.m==='dict'?'':'none';
-    card.querySelector('.brecite').style.display=b.dataset.m==='recite'?'':'none';
+    card.querySelector('.bvoice').style.display=b.dataset.m==='voice'?'':'none';
+    card.querySelector('.btype').style.display=b.dataset.m==='type'?'':'none';
+    card.querySelector('.rclue').style.display=b.dataset.m==='dict'?'none':'';
+    card.querySelector('.rhints').style.display=b.dataset.m==='dict'?'none':'';
     if(b.dataset.m==='dict'){const t=card.querySelector('.bdict .dt');if(t)t.focus({preventScroll:true});}
   });
   /* ① 听写: 听音写 → 逐词比对 → drill.dd; 留在本句读 diff */
@@ -3528,12 +3524,6 @@ function epWireCard(card){
     ta.insertAdjacentElement('afterend',mkBtn);
   }
   /* ③ 背诵: 双子模式(🎙朗读=录音+ASR / ⌨默写=打字), 同账本 drill.rd; 通过自动跳下一句 */
-  card.querySelectorAll('.ep-vseg button').forEach(b=>b.onclick=()=>{
-    st.vmode[i]=b.dataset.v;st.lastMode='recite';
-    card.querySelectorAll('.ep-vseg button').forEach(x=>x.classList.toggle('on',x===b));
-    card.querySelector('.bvoice').style.display=b.dataset.v==='voice'?'':'none';
-    card.querySelector('.btype').style.display=b.dataset.v==='type'?'':'none';
-  });
   card.querySelectorAll('.ep-rec').forEach(b=>b.onclick=()=>epRecToggle(+b.dataset.i,card));
   const lm=card.querySelector('.elisten-me');
   if(lm)lm.onclick=()=>{

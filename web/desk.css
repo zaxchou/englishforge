@@ -1686,3 +1686,9 @@ body.vfull .cs-stage video.tfl{max-height:none}
 .ep-cov .stamp.ok{border:1px solid var(--okln);background:var(--okbg);color:var(--ok);border-style:solid}
 .ep-cov .stamp.cur{border:1px solid var(--accln);background:var(--accbg);color:var(--acc);border-style:solid}
 .ep-cov .cvm{font-size:var(--f4);color:var(--t3);margin-left:auto}
+
+/* block 43 · 背诵卡紧凑化(用户: UI 奇怪): 三练法单切换取代双层嵌套;
+   录音按钮+状态同行; 训练卡限宽治大屏空白 */
+.ep-train{max-width:920px}
+.ep-bcard .vrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+.ep-bcard .vrow .ep-rec{margin-right:0}
