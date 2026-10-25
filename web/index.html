@@ -3192,7 +3192,11 @@ window.renderEplodMain=async function(c){
       +'<span class="ep-dock-sep"></span>'
       +'<button id="ep-dock-listen" title="回逐句精听">精听</button>'
       +'</div>';
+  /* 独立网址: 与视频课分支同款, 把当前期写进 hash——刷新/分享都回到这一期 */
+  history.replaceState(null,'','#/course/'+encodeURIComponent(l.id));
+  try{var _sv=localStorage.getItem('tfl-ep-tab');}catch(e){}
   epWire();
+  if(_sv&&_sv!=='listen')epTab(_sv);
 };
 
 function epWire(){
@@ -3299,6 +3303,7 @@ function epTab(m){
   const dock=$('ep-dock');
   if(dock)dock.style.display=m==='listen'?'none':'flex';
   if(EP.st&&m!=='listen'){EP.st.list=m;epRenderList(m);epDockNo();}
+  try{localStorage.setItem('tfl-ep-tab',m);}catch(e){}
 }
 
 /* ---- 四步进度（听写整期→理解→背诵对话→同速; 从 drill/collected 推导, 独立于词汇复习体系） ---- */
