@@ -1496,6 +1496,23 @@ body.vfull .cs-stage video.tfl{max-height:none}
 .ep-tabs{display:flex;gap:6px}
 .ep-tabs button{border:1px solid var(--line);background:transparent;border-radius:999px;padding:6px 16px;font-size:var(--f3);color:var(--t2);cursor:pointer}
 .ep-tabs button.on{background:var(--acc);border-color:var(--acc);color:#f6f8f1}
+/* 讲解逐字稿 */
+.ep-expl{padding:14px 16px}
+.ep-expl summary{cursor:pointer;font-size:var(--f3);font-weight:600;color:var(--t2)}
+.ep-expl[open] summary{margin-bottom:8px}
+
+/* block 36 · EnglishPod 四步训练(听写/背诵, 尚雯婕法第一批) */
+.ep-steps{display:flex;gap:8px;flex-wrap:wrap}
+.ep-steps .es{flex:1;min-width:130px;background:var(--card);border:1px solid var(--line);border-radius:var(--rs);padding:8px 12px;display:flex;flex-direction:column;gap:2px}
+.ep-steps .es i{font-style:normal;font-size:var(--f4);color:var(--t3)}
+.ep-steps .es b{font-size:var(--f2)}
+.ep-steps .es u{text-decoration:none;font-size:var(--f5);color:var(--t3)}
+.ep-steps .es.ok{border-color:var(--okln);background:var(--okbg)}
+.ep-steps .es.ok b{color:var(--ok)}
+.ep-steps .es.lock{opacity:.55}
+.ep-tabs{display:flex;gap:6px}
+.ep-tabs button{border:1px solid var(--line);background:transparent;border-radius:999px;padding:6px 16px;font-size:var(--f3);color:var(--t2);cursor:pointer}
+.ep-tabs button.on{background:var(--acc);border-color:var(--acc);color:#f6f8f1}
 /* 听写 */
 .ep-dmode{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden}
 .ep-dmode button{border:0;background:transparent;padding:5px 12px;font-size:var(--f4);color:var(--t2);cursor:pointer}
@@ -1541,3 +1558,68 @@ body.vfull .cs-stage video.tfl{max-height:none}
 .ep-rblock .rorig .spk{font-style:normal;color:var(--acc);font-weight:600;margin-right:4px}
 .ep-rblock .rhints{margin-top:8px;display:flex;gap:6px}
 .ep-rblock .rhints button{border:0;background:transparent;font-size:var(--f4);color:var(--t3);cursor:pointer;text-decoration:underline}
+
+/* ============================================================
+   block 37 · 四步训练重构(用户: 全堆一块/跳很长/没播放控制):
+   81 块折叠成行只展开当前块 · 每块内听写|背诵双练法 · 粘底 dock。
+   ============================================================ */
+.ep-blist{display:flex;flex-direction:column;gap:6px}
+/* 折叠行: ~40px */
+.ep-brow{display:flex;align-items:center;gap:8px;padding:7px 10px;border:1px solid var(--line);border-radius:var(--rs);cursor:pointer;background:var(--card)}
+.ep-brow:hover{background:var(--hover)}
+.ep-brow.act{border-color:var(--acc);background:var(--accbg)}
+.ep-brow.done{opacity:.62}
+.ep-brow .no{font-size:var(--f4);font-weight:600;color:var(--t3);flex:none;min-width:30px}
+.ep-brow.act .no{color:var(--acc)}
+.ep-brow .bt{font-size:var(--f5);color:var(--t3);flex:none}
+.ep-brow .btxt{font-size:var(--f4);color:var(--t2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ep-brow .mini{font-size:var(--f5);border:1px solid var(--line);border-radius:999px;padding:0 7px;color:var(--t3);flex:none}
+.ep-brow .mini.ok{color:var(--ok);border-color:var(--okln)}
+.ep-brow .mini.warn{color:var(--warn);border-color:var(--warnln)}
+.ep-brow .arr{font-style:normal;color:var(--t3);flex:none}
+/* 展开卡 */
+.ep-bcard{border:1px solid var(--acc);border-radius:var(--rs);padding:10px 12px;background:var(--card)}
+.ep-bcard .bh{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+.ep-bcard .no{font-size:var(--f4);font-weight:600;color:var(--acc)}
+.ep-bcard .bh button{border:1px solid var(--line);background:transparent;border-radius:6px;padding:3px 9px;font-size:var(--f4);cursor:pointer;color:var(--t2)}
+.ep-bcard .bh .bp{color:var(--acc)}
+.ep-bcard .bh .bp:hover{background:var(--acc);color:#f6f8f1;border-color:var(--acc)}
+.ep-bcard .dc{font-size:var(--f5);color:var(--warn)}
+.ep-bcard .bmode{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;margin-left:4px}
+.ep-bcard .bmode button{border:0;border-radius:0;padding:3px 12px;color:var(--t2)}
+.ep-bcard .bmode button.on{background:var(--acc);color:#f6f8f1}
+.ep-bcard .mini{font-size:var(--f5);border:1px solid var(--line);border-radius:999px;padding:0 7px;color:var(--t3)}
+.ep-bcard .mini.ok{color:var(--ok);border-color:var(--okln)}
+.ep-bcard .dt{width:100%;border:1px solid var(--line);border-radius:var(--rs);padding:8px 10px;font-size:var(--f3);font-family:inherit;resize:vertical;background:var(--card)}
+.ep-bcard .dt:focus{outline:2px solid var(--accln);border-color:var(--acc)}
+.ep-bcard .dsubmit{margin-top:6px;border:1px solid var(--line);background:transparent;border-radius:6px;padding:5px 14px;font-size:var(--f4);cursor:pointer;color:var(--t2);float:right}
+.ep-bcard .dsubmit:hover{background:var(--acc);border-color:var(--acc);color:#f6f8f1}
+.ep-bcard .dr{clear:both;padding-top:8px}
+.ep-bcard .dw{font-size:var(--f3);line-height:1.8}
+.ep-bcard .dw b{color:var(--t2);margin-right:8px;font-size:var(--f4)}
+.ep-bcard .dw .ok{color:var(--t1)}
+.ep-bcard .dw .miss{color:var(--bad);text-decoration:underline wavy var(--bad)}
+.ep-bcard .dx{font-size:var(--f4);color:var(--warn);margin-top:4px}
+.ep-bcard .do{font-size:var(--f4);color:var(--t3);margin-top:4px;line-height:1.7}
+.ep-bcard .rclue{font-size:var(--f3);line-height:1.8;background:var(--sunk);border-radius:var(--rs);padding:8px 10px}
+.ep-bcard .rsense{margin-top:8px;display:flex;flex-wrap:wrap;gap:6px}
+.ep-bcard .rsense .su{border:1px dashed var(--line);border-radius:var(--rs);padding:4px 8px;font-size:var(--f4);display:flex;flex-direction:column;gap:1px}
+.ep-bcard .rsense .su b{font-weight:600}
+.ep-bcard .rsense .su i{font-style:normal;font-size:var(--f5);color:var(--t3)}
+.ep-bcard .rorig{margin-top:8px;font-size:var(--f3);line-height:1.8;color:var(--t2)}
+.ep-bcard .rorig .spk{font-style:normal;color:var(--acc);font-weight:600;margin-right:4px}
+.ep-bcard .rhints{margin-top:8px;display:flex;gap:8px;align-items:center}
+.ep-bcard .rhints button{border:0;background:transparent;font-size:var(--f4);color:var(--t3);cursor:pointer;text-decoration:underline}
+.ep-bcard .rhints .rr{border:1px solid var(--line)!important;border-radius:6px;text-decoration:none!important;color:var(--t2)!important;padding:3px 10px}
+.ep-bcard .rhints .rr:hover{border-color:var(--okln)!important;color:var(--ok)!important}
+/* 粘底 dock: 悬浮胶囊, 画布语言 */
+.ep-dock{position:fixed;left:50%;transform:translateX(-50%);bottom:14px;z-index:60;display:flex;align-items:center;gap:4px;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:6px 10px;box-shadow:0 4px 18px rgba(32,39,37,.14)}
+.ep-dock button{border:0;background:transparent;border-radius:999px;min-width:34px;height:30px;padding:0 10px;font-size:13px;color:var(--t2);cursor:pointer}
+.ep-dock button:hover{background:var(--hover)}
+.ep-dock #ep-dock-play{background:var(--acc);color:#f6f8f1;min-width:40px}
+.ep-dock #ep-dock-play:hover{background:var(--acc);opacity:.92}
+.ep-dock .ep-dock-no{font-size:var(--f4);color:var(--t2);padding:0 6px;font-variant-numeric:tabular-nums}
+.ep-dock .ep-dock-sep{width:1px;height:16px;background:var(--line);margin:0 2px}
+.ep-dock button.pulse{animation:ep-pulse 1.2s ease-in-out infinite}
+@keyframes ep-pulse{0%,100%{box-shadow:0 0 0 0 rgba(49,90,71,.35)}50%{box-shadow:0 0 0 6px rgba(49,90,71,0)}}
+@media (max-width:700px){.ep-dock{bottom:10px;width:calc(100% - 24px);justify-content:center}}
