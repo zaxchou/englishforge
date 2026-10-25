@@ -1644,3 +1644,21 @@ body.vfull .cs-stage video.tfl{max-height:none}
   .csnav-col{border-bottom:0}
   .csnav{padding:0 12px 4px}
 }
+
+/* ============================================================
+   block 40 · eplod 卡片脱离通铺条(用户: 音频条/内容贴边丑):
+   block19 的「-20px 通铺+顶线」是讲义分节语言, 不适用音频深学页——
+   eplod 各卡恢复圆角表面+内缩, 内容不再顶边, 平行顶线退役;
+   phead 变回卡头圆角带。
+   ============================================================ */
+.csmain .ep-stage,.csmain .ep-listen,.csmain .ep-train,
+.csmain .ep-chunks,.csmain .ep-kv,.csmain .ep-expl{
+  margin:14px 0 0;border:1px solid var(--line);border-radius:var(--r);background:var(--card)}
+.csmain .ep-stage{padding:14px 16px 12px}
+.csmain .ep-listen,.csmain .ep-train,.csmain .ep-chunks,.csmain .ep-kv{padding:0 16px 14px}
+.csmain .ep-listen .phead,.csmain .ep-train .phead,
+.csmain .ep-chunks .phead,.csmain .ep-kv .phead{
+  margin:0 -16px;border-radius:var(--r) var(--r) 0 0}
+.csmain .ep-listen .ep-lines,.csmain .ep-train .ep-blist{margin-top:12px}
+.csmain .ep-chunks .ep-chunk-grid,.csmain .ep-kv .ep-kv-grid{margin-top:12px}
+.csmain .ep-expl{padding:14px 16px}
