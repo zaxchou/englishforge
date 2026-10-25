@@ -803,6 +803,14 @@ const TTS_CFG = {
   voice: process.env.TFL_TTS_VOICE || 'Cherry',
 };
 const TTS_CACHE_DIR = path.join(RECORDS_DIR, 'tts-cache');
+/* ASR(用户录音转写): qwen3-asr-flash @ MaaS compatible-mode, input_audio data-URI 直传(base64)。
+   TFL_ASR_URL 指向 multimodal-generation 端点, 取其 origin 拼 compatible-mode。 */
+const ASR_CFG = {
+  key: process.env.TFL_ASR_KEY || '',
+  model: process.env.TFL_ASR_MODEL || 'qwen3-asr-flash',
+  url: (process.env.TFL_ASR_URL ? new URL(process.env.TFL_ASR_URL).origin : '') + '/compatible-mode/v1/chat/completions',
+};
+const RECORDING_DIR = path.join(RECORDS_DIR, 'recordings');
 function ttsWavParse(buf) {
   if (buf.length < 44 || buf.toString('ascii', 0, 4) !== 'RIFF' || buf.toString('ascii', 8, 12) !== 'WAVE') throw new Error('NOT_A_WAV');
   let off = 12, fmt = null, dataBytes = 0, headerBytes = 44, hasData = false;
@@ -1360,8 +1368,62 @@ const handler = async (req, res) => {
     const mEplod = p.match(/^\/api\/eplod\/lesson\/(\d{4})$/);
     if (mEplod) {
       if (req.method !== 'GET') return sendJSON(res, 405, { error: 'method' });
-      try { return sendJSON(res, 200, JSON.parse(fs.readFileSync(path.join(BUILD_DIR, 'eplod', mEplod[1] + '.json'), 'utf8'))); }
-      catch (e) { return sendJSON(res, 404, { error: '该期尚未导入' }); }
+      try {
+        const epData = JSON.parse(fs.readFileSync(path.join(BUILD_DIR, 'eplod', mEplod[1] + '.json'), 'utf8'));
+        return sendJSON(res, 200, { ...epData, asr: !!ASR_CFG.key });
+      } catch (e) { return sendJSON(res, 404, { error: '该期尚未导入' }); }
+    }
+    /* ---- API: eplod 用户录音转写(ASR) ---- */
+    if (p === '/api/eplod/asr') {
+      if (req.method !== 'POST') return sendJSON(res, 405, { error: 'method' });
+      const origin = req.headers.origin;
+      if (origin && origin !== `http://${req.headers.host}` && origin !== `https://${req.headers.host}`) return sendJSON(res, 403, { error: 'cross-origin rejected' });
+      if (!ASR_CFG.key) return sendJSON(res, 503, { error: '未配置 ASR（缺 TFL_ASR_KEY）' });
+      let body; try { body = await readBody(req, 12 * 1024 * 1024); } catch (e) { return sendJSON(res, 413, { error: e.message }); }
+      let inc; try { inc = JSON.parse(body.toString('utf8') || '{}'); } catch (e) { return sendJSON(res, 400, { error: 'bad json' }); }
+      const audio = String(inc.audio || '');
+      if (!/^data:audio\/[\w.+-]+(?:;[\w.=+-]+)?;base64,[A-Za-z0-9+/=]+$/.test(audio)) return sendJSON(res, 400, { error: 'audio 须为 data:audio/*;base64' });
+      if (audio.length > 11 * 1024 * 1024) return sendJSON(res, 413, { error: '录音过大' });
+      try {
+        const rr = await fetch(ASR_CFG.url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + ASR_CFG.key },
+          body: JSON.stringify({
+            model: ASR_CFG.model,
+            messages: [{ role: 'user', content: [{ type: 'input_audio', input_audio: { data: audio } }] }],
+            stream: false,
+            asr_options: { enable_itn: false },
+          }),
+          signal: AbortSignal.timeout(120000),
+        });
+        if (!rr.ok) return sendJSON(res, 502, { error: 'ASR 接口 ' + rr.status });
+        const j = await rr.json();
+        const c = j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content;
+        const text = typeof c === 'string' ? c : Array.isArray(c) ? c.map(x => x.text || '').join('') : '';
+        return sendJSON(res, 200, { ok: true, text: String(text || '').trim() });
+      } catch (e) {
+        return sendJSON(res, /timeout/i.test(e.message) ? 504 : 502, { error: 'ASR 失败: ' + e.message });
+      }
+    }
+    /* ---- API: eplod 录音存档(每句覆盖, 供回听自己) ---- */
+    const mEpRec = p.match(/^\/api\/eplod\/recording$/);
+    if (mEpRec) {
+      if (req.method !== 'POST') return sendJSON(res, 405, { error: 'method' });
+      const origin = req.headers.origin;
+      if (origin && origin !== `http://${req.headers.host}` && origin !== `https://${req.headers.host}`) return sendJSON(res, 403, { error: 'cross-origin rejected' });
+      let body; try { body = await readBody(req, 12 * 1024 * 1024); } catch (e) { return sendJSON(res, 413, { error: e.message }); }
+      let inc; try { inc = JSON.parse(body.toString('utf8') || '{}'); } catch (e) { return sendJSON(res, 400, { error: 'bad json' }); }
+      const ep = String(inc.ep || ''), ix = inc.i, audio = String(inc.audio || '');
+      if (!/^\d{4}$/.test(ep) || !Number.isInteger(ix) || ix < 0 || ix > 99) return sendJSON(res, 400, { error: 'bad ep/i' });
+      const m = audio.match(/^data:(audio\/[\w.+-]+(?:;[\w.=+-]+)?);base64,([A-Za-z0-9+/=]+)$/);
+      if (!m) return sendJSON(res, 400, { error: 'audio 须为 data:audio/*;base64' });
+      const ext = (m[1].split(';')[0].split('/')[1].replace(/[^\w]/g, '')) || 'webm';
+      if (m[2].length > 11 * 1024 * 1024) return sendJSON(res, 413, { error: '录音过大' });
+      try {
+        fs.mkdirSync(RECORDING_DIR, { recursive: true });
+        fs.writeFileSync(path.join(RECORDING_DIR, `eplod-${ep}-${ix}.${ext}`), Buffer.from(m[2], 'base64'));
+        return sendJSON(res, 200, { ok: true, file: `eplod-${ep}-${ix}.${ext}` });
+      } catch (e) { return sendJSON(res, 503, { error: '录音落盘失败: ' + e.message }); }
     }
     const mHand = p.match(/^\/api\/handout\/(.+)$/);
     if (mHand) {
@@ -1699,6 +1761,13 @@ const handler = async (req, res) => {
       const abs = path.normalize(path.join(base, mEplodMedia[2]));
       if (!abs.startsWith(base + path.sep)) return sendJSON(res, 400, { error: 'bad path' });
       if (!MEDIA_EXT.has(path.extname(abs).toLowerCase())) return sendJSON(res, 403, { error: 'ext not allowed' });
+      return sendFile(req, res, abs);
+    }
+    /* ---- 媒体: 用户录音回放(records 卷/recordings, 每句覆盖) ---- */
+    const mRecMedia = p.match(/^\/media\/rec\/(eplod-\d{4}-\d{1,2}\.[\w]+)$/);
+    if (mRecMedia) {
+      const abs = path.join(RECORDING_DIR, mRecMedia[1]);
+      if (!fs.existsSync(abs)) return sendJSON(res, 404, { error: 'no recording' });
       return sendFile(req, res, abs);
     }
 

@@ -3133,7 +3133,7 @@ window.renderEplodMain=async function(c){
   EP.st.doneOf=i=>{const d=drill.dd[i],r=drill.rd[i];return !!(d&&d.acc!=null&&d.acc>=0.9&&r&&r.acc!=null&&r.acc>=0.9);};
   const firstTodo=()=>{const i=d.dialogue.findIndex((_,k)=>!EP.st.doneOf(k));return i<0?0:i;};
   EP.st.ai=firstTodo();
-  EP.st.bmode={}; EP.st.lastMode='dict';
+  EP.st.bmode={}; EP.st.vmode={}; EP.st.lastMode='dict';
   el.innerHTML='<div class="cs-stick ep">'
     +'<div class="csp-meta"><h3>'+esc(l.title)+'</h3><span class="src">'+esc(c.title)+' · '+esc(d.level)+' · 第 '+(csSel.l+1)+'/'+c.lessons.length+' 节</span>'
     +(p.done?'<span class="pill q">已学完</span>':'')+'</div>'
@@ -3154,8 +3154,9 @@ window.renderEplodMain=async function(c){
     +'<div class="card ep-listen" id="ep-listen"><div class="phead"><div class="l"><b>逐句精听 · 对话</b></div><div class="r ep-mc">'+(markCount?markCount+' 句没听出来':'')+'</div></div>'
       +'<div class="ep-lines" id="ep-lines">'+d.dialogue.map((x,i)=>lineHtml(x,i,'dg')).join('')+'</div></div>'
     +'<div class="card ep-train" id="ep-train" style="display:none">'
-      +'<div class="phead"><div class="l"><b>四步训练 · 对话 '+d.dialogue.length+' 句</b><span class="ep-note">① 听写=听音写 · ③ 默写=看中文写整句，都逐词比对；列表只给中文线索不剧透英文</span></div>'
+      +'<div class="phead"><div class="l"><b>四步训练 · 对话 '+d.dialogue.length+' 句</b><span class="ep-note">① 听写=听音写 · ③ 背诵=🎙朗读或⌨默写 · ④ 同速=朗读时长≤原句1.15×；列表只给中文线索不剧透英文</span></div>'
       +'<div class="r"><span class="ep-dmode"><button data-m="free"'+(drill.mode==='free'?' class="on"':'')+'>自由</button><button data-m="exam"'+(drill.mode==='exam'?' class="on"':'')+'>考试 ×3</button></span></div></div>'
+      +'<div class="ep-cov" id="ep-cov"></div>'
       +'<div class="ep-dstats" id="ep-tstats"></div>'
       +'<div class="ep-blist" id="ep-blist"></div></div>'
     +(d.chunks&&d.chunks.length?'<div class="card ep-chunks"><div class="phead"><div class="l"><b>词块积累</b><span class="ep-note">收藏后进每日复习队列（SM-2）</span></div></div><div class="ep-chunk-grid">'
@@ -3321,12 +3322,15 @@ function epStepsUpdate(){
   const chunks=st.d.chunks||[];
   const got=chunks.filter(ch=>st.p.collected[ch.chunk.toLowerCase().replace(/\s+/g,'')]).length;
   const rp=Object.keys(drill.rd||{}).filter(k=>drill.rd[k]&&drill.rd[k].acc!=null&&drill.rd[k].acc>=0.9).length;
+  const asr=!!st.d.asr;
+  const sp=Object.keys(drill.sd||{}).length;
   el.innerHTML='<span class="es on"><i>① 听写</i><b>'+(ds.length?Math.round(passed/n*100)+'%':'未开始')+'</b><u>'+(ds.length?'均准 '+accAvg+'%':'对话 '+n+' 句')+'</u></span>'
     +'<span class="es'+(got>=chunks.length&&chunks.length?' ok':'')+'"><i>② 理解</i><b>'+got+'/'+chunks.length+'</b><u>词块收藏</u></span>'
     +'<span class="es'+(rp>=n?' ok':'')+'"><i>③ 背诵</i><b>'+rp+'/'+n+'</b><u>对话逐句</u></span>'
-    +'<span class="es lock"><i>④ 同速</i><b>待开放</b><u>录音对比</u></span>';
+    +'<span class="es'+(!asr?' lock':(sp>=n?' ok':''))+'"><i>④ 同速</i><b>'+(asr?sp+'/'+n:'待开放')+'</b><u>朗读时长</u></span>';
   const dst=$('ep-tstats');
-  if(dst)dst.textContent='听写已写 '+ds.length+'/'+n+' · 通过 '+passed+' · 背诵已过 '+rp+' · 平均词准 '+(accAvg==null?'—':accAvg+'%');
+  if(dst)dst.textContent='听写已写 '+ds.length+'/'+n+' · 听写通过 '+passed+' · 默写通过 '+rp+' · 同速 '+sp;
+  epCoverUpdate();
 }
 
 /* ---- 听写 diff: 词级 LCS, 返回逐词对错与多写词 ---- */
@@ -3401,12 +3405,27 @@ function epBlockCard(i){
   const clue=zh.length?zh.join(' / '):(sense.length?sense.map(x=>x.zh).join(' / '):'（本句无中文线索，听原音背诵）');
   const senseHtml=sense.length?sense.map(x=>'<span class="su"><b>'+esc(x.u)+'</b><i>'+esc(x.zh)+'</i></span>').join(''):'';
   const orig=u.lines.map(x=>(x.spk?'<i class="spk">'+esc(x.spk)+'</i>':'')+'<span>'+esc(x.text)+'</span>').join(' ');
+  const vmode=(st.vmode&&st.vmode[i])||'voice';
+  const sd=(drill.sd&&drill.sd[i])||null;
+  const recObj=drill.rd[i]||null;
+  const asr=!!st.d.asr;
   h+='<div class="rclue">'+esc(clue)+'</div>'
-    +'<textarea class="dt" rows="2" placeholder="看中文线索，默写完整句子（Enter 提交）">'+(drill.rd[i]&&drill.rd[i].last!=null?esc(drill.rd[i].last):'')+'</textarea>'
-    +'<div class="dr"></div>'
+    +'<div class="ep-vseg"><button data-v="voice"'+(vmode==='voice'?' class="on"':'')+'>🎙 朗读</button><button data-v="type"'+(vmode==='type'?' class="on"':'')+'>⌨ 默写</button></div>'
+    +'<div class="vbody bvoice" style="display:'+(vmode==='voice'?'':'none')+'">'
+      +(asr
+        ?'<button class="ep-rec" data-i="'+i+'">'+(st.recording&&st.recording.i===i?'■ 停止 · <i class="rt">0:00</i>':'🎙 朗读这句')+'</button>'
+          +(recObj&&recObj.mode==='voice'&&recObj.dur?'<span class="ep-dur">用时 '+fmtDur(recObj.dur)+' / 原句 '+fmtDur(u.t1-u.t0)+(sd?' · <b class="ok">✓ 同速</b>':'')+'</span>':'')
+          +(recObj&&recObj.mode==='voice'?'<button class="elisten-me" data-i="'+i+'">▶ 回听我的录音</button>':'')
+        :'<p class="ep-note">朗读背诵需要转写服务（未配置 ASR），请用 ⌨ 默写。</p>')
+      +'<div class="dr"></div>'
+    +'</div>'
+    +'<div class="vbody btype" style="display:'+(vmode==='type'?'':'none')+'">'
+      +'<textarea class="dt" rows="2" placeholder="看中文线索，默写完整句子（Enter 提交）">'+(recObj&&recObj.last!=null&&recObj.mode!=='voice'?esc(recObj.last):'')+'</textarea>'
+      +'<div class="dr"></div>'
+    +'</div>'
     +(senseHtml?'<div class="rsense" style="display:none">'+senseHtml+'</div>':'')
     +'<div class="rorig" style="display:none">'+orig+'</div>'
-    +'<div class="rhints">'+(senseHtml?'<button class="h1">看意群积木</button>':'')+'<button class="h2">看原文</button><span class="grow"></span><span class="ep-note">默写通过线 90%</span></div>'
+    +'<div class="rhints">'+(senseHtml?'<button class="h1">看意群积木</button>':'')+'<button class="h2">看原文</button><span class="grow"></span><span class="ep-note">通过线 90% · 同速线 1.15×</span></div>'
     +'</div></div>';
   return h;
 }
@@ -3508,9 +3527,22 @@ function epWireCard(card){
     mkBtn.onclick=()=>{clearTimeout(sb);submit();};
     ta.insertAdjacentElement('afterend',mkBtn);
   }
-  /* ③ 默写: 看中文写整句 → 逐词比对 → drill.rd; 通过自动跳下一句未完成的 */
+  /* ③ 背诵: 双子模式(🎙朗读=录音+ASR / ⌨默写=打字), 同账本 drill.rd; 通过自动跳下一句 */
+  card.querySelectorAll('.ep-vseg button').forEach(b=>b.onclick=()=>{
+    st.vmode[i]=b.dataset.v;st.lastMode='recite';
+    card.querySelectorAll('.ep-vseg button').forEach(x=>x.classList.toggle('on',x===b));
+    card.querySelector('.bvoice').style.display=b.dataset.v==='voice'?'':'none';
+    card.querySelector('.btype').style.display=b.dataset.v==='type'?'':'none';
+  });
+  card.querySelectorAll('.ep-rec').forEach(b=>b.onclick=()=>epRecToggle(+b.dataset.i,card));
+  const lm=card.querySelector('.elisten-me');
+  if(lm)lm.onclick=()=>{
+    const rec=drill.rd[i]&&drill.rd[i].rec;
+    if(!rec){const nn=$('ep-note');nn.style.display='';nn.textContent='录音存档还没写完，稍等一下。';return;}
+    new Audio('/media/rec/'+rec).play();
+  };
   {
-    const body=card.querySelector('.brecite');
+    const body=card.querySelector('.btype');
     const ta=body.querySelector('.dt');
     const submit=()=>{
       const mine=ta.value.trim();
@@ -3518,8 +3550,8 @@ function epWireCard(card){
       const r=epDiff(u.text,mine);
       const prev=drill.rd[i];
       const best=prev&&prev.acc!=null?Math.max(prev.acc,r.acc):r.acc;
-      drill.rd[i]={acc:best,last:mine,at:Date.now()};
-      recSave();
+      drill.rd[i]={acc:best,last:mine,at:Date.now(),mode:'type'};
+      recSave();epStamp(i);
       const mini=card.querySelectorAll('.bh .mini')[1];
       if(mini){mini.textContent='背'+Math.round(best*100)+'%';mini.classList.toggle('ok',best>=0.9);mini.style.display='';}
       body.querySelector('.dr').innerHTML=diffHtml(r);
@@ -3542,6 +3574,124 @@ function epWireCard(card){
   const h1=card.querySelector('.h1'),h2=card.querySelector('.h2');
   if(h1)h1.onclick=()=>{const s=card.querySelector('.rsense');s.style.display=s.style.display==='none'?'':'none';};
   if(h2)h2.onclick=()=>{const s=card.querySelector('.rorig');s.style.display=s.style.display==='none'?'':'none';};
+}
+
+/* ---- 覆盖式背诵(三章法): 每天盖一章, 同一章跨 3 天, 满 6 句提交即盖 ---- */
+function epDay(){return new Date(Date.now()+8*3600000).toISOString().slice(0,10);}
+function epStamp(i){
+  const st=EP.st;if(!st)return;
+  const days=st.p.drill.stampDays=st.p.drill.stampDays||{};
+  const day=epDay();
+  (days[day]=days[day]||[]);
+  if(!days[day].includes(i))days[day].push(i);
+  recSave();
+}
+function epCoverUpdate(){
+  const st=EP.st;const el=$('ep-cov');
+  if(!el||!st)return;
+  const drill=st.p.drill||{};
+  const days=drill.stampDays||{};
+  const today=epDay();
+  const need=6;
+  const dates=Object.keys(days).filter(d=>(days[d]||[]).length>=need).sort();
+  const todayN=(days[today]||[]).length;
+  const n=Math.min(3,dates.length);
+  const todayStamped=dates.includes(today);
+  let stamps='';
+  for(let k=1;k<=3;k++){
+    if(k<=n)stamps+='<span class="stamp ok">第'+k+'遍 '+(dates[k-1]||'').slice(5)+'</span>';
+    else if(k===n+1)stamps+='<span class="stamp cur">第'+k+'遍 · 今天 '+todayN+'/10</span>';
+    else stamps+='<span class="stamp">第'+k+'遍</span>';
+  }
+  let msg;
+  if(n>=3)msg='三章盖满 · 这一篇可以脱口而出了';
+  else if(todayStamped)msg='本遍已盖 · 覆盖式背法：隔天再来盖下一章';
+  else if(n>0)msg='今天该复背第 '+(n+1)+' 遍了（先本篇，再带一遍上一篇）';
+  else msg='盖第一遍章：朗读/默写满 '+need+' 句即成';
+  el.innerHTML='<span class="cvt">覆盖背诵</span>'+stamps+'<span class="cvm">'+esc(msg)+'</span>';
+}
+
+/* ---- 朗读背诵: 录音 → ASR 转写 → 逐词比对 + 时长同速判定 ---- */
+async function epRecToggle(i,card){
+  const st=EP.st;if(!st)return;
+  const drill=st.p.drill;
+  if(st.recording&&st.recording.i===i){
+    const R=st.recording;st.recording=null;
+    try{R.rec.stop();}catch(e){}
+    return;
+  }
+  if(st.recording){const Ro=st.recording;st.recording=null;try{Ro.rec.stop();}catch(e){}}
+  let stream;
+  try{stream=await navigator.mediaDevices.getUserMedia({audio:true});}
+  catch(e){const nn=$('ep-note');nn.style.display='';nn.textContent='麦克风不可用：'+e.message+'（可切 ⌨ 默写）';return;}
+  let mime='';
+  for(const m of ['audio/webm;codecs=opus','audio/webm','audio/mp4'])if(window.MediaRecorder&&MediaRecorder.isTypeSupported(m)){mime=m;break;}
+  const rec=new MediaRecorder(stream,mime?{mimeType:mime}:{});
+  const chunks=[];
+  const R={rec:rec,chunks:chunks,t0:Date.now(),i:i,mime:(rec.mimeType||'audio/webm')};
+  st.recording=R;
+  epRecButton();
+  rec.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data);};
+  rec.onstop=async()=>{
+    stream.getTracks().forEach(t=>t.stop());
+    clearInterval(st.recTimer);
+    const dur=Math.round((Date.now()-R.t0)/1000);
+    const wasI=R.i;
+    st.recording=null;
+    epRecButton();
+    const drEl=card&&+card.dataset.i===wasI?card.querySelector('.bvoice .dr'):null;
+    if(drEl)drEl.innerHTML='<p class="ep-note">转写中…</p>';
+    const blob=new Blob(chunks,{type:R.mime});
+    const b64=await new Promise(res=>{const fr=new FileReader();fr.onload=()=>res(String(fr.result));fr.readAsDataURL(blob);});
+    if(b64.length>11.8*1024*1024){if(drEl)drEl.innerHTML='<p class="ep-note">录音过大，请缩短后重录。</p>';return;}
+    try{
+      const j=await api('/api/eplod/asr',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({audio:b64}),signal:AbortSignal.timeout(130000)});
+      if(!j.ok)throw Error(j.error||'转写失败');
+      const text=String(j.text||'').trim();
+      const u=epItems()[wasI];
+      const r=epDiff(u.text,text);
+      const prev=drill.rd[wasI];
+      const best=prev&&prev.acc!=null?Math.max(prev.acc,r.acc):r.acc;
+      const speed=dur>0&&dur<=(u.t1-u.t0)*1.15+0.5;
+      drill.rd[wasI]={acc:best,last:text,at:Date.now(),mode:'voice',dur:dur};
+      if(speed){drill.sd=drill.sd||{};drill.sd[wasI]={dur:dur,at:Date.now()};}
+      recSave();epStamp(wasI);
+      const lc=$('ep-blist').querySelector('.ep-bcard[data-i="'+wasI+'"]');
+      if(lc){
+        const mini=lc.querySelectorAll('.bh .mini')[1];
+        if(mini){mini.textContent='背'+Math.round(best*100)+'%';mini.classList.toggle('ok',best>=0.9);mini.style.display='';}
+        const dEl=lc.querySelector('.bvoice .dr');
+        if(dEl)dEl.innerHTML='<div class="dw"><b>'+(r.acc>=0.9?'✓ 通过':'词准 '+Math.round(r.acc*100)+'%')+'</b> '+esc(text)+'</div>'
+          +'<div class="do">原文: '+esc(u.text)+'</div>'
+          +'<p class="ep-note">用时 '+fmtDur(dur)+' / 原句 '+fmtDur(u.t1-u.t0)+(speed?' · <b class="ok">✓ 同速达成</b>':' · 同速线 '+fmtDur(Math.round((u.t1-u.t0)*1.15)))+'</p>';
+      }
+      epStepsUpdate();epDockNo();
+      if(best>=0.9){
+        const nx=$('ep-dock-next');if(nx)nx.classList.add('pulse');
+        const nxt=epItems().findIndex((_,k)=>!st.doneOf(k));
+        if(nxt>=0&&nxt!==wasI)setTimeout(()=>epGo(nxt),800);
+      }
+    }catch(e){
+      if(drEl)drEl.innerHTML='<p class="ep-note">转写失败：'+esc(e.message)+'（可切 ⌨ 默写）</p>';
+    }
+    /* 录音存档(独立请求, 失败不影响判定); 成功后写回 rd.rec 供回听 */
+    try{
+      const j2=await api('/api/eplod/recording',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ep:String(st.l.ep).padStart(4,'0'),i:wasI,audio:b64})});
+      if(j2&&j2.ok){drill.rd[wasI]=drill.rd[wasI]||{};drill.rd[wasI].rec=j2.file;recSave();}
+    }catch(e){}
+  };
+  rec.start();
+  st.recTimer=setInterval(()=>{if(st.recording===R){const b=$('ep-blist')&&$('ep-blist').querySelector('.ep-bcard .ep-rec.ing');if(b)b.innerHTML='■ 停止 · <i class="rt">'+fmtDur(Math.round((Date.now()-R.t0)/1000))+'</i>';}},500);
+}
+function epRecButton(){
+  const st=EP.st;const list=$('ep-blist');
+  if(!list||!st)return;
+  const b=list.querySelector('.ep-bcard .ep-rec');
+  if(!b)return;
+  const i=+b.dataset.i;
+  const ing=!!(st.recording&&st.recording.i===i);
+  b.innerHTML=ing?'■ 停止 · <i class="rt">0:00</i>':'🎙 朗读这句';
+  b.classList.toggle('ing',ing);
 }
 
 function epTrainWire(){

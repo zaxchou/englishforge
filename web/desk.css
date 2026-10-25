@@ -1667,3 +1667,22 @@ body.vfull .cs-stage video.tfl{max-height:none}
    折叠行只显示中文线索; 词块卡原句打码, 点击揭示(回播按钮仍可用)。 */
 .ep-chunk .q .qtx{filter:blur(6px);cursor:pointer;transition:filter .15s}
 .ep-chunk .q.open .qtx{filter:none}
+
+/* block 42 · 朗读背诵+覆盖印章 */
+.ep-vseg{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;margin-bottom:10px}
+.ep-vseg button{border:0;background:transparent;padding:5px 14px;font-size:var(--f4);color:var(--t2);cursor:pointer}
+.ep-vseg button.on{background:var(--acc);color:#f6f8f1}
+.ep-rec{border:1px solid var(--acc);background:var(--acc);color:#f6f8f1;border-radius:999px;padding:10px 22px;font-size:var(--f3);cursor:pointer;margin-right:10px}
+.ep-rec:hover{opacity:.92}
+.ep-rec.ing{background:var(--bad);border-color:var(--bad);animation:ep-pulse 1.2s ease-in-out infinite}
+.ep-rec .rt{font-style:normal;font-variant-numeric:tabular-nums}
+.ep-dur{font-size:var(--f4);color:var(--t2);margin-right:8px}
+.ep-dur .ok{color:var(--ok)}
+.elisten-me{border:1px solid var(--line);background:transparent;border-radius:6px;padding:4px 10px;font-size:var(--f4);cursor:pointer;color:var(--t2)}
+.elisten-me:hover{border-color:var(--acc);color:var(--acc)}
+.ep-cov{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:10px 0 0}
+.ep-cov .cvt{font-size:var(--f4);font-weight:600;color:var(--t2)}
+.ep-cov .stamp{font-size:var(--f5);border:1px dashed var(--line);border-radius:999px;padding:2px 10px;color:var(--t3)}
+.ep-cov .stamp.ok{border:1px solid var(--okln);background:var(--okbg);color:var(--ok);border-style:solid}
+.ep-cov .stamp.cur{border:1px solid var(--accln);background:var(--accbg);color:var(--acc);border-style:solid}
+.ep-cov .cvm{font-size:var(--f4);color:var(--t3);margin-left:auto}
