@@ -1415,3 +1415,9 @@ body.vfull .cs-stage video.tfl{max-height:none}
 .csmain .cs-materials{border-radius:var(--r)}
 .cs-stage{background:#fff}
 .cs-stage video.tfl{background:#fff}
+
+/* block 34 · 收起态修复(用户: 收起后不能展开/只剩一条横线):
+   vz 模式漏了 dock 显示规则——dock 被基础 display:none 藏掉, 恢复按钮随之消失;
+   且视频隐藏后 cs-stage 剩一个空边框盒(即那条横线)。补规则+剥空框。 */
+.cs-stick.vz .cs-vdock{display:flex}
+.cs-stick.qz .cs-stage,.cs-stick.vz .cs-stage{border:0;background:transparent}
