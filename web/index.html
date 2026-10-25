@@ -655,9 +655,17 @@ function mergeRemote(remote, baseOpt, localOpt) {
         if(field==='course'&&l[key]&&r[key]) {
           const entry={...r[key]};for(const prop of new Set([...Object.keys(b[key]||{}),...Object.keys(l[key])])) {
             if(JSON.stringify(l[key][prop])!==JSON.stringify((b[key]||{})[prop])) {
-              if((prop==='drill'||prop==='marks'||prop==='collected') && l[key][prop] && r[key][prop] && typeof l[key][prop]==='object' && !Array.isArray(l[key][prop])) {
-                entry[prop]={...r[key][prop],...l[key][prop]};
-                if(prop==='drill'){for(const dk of ['dd','rd','sd','playsS']){const ld=l[key].drill[dk],rv=r[key].drill&&r[key].drill[dk];if(ld&&rv&&typeof ld==='object'&&!Array.isArray(ld))entry[prop][dk]={...rv,...ld};}}
+              if((prop==='drill'||prop==='marks'||prop==='collected')) {
+                const rv=(r[key]&&r[key][prop]&&typeof r[key][prop]==='object'&&!Array.isArray(r[key][prop]))?r[key][prop]:null;
+                if(!(prop in l[key])){ if(rv) entry[prop]=JSON.parse(JSON.stringify(rv)); }   // 本页没见过=保留远端
+                else if(typeof l[key][prop]==='object'&&l[key][prop]&&!Array.isArray(l[key][prop])){
+                  if(prop==='drill'){
+                    entry[prop]={...l[key][prop]};
+                    for(const dk of ['dd','rd','sd','playsS']){
+                      if(!(dk in entry[prop])&&rv&&rv[dk]&&typeof rv[dk]==='object'&&!Array.isArray(rv[dk]))entry[prop][dk]=JSON.parse(JSON.stringify(rv[dk]));
+                    }
+                  }else entry[prop]=JSON.parse(JSON.stringify(l[key][prop]));
+                }
               }else if(prop==='bookmarks'){
                 entry.bookmarks={...(r[key].bookmarks||{})};
                 for(const [id,mark] of Object.entries(l[key].bookmarks||{}))if(JSON.stringify(mark)!==JSON.stringify(b[key]?.bookmarks?.[id]))entry.bookmarks[id]=mark;

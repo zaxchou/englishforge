@@ -1279,15 +1279,17 @@ function nextRecords(incoming) {
       for (const [lid, les] of Object.entries(next[k])) {
         const cur = curLessons[lid];
         if (!cur || typeof cur !== 'object') continue;
-        for (const fk of ['marks', 'collected']) {
-          if (les[fk] && typeof les[fk] === 'object' && !Array.isArray(les[fk])) les[fk] = { ...(cur[fk] || {}), ...les[fk] };
-        }
-        if (les.drill && typeof les.drill === 'object' && !Array.isArray(les.drill)) {
-          const cd = cur.drill || {};
-          les.drill = { ...cd, ...les.drill };
-          for (const dk of ['dd', 'rd', 'sd', 'playsS']) {
-            if (les.drill[dk] && typeof les.drill[dk] === 'object' && !Array.isArray(les.drill[dk]) && cd[dk] && typeof cd[dk] === 'object') {
-              les.drill[dk] = { ...cd[dk], ...les.drill[dk] };
+        /* 语义(v3): 键缺席=旧页没见过这个字段 → 保留服务端现值;
+           键在场=整份采信(含删除)。覆盖两类事故: 旧页缺 drill 整体抹除(r29 前)/缺 rd 等子对象(r27)。 */
+        for (const fk of ['marks', 'collected', 'drill']) {
+          if (!Object.prototype.hasOwnProperty.call(les, fk)) {
+            if (cur[fk] && typeof cur[fk] === 'object') les[fk] = JSON.parse(JSON.stringify(cur[fk]));
+          } else if (fk === 'drill' && les.drill && typeof les.drill === 'object' && !Array.isArray(les.drill)) {
+            const cd = cur.drill || {};
+            for (const dk of ['dd', 'rd', 'sd', 'playsS']) {
+              if (!Object.prototype.hasOwnProperty.call(les.drill, dk) && cd[dk] && typeof cd[dk] === 'object') {
+                les.drill[dk] = JSON.parse(JSON.stringify(cd[dk]));
+              }
             }
           }
         }

@@ -37,7 +37,16 @@ BUILD_EP = ROOT / "build" / "eplod"
 CATALOG = ROOT / "build" / "courses" / "eplod-catalog.json"
 CHUNK_BANK = ROOT / "build" / "vocab" / "eplod-chunks.json"
 
-POS_WORDS = {"Phrase", "Verb", "Adjective", "Noun", "Adverb", "Expression", "Preposition", "Conjunction", "Interjection", "Pronoun"}
+POS_WORDS = {"Phrase", "Verb", "Adjective", "Noun", "Adverb", "Expression", "Preposition", "Conjunction", "Interjection", "Pronoun",
+             "phrase", "verb", "adjective", "noun", "adverb", "expression", "preposition", "conjunction", "interjection", "pronoun", "idiom"}
+
+
+def _is_pos(line):
+    """词性行: 集合命中, 或 'common noun, singular' 这类多词词性(名词短语开头+逗号/连字符)."""
+    if line in POS_WORDS:
+        return True
+    low = line.lower()
+    return low.startswith(("common noun", "proper noun", "noun,"))
 FOOTER = re.compile(r"Visit the Online Review|Praxis Language|^\s*c⃝", re.M)
 
 # 官方分级表(每日英语听力口径, pipeline/eplod-levels.json): 365 期难度穿插,
@@ -132,11 +141,11 @@ def parse_pdf(pdf_path):
         seg = [l.strip() for l in lines[a + 1 : b] if l.strip()]
         out, i = [], 0
         while i < len(seg) - 1:
-            if seg[i + 1] in POS_WORDS:   # 词条行 = 紧跟词性行的那一行
+            if _is_pos(seg[i + 1]):   # 词条行 = 紧跟词性行的那一行
                 term, pos = seg[i], seg[i + 1]
                 j = i + 2
                 buf = []
-                while j < len(seg) and not (j + 1 < len(seg) and seg[j + 1] in POS_WORDS):
+                while j < len(seg) and not (j + 1 < len(seg) and _is_pos(seg[j + 1])):
                     if buf and buf[-1].endswith("-"):
                         buf[-1] = buf[-1][:-1] + seg[j]   # 行尾连字符 = 词被换行劈开
                     else:
@@ -273,12 +282,20 @@ def build_units(lines, line_times, min_dur=0.6):
     return merged
 
 
+_WM = None
+
+
 def whisper_segments(mp3, model=None):
     from faster_whisper import WhisperModel
 
+    global _WM
     if model is None:
-        model = WhisperModel("base", device="cpu", compute_type="int8")
-    segs, _ = model.transcribe(str(mp3), language="en", word_timestamps=True, vad_filter=False)
+        if _WM is None:
+            _WM = WhisperModel("base.en", device="cpu", compute_type="int8")
+        model = _WM
+    # no_speech_threshold=1: 禁用"疑似无语音"跳段(电话音质整段被吞过, 0002); 条件链断开防幻觉循环
+    segs, _ = model.transcribe(str(mp3), language="en", word_timestamps=True, vad_filter=False,
+                               no_speech_threshold=1.0, condition_on_previous_text=False)
     out = []
     for s in segs:
         out.append({
@@ -383,14 +400,16 @@ def _ai_call(cfg, system, user, max_tokens=8000):
     return json.loads(raw)
 
 
-def ai_lang(data, batch=45):
-    """全篇逐句: 中文翻译 + 意群拆分(尚雯婕法「意思单位」)。
-    覆盖 对话(dg) + 讲解(pb) 全部行; 意群拼回必须逐词等于原句, 否则丢弃该句意群只留翻译。"""
+def ai_lang(data, batch=45, jobs=("dg", "pb")):
+    """逐句: 中文翻译 + 意群拆分(尚雯婕法「意思单位」)。
+    jobs 可限定段落——训练只用对话(dg), 讲解段(pb)的翻译/意群界面不渲染, 批量导入时跳过省 80% 成本。
+    意群拼回必须逐词等于原句, 否则丢弃该句意群只留翻译。"""
     cfg = ai_cfg()
     if not cfg["key"]:
         raise SystemExit("缺 TFL_AI_KEY（.env.local）")
     sysmsg = "以材料本身为标准，只依据给定句子，不引入外部知识。只输出 JSON。"
-    jobs = [("dg", [x["text"] for x in data["dialogue"]]), ("pb", [x["text"] for x in data["explanation"]])]
+    all_jobs = {"dg": [x["text"] for x in data["dialogue"]], "pb": [x["text"] for x in data["explanation"]]}
+    jobs = [(k, all_jobs[k]) for k in jobs]
     data.setdefault("sense", {})
     for kind, lines in jobs:
         zh_out = [None] * len(lines)
@@ -504,57 +523,64 @@ def update_chunk_bank(ep_data):
     CHUNK_BANK.write_text(json.dumps(bank, ensure_ascii=False, indent=1), encoding="utf-8")
 
 
-def main():
-    ep = sys.argv[1].zfill(4)
-    do_chunks = "--chunks" in sys.argv
-    do_apply = "--apply" in sys.argv
+def run_episode(ep, do_chunks=True, do_apply=True, dg_lang_only=False, keep_ai=True, log=print):
+    """单期完整管线。返回 data。异常向上抛(批量 runner 负责兜)。
+    dg_lang_only: 只对对话做翻译+意群(训练只用对话; 讲解段的 pb 翻译界面不渲染, 批量省 80% 成本)。"""
+    ep = ep.zfill(4)
     t0 = time.time()
 
     d = find_ep_dir(ep)
-    print(f"[1] 目录: {d}")
     pdf = next(d.glob("*.pdf"))
     data = parse_pdf(pdf)
     data["ep"] = int(ep)
-    print(f"    {data['level']} - {data['title']} ({data['code']})  对话 {len(data['dialogue'])} 句  词表 {len(data['keyvocab'])}+{len(data['suppvocab'])}")
+    log(f"    {data['level']} - {data['title']} ({data['code']})  对话 {len(data['dialogue'])} 句  词表 {len(data['keyvocab'])}+{len(data['suppvocab'])}")
 
-    print("[2] 逐字稿")
-    expl = load_txt(ep)
-    print(f"    讲解逐字稿 {len(expl)} 行")
+    # 逐字稿: 官方 txt(已删 zip 的存档) 优先; 缺失 → whisper 转写讲解音频(讲解只听不背, 转写质量足够)
+    expl_from_asr = False
+    try:
+        expl = load_txt(ep)
+        log(f"    官方逐字稿 {len(expl)} 行")
+    except SystemExit:
+        expl = None
+        expl_from_asr = True
+        log("    官方逐字稿缺失 → whisper 转写讲解音频")
 
-    print("[3] whisper 对齐")
     dg = next(d.glob("*dg.mp3"))
     pb = next(d.glob("*pb.mp3"))
     rv = next(d.glob("*rv.mp3"))
+
+    log("    whisper: 对话对齐")
     segs_dg = whisper_segments(dg)
-    # 跳过片头 jingle（如 "EnglishPod.com"）
     dia = [x["text"] for x in data["dialogue"]]
     times = global_align(dia, segs_dg)
     hit = sum(1 for t in times if t)
     for i, t in enumerate(times):
         data["dialogue"][i]["t0"], data["dialogue"][i]["t1"] = (t if t else [None, None])
-    print(f"    对话: {hit}/{len(dia)} 句有时间戳")
+    log(f"    对话: {hit}/{len(dia)} 句有时间戳")
     if hit < len(dia) * 0.7:
-        print("    !! 对话对齐率过低，先检查再继续", file=sys.stderr)
+        raise RuntimeError(f"对话对齐率过低 {hit}/{len(dia)}")
 
+    log("    whisper: 讲解转写/对齐")
     segs_pb = whisper_segments(pb)
-    expl_lines = [x["text"] for x in expl]
-    times_pb = global_align(expl_lines, segs_pb)
-    for i, t in enumerate(times_pb):
-        expl[i]["t0"], expl[i]["t1"] = (t if t else [None, None])
-    hit_pb = sum(1 for t in times_pb if t)
-    print(f"    讲解: {hit_pb}/{len(expl_lines)} 行有时间戳（段 {len(segs_pb)}）")
-
-    # 整期听写/背诵块（pb 全长时间轴）
-    data["units"] = build_units(expl, times_pb)
-    timed = sum(1 for u in data["units"] if u["t0"] is not None)
-    print(f"    听写块: {len(data['units'])} 块（{timed} 块可独立播放）")
+    if expl_from_asr:
+        expl = [{"spk": "", "text": clean_text(x["text"]), "t0": x["t0"], "t1": x["t1"]}
+                for x in segs_pb if x["text"].strip()]
+        hit_pb = len(expl)
+    else:
+        expl_lines = [x["text"] for x in expl]
+        times_pb = global_align(expl_lines, segs_pb)
+        for i, t in enumerate(times_pb):
+            expl[i]["t0"], expl[i]["t1"] = (t if t else [None, None])
+        hit_pb = sum(1 for t in times_pb if t)
+    log(f"    讲解: {hit_pb}/{len(expl)} 行有时间戳（段 {len(segs_pb)}）")
 
     data["explanation"] = expl
+    data["units"] = build_units(expl, [x.get("t0") if x.get("t0") is not None else None for x in expl] and
+                                [[x.get("t0"), x.get("t1")] for x in expl])
     data["audio"] = audio_urls(ep)
     data["durations"] = {"dg": ffprobe_sec(dg), "pb": ffprobe_sec(pb), "rv": ffprobe_sec(rv)}
 
-    if not do_chunks:
-        # 重跑解析/对齐时保留已生成的 AI 产物(词块+翻译+意群), 不重复花钱
+    if keep_ai and not do_chunks:
         prev = BUILD_EP / f"{ep}.json"
         if prev.exists():
             try:
@@ -566,32 +592,45 @@ def main():
                 pass
 
     if do_chunks:
-        print("[4] DeepSeek 词块/翻译/意群（只补缺失项）")
+        log("    DeepSeek 词块/翻译/意群（只补缺失项）")
         if not data.get("chunks"):
-            chunks = ai_chunks(data)
-            print(f"    词块 {len(chunks)} 个（护栏后）")
-            update_chunk_bank(data)
+            try:
+                chunks = ai_chunks(data)
+                log(f"    词块 {len(chunks)} 个（护栏后）")
+                update_chunk_bank(data)
+            except Exception as e:
+                log(f"    !! 词块生成失败(本期无词块, 页面其余功能不受影响): {e}")
         else:
-            print(f"    词块已有 {len(data['chunks'])} 个, 跳过")
+            log(f"    词块已有 {len(data['chunks'])} 个, 跳过")
         if not data.get("lineZh") or not data.get("sense"):
-            ai_lang(data)
+            jobs = ("dg",) if dg_lang_only else ("dg", "pb")
+            ai_lang(data, jobs=jobs)
         else:
-            print("    翻译+意群已有, 跳过")
+            log("    翻译+意群已有, 跳过")
         update_chunk_bank(data)
 
     if do_apply:
-        print("[5] 拷贝音频 + 落盘")
         outd = AUDIO_LIB / ep
         outd.mkdir(parents=True, exist_ok=True)
         for f, name in ((dg, "dg.mp3"), (pb, "pb.mp3"), (rv, "rv.mp3")):
-            shutil.copy2(f, outd / name)   # 归一文件名, 与 /media/eplod/<ep>/dg.mp3 对齐
+            if not (outd / name).exists():
+                shutil.copy2(f, outd / name)   # 归一文件名; 已存在不重拷(批量提速)
         BUILD_EP.mkdir(parents=True, exist_ok=True)
         (BUILD_EP / f"{ep}.json").write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
         update_catalog(data, data["durations"]["pb"], load_level_map())
-        print(f"    音频 → {outd}")
-        print(f"    课节 → {BUILD_EP / (ep + '.json')}")
+        log(f"    落盘 {ep}.json + 音频")
+    log(f"    完成 {round(time.time() - t0, 1)}s")
+    return data
 
-    print(f"完成 {round(time.time()-t0,1)}s")
+
+def main():
+    ep = sys.argv[1].zfill(4)
+    do_chunks = "--chunks" in sys.argv
+    do_apply = "--apply" in sys.argv
+    d = find_ep_dir(ep)
+    print(f"[1] 目录: {d}")
+    data = run_episode(ep, do_chunks=do_chunks, do_apply=do_apply, log=print)
+    print(f"完成: {BUILD_EP / (ep + '.json')}")
 
 
 if __name__ == "__main__":
