@@ -3196,7 +3196,10 @@ window.renderEplodMain=async function(c){
 function epWire(){
   const st=EP.st; if(!st) return;
   const a=$('ep-audio');
-  const seekTo=t0=>{try{a.currentTime=t0;a.play().catch(()=>{});}catch(e){}};
+  /* 程序性 seek 守卫: 手动拖进度条会触发 seeking→取消句尾停点; 程序 seek 不取消 */
+  st.markSeek=()=>{st._iSeek=true;setTimeout(()=>{st._iSeek=false;},120);};
+  const seekTo=t0=>{st.markSeek();try{a.currentTime=t0;a.play().catch(()=>{});}catch(e){}};
+  a.addEventListener('seeking',()=>{if(!st._iSeek)st.stopAtEnd=false;});
   const mc=$('cs-main').querySelector('.ep-mc');
   epHighlight(-1);
   /* 行点击: 跳播+循环区间; 遮罩态点句=揭示 */
@@ -3206,6 +3209,7 @@ function epWire(){
       if(row.dataset.t0==null)return;
       const kind=row.dataset.kind,i=+row.dataset.i;
       if(kind!==st.seg)epSeg(kind);
+      st.stopAtEnd=false;   // 对照跳播是连续听, 不做句尾停点
       seekTo(Number(row.dataset.t0));
       st.range=[Number(row.dataset.t0),Number(row.dataset.t1)];
       if(st.mask&&!st.revealed[kind+'-'+i]){st.revealed[kind+'-'+i]=true;row.classList.add('open');}
@@ -3233,6 +3237,7 @@ function epWire(){
       const i=+pb.dataset.qi,row=$('ep-lines').querySelector('.ep-line[data-i="'+i+'"]');
       if(row&&row.dataset.t0!=null){
         if(st.seg!=='dg')epSeg('dg');
+        st.stopAtEnd=true;
         seekTo(Number(row.dataset.t0));st.range=[Number(row.dataset.t0),Number(row.dataset.t1)];epHighlight(i,'dg');
       }
     };
@@ -3255,11 +3260,15 @@ function epWire(){
       const ce=REC.course[st.l.id]||(REC.course[st.l.id]={});ce.wt=(ce.wt||0)+1;
       if((REC.study.total||0)%5===0)recSave();}},1000);});
   a.addEventListener('pause',()=>{STU=false;epSavePos();});
+  a.addEventListener('ended',()=>{if(st.range&&st.stopAtEnd){try{a.currentTime=st.range[0];}catch(e){}}});
   let posT=0;
   a.addEventListener('timeupdate',()=>{
     const now=Date.now();
     if(now-posT>5000){posT=now;epSavePos();}
-    if(st.loop&&st.range&&a.currentTime>=st.range[1]-0.03){a.currentTime=st.range[0];return;}
+    if(st.range&&a.currentTime>=st.range[1]-0.03){
+      if(st.loop){a.currentTime=st.range[0];}
+      else if(st.stopAtEnd&&!a.paused){a.pause();try{a.currentTime=st.range[0];}catch(e){}}   // 播完这句就停, 回到句首待重听
+    }
     epSyncCur();
   });
   a.addEventListener('loadedmetadata',()=>{
@@ -3273,9 +3282,9 @@ function epWire(){
     if(e.target&&e.target.isContentEditable)return;
     const a2=$('ep-audio');if(!a2)return;
     if(e.key===' '){e.preventDefault();a2.paused?a2.play().catch(()=>{}):a2.pause();}
-    else if(e.key==='ArrowLeft'){e.preventDefault();epGo(st.ai-1);}
-    else if(e.key==='ArrowRight'){e.preventDefault();epGo(st.ai+1);}
-    else if(e.key==='z'||e.key==='Z'){if(st.range)seekTo(st.range[0]);}
+    else if(e.key==='ArrowLeft'){e.preventDefault();epGo(st.ai-1,true);}
+    else if(e.key==='ArrowRight'){e.preventDefault();epGo(st.ai+1,true);}
+    else if(e.key==='z'||e.key==='Z'){if(st.range){st.stopAtEnd=true;seekTo(st.range[0]);}}
     else if(e.key==='x'||e.key==='X'){$('ep-loop').click();}
     else if(e.key==='c'||e.key==='C'){
       const row=$('cs-main').querySelector('.ep-line.on')||$('cs-main').querySelector('.ep-listen .ep-line[data-i="0"]');
@@ -3413,7 +3422,7 @@ function epRenderList(){
   epDockNo();
 }
 
-function epGo(i){
+function epGo(i,play){
   const st=EP.st;if(!st)return;
   const n=st.d.dialogue.length;
   i=Math.max(0,Math.min(n-1,i));
@@ -3423,9 +3432,10 @@ function epGo(i){
   if(card){
     card.scrollIntoView({block:'center',behavior:'smooth'});
     const ta=card.querySelector('.bdict:not([style*="none"]) .dt');
-    if(ta)setTimeout(()=>ta.focus({preventScroll:true}),350);
+    if(ta&&!play)setTimeout(()=>ta.focus({preventScroll:true}),350);
   }
   epDockNo();
+  if(play)epPlayBlock(i);   // dock/键盘的上一句下一句=跳转并播放
 }
 
 function epPlayBlock(i){
@@ -3440,6 +3450,8 @@ function epPlayBlock(i){
     if(card&&+card.dataset.i===i){let dc=card.querySelector('.dc');if(!dc){dc=document.createElement('span');dc.className='dc';card.querySelector('.bh').appendChild(dc);}dc.textContent=(3-drill.playsS[i])+' 次可听';}
   }
   if(st.seg!=='dg')epSeg('dg');
+  st.stopAtEnd=true;   // 点听=只播这一句
+  st.markSeek&&st.markSeek();
   a.currentTime=u.t0;a.play().catch(()=>{});
   st.range=[u.t0,u.t1];
 }
@@ -3451,7 +3463,8 @@ function epWireCard(card){
   card.querySelector('.bp').onclick=()=>epPlayBlock(i);
   card.querySelector('.bl').onclick=()=>{
     if(st.seg!=='dg')epSeg('dg');
-    st.range=[u.t0,u.t1];st.loop=true;$('ep-loop').classList.add('on');
+    st.range=[u.t0,u.t1];st.loop=true;st.stopAtEnd=true;$('ep-loop').classList.add('on');
+    st.markSeek&&st.markSeek();
     a.currentTime=u.t0;a.play().catch(()=>{});
   };
   /* 听写|背诵 小切换 */
@@ -3517,8 +3530,8 @@ function epTrainWire(){
   });
   epRenderList();
   /* 粘底 dock: 句导航 + 播放控制 + 精听入口 */
-  $('ep-dock-prev').onclick=()=>epGo(st.ai-1);
-  $('ep-dock-next').onclick=()=>epGo(st.ai+1);
+  $('ep-dock-prev').onclick=()=>epGo(st.ai-1,true);
+  $('ep-dock-next').onclick=()=>epGo(st.ai+1,true);
   $('ep-dock-play').onclick=()=>{a.paused?a.play().catch(()=>{}):a.pause();};
   $('ep-dock-replay').onclick=()=>epPlayBlock(st.ai);
   $('ep-dock-listen').onclick=()=>epTab('listen');
