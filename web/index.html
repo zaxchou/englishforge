@@ -3130,7 +3130,7 @@ window.renderEplodMain=async function(c){
   /* 四步训练(用户定案: 听写+背诵都只对对话, 讲解只听不背):
      一份 10 句列表, 每句内 听写|背诵 双练法。听写 drill.dd / 背诵 drill.rd(整期块口径 d/r 弃用)。 */
   drill.dd=drill.dd||{}; drill.rd=drill.rd||{}; drill.playsS=drill.playsS||{};
-  EP.st.doneOf=i=>(drill.dd[i]&&drill.dd[i].acc!=null&&drill.dd[i].acc>=0.9&&!!drill.rd[i]);
+  EP.st.doneOf=i=>{const d=drill.dd[i],r=drill.rd[i];return !!(d&&d.acc!=null&&d.acc>=0.9&&r&&r.acc!=null&&r.acc>=0.9);};
   const firstTodo=()=>{const i=d.dialogue.findIndex((_,k)=>!EP.st.doneOf(k));return i<0?0:i;};
   EP.st.ai=firstTodo();
   EP.st.bmode={}; EP.st.lastMode='dict';
@@ -3154,7 +3154,7 @@ window.renderEplodMain=async function(c){
     +'<div class="card ep-listen" id="ep-listen"><div class="phead"><div class="l"><b>逐句精听 · 对话</b></div><div class="r ep-mc">'+(markCount?markCount+' 句没听出来':'')+'</div></div>'
       +'<div class="ep-lines" id="ep-lines">'+d.dialogue.map((x,i)=>lineHtml(x,i,'dg')).join('')+'</div></div>'
     +'<div class="card ep-train" id="ep-train" style="display:none">'
-      +'<div class="phead"><div class="l"><b>四步训练 · 对话 '+d.dialogue.length+' 句</b><span class="ep-note">听写→背诵逐句推进；列表只给中文线索不剧透英文，讲解只听不背</span></div>'
+      +'<div class="phead"><div class="l"><b>四步训练 · 对话 '+d.dialogue.length+' 句</b><span class="ep-note">① 听写=听音写 · ③ 默写=看中文写整句，都逐词比对；列表只给中文线索不剧透英文</span></div>'
       +'<div class="r"><span class="ep-dmode"><button data-m="free"'+(drill.mode==='free'?' class="on"':'')+'>自由</button><button data-m="exam"'+(drill.mode==='exam'?' class="on"':'')+'>考试 ×3</button></span></div></div>'
       +'<div class="ep-dstats" id="ep-tstats"></div>'
       +'<div class="ep-blist" id="ep-blist"></div></div>'
@@ -3320,7 +3320,7 @@ function epStepsUpdate(){
   const accAvg=ds.length?Math.round(ds.reduce((s,x)=>s+x.acc,0)/ds.length*100):null;
   const chunks=st.d.chunks||[];
   const got=chunks.filter(ch=>st.p.collected[ch.chunk.toLowerCase().replace(/\s+/g,'')]).length;
-  const rp=Object.keys(drill.rd||{}).filter(k=>drill.rd[k]).length;
+  const rp=Object.keys(drill.rd||{}).filter(k=>drill.rd[k]&&drill.rd[k].acc!=null&&drill.rd[k].acc>=0.9).length;
   el.innerHTML='<span class="es on"><i>① 听写</i><b>'+(ds.length?Math.round(passed/n*100)+'%':'未开始')+'</b><u>'+(ds.length?'均准 '+accAvg+'%':'对话 '+n+' 句')+'</u></span>'
     +'<span class="es'+(got>=chunks.length&&chunks.length?' ok':'')+'"><i>② 理解</i><b>'+got+'/'+chunks.length+'</b><u>词块收藏</u></span>'
     +'<span class="es'+(rp>=n?' ok':'')+'"><i>③ 背诵</i><b>'+rp+'/'+n+'</b><u>对话逐句</u></span>'
@@ -3366,7 +3366,7 @@ function epZhOf(item){
 
 function epRowHtml(i){
   const st=EP.st,drill=st.p.drill,u=epItems()[i];
-  const acc=drill.dd[i]&&drill.dd[i].acc,rec=!!drill.rd[i];
+  const acc=drill.dd[i]&&drill.dd[i].acc,rec=drill.rd[i]&&drill.rd[i].acc!=null?drill.rd[i]:null;
   const zh0=(epZhOf(u)[0]||'');
   return '<div class="ep-brow'+(st.doneOf(i)?' done':'')+(i===st.ai?' act':'')+'" data-i="'+i+'" role="button" tabindex="0" title="展开这一句">'
     +'<span class="no">#'+(i+1)+'</span>'
@@ -3374,14 +3374,14 @@ function epRowHtml(i){
     +'<span class="btxt">'+esc(zh0.length>42?zh0.slice(0,42)+'…':(zh0||'（无线索）'))+'</span>'
     +'<span class="grow"></span>'
     +(acc!=null?'<span class="mini'+(acc>=0.9?' ok':'')+'">写'+Math.round(acc*100)+'%</span>':'')
-    +(rec?'<span class="mini ok">背✓</span>':'')
+    +(rec?'<span class="mini'+(rec.acc>=0.9?' ok':'')+'">背'+Math.round(rec.acc*100)+'%</span>':'')
     +(drill.mode==='exam'&&(drill.playsS[i]||0)>=3?'<span class="mini warn">听3/3</span>':'')
     +'<i class="arr">▸</i></div>';
 }
 
 function epBlockCard(i){
   const st=EP.st,drill=st.p.drill,u=epItems()[i];
-  const acc=drill.dd[i]&&drill.dd[i].acc,rec=!!drill.rd[i];
+  const acc=drill.dd[i]&&drill.dd[i].acc,rec=drill.rd[i]&&drill.rd[i].acc!=null?drill.rd[i]:null;
   const mode=st.bmode[i]||st.lastMode;
   const sense=epSenseOf(u),zh=epZhOf(u);
   const plays=drill.playsS[i]||0;
@@ -3392,7 +3392,7 @@ function epBlockCard(i){
     +'<span class="bmode"><button data-m="dict"'+(mode==='dict'?' class="on"':'')+'>听写</button><button data-m="recite"'+(mode==='recite'?' class="on"':'')+'>背诵</button></span>'
     +'<span class="grow"></span>'
     +(acc!=null?'<span class="mini'+(acc>=0.9?' ok':'')+'">写'+Math.round(acc*100)+'%</span>':'')
-    +(rec?'<span class="mini ok">背✓</span>':'')
+    +(rec?'<span class="mini'+(rec.acc>=0.9?' ok':'')+'">背'+Math.round(rec.acc*100)+'%</span>':'')
     +'</div>'
     +'<div class="bbody bdict" style="display:'+(mode==='dict'?'':'none')+'">'
       +'<textarea class="dt" rows="2" placeholder="写出你听到的内容（Enter 提交）">'+(drill.dd[i]&&drill.dd[i].last!=null?esc(drill.dd[i].last):'')+'</textarea>'
@@ -3402,9 +3402,11 @@ function epBlockCard(i){
   const senseHtml=sense.length?sense.map(x=>'<span class="su"><b>'+esc(x.u)+'</b><i>'+esc(x.zh)+'</i></span>').join(''):'';
   const orig=u.lines.map(x=>(x.spk?'<i class="spk">'+esc(x.spk)+'</i>':'')+'<span>'+esc(x.text)+'</span>').join(' ');
   h+='<div class="rclue">'+esc(clue)+'</div>'
+    +'<textarea class="dt" rows="2" placeholder="看中文线索，默写完整句子（Enter 提交）">'+(drill.rd[i]&&drill.rd[i].last!=null?esc(drill.rd[i].last):'')+'</textarea>'
+    +'<div class="dr"></div>'
     +(senseHtml?'<div class="rsense" style="display:none">'+senseHtml+'</div>':'')
     +'<div class="rorig" style="display:none">'+orig+'</div>'
-    +'<div class="rhints">'+(senseHtml?'<button class="h1">看意群积木</button>':'')+'<button class="h2">看原文</button><span class="grow"></span><button class="rr">'+(rec?'已过 ✓':'过了 ✓')+'</button></div>'
+    +'<div class="rhints">'+(senseHtml?'<button class="h1">看意群积木</button>':'')+'<button class="h2">看原文</button><span class="grow"></span><span class="ep-note">默写通过线 90%</span></div>'
     +'</div></div>';
   return h;
 }
@@ -3460,6 +3462,11 @@ function epWireCard(card){
   const st=EP.st;if(!st)return;
   const drill=st.p.drill,a=$('ep-audio');
   const i=+card.dataset.i,u=epItems()[i];
+  const diffHtml=(r)=>'<div class="dw"><b>'+(r.acc>=0.9?'✓ 通过':'词准 '+Math.round(r.acc*100)+'%')+'</b> '
+    +(()=>{let mi=0;return u.text.split(/([A-Za-z0-9']+)/).map(p=>/^[A-Za-z0-9']+$/.test(p)?'<span class="'+(r.marks[mi++]?'ok':'miss')+'">'+esc(p)+'</span>':esc(p)).join('');})()
+    +'</div>'
+    +(r.extras.length?'<div class="dx">多写: '+r.extras.map(x=>esc(x)).join(' · ')+'</div>':'')
+    +'<div class="do">原文: '+esc(u.text)+'</div>';
   card.querySelector('.bp').onclick=()=>epPlayBlock(i);
   card.querySelector('.bl').onclick=()=>{
     if(st.seg!=='dg')epSeg('dg');
@@ -3473,51 +3480,68 @@ function epWireCard(card){
     card.querySelectorAll('.bmode button').forEach(x=>x.classList.toggle('on',x===b));
     card.querySelector('.bdict').style.display=b.dataset.m==='dict'?'':'none';
     card.querySelector('.brecite').style.display=b.dataset.m==='recite'?'':'none';
-    if(b.dataset.m==='dict'){const ta=card.querySelector('.dt');if(ta)ta.focus({preventScroll:true});}
+    if(b.dataset.m==='dict'){const t=card.querySelector('.bdict .dt');if(t)t.focus({preventScroll:true});}
   });
-  /* 听写: 输入→提交→逐词 diff→落库; 留在本句读 diff, 句完成时 dock 脉冲 */
-  const ta=card.querySelector('.dt');
-  const submit=()=>{
-    const mine=ta.value.trim();
-    if(!mine)return;
-    const r=epDiff(u.text,mine);
-    const prev=drill.dd[i];
-    const best=prev&&prev.acc!=null?Math.max(prev.acc,r.acc):r.acc;
-    drill.dd[i]={acc:best,last:mine,at:Date.now()};
-    recSave();
-    let mini=card.querySelector('.bh .mini');
-    if(!mini){mini=document.createElement('span');mini.className='mini';card.querySelector('.bh').appendChild(mini);}
-    mini.textContent='写'+Math.round(best*100)+'%';mini.classList.toggle('ok',best>=0.9);
-    card.querySelector('.dr').innerHTML='<div class="dw"><b>'+(r.acc>=0.9?'✓ 通过':'词准 '+Math.round(r.acc*100)+'%')+'</b> '
-      +(()=>{let mi=0;return u.text.split(/([A-Za-z0-9']+)/).map(p=>/^[A-Za-z0-9']+$/.test(p)?'<span class="'+(r.marks[mi++]?'ok':'miss')+'">'+esc(p)+'</span>':esc(p)).join('');})()
-      +'</div>'
-      +(r.extras.length?'<div class="dx">多写: '+r.extras.map(x=>esc(x)).join(' · ')+'</div>':'')
-      +'<div class="do">原文: '+esc(u.text)+'</div>';
-    epStepsUpdate();epDockNo();
-  };
-  ta.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();submit();}});
-  let sb=null;
-  ta.addEventListener('input',()=>{drill.dd[i]=drill.dd[i]||{};drill.dd[i].last=ta.value;
-    clearTimeout(sb);sb=setTimeout(submit,2500);});
-  const mkBtn=document.createElement('button');mkBtn.className='dsubmit';mkBtn.textContent='提交';
-  mkBtn.onclick=()=>{clearTimeout(sb);submit();};
-  ta.insertAdjacentElement('afterend',mkBtn);
-  /* 背诵: 中文线索→意群/原文→自评; 过了自动跳下一句未完成的 */
+  /* ① 听写: 听音写 → 逐词比对 → drill.dd; 留在本句读 diff */
+  {
+    const body=card.querySelector('.bdict');
+    const ta=body.querySelector('.dt');
+    const submit=()=>{
+      const mine=ta.value.trim();
+      if(!mine)return;
+      const r=epDiff(u.text,mine);
+      const prev=drill.dd[i];
+      const best=prev&&prev.acc!=null?Math.max(prev.acc,r.acc):r.acc;
+      drill.dd[i]={acc:best,last:mine,at:Date.now()};
+      recSave();
+      const mini=card.querySelectorAll('.bh .mini')[0];
+      if(mini){mini.textContent='写'+Math.round(best*100)+'%';mini.classList.toggle('ok',best>=0.9);mini.style.display='';}
+      body.querySelector('.dr').innerHTML=diffHtml(r);
+      epStepsUpdate();epDockNo();
+      if(st.doneOf(i)){const nx=$('ep-dock-next');if(nx)nx.classList.add('pulse');}
+    };
+    ta.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();submit();}});
+    let sb=null;
+    ta.addEventListener('input',()=>{drill.dd[i]=drill.dd[i]||{};drill.dd[i].last=ta.value;
+      clearTimeout(sb);sb=setTimeout(submit,2500);});
+    const mkBtn=document.createElement('button');mkBtn.className='dsubmit';mkBtn.textContent='提交';
+    mkBtn.onclick=()=>{clearTimeout(sb);submit();};
+    ta.insertAdjacentElement('afterend',mkBtn);
+  }
+  /* ③ 默写: 看中文写整句 → 逐词比对 → drill.rd; 通过自动跳下一句未完成的 */
+  {
+    const body=card.querySelector('.brecite');
+    const ta=body.querySelector('.dt');
+    const submit=()=>{
+      const mine=ta.value.trim();
+      if(!mine)return;
+      const r=epDiff(u.text,mine);
+      const prev=drill.rd[i];
+      const best=prev&&prev.acc!=null?Math.max(prev.acc,r.acc):r.acc;
+      drill.rd[i]={acc:best,last:mine,at:Date.now()};
+      recSave();
+      const mini=card.querySelectorAll('.bh .mini')[1];
+      if(mini){mini.textContent='背'+Math.round(best*100)+'%';mini.classList.toggle('ok',best>=0.9);mini.style.display='';}
+      body.querySelector('.dr').innerHTML=diffHtml(r);
+      epStepsUpdate();epDockNo();
+      if(best>=0.9){
+        const nx=$('ep-dock-next');if(nx)nx.classList.add('pulse');
+        const nxt=epItems().findIndex((_,k)=>!st.doneOf(k));
+        if(nxt>=0&&nxt!==i)setTimeout(()=>epGo(nxt),600);
+      }
+    };
+    ta.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();submit();}});
+    let sb=null;
+    ta.addEventListener('input',()=>{drill.rd[i]=drill.rd[i]||{};drill.rd[i].last=ta.value;
+      clearTimeout(sb);sb=setTimeout(submit,2500);});
+    const mkBtn=document.createElement('button');mkBtn.className='dsubmit';mkBtn.textContent='提交';
+    mkBtn.onclick=()=>{clearTimeout(sb);submit();};
+    ta.insertAdjacentElement('afterend',mkBtn);
+  }
+  /* 提示阶梯: 意群积木/原文(点击揭示) */
   const h1=card.querySelector('.h1'),h2=card.querySelector('.h2');
   if(h1)h1.onclick=()=>{const s=card.querySelector('.rsense');s.style.display=s.style.display==='none'?'':'none';};
   if(h2)h2.onclick=()=>{const s=card.querySelector('.rorig');s.style.display=s.style.display==='none'?'':'none';};
-  card.querySelector('.rr').onclick=()=>{
-    if(drill.rd[i])delete drill.rd[i];else drill.rd[i]=Date.now();
-    card.querySelector('.rr').textContent=drill.rd[i]?'已过 ✓':'过了 ✓';
-    const minis=card.querySelectorAll('.bh .mini');
-    const mini=minis[minis.length-1];
-    if(mini){mini.textContent=drill.rd[i]?'背✓':'未背';mini.classList.toggle('ok',!!drill.rd[i]);mini.style.display=drill.rd[i]?'':'none';}
-    recSave();epStepsUpdate();epDockNo();
-    if(st.doneOf(i)){
-      const nxt=epItems().findIndex((_,k)=>!st.doneOf(k));
-      if(nxt>=0&&nxt!==i)setTimeout(()=>epGo(nxt),600);
-    }
-  };
 }
 
 function epTrainWire(){
@@ -3547,7 +3571,10 @@ function epDockNo(){
   const st=EP.st;const n=$('ep-dock-no');
   if(n&&st&&st.d)n.textContent='#'+(st.ai+1)+'/'+st.d.dialogue.length;
   const nx=$('ep-dock-next');
-  if(nx&&st&&st.d)nx.classList.toggle('pulse',st.doneOf(st.ai));
+  if(nx&&st&&st.d){
+    const d=st.p.drill.dd&&st.p.drill.dd[st.ai],r=st.p.drill.rd&&st.p.drill.rd[st.ai];
+    nx.classList.toggle('pulse',!!(d&&d.acc!=null&&r&&r.acc!=null));   // 两轮都交过=这句可走人
+  }
 }
 
 function epSeg(seg){
