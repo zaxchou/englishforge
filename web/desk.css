@@ -1386,3 +1386,18 @@ body.vfull .cs-stage video.tfl{max-height:none}
   border-radius:999px}
 .cs-pick select:hover{border-color:var(--line);background-color:var(--sunk)}
 .cs-pick select:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
+
+/* ============================================================
+   block 32 · 视频课框架圆角统一(用户点名'圆角都断了'第二轮):
+   画布 20px/卡 14px/控件 10px 的阶梯下, 视频课内部还残留一批
+   4px 旧主题方角(视频卡/目录列/播放器/讲义块)与直角讲义页图——
+   全部对齐当前阶梯, 贴面板顶部的 sunk 头条由 cs-materials 的
+   overflow:hidden 裁出卡角。
+   ============================================================ */
+.cs-stage{border-radius:var(--rs)}
+.cs-stage video.tfl{border-radius:0}
+.csmain .csnav{border-radius:var(--rs)}
+.player{border-radius:var(--rs)}
+.handout{border-radius:var(--rs)}
+.handout-scroll .hslide img{border-radius:10px}
+.htabs button{border-radius:6px}
