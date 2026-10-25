@@ -3120,9 +3120,46 @@ window.renderEplodMain=async function(c){
       +'</div>';
   };
   const markCount=Object.keys(p.marks).length;
+  /* 尚雯婕四步法: 听写→理解→背诵→同速(第二批)。进度从 drill 数据实时推导。 */
+  const drill=p.drill=p.drill||{};
+  drill.d=drill.d||{}; drill.plays=drill.plays||{}; drill.r=drill.r||{};
+  drill.mode=drill.mode||'free';
+  const senseOf=u=>(u.li||[]).flatMap(i=>(d.sense&&d.sense.pb&&d.sense.pb[i])||[]);
+  const zhOf=u=>(u.li||[]).map(i=>(d.lineZh&&d.lineZh.pb&&d.lineZh.pb[i])||'').filter(Boolean);
+  const dictBlock=(u,i)=>{
+    const acc=drill.d[i]&&drill.d[i].acc;
+    const plays=drill.plays[i]||0;
+    return '<div class="ep-dblock'+(acc!=null&&acc>=0.9?' pass':'')+'" data-i="'+i+'">'
+      +'<div class="dh"><span class="no">#'+(i+1)+'</span>'
+      +'<button class="dp" title="播放本块">▶ 听</button><button class="dl" title="单块循环">↻</button>'
+      +(drill.mode==='exam'?'<span class="dc">'+(3-Math.min(3,plays))+' 次可听</span>':'')
+      +'<span class="grow"></span>'
+      +(acc!=null?'<span class="badge'+(acc>=0.9?' ok':'')+'">'+Math.round(acc*100)+'%</span>':'')
+      +'</div>'
+      +'<textarea class="dt" rows="2" placeholder="写出你听到的内容（Enter 提交）">'+(drill.d[i]&&drill.d[i].last!=null?esc(drill.d[i].last):'')+'</textarea>'
+      +'<div class="dr"></div></div>';
+  };
+  const recBlock=(u,i)=>{
+    const passed=!!drill.r[i];
+    const sense=senseOf(u), zh=zhOf(u);
+    const clue=zh.length?zh.join(' / '):(sense.length?sense.map(x=>x.zh).join(' / '):'（本块无中文线索，听原音背诵）');
+    const senseHtml=sense.length?sense.map(x=>'<span class="su"><b>'+esc(x.u)+'</b><i>'+esc(x.zh)+'</i></span>').join(''):'';
+    const orig=u.lines.map(x=>(x.spk?'<i class="spk">'+esc(x.spk)+'</i>':'')+'<span>'+esc(x.text)+'</span>').join(' ');
+    return '<div class="ep-rblock'+(passed?' pass':'')+'" data-i="'+i+'">'
+      +'<div class="rh"><span class="no">#'+(i+1)+'</span>'
+      +'<button class="rp" title="播放本块原音">▶</button>'
+      +'<span class="grow"></span>'
+      +'<button class="rr">'+(passed?'已过 ✓':'过了 ✓')+'</button></div>'
+      +'<div class="rclue">'+esc(clue)+'</div>'
+      +(senseHtml?'<div class="rsense" style="display:none">'+senseHtml+'</div>':'')
+      +'<div class="rorig" style="display:none">'+orig+'</div>'
+      +'<div class="rhints">'+(senseHtml?'<button class="h1">看意群积木</button>':'')+'<button class="h2">看原文</button></div>'
+      +'</div>';
+  };
   el.innerHTML='<div class="cs-stick ep">'
     +'<div class="csp-meta"><h3>'+esc(l.title)+'</h3><span class="src">'+esc(c.title)+' · '+esc(d.level)+' · 第 '+(csSel.l+1)+'/'+c.lessons.length+' 节</span>'
     +(p.done?'<span class="pill q">已学完</span>':'')+'</div>'
+    +'<div class="ep-steps" id="ep-steps"></div>'
     +'<div class="card ep-stage">'
       +'<div class="ep-segs">'+['dg','pb','rv'].map(s=>'<button data-seg="'+s+'"'+(s==='dg'?' class="on"':'')+'>'+segNames[s]+(d.durations&&d.durations[s]?' <i>'+fmtDur(d.durations[s])+'</i>':'')+'</button>').join('')+'</div>'
       +'<audio id="ep-audio" controls preload="metadata" src="'+esc(d.audio.dg)+'"></audio>'
@@ -3135,8 +3172,18 @@ window.renderEplodMain=async function(c){
       +'<p class="ep-hint">点句子跳播 · Z 重听本句 · X 单句循环 · C 揭示遮罩 · ○=这句没听出来</p>'
       +'<div class="na-box" id="ep-note" style="display:none"></div>'
     +'</div>'
-    +'<div class="card ep-listen"><div class="phead"><div class="l"><b>逐句精听 · 对话</b></div><div class="r ep-mc">'+(markCount?markCount+' 句没听出来':'')+'</div></div>'
+    +'<div class="ep-tabs" id="ep-tabs"><button data-m="listen" class="on">逐句精听</button><button data-m="dict">② 听写</button><button data-m="recite">③ 背诵</button></div>'
+    +'<div class="card ep-listen" id="ep-listen"><div class="phead"><div class="l"><b>逐句精听 · 对话</b></div><div class="r ep-mc">'+(markCount?markCount+' 句没听出来':'')+'</div></div>'
       +'<div class="ep-lines" id="ep-lines">'+d.dialogue.map((x,i)=>lineHtml(x,i,'dg')).join('')+'</div></div>'
+    +'<div class="card ep-dict" id="ep-dict" style="display:none">'
+      +'<div class="phead"><div class="l"><b>听写 · 整期 '+d.units.length+' 块</b><span class="ep-note">先听后写，逐词比对官方原文；通过线 90%</span></div>'
+      +'<div class="r"><span class="ep-dmode"><button data-m="free"'+(drill.mode==='free'?' class="on"':'')+'>自由模式</button><button data-m="exam"'+(drill.mode==='exam'?' class="on"':'')+'>考试 ×3</button></span></div></div>'
+      +'<div class="ep-dstats" id="ep-dstats"></div>'
+      +'<div class="ep-dblocks">'+d.units.map(dictBlock).join('')+'</div></div>'
+    +'<div class="card ep-recite" id="ep-recite" style="display:none">'
+      +'<div class="phead"><div class="l"><b>背诵 · 整期 '+d.units.length+' 块</b><span class="ep-note">看中文线索口头背 → 揭示原文自评；意群积木是提示不是答案</span></div></div>'
+      +'<div class="ep-dstats" id="ep-rstats"></div>'
+      +'<div class="ep-dblocks">'+d.units.map(recBlock).join('')+'</div></div>'
     +(d.chunks&&d.chunks.length?'<div class="card ep-chunks"><div class="phead"><div class="l"><b>词块积累</b><span class="ep-note">收藏后进每日复习队列（SM-2）</span></div></div><div class="ep-chunk-grid">'
       +d.chunks.map(ch=>{
         const k=ch.chunk.toLowerCase().replace(/\s+/g,'');
@@ -3245,6 +3292,146 @@ function epWire(){
     }
   };
   document.addEventListener('keydown',EP.keyHandler);
+  /* 三模式 tab + 听写/背诵接线 + 四步进度 */
+  $('ep-tabs').querySelectorAll('button').forEach(b=>b.onclick=()=>{
+    $('ep-tabs').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));
+    $('ep-listen').style.display=b.dataset.m==='listen'?'':'none';
+    $('ep-dict').style.display=b.dataset.m==='dict'?'':'none';
+    $('ep-recite').style.display=b.dataset.m==='recite'?'':'none';
+  });
+  epDictWire();
+  epReciteWire();
+  epStepsUpdate();
+}
+
+/* ---- 四步进度（听写→理解→背诵→同速; 从 drill/collected 推导, 独立于词汇复习体系） ---- */
+function epStepsUpdate(){
+  const st=EP.st;if(!st)return;
+  const el=$('ep-steps');if(!el)return;
+  const total=st.d.units.length;
+  const ds=Object.values(st.p.drill?st.p.drill.d:{}).filter(x=>x&&x.acc!=null);
+  const passed=ds.filter(x=>x.acc>=0.9).length;
+  const accAvg=ds.length?Math.round(ds.reduce((s,x)=>s+x.acc,0)/ds.length*100):null;
+  const chunks=st.d.chunks||[];
+  const got=chunks.filter(ch=>st.p.collected[ch.chunk.toLowerCase().replace(/\s+/g,'')]).length;
+  const rp=Object.keys(st.p.drill?st.p.drill.r:{}).filter(k=>st.p.drill.r[k]).length;
+  el.innerHTML='<span class="es on"><i>① 听写</i><b>'+(ds.length?Math.round(passed/total*100)+'%':'未开始')+'</b><u>'+(ds.length?'均准 '+accAvg+'%':'')+'</u></span>'
+    +'<span class="es'+(got>=chunks.length&&chunks.length?' ok':'')+'"><i>② 理解</i><b>'+got+'/'+chunks.length+'</b><u>词块收藏</u></span>'
+    +'<span class="es'+(rp>=total?' ok':'')+'"><i>③ 背诵</i><b>'+rp+'/'+total+'</b><u>逐块自评</u></span>'
+    +'<span class="es lock"><i>④ 同速</i><b>待开放</b><u>录音对比</u></span>';
+  const dst=$('ep-dstats');
+  if(dst)dst.textContent='已写 '+ds.length+'/'+total+' · 通过 '+passed+' · 平均词准 '+(accAvg==null?'—':accAvg+'%');
+  const rst=$('ep-rstats');
+  if(rst)rst.textContent='已过 '+rp+'/'+total+' 块 · 背诵靠反复，别贪快';
+}
+
+/* ---- 听写模式: 播块 → 输入 → 逐词 diff → 落库(独立 drill 数据, 不进复习体系) ---- */
+function epDiff(official,mine){
+  const T=s=>s.toLowerCase().match(/[a-z0-9']+/g)||[];
+  const o=T(official),m=T(mine);
+  const n=o.length,mm=m.length;
+  const dp=Array.from({length:n+1},()=>new Array(mm+1).fill(0));
+  for(let i=1;i<=n;i++)for(let j=1;j<=mm;j++)dp[i][j]=o[i-1]===m[j-1]?dp[i-1][j-1]+1:Math.max(dp[i-1][j],dp[i][j-1]);
+  const marks=new Array(n).fill(false),extra=new Array(mm).fill(false);
+  let i=n,j=mm;
+  while(i>0&&j>0){
+    if(o[i-1]===m[j-1]){marks[i-1]=true;extra[j-1]=true;i--;j--;}
+    else if(dp[i-1][j]>=dp[i][j-1])i--;
+    else j--;
+  }
+  const hit=dp[n][mm];
+  const extras=[];
+  for(let k=0;k<mm;k++)if(!extra[k])extras.push(m[k]);
+  return {acc:n?hit/n:0,marks,extras:extras.slice(0,12)};
+}
+
+function epDictWire(){
+  const st=EP.st;if(!st)return;
+  const drill=st.p.drill;
+  const a=$('ep-audio');
+  const playBlock=(i,btn)=>{
+    const u=st.d.units[i];if(!u||u.t0==null)return;
+    if(drill.mode==='exam'){
+      drill.plays[i]=drill.plays[i]||0;
+      if(drill.plays[i]>=3){const nn=$('ep-note');nn.style.display='';nn.textContent='考试模式：本块 3 次已听完，先写再提交。';return;}
+      drill.plays[i]++;recSave();
+      let dc=btn.closest('.ep-dblock').querySelector('.dc');
+      if(!dc){dc=document.createElement('span');dc.className='dc';btn.closest('.dh').appendChild(dc);}
+      dc.textContent=(3-drill.plays[i])+' 次可听';
+    }
+    if(st.seg!=='pb')epSeg('pb');
+    a.currentTime=u.t0;a.play().catch(()=>{});
+    st.range=[u.t0,u.t1];
+  };
+  $('cs-main').querySelectorAll('.ep-dblock').forEach(card=>{
+    const i=+card.dataset.i;
+    card.querySelector('.dp').onclick=e=>playBlock(i,e.target);
+    card.querySelector('.dl').onclick=()=>{
+      const u=st.d.units[i];if(!u||u.t0==null)return;
+      if(st.seg!=='pb')epSeg('pb');
+      st.range=[u.t0,u.t1];st.loop=true;$('ep-loop').classList.add('on');
+      a.currentTime=u.t0;a.play().catch(()=>{});
+    };
+    const ta=card.querySelector('.dt');
+    const submit=()=>{
+      const mine=ta.value.trim();
+      if(!mine)return;
+      const u=st.d.units[i];
+      const r=epDiff(u.text,mine);
+      const prev=drill.d[i];
+      const best=prev&&prev.acc!=null?Math.max(prev.acc,r.acc):r.acc;
+      drill.d[i]={acc:best,last:mine,at:Date.now()};
+      recSave();
+      card.classList.toggle('pass',best>=0.9);
+      let badge=card.querySelector('.badge');
+      if(!badge){badge=document.createElement('span');badge.className='badge';card.querySelector('.dh').appendChild(badge);}
+      badge.textContent=Math.round(best*100)+'%';badge.classList.toggle('ok',best>=0.9);
+      card.querySelector('.dr').innerHTML='<div class="dw"><b>'+(r.acc>=0.9?'✓ 通过':'词准 '+Math.round(r.acc*100)+'%')+'</b> '
+        +(()=>{let mi=0;return u.text.split(/([A-Za-z0-9']+)/).map(p=>/^[A-Za-z0-9']+$/.test(p)?'<span class="'+(r.marks[mi++]?'ok':'miss')+'">'+esc(p)+'</span>':esc(p)).join('');})()
+        +'</div>'
+        +(r.extras.length?'<div class="dx">多写: '+r.extras.map(x=>esc(x)).join(' · ')+'</div>':'')
+        +'<div class="do">原文: '+esc(u.text)+'</div>';
+      epStepsUpdate();
+    };
+    ta.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();submit();}});
+    let sb=null;
+    const mkBtn=document.createElement('button');mkBtn.className='dsubmit';mkBtn.textContent='提交';
+    mkBtn.onclick=()=>{sb=null;submit();};
+    ta.addEventListener('input',()=>{if(drill.d[i]&&drill.d[i].last!==undefined)drill.d[i].last=ta.value;
+      clearTimeout(sb);sb=setTimeout(submit,2500);});
+    ta.insertAdjacentElement('afterend',mkBtn);
+  });
+  $('cs-main').querySelectorAll('.ep-dmode button').forEach(b=>b.onclick=()=>{
+    drill.mode=b.dataset.m;recSave();
+    $('cs-main').querySelectorAll('.ep-dmode button').forEach(x=>x.classList.toggle('on',x===b));
+    epStepsUpdate();
+  });
+}
+
+/* ---- 背诵模式: 中文线索 → 意群积木 → 原文, 逐块自评（独立 drill 数据） ---- */
+function epReciteWire(){
+  const st=EP.st;if(!st)return;
+  const drill=st.p.drill;
+  const a=$('ep-audio');
+  $('cs-main').querySelectorAll('.ep-rblock').forEach(card=>{
+    const i=+card.dataset.i;
+    const u=st.d.units[i];
+    card.querySelector('.rp').onclick=()=>{
+      if(!u||u.t0==null)return;
+      if(st.seg!=='pb')epSeg('pb');
+      a.currentTime=u.t0;a.play().catch(()=>{});
+      st.range=[u.t0,u.t1];
+    };
+    const h1=card.querySelector('.h1'),h2=card.querySelector('.h2');
+    if(h1)h1.onclick=()=>{const s=card.querySelector('.rsense');s.style.display=s.style.display==='none'?'':'none';};
+    if(h2)h2.onclick=()=>{const s=card.querySelector('.rorig');s.style.display=s.style.display==='none'?'':'none';};
+    card.querySelector('.rr').onclick=()=>{
+      if(drill.r[i])delete drill.r[i];else drill.r[i]=Date.now();
+      card.classList.toggle('pass',!!drill.r[i]);
+      card.querySelector('.rr').textContent=drill.r[i]?'已过 ✓':'过了 ✓';
+      recSave();epStepsUpdate();
+    };
+  });
 }
 
 function epSeg(seg){

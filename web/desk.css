@@ -1483,3 +1483,61 @@ body.vfull .cs-stage video.tfl{max-height:none}
 .ep-expl{padding:14px 16px}
 .ep-expl summary{cursor:pointer;font-size:var(--f3);font-weight:600;color:var(--t2)}
 .ep-expl[open] summary{margin-bottom:8px}
+
+/* block 36 · EnglishPod 四步训练(听写/背诵, 尚雯婕法第一批) */
+.ep-steps{display:flex;gap:8px;flex-wrap:wrap}
+.ep-steps .es{flex:1;min-width:130px;background:var(--card);border:1px solid var(--line);border-radius:var(--rs);padding:8px 12px;display:flex;flex-direction:column;gap:2px}
+.ep-steps .es i{font-style:normal;font-size:var(--f4);color:var(--t3)}
+.ep-steps .es b{font-size:var(--f2)}
+.ep-steps .es u{text-decoration:none;font-size:var(--f5);color:var(--t3)}
+.ep-steps .es.ok{border-color:var(--okln);background:var(--okbg)}
+.ep-steps .es.ok b{color:var(--ok)}
+.ep-steps .es.lock{opacity:.55}
+.ep-tabs{display:flex;gap:6px}
+.ep-tabs button{border:1px solid var(--line);background:transparent;border-radius:999px;padding:6px 16px;font-size:var(--f3);color:var(--t2);cursor:pointer}
+.ep-tabs button.on{background:var(--acc);border-color:var(--acc);color:#f6f8f1}
+/* 听写 */
+.ep-dmode{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden}
+.ep-dmode button{border:0;background:transparent;padding:5px 12px;font-size:var(--f4);color:var(--t2);cursor:pointer}
+.ep-dmode button.on{background:var(--acc);color:#f6f8f1}
+.ep-dstats{font-size:var(--f4);color:var(--t2);margin:10px 0}
+.ep-dblock{border:1px solid var(--line);border-radius:var(--rs);padding:10px 12px;margin-bottom:8px}
+.ep-dblock.pass{border-color:var(--okln);background:var(--okbg)}
+.ep-dblock .dh{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.ep-dblock .no{font-size:var(--f4);color:var(--t3);font-weight:600}
+.ep-dblock .dh button{border:1px solid var(--line);background:transparent;border-radius:6px;padding:2px 8px;font-size:var(--f4);cursor:pointer;color:var(--acc)}
+.ep-dblock .dh button:hover{background:var(--acc);color:#f6f8f1;border-color:var(--acc)}
+.ep-dblock .dc{font-size:var(--f5);color:var(--warn)}
+.ep-dblock .badge{font-size:var(--f4);color:var(--t2);border:1px solid var(--line);border-radius:999px;padding:1px 8px}
+.ep-dblock .badge.ok{color:var(--ok);border-color:var(--okln)}
+.ep-dblock .dt{width:100%;border:1px solid var(--line);border-radius:var(--rs);padding:8px 10px;font-size:var(--f3);font-family:inherit;resize:vertical;background:var(--card)}
+.ep-dblock .dt:focus{outline:2px solid var(--accln);border-color:var(--acc)}
+.ep-dblock .dsubmit{margin-top:6px;border:1px solid var(--line);background:transparent;border-radius:6px;padding:5px 14px;font-size:var(--f4);cursor:pointer;color:var(--t2);float:right}
+.ep-dblock .dsubmit:hover{background:var(--acc);border-color:var(--acc);color:#f6f8f1}
+.ep-dblock .dr{clear:both;padding-top:8px}
+.ep-dblock .dw{font-size:var(--f3);line-height:1.8}
+.ep-dblock .dw b{color:var(--t2);margin-right:8px;font-size:var(--f4)}
+.ep-dblock .dw .ok{color:var(--t1)}
+.ep-dblock .dw .miss{color:var(--bad);text-decoration:underline wavy var(--bad)}
+.ep-dblock .dx{font-size:var(--f4);color:var(--warn);margin-top:4px}
+.ep-dblock .do{font-size:var(--f4);color:var(--t3);margin-top:4px;line-height:1.7}
+/* 背诵 */
+.ep-rblock{border:1px solid var(--line);border-radius:var(--rs);padding:10px 12px;margin-bottom:8px}
+.ep-rblock.pass{border-color:var(--okln);background:var(--okbg)}
+.ep-rblock .rh{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.ep-rblock .no{font-size:var(--f4);color:var(--t3);font-weight:600}
+.ep-rblock .rh button{border:1px solid var(--line);background:transparent;border-radius:6px;padding:2px 8px;font-size:var(--f4);cursor:pointer;color:var(--t2)}
+.ep-rblock .rh .rp{color:var(--acc)}
+.ep-rblock .rh .rp:hover{background:var(--acc);color:#f6f8f1;border-color:var(--acc)}
+.ep-rblock .rh .rr{margin-left:auto}
+.ep-rblock .rh .rr:hover{border-color:var(--okln);color:var(--ok)}
+.ep-rblock.pass .rr{color:var(--ok);border-color:var(--okln)}
+.ep-rblock .rclue{font-size:var(--f3);line-height:1.8;color:var(--t1);background:var(--sunk);border-radius:var(--rs);padding:8px 10px}
+.ep-rblock .rsense{margin-top:8px;display:flex;flex-wrap:wrap;gap:6px}
+.ep-rblock .rsense .su{border:1px dashed var(--line);border-radius:var(--rs);padding:4px 8px;font-size:var(--f4);display:flex;flex-direction:column;gap:1px}
+.ep-rblock .rsense .su b{font-weight:600}
+.ep-rblock .rsense .su i{font-style:normal;font-size:var(--f5);color:var(--t3)}
+.ep-rblock .rorig{margin-top:8px;font-size:var(--f3);line-height:1.8;color:var(--t2)}
+.ep-rblock .rorig .spk{font-style:normal;color:var(--acc);font-weight:600;margin-right:4px}
+.ep-rblock .rhints{margin-top:8px;display:flex;gap:6px}
+.ep-rblock .rhints button{border:0;background:transparent;font-size:var(--f4);color:var(--t3);cursor:pointer;text-decoration:underline}

@@ -58,7 +58,9 @@ def norm_lig(s):
 
 
 def dehyph(s):
-    return re.sub(r"(\w)-\s*\n\s*(\w)", r"\1\2", s)
+    s = re.sub(r"(\w)-\s*\n\s*(\w)", r"\1\2", s)
+    # 已被空格连接的断词(逐字稿行合并后): "compli- mentary" → "complimentary"
+    return re.sub(r"(\w)- (?=\w)", r"\1", s)
 
 
 def clean_text(s):
@@ -186,18 +188,89 @@ def load_txt(ep):
     return out
 
 
-# ---------------- 对齐 ----------------
+# ---------------- 对齐（全局词级） ----------------
+_NUM_WORDS = {"0": "zero", "1": "one", "2": "two", "3": "three", "4": "four", "5": "five", "6": "six", "7": "seven",
+              "8": "eight", "9": "nine", "10": "ten", "11": "eleven", "12": "twelve", "13": "thirteen", "14": "fourteen",
+              "15": "fifteen", "16": "sixteen", "17": "seventeen", "18": "eighteen", "19": "nineteen", "20": "twenty",
+              "30": "thirty", "40": "forty", "50": "fifty", "60": "sixty", "70": "seventy", "80": "eighty", "90": "ninety",
+              "100": "hundred", "1000": "thousand"}
+
+
 def _tokens(s):
-    return re.findall(r"[a-z0-9']+", s.lower())
+    # 数字归一: ASR 常把 "Twenty minutes?" 写成 "20 minutes?", 对齐时等值处理
+    return [_NUM_WORDS.get(w, w) for w in re.findall(r"[a-z0-9']+", s.lower())]
 
 
-def _overlap(a, b):
-    ta, tb = _tokens(a), _tokens(b)
-    if not ta or not tb:
-        return 0.0
+def global_align(official_lines, segs):
+    """官方行序列 vs whisper 词序列的全局对齐（difflib 词级 LCS）。
+    whisper 词时间映射回官方词 → 行时间 = 行内匹配词的 min(t0)/max(t1)。
+    匹配词占比过低的行返回 None（后续并入听写块）。"""
     from difflib import SequenceMatcher
 
-    return SequenceMatcher(None, ta, tb).ratio()
+    off_words, owner = [], []
+    for li, line in enumerate(official_lines):
+        for w in _tokens(line):
+            off_words.append(w)
+            owner.append(li)
+    asr_words, asr_times = [], []
+    for seg in segs:
+        for (t0, t1, w) in (seg["words"] or []):
+            tw = _tokens(w)
+            asr_words.extend(tw)
+            asr_times.extend([(t0, t1)] * len(tw))
+    sm = SequenceMatcher(None, off_words, asr_words, autojunk=False)
+    word_t = [None] * len(off_words)
+    for a, b, size in sm.get_matching_blocks():
+        for k in range(size):
+            word_t[a + k] = asr_times[b + k]
+    out = []
+    for li, line in enumerate(official_lines):
+        idxs = [i for i, o in enumerate(owner) if o == li]
+        if not idxs:
+            out.append(None)
+            continue
+        ts = [word_t[i] for i in idxs if word_t[i]]
+        if len(ts) >= max(2, 0.4 * len(idxs)):
+            out.append([round(min(t[0] for t in ts), 2), round(max(t[1] for t in ts), 2)])
+        else:
+            out.append(None)
+    return out
+
+
+def build_units(lines, line_times, min_dur=0.6):
+    """整期逐字稿 → 听写/背诵块。无时间的行并入邻块；过短块并入前块。
+    返回 [{t0,t1,li:[行号],lines:[{spk,text}],text}]。"""
+    units = []
+    for lix, (line, t) in enumerate(zip(lines, line_times)):
+        if units and t is None:
+            units[-1]["lines"].append({"spk": line["spk"], "text": line["text"]})
+            units[-1]["li"].append(lix)
+            units[-1]["text"] += " " + line["text"]
+            continue
+        if not units or t is not None:
+            units.append({"t0": t[0] if t else None, "t1": t[1] if t else None,
+                          "li": [lix], "lines": [{"spk": line["spk"], "text": line["text"]}], "text": line["text"]})
+    # 过短块(时间上/词数上)并入前块
+    merged = []
+    for u in units:
+        words = len(_tokens(u["text"]))
+        dur = (u["t1"] - u["t0"]) if (u["t0"] is not None and u["t1"] is not None) else None
+        if merged and u["t0"] is not None and (words < 2 or (dur is not None and dur < min_dur)):
+            merged[-1]["lines"].extend(u["lines"])
+            merged[-1]["li"].extend(u["li"])
+            merged[-1]["text"] += " " + u["text"]
+            merged[-1]["t1"] = u["t1"]
+        else:
+            merged.append(u)
+    # 头部无时间块并入下一块
+    if len(merged) > 1 and merged[0]["t0"] is None:
+        merged[1]["lines"] = merged[0]["lines"] + merged[1]["lines"]
+        merged[1]["li"] = merged[0]["li"] + merged[1]["li"]
+        merged[1]["text"] = merged[0]["text"] + " " + merged[1]["text"]
+        merged.pop(0)
+    for u in merged:
+        u["text"] = clean_text(u["text"])
+    return merged
 
 
 def whisper_segments(mp3, model=None):
@@ -213,58 +286,6 @@ def whisper_segments(mp3, model=None):
             "words": [(w.start, w.end, w.word.strip()) for w in (s.words or [])],
         })
     return out
-
-
-def align_inorder(official_lines, segs, window=4, thresh=0.45):
-    """顺序贪心: 官方行 ↔ whisper 段。1 段对 1 行为主; 行缺时间则保持 None。
-    返回 [t0,t1] 列表(可为 None) + 匹配报告。"""
-    times = [None] * len(official_lines)
-    si = 0
-    hits = 0
-    for li, line in enumerate(official_lines):
-        best, bi = 0.0, None
-        for k in range(si, min(si + window, len(segs))):
-            r = _overlap(line, segs[k]["text"])
-            if r > best:
-                best, bi = r, k
-        if bi is not None and best >= thresh:
-            times[li] = [segs[bi]["t0"], segs[bi]["t1"]]
-            si = bi + 1
-            hits += 1
-    return times, {"lines": len(official_lines), "matched": hits, "segs": len(segs)}
-
-
-def split_multi(official_lines, times, segs, thresh=0.55):
-    """补刀: 一个 whisper 段被两行共享时按词级时间戳劈开。
-    仅处理「行 i 无时间, 但某未消费段与 i+i+1 两行拼接高度重合」的简单情形。"""
-    from difflib import SequenceMatcher
-
-    used = {tuple(t) for t in times if t}
-    for li in range(len(official_lines) - 1):
-        if times[li] or times[li + 1]:
-            continue
-        pair = official_lines[li] + " " + official_lines[li + 1]
-        for seg in segs:
-            if [seg["t0"], seg["t1"]] in [list(u) for u in used] or not seg["words"]:
-                continue
-            if _overlap(pair, seg["text"]) >= thresh:
-                # 找第二行首 token 在词序列里的位置做切点
-                toks2 = _tokens(official_lines[li + 1])
-                cut = None
-                wi = 0
-                words = seg["words"]
-                for wi in range(len(words)):
-                    if _tokens(words[wi][2]) and _tokens(words[wi][2])[0] == toks2[0]:
-                        rest = [_tokens(w[2])[0] for w in words[wi:] if _tokens(w[2])]
-                        if rest == toks2[: len(rest)] and len(rest) >= max(1, len(toks2) - 2):
-                            cut = wi
-                            break
-                if cut:
-                    times[li] = [seg["t0"], round(words[cut - 1][1], 2)] if cut > 0 else None
-                    times[li + 1] = [round(words[cut][0], 2), seg["t1"]]
-                    used.add((seg["t0"], seg["t1"]))
-                    break
-    return times
 
 
 def ep_range_dirs():
@@ -346,6 +367,74 @@ def ai_chunks(ep_data):
 
 def chunk_key_ok(chunk):
     return 0 < len(re.sub(r"\s+", "", chunk.lower())) <= 60
+
+
+# ---------------- DeepSeek 翻译+意群（听写/背诵用, 与词块同一配置） ----------------
+def _ai_call(cfg, system, user, max_tokens=8000):
+    import urllib.request
+
+    body = json.dumps({"model": cfg["model"], "temperature": 0.3, "max_tokens": max_tokens,
+                       "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]}).encode()
+    req = urllib.request.Request(cfg["base"] + "/chat/completions", data=body,
+                                 headers={"Content-Type": "application/json", "Authorization": "Bearer " + cfg["key"]})
+    with urllib.request.urlopen(req, timeout=300) as r:
+        raw = json.load(r)["choices"][0]["message"]["content"]
+    raw = re.sub(r"^```(json)?|```$", "", raw.strip(), flags=re.M).strip()
+    return json.loads(raw)
+
+
+def ai_lang(data, batch=45):
+    """全篇逐句: 中文翻译 + 意群拆分(尚雯婕法「意思单位」)。
+    覆盖 对话(dg) + 讲解(pb) 全部行; 意群拼回必须逐词等于原句, 否则丢弃该句意群只留翻译。"""
+    cfg = ai_cfg()
+    if not cfg["key"]:
+        raise SystemExit("缺 TFL_AI_KEY（.env.local）")
+    sysmsg = "以材料本身为标准，只依据给定句子，不引入外部知识。只输出 JSON。"
+    jobs = [("dg", [x["text"] for x in data["dialogue"]]), ("pb", [x["text"] for x in data["explanation"]])]
+    data.setdefault("sense", {})
+    for kind, lines in jobs:
+        zh_out = [None] * len(lines)
+        sense_out = [None] * len(lines)
+        for start in range(0, len(lines), batch):
+            seg = lines[start : start + batch]
+            numbered = "\n".join(f"{i}. {t}" for i, t in enumerate(seg))
+            prompt = f"""对下面 {len(seg)} 个英文句子逐句做两件事：
+1. zh: 翻译成自然的中文。
+2. sense: 按语法结构和逻辑把句子拆成 1~4 个「意群」（意思单位）记忆模块；每个意群给中文释义；所有意群按顺序拼接必须逐词等于原句（不改词序、不漏词、不加词）。
+只输出 JSON：{{"zh":["句0翻译",...],"sense":[[{{"u":"意群原文","zh":"意群中文"}},...],...]}}，两个数组长度都必须等于 {len(seg)}。
+
+句子：
+{numbered}"""
+            res = _ai_call(cfg, sysmsg, prompt)
+            zh = res.get("zh") or []
+            sense = res.get("sense") or []
+            if len(zh) != len(seg) or len(sense) != len(seg):
+                print(f"    !! {kind} 批 {start} 返回长度不符 zh={len(zh)} sense={len(sense)} 期望 {len(seg)}，该批丢弃")
+                continue
+            for k, line in enumerate(seg):
+                z = clean_text(str(zh[k]))
+                if z:
+                    zh_out[start + k] = z
+                units = sense[k] if isinstance(sense[k], list) else []
+                buf, ok = [], True
+                for un in units:
+                    if not isinstance(un, dict):
+                        ok = False
+                        break
+                    u = clean_text(str(un.get("u", "")))
+                    if not u or u.lower() not in line.lower():
+                        ok = False
+                        break
+                    buf.append({"u": u, "zh": clean_text(str(un.get("zh", "")))[:60]})
+                if ok and buf and _tokens(" ".join(x["u"] for x in buf)) == _tokens(line):
+                    sense_out[start + k] = buf
+                elif buf:
+                    print(f"    !! 意群拼回不符(丢弃): {line[:40]}…")
+        data.setdefault("lineZh", {})[kind] = zh_out
+        data["sense"][kind] = sense_out
+        got_zh = sum(1 for x in zh_out if x)
+        got_s = sum(1 for x in sense_out if x)
+        print(f"    {kind}: 翻译 {got_zh}/{len(lines)} · 意群 {got_s}/{len(lines)}")
 
 
 # ---------------- 产物 ----------------
@@ -439,43 +528,55 @@ def main():
     segs_dg = whisper_segments(dg)
     # 跳过片头 jingle（如 "EnglishPod.com"）
     dia = [x["text"] for x in data["dialogue"]]
-    times, rep = align_inorder(dia, segs_dg)
-    times = split_multi(dia, times, segs_dg)
+    times = global_align(dia, segs_dg)
+    hit = sum(1 for t in times if t)
     for i, t in enumerate(times):
         data["dialogue"][i]["t0"], data["dialogue"][i]["t1"] = (t if t else [None, None])
-    print(f"    对话: {rep['matched']}/{rep['lines']} 句有时间戳")
-    if rep["matched"] < rep["lines"] * 0.7:
+    print(f"    对话: {hit}/{len(dia)} 句有时间戳")
+    if hit < len(dia) * 0.7:
         print("    !! 对话对齐率过低，先检查再继续", file=sys.stderr)
 
     segs_pb = whisper_segments(pb)
     expl_lines = [x["text"] for x in expl]
-    times_pb, rep_pb = align_inorder(expl_lines, segs_pb, window=6, thresh=0.4)
-    times_pb = split_multi(expl_lines, times_pb, segs_pb)
+    times_pb = global_align(expl_lines, segs_pb)
     for i, t in enumerate(times_pb):
         expl[i]["t0"], expl[i]["t1"] = (t if t else [None, None])
-    print(f"    讲解: {rep_pb['matched']}/{rep_pb['lines']} 行有时间戳（段 {rep_pb['segs']}）")
+    hit_pb = sum(1 for t in times_pb if t)
+    print(f"    讲解: {hit_pb}/{len(expl_lines)} 行有时间戳（段 {len(segs_pb)}）")
+
+    # 整期听写/背诵块（pb 全长时间轴）
+    data["units"] = build_units(expl, times_pb)
+    timed = sum(1 for u in data["units"] if u["t0"] is not None)
+    print(f"    听写块: {len(data['units'])} 块（{timed} 块可独立播放）")
 
     data["explanation"] = expl
     data["audio"] = audio_urls(ep)
     data["durations"] = {"dg": ffprobe_sec(dg), "pb": ffprobe_sec(pb), "rv": ffprobe_sec(rv)}
 
     if not do_chunks:
-        # 重跑解析/对齐时保留已生成的 AI 产物(词块+翻译), 不重复花钱
+        # 重跑解析/对齐时保留已生成的 AI 产物(词块+翻译+意群), 不重复花钱
         prev = BUILD_EP / f"{ep}.json"
         if prev.exists():
             try:
                 old = json.loads(prev.read_text(encoding="utf-8"))
-                if old.get("chunks"):
-                    data["chunks"] = old["chunks"]
-                if old.get("sentencesZh"):
-                    data["sentencesZh"] = old["sentencesZh"]
+                for k in ("chunks", "sentencesZh", "lineZh", "sense"):
+                    if old.get(k):
+                        data[k] = old[k]
             except Exception:
                 pass
 
     if do_chunks:
-        print("[4] DeepSeek 翻译+词块")
-        chunks = ai_chunks(data)
-        print(f"    词块 {len(chunks)} 个（护栏后）")
+        print("[4] DeepSeek 词块/翻译/意群（只补缺失项）")
+        if not data.get("chunks"):
+            chunks = ai_chunks(data)
+            print(f"    词块 {len(chunks)} 个（护栏后）")
+            update_chunk_bank(data)
+        else:
+            print(f"    词块已有 {len(data['chunks'])} 个, 跳过")
+        if not data.get("lineZh") or not data.get("sense"):
+            ai_lang(data)
+        else:
+            print("    翻译+意群已有, 跳过")
         update_chunk_bank(data)
 
     if do_apply:
