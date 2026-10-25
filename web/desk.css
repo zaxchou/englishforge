@@ -17,7 +17,7 @@
   --bad:#A32D2D; --badbg:#FAEBEB; --badln:rgba(163,45,45,.28);
   --warn:#8A5A0B; --warnbg:#FBF1DE; --warnln:rgba(138,90,11,.28);
   --acc:#2F5AA8; --accbg:#E9F0FA; --accln:rgba(47,90,168,.28);
-  --glass:rgba(242,241,239,.86);
+  --glass:rgba(245,246,247,.86);
   --r:8px; --rs:6px;
   /* 以上 block1 变量全部是死值: 本文件是多主题叠加, 生效源在下方 style block4 的 :root。
      改全局圆角/配色/线色一律去 block4 改(2026-10-25 Vesper 升级即在此改)。 */
@@ -512,7 +512,7 @@ body{line-height:1.6}button{min-height:40px}button:focus-visible,a:focus-visible
 .part .num{border:0;border-radius:0;padding:0;background:none;min-width:0;height:auto;width:auto}.csqline .qb{padding:0;height:4px}.nav button.on{border-bottom-color:transparent}.opt.right{animation:confirmed .24s ease-out}@keyframes confirmed{from{transform:translateX(-4px);opacity:.6}to{transform:none;opacity:1}}
 /* ==== style block 4 ==== */
 /* Selected study desk: refined publication hierarchy */
-/* 2026-10-25 视觉升级(Vesper 参考): 圆角阶梯 --r 4->14/--rs 4->10, 线压浅。注意: 本块是文件里最后声明的 :root, 为实际生效源; 顶部 block1 的同名变量是历史遗留, 改圆角/线色要改这里 */:root{--bg:#f2f0e9;--card:#fffefa;--sunk:#eeece4;--t1:#29382f;--t2:#566158;--t3:#70766e;--acc:#315a47;--line:#e0e3dc;--line2:#c3cabb;--ok:#226b4b;--okbg:#eef5ef;--bad:#9a3f35;--badbg:#fcf0e9;--r:14px;--rs:10px;--f1:27px;--f2:19px;--f3:16px;--f4:14px;--f5:12px}
+/* 2026-10-25 视觉升级(Vesper 参考): 圆角阶梯 --r 4->14/--rs 4->10, 线压浅。注意: 本块是文件里最后声明的 :root, 为实际生效源; 顶部 block1 的同名变量是历史遗留, 改圆角/线色要改这里 */:root{--bg:#f5f6f7;--card:#ffffff;--sunk:#eef0ef;--t1:#202725;--t2:#566158;--t3:#70766e;--acc:#315a47;--line:#e7eae8;--line2:#c9cfcb;--ok:#226b4b;--okbg:#eef5ef;--bad:#9a3f35;--badbg:#fcf0e9;--r:14px;--rs:10px;--f1:27px;--f2:19px;--f3:16px;--f4:14px;--f5:12px}
 body{font-family:"Segoe UI","Microsoft YaHei",sans-serif;font-size:16px;color:var(--t1);line-height:1.65}
 .top{width:232px;background:#e9eee5;border-right:1px solid #d6ddcf;box-shadow:none}
 .topin{padding:12px 27px 28px;gap:26px}.desk-brand{padding-left:13px}.brand{font-family:Georgia,serif;display:block;font-size:20px;letter-spacing:-.3px;line-height:1.16;font-weight:400;color:#254638}.brand span{font-style:italic;margin-left:5px}.brand-caption{display:block;margin-top:12px;font-size:11px;letter-spacing:.14em;color:#687768}.nav{gap:5px}.nav-label{font-size:11px;color:#687768;letter-spacing:.1em;padding:0 13px 8px}.nav-label.second{margin-top:20px}.nav button{padding:11px 14px;text-align:left;font-size:14px;min-height:43px;color:#4b5b4d;transition:background .16s,color .16s}.nav button.on{background:#d8e2d2;color:#244433;font-weight:600;box-shadow:none;border-radius:4px}.nav button:hover:not(.on){background:#e0e7da}.nav button:focus-visible{outline-offset:2px}
@@ -1126,12 +1126,14 @@ body.vfull .cs-status button:hover{background:#28392d;border-color:#4d6350}
    选中态=品牌绿实心药丸(var(--acc))+纸白字(墨绿版用纸色药丸, 浅色版灰绿
    药丸 #d8e2d2 就是当年拉不开的那个); 悬停=白 55% 药丸(变亮语言不变)。
    文字沿用原浅色系令牌(#4b5b4d/#254638), 略加深角标label保对比。 */
-.top{background:#dbe4d0;border-right:1px solid rgba(41,56,47,.16)}
-.brand-caption,.nav-label{color:#5c6b5e}
-.nav button:hover:not(.on){background:rgba(255,255,255,.55)}
+/* 2026-10-25.r7(用户定案): 画布方案下侧栏融入底色——鼠尾草色块与边线取消,
+   整体背景=Vesper 浅冷灰蓝(--bg), 内容画布成为唯一浮起的一层; 选中=品牌绿药丸保留。 */
+.top{background:transparent;border-right:0}
+.brand-caption,.nav-label{color:#70766e}
+.nav button:hover:not(.on){background:rgba(32,39,37,.06)}
 .nav button.on{background:var(--acc);color:#f6f8f1}
 @media(max-width:700px){
-  .top{background:#dbe4d0;border-bottom:1px solid rgba(41,56,47,.16)}
+  .top{background:transparent;border-bottom:0}
 }
 
 /* ==== style block 25: 精听 A-B 循环 + sim 结算 + 回看本节(r50) ====
