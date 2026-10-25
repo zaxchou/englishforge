@@ -3154,7 +3154,7 @@ window.renderEplodMain=async function(c){
     +'<div class="card ep-listen" id="ep-listen"><div class="phead"><div class="l"><b>逐句精听 · 对话</b></div><div class="r ep-mc">'+(markCount?markCount+' 句没听出来':'')+'</div></div>'
       +'<div class="ep-lines" id="ep-lines">'+d.dialogue.map((x,i)=>lineHtml(x,i,'dg')).join('')+'</div></div>'
     +'<div class="card ep-train" id="ep-train" style="display:none">'
-      +'<div class="phead"><div class="l"><b>四步训练 · 对话 '+d.dialogue.length+' 句</b><span class="ep-note">听写→背诵逐句推进；讲解只听不背（在下方逐字稿）</span></div>'
+      +'<div class="phead"><div class="l"><b>四步训练 · 对话 '+d.dialogue.length+' 句</b><span class="ep-note">听写→背诵逐句推进；列表只给中文线索不剧透英文，讲解只听不背</span></div>'
       +'<div class="r"><span class="ep-dmode"><button data-m="free"'+(drill.mode==='free'?' class="on"':'')+'>自由</button><button data-m="exam"'+(drill.mode==='exam'?' class="on"':'')+'>考试 ×3</button></span></div></div>'
       +'<div class="ep-dstats" id="ep-tstats"></div>'
       +'<div class="ep-blist" id="ep-blist"></div></div>'
@@ -3166,7 +3166,7 @@ window.renderEplodMain=async function(c){
           +'<div class="ch">'+esc(ch.chunk)+(ch.pos?' <i>'+esc(ch.pos)+'</i>':'')+'</div>'
           +'<div class="df">'+esc(ch.def)+'</div>'
           +(ch.note?'<div class="nt">'+esc(ch.note)+'</div>':'')
-          +'<div class="q"><button class="pb" data-qi="'+ch.qi+'" title="回播原句">▶</button><span>'+esc(ch.quote)+'</span></div>'
+          +'<div class="q"><button class="pb" data-qi="'+ch.qi+'" title="回播原句">▶</button><span class="qtx" title="点击显示原句">'+esc(ch.quote)+'</span></div>'
           +(ch.zh?'<div class="zq">'+esc(ch.zh)+'</div>':'')
           +'<button class="col">'+(got?'已进复习 ✓':'收藏进复习')+'</button></div>';
       }).join('')+'</div></div>':'')
@@ -3237,6 +3237,8 @@ function epWire(){
       }
     };
     card.querySelector('.col').onclick=()=>epCollect(card);
+    const q=card.querySelector('.q');
+    q.onclick=e=>{if(e.target.closest('.pb'))return;q.classList.toggle('open');};
   });
   /* 段切换 */
   $('cs-main').querySelectorAll('.ep-segs button').forEach(b=>b.onclick=()=>epSeg(b.dataset.seg));
@@ -3356,10 +3358,11 @@ function epZhOf(item){
 function epRowHtml(i){
   const st=EP.st,drill=st.p.drill,u=epItems()[i];
   const acc=drill.dd[i]&&drill.dd[i].acc,rec=!!drill.rd[i];
+  const zh0=(epZhOf(u)[0]||'');
   return '<div class="ep-brow'+(st.doneOf(i)?' done':'')+(i===st.ai?' act':'')+'" data-i="'+i+'" role="button" tabindex="0" title="展开这一句">'
     +'<span class="no">#'+(i+1)+'</span>'
     +'<span class="bt">'+(u.t0!=null?fmtDur(u.t0):'—')+'</span>'
-    +'<span class="btxt">'+esc(u.text.length>64?u.text.slice(0,64)+'…':u.text)+'</span>'
+    +'<span class="btxt">'+esc(zh0.length>42?zh0.slice(0,42)+'…':(zh0||'（无线索）'))+'</span>'
     +'<span class="grow"></span>'
     +(acc!=null?'<span class="mini'+(acc>=0.9?' ok':'')+'">写'+Math.round(acc*100)+'%</span>':'')
     +(rec?'<span class="mini ok">背✓</span>':'')

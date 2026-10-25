@@ -1662,3 +1662,8 @@ body.vfull .cs-stage video.tfl{max-height:none}
 .csmain .ep-listen .ep-lines,.csmain .ep-train .ep-blist{margin-top:12px}
 .csmain .ep-chunks .ep-chunk-grid,.csmain .ep-kv .ep-kv-grid{margin-top:12px}
 .csmain .ep-expl{padding:14px 16px}
+
+/* block 41 · 训练防剧透(用户: 听写/背诵时下面的答案别显示):
+   折叠行只显示中文线索; 词块卡原句打码, 点击揭示(回播按钮仍可用)。 */
+.ep-chunk .q .qtx{filter:blur(6px);cursor:pointer;transition:filter .15s}
+.ep-chunk .q.open .qtx{filter:none}
