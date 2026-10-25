@@ -1629,3 +1629,18 @@ body.vfull .cs-stage video.tfl{max-height:none}
 @container(min-width:1080px){
   .csmain .cs-stick.ep{display:flex;flex-direction:column;align-items:stretch}
 }
+
+/* ============================================================
+   block 39 · 目录列贴边(用户: 胶囊贴边丑):
+   ① block19 遗留的 csplit 内嵌白卡(边框+4px圆角+阴影)退役
+     ——画布内不再套卡层(r7 用户定案);
+   ② 目录列内容内缩 12px: 胶囊/课程行/课节行不再顶到列边缘;
+   ③ 中缝分隔线退役, 两栏靠留白分隔(表面+圆角替代通铺线)。
+   ============================================================ */
+.csplit{background:transparent;border:0;box-shadow:none;border-radius:0}
+.csnav-col{border-right:0}
+.csnav{padding:2px 12px 14px}
+@media(max-width:900px){
+  .csnav-col{border-bottom:0}
+  .csnav{padding:0 12px 4px}
+}
