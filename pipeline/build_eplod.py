@@ -101,11 +101,12 @@ def parse_pdf(pdf_path):
     # 页脚/版权行跨页打断词表段落, 解析前统一剔除
     lines = [l for l in raw.splitlines() if l.strip() and not FOOTER.search(l)]
 
-    # 标题行: Elementary - Difficult Customer (B0001)
-    title_m = re.search(r"^(.+?)\s*-\s*(.+?)\s*\((B\d+)\)\s*$", lines[0].strip())
+    # 标题行: "Elementary - Difficult Customer (B0001)" / "Elementary - Making an Appointment"(无期号)
+    title_m = re.search(r"^(.+?)\s*-\s*(.+?)\s*(?:\(([A-Z]\d+)\))?\s*$", lines[0].strip())
     if not title_m:
         raise SystemExit("标题行解析失败: " + lines[0])
-    level, title, code = (clean_text(title_m.group(i)) for i in (1, 2, 3))
+    level, title = clean_text(title_m.group(1)), clean_text(title_m.group(2))
+    code = clean_text(title_m.group(3)) if title_m.group(3) else "EP"
 
     # 对话: 说话人标记行(A:/B:/C:) + 其后文本直到下一个标记/节尾
     body_end = min((i for i, l in enumerate(lines) if l.strip().startswith("Key Vocabulary")), default=len(lines))
@@ -285,7 +286,10 @@ def build_units(lines, line_times, min_dur=0.6):
 _WM = None
 
 
-def whisper_segments(mp3, model=None):
+def whisper_segments(mp3, model=None, skip_first=0.0):
+    """分窗转写: 28s 窗 25s 步进(重叠去重), skip_first 跳过片头。
+    实录两坑: ①部分 mp3 直接解码会让 whisper 整段吞词 → 先 ffmpeg 归一 16k 单声道;
+    ②片头 jingle 会让"包含它的窗口"整个坍缩成一句 EnglishPod.com → dg 窗口从 3s 起。"""
     from faster_whisper import WhisperModel
 
     global _WM
@@ -293,16 +297,61 @@ def whisper_segments(mp3, model=None):
         if _WM is None:
             _WM = WhisperModel("base.en", device="cpu", compute_type="int8")
         model = _WM
-    # no_speech_threshold=1: 禁用"疑似无语音"跳段(电话音质整段被吞过, 0002); 条件链断开防幻觉循环
-    segs, _ = model.transcribe(str(mp3), language="en", word_timestamps=True, vad_filter=False,
-                               no_speech_threshold=1.0, condition_on_previous_text=False)
-    out = []
-    for s in segs:
-        out.append({
-            "t0": round(s.start, 2), "t1": round(s.end, 2), "text": s.text.strip(),
-            "words": [(w.start, w.end, w.word.strip()) for w in (s.words or [])],
-        })
-    return out
+    import subprocess
+    import tempfile
+    import os
+
+    def run_window(wav, t0, t1):
+        tmp = wav + f".w{int(t0 * 100)}.wav"
+        subprocess.run(["ffmpeg", "-v", "error", "-i", wav, "-ss", str(t0), "-t", str(t1 - t0),
+                        "-c:a", "pcm_s16le", tmp, "-y"], check=True, timeout=120)
+        try:
+            segs, _ = model.transcribe(tmp, language="en", word_timestamps=True, vad_filter=False,
+                                       no_speech_threshold=1.0, condition_on_previous_text=False)
+            out = []
+            for sgm in segs:
+                txt = sgm.text.strip()
+                if not txt:
+                    continue
+                out.append({"t0": round(sgm.start + t0, 2), "t1": round(sgm.end + t0, 2), "text": txt,
+                            "words": [(round(w.start + t0, 2), round(w.end + t0, 2), w.word.strip()) for w in (sgm.words or [])]})
+            return out
+        finally:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+
+    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tf:
+        wav = tf.name
+    subprocess.run(["ffmpeg", "-v", "error", "-i", str(mp3), "-ar", "16000", "-ac", "1", wav, "-y"],
+                   check=True, timeout=600)
+    try:
+        dur = float(subprocess.run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", wav],
+                                   capture_output=True, text=True, timeout=60).stdout.strip() or 0)
+        wins, start = [], skip_first
+        while start < dur - 0.5:
+            wins.append((start, min(start + 28, dur)))
+            start += 25
+        allsegs = []
+        for (t0, t1) in wins:
+            allsegs.extend(run_window(wav, t0, t1))
+        allsegs.sort(key=lambda x: x["t0"])
+        # 重叠去重: 新段起点落在前段尾部且首词在前段尾词中 → 丢弃
+        merged = []
+        for sg in allsegs:
+            if merged and sg["t0"] < merged[-1]["t1"] - 0.5:
+                toks = _tokens(sg["text"])
+                tail = _tokens(merged[-1]["text"])[-8:]
+                if toks and toks[0] in tail:
+                    continue
+            merged.append(sg)
+        return merged
+    finally:
+        try:
+            os.unlink(wav)
+        except OSError:
+            pass
 
 
 def ep_range_dirs():
@@ -523,6 +572,102 @@ def update_chunk_bank(ep_data):
     CHUNK_BANK.write_text(json.dumps(bank, ensure_ascii=False, indent=1), encoding="utf-8")
 
 
+_COMPANION = None
+
+
+def companion():
+    """附赠全集(1-365 对话+词表)索引: {ep:int → (start_page, end_page)}. 页序混乱, 按页序建区间, 重复期号取首次."""
+    import pymupdf
+
+    global _COMPANION
+    if _COMPANION is None:
+        pdf = SRC / "完整版主持人讲解及对话材料" / "附赠简单对话及关键单词（1-365）.pdf"
+        doc = pymupdf.open(pdf)
+        pat = re.compile(r"^(.+?)\s*-\s*(.+?)\s*\(([A-Z]\d+)\)\s*$", re.M)
+        entries = []
+        for pno in range(len(doc)):
+            t = doc[pno].get_text()
+            head = "\n".join(t.splitlines()[:6])   # 标题在前几行
+            m = pat.search(head)
+            if m:
+                entries.append((pno, int(m.group(3)[1:]), m))
+        entries.sort(key=lambda x: x[0])
+        ranges = {}
+        for idx, (pno, epn, m) in enumerate(entries):
+            if epn in ranges:
+                continue
+            nxt = entries[idx + 1][0] if idx + 1 < len(entries) else len(doc)
+            ranges[epn] = (pno, nxt, m)
+        _COMPANION = (doc, ranges)
+    return _COMPANION
+
+
+def parse_companion(ep):
+    """从附赠全集解析对话+词表(格式与单期 PDF 相同)."""
+    doc, ranges = companion()
+    epn = int(ep)
+    if epn not in ranges:
+        raise SystemExit(f"companion 无期 {epn}")
+    p0, p1, m = ranges[epn]
+    raw = "\n".join(doc[i].get_text() for i in range(p0, p1))
+    raw = norm_lig(raw)
+    lines = [l for l in raw.splitlines() if l.strip() and not FOOTER.search(l)]
+    level, title = clean_text(m.group(1)), clean_text(m.group(2))
+    code = m.group(3)
+    dialogue = []
+    cur = None
+    kv_at = next((i for i, l in enumerate(lines) if l.strip() == "Key Vocabulary"), None)
+    body_end = kv_at if kv_at is not None else len(lines)
+    for l in lines[1:body_end]:
+        sl = l.strip()
+        mm = re.match(r"^([A-Z]|\w{1,10}):\s*(.*)$", sl)
+        if mm and mm.group(1).isalpha() and len(mm.group(1)) <= 3:
+            cur = {"spk": mm.group(1), "text": ""}
+            dialogue.append(cur)
+            continue
+        if cur is None:
+            continue
+        if cur["text"].endswith("-"):
+            cur["text"] = cur["text"][:-1] + sl
+        else:
+            cur["text"] += (" " if cur["text"] else "") + sl
+    for x in dialogue:
+        x["text"] = clean_text(dehyph(x["text"]))
+    keyvocab = parse_vocab_section_generic(lines, "Key Vocabulary", "Supplementary Vocabulary") if kv_at is not None else []
+    suppvocab = parse_vocab_section_generic(lines, "Supplementary Vocabulary", None) if kv_at is not None else []
+    return {"level": level, "title": title, "code": code, "dialogue": dialogue, "keyvocab": keyvocab, "suppvocab": suppvocab}
+
+
+def parse_vocab_section_generic(lines, start_tok, end_tok):
+    POSL = POS_WORDS | {w.lower() for w in POS_WORDS}
+    try:
+        a = next(i for i, l in enumerate(lines) if l.strip() == start_tok)
+        if end_tok:
+            b = next(i for i, l in enumerate(lines) if i > a and l.strip().startswith(end_tok))
+        else:
+            b = len(lines)
+    except StopIteration:
+        return []
+    seg = [l.strip() for l in lines[a + 1 : b] if l.strip()]
+    out, i = [], 0
+    while i < len(seg) - 1:
+        if seg[i + 1] in POSL or seg[i + 1].lower().startswith(("common noun", "proper noun", "noun,")):
+            term, pos = seg[i], seg[i + 1]
+            j = i + 2
+            buf = []
+            while j < len(seg) and not (j + 1 < len(seg) and (seg[j + 1] in POSL or seg[j + 1].lower().startswith(("common noun", "proper noun", "noun,")))):
+                if buf and buf[-1].endswith("-"):
+                    buf[-1] = buf[-1][:-1] + seg[j]
+                else:
+                    buf.append(seg[j])
+                j += 1
+            out.append({"term": clean_text(term), "pos": clean_text(pos), "def": clean_text(" ".join(buf))})
+            i = j
+        else:
+            i += 1
+    return out
+
+
 def run_episode(ep, do_chunks=True, do_apply=True, dg_lang_only=False, keep_ai=True, log=print):
     """单期完整管线。返回 data。异常向上抛(批量 runner 负责兜)。
     dg_lang_only: 只对对话做翻译+意群(训练只用对话; 讲解段的 pb 翻译界面不渲染, 批量省 80% 成本)。"""
@@ -530,10 +675,29 @@ def run_episode(ep, do_chunks=True, do_apply=True, dg_lang_only=False, keep_ai=T
     t0 = time.time()
 
     d = find_ep_dir(ep)
-    pdf = next(d.glob("*.pdf"))
-    data = parse_pdf(pdf)
+    pdfs = list(d.glob("*.pdf"))
+    data = None
+    if pdfs:
+        try:
+            data = parse_pdf(pdfs[0])
+        except SystemExit:
+            data = None
+    src_note = "自身PDF"
+    if not data or len(data.get("dialogue", [])) < 4:
+        try:
+            cdata = parse_companion(ep)
+            if len(cdata["dialogue"]) >= 4:
+                data = cdata
+                src_note = "附赠全集"
+        except SystemExit:
+            pass
+    if not data:
+        src_note = "whisper转写"
+        data = {"level": (load_level_map().get(int(ep), {}).get("name") or "Unknown"),
+                "title": f"Episode {int(ep)}", "code": "EP", "dialogue": [], "keyvocab": [], "suppvocab": []}
     data["ep"] = int(ep)
-    log(f"    {data['level']} - {data['title']} ({data['code']})  对话 {len(data['dialogue'])} 句  词表 {len(data['keyvocab'])}+{len(data['suppvocab'])}")
+    data["dialogueSrc"] = src_note
+    log(f"    {data['level']} - {data['title']} ({data['code']}) [{src_note}]  对话 {len(data['dialogue'])} 句  词表 {len(data['keyvocab'])}+{len(data['suppvocab'])}")
 
     # 逐字稿: 官方 txt(已删 zip 的存档) 优先; 缺失 → whisper 转写讲解音频(讲解只听不背, 转写质量足够)
     expl_from_asr = False
@@ -550,15 +714,21 @@ def run_episode(ep, do_chunks=True, do_apply=True, dg_lang_only=False, keep_ai=T
     rv = next(d.glob("*rv.mp3"))
 
     log("    whisper: 对话对齐")
-    segs_dg = whisper_segments(dg)
-    dia = [x["text"] for x in data["dialogue"]]
-    times = global_align(dia, segs_dg)
-    hit = sum(1 for t in times if t)
-    for i, t in enumerate(times):
-        data["dialogue"][i]["t0"], data["dialogue"][i]["t1"] = (t if t else [None, None])
-    log(f"    对话: {hit}/{len(dia)} 句有时间戳")
-    if hit < len(dia) * 0.7:
-        raise RuntimeError(f"对话对齐率过低 {hit}/{len(dia)}")
+    segs_dg = whisper_segments(dg, skip_first=3.0)   # dg 片头 jingle 会让含它的窗口整个坍缩
+    if data["dialogue"]:
+        dia = [x["text"] for x in data["dialogue"]]
+        times = global_align(dia, segs_dg)
+        hit = sum(1 for t in times if t)
+        for i, t in enumerate(times):
+            data["dialogue"][i]["t0"], data["dialogue"][i]["t1"] = (t if t else [None, None])
+        log(f"    对话: {hit}/{len(dia)} 句有时间戳")
+        if hit < len(dia) * 0.7:
+            raise RuntimeError(f"对话对齐率过低 {hit}/{len(dia)}")
+    else:
+        for x in segs_dg:
+            if x["text"].strip():
+                data["dialogue"].append({"spk": "", "text": clean_text(x["text"]), "t0": x["t0"], "t1": x["t1"]})
+        log(f"    对话(whisper 转写): {len(data['dialogue'])} 句")
 
     log("    whisper: 讲解转写/对齐")
     segs_pb = whisper_segments(pb)
