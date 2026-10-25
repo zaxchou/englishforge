@@ -210,7 +210,7 @@ async function aiExplain(qidStr, force) {
   if (q.prompt || q.body) lines.push('[任务说明]\n' + ((q.prompt + '\n' + (q.body || '')).slice(0, 1500)));
   if (q.stem) lines.push('[题干] ' + q.stem);
   if (q.options && Object.keys(q.options).length)
-    lines.push('[选项]\n' + Object.entries(q.options).map(([k, v]) => k + '. ' + v).join('\n'));
+    lines.push('[选项]\n' + Object.entries(q.options).map(([k, v]) => k + '. ' + (typeof v === 'object' ? (v.t || '') + (v.note ? '（知识点：' + v.note + '）' : '') : v)).join('\n'));
   if (q.kind === 'fill') lines.push('[该空所在句的填空形式] 见材料下划线处，第 ' + no + ' 空');
   lines.push('[正确答案] ' + (q.answer || q.reference || '（官方未提供）'));
   if (mine) lines.push('[学生当时的错误答案] ' + mine + (att && att.st === 'done' ? '（后来已订正，但请按当时错选来讲解错因）' : ''));
@@ -716,6 +716,22 @@ async function aiExplainGen(qidStr, course, mk, no, force) {
       if (sf) material = fs.readFileSync(path.join(sf.dir, sf.file), 'utf8')
         .replace(/^---[\s\S]*?---\n*/, '').trim().slice(0, 3000);
     }
+    if (!material && course === 'cfcm-01' && q) {
+      // 官方练习无逐字稿: 以万词班讲义词库作依据——答案词条 + 同词根兄弟词条(词根辨析的 grounding)
+      try {
+        const bank = vocabIndex();
+        const card = bank.get(vocabKey(q.answer));
+        if (card) {
+          const sibs = [];
+          for (const [k, c] of bank) {
+            if (c.root === card.root && k !== vocabKey(card.w) && sibs.length < 8) sibs.push(c.w + ' ' + c.def);
+          }
+          material = '[讲义词条] ' + card.w + ' /' + (card.ipa || '') + '/ ' + card.def
+            + '\n[同词根「' + card.root + '（' + card.gloss + '）」家族] ' + sibs.join('；')
+            + '\n[官方解析参考] ' + (q.explain || '');
+        }
+      } catch (e) {}
+    }
   } catch (e) {}
   const sys = '你是托福词汇助教，用中文讲解这道课后练习题：先一句话点明考查点（词根/词缀/搭配），'
     + '再说正确答案为什么对（引用讲义依据）'
@@ -724,7 +740,7 @@ async function aiExplainGen(qidStr, course, mk, no, force) {
   const lines = [];
   if (material) lines.push('[讲义相关页]\n' + material);
   lines.push('[题干] ' + q.stem);
-  lines.push('[选项]\n' + Object.entries(q.options).map(([k, v]) => k + '. ' + v).join('\n'));
+  lines.push('[选项]\n' + Object.entries(q.options).map(([k, v]) => k + '. ' + (typeof v === 'object' ? (v.t || '') + (v.note ? '（知识点：' + v.note + '）' : '') : v)).join('\n'));
   lines.push('[正确答案] ' + q.answer);
   if (mine) lines.push('[学生当时的错误答案] ' + mine);
   lines.push('[出题时的解析参考] ' + q.explain);
@@ -1479,6 +1495,40 @@ const handler = async (req, res) => {
         const code = /未配置/.test(e.message) ? 503 : 502;
         return sendJSON(res, code, { error: e.message });
       }
+    }
+
+    /* ---- API: 主动巩固(把一题加入错题本 1/3/7/14 调度; 幂等) ----
+       课后练的「这处还没掌握，加入复习」: 已错的题本来就在册(直接确认), 答对但想巩固的题在此入册。
+       与 review-hub 无关——不扩旧范围, 走现成 mistakes 调度。 */
+    if (p === '/api/records/review') {
+      if (req.method !== 'POST') return sendJSON(res, 405, { error: 'method' });
+      const origin = req.headers.origin;
+      if (origin && origin !== `http://${req.headers.host}` && origin !== `https://${req.headers.host}`) return sendJSON(res, 403, { error: 'cross-origin write rejected' });
+      if (!(req.headers['content-type'] || '').toLowerCase().startsWith('application/json')) return sendJSON(res, 415, { error: 'application/json required' });
+      const body = await readBody(req);
+      let inc; try { inc = JSON.parse(body.toString('utf8') || '{}'); } catch (e) { return sendJSON(res, 400, { error: 'bad json' }); }
+      const ref = inc.ref || {};
+      if (!ref.qid || typeof ref.qid !== 'string' || !/^[\w.\-/]{1,120}$/.test(ref.qid)) return sendJSON(res, 400, { error: 'qid required' });
+      if (typeof inc.stem !== 'undefined' && (typeof inc.stem !== 'string' || inc.stem.length > 300)) return sendJSON(res, 400, { error: 'bad stem' });
+      const next = JSON.parse(JSON.stringify(RECORDS));
+      next.mistakes = next.mistakes || {};
+      const now = Date.now();
+      let added = false;
+      const ex = next.mistakes[ref.qid];
+      if (!ex || ex.cleared) {
+        next.mistakes[ref.qid] = {
+          n_wrong: ex ? ex.n_wrong || 0 : 0, stage: 0,
+          added: ex ? ex.added || now : now, due: now + 864e5, last: now,
+          set: ref.set || 'gen', subj: ref.subj || '', mk: ref.mk || '', gkey: ref.gkey || 'quiz',
+          ...(inc.stem ? { stem: inc.stem } : {}),
+        };
+        added = true;
+      }
+      next.revision = (RECORDS.revision || 0) + 1;
+      next.saved_at = new Date(now).toISOString();
+      try { recordsSave(next); } catch (e) { console.error('[review-add]', e.message); return sendJSON(res, 503, { error: 'records not persisted' }); }
+      RECORDS = next;
+      return sendJSON(res, 200, { ok: true, added, mistake: next.mistakes[ref.qid] || null, revision: next.revision });
     }
 
     /* ---- API: AI 助教错题解析 ---- */

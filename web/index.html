@@ -2262,9 +2262,15 @@ function renderGenQuiz() {
     const fam = (qz.families || []).map(x => '<span title="' + esc(x.gloss || '') + '">' + esc(x.name) + '</span>').join('');
     const official = qz.src === 'official';   // 老师官方课后练习: 固定题目, 无「重新生成」
     const coreLabel = official ? '官方课后练习' : '课堂复习';
+    // 本节练到的词根(题目 tags 聚合) → 词根家族长期复习入口
+    const rootCount = {};
+    live.forEach(q => (q.tags || []).forEach(t => { rootCount[t] = (rootCount[t] || 0) + 1; }));
+    const tagChips = Object.entries(rootCount).sort((a, b) => b[1] - a[1])
+      .map(([t, n]) => '<button class="gq-chip-link" data-root="' + esc(t) + '" title="去词根家族复习">' + esc(t) + ' <i>' + n + '</i></button>').join('');
     body.innerHTML = '<div class="gq-in">'
       + (qz.scope ? '<p class="gq-scope">' + esc(qz.scope) + (qz.pages && qz.pages.length ? '（讲义第 ' + Math.min(...qz.pages) + '–' + Math.max(...qz.pages) + ' 页）' : '') + '</p>' : '')
       + (fam ? '<div class="gq-chips">' + fam + '</div>' : '')
+      + ((official && tagChips) ? '<div class="gq-chips gq-rootrow"><span class="gq-rootlab">词根：</span>' + tagChips + '<button class="gq-fam-all" id="gq-fam-all">词根家族复习 →</button></div>' : '')
       + (qz.inventory ? '<details class="gq-inv"><summary>本节词表 · '
         + ((qz.inventory.words || []).length + (qz.inventory.affixes || []).length + (qz.inventory.roots || []).length)
         + ' 项（词/词缀/词根分列）</summary><div class="ws">' + gqInvChips(qz) + '</div></details>' : '')
@@ -2281,6 +2287,8 @@ function renderGenQuiz() {
         + '<button class="' + (coreIds.length ? 'gq-ghost' : 'pri') + '" id="gq-start-ext">' + (extDone ? '再练扩展 →' : (coreIds.length ? '做扩展 →' : '开始练习 →')) + '</button></div>' : '')
       + '</div>';
     if(coreIds.length){$('gq-start').onclick=()=>{const rest=gqRemaining(qz,coreIds);gqStart(rest.length?rest:coreIds,'core');};const all=$('gq-all');if(all)all.onclick=()=>gqStart(coreIds,'core');}
+    body.querySelectorAll('.gq-chip-link').forEach(b=>b.onclick=()=>gqOpenFamilies(b.dataset.root));
+    const famAllBtn=$('gq-fam-all'); if(famAllBtn) famAllBtn.onclick=()=>gqOpenFamilies(null);
     const se = $('gq-start-ext');
     if(se)se.onclick=()=>{const rest=gqRemaining(qz,extIds);gqStart(rest.length?rest:extIds,'ext');};
     if($('gq-regen'))$('gq-regen').onclick = async () => {
@@ -2358,6 +2366,29 @@ async function gqAttention(q,done,active){
  const r=await fetch('/api/review-hub/attention',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({qid,signature,active}),signal:AbortSignal.timeout(15000)});const j=await r.json();if(!r.ok)throw Error(j.error||'保存失败');done.needsReview=active;if(button?.isConnected)button.textContent=active?'已加入巩固 · 取消标记':'这处还没掌握，加入复习';if(status?.isConnected)status.textContent=active?'会混入课程复习，保留实际对错，不新增每日任务。':'已取消标记。';
  }catch(e){if(status?.isConnected)status.textContent='标记未保存：'+e.message+'，可点击重试。';}finally{if(button?.isConnected)button.disabled=false;}
 }
+/* cfcm 巩固: 加入错题本 1/3/7/14 调度(服务端幂等); 已错的题本就在册, 这里主要收答对但想再见的题 */
+async function gqReviewAdd(q, done){
+  const button=$('gq-attention'),status=$('gq-attention-status');
+  if(button)button.disabled=true;
+  try{
+    const ref=gqRef(GQ_UI.quiz,q);
+    const r=await fetch('/api/records/review',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ref,stem:q.stem}),signal:AbortSignal.timeout(15000)});
+    const j=await r.json();if(!r.ok)throw Error(j.error||'保存失败');
+    if(j.mistake){REC.mistakes[ref.qid]=j.mistake;recSave();}
+    done.reviewAdded=true;
+    if(button?.isConnected)button.textContent='已在复习计划 · 明天见';
+    if(status?.isConnected)status.textContent=j.added?'已入错题本，明天到期复习。':'这题已在复习计划里。';
+  }catch(e){if(status?.isConnected)status.textContent='标记未保存：'+e.message+'，可点击重试。';}
+  finally{if(button?.isConnected)button.disabled=false;}
+}
+/* 词根 chips → 错题本「词根家族」tab; root 指定时滚动定位到该家族卡 */
+let GQ_FAM_JUMP = null;
+function gqOpenFamilies(root){
+  GQ_FAM_JUMP = root || null;
+  RV_TAB = 'families';
+  nav('review');
+}
 function gqPaintAnswered(q, done) {
   const fb = $('gq-fb');
   let kp = '';
@@ -2371,8 +2402,10 @@ function gqPaintAnswered(q, done) {
   if (fb) {
     fb.innerHTML = '<div class="gq-fb ' + (done.ok ? 'ok' : 'bad') + '"><b>' + (done.ok ? '答对了' : '答错了 · 正确答案 ' + esc(q.answer)) + '</b><span class="gq-fb-x"> ' + quizInline(q.explain) + '</span></div>'
       + (q.errataNote ? '<p class="gq-note" style="margin:8px 0 0">官方练习书原印答案 ' + esc(q.official) + '，经全量复核勘误为 ' + esc(q.answer) + '：' + esc(q.errataNote) + '</p>' : '')
-      + kp + '<div style="padding:12px 0"><button id="gq-attention"'+(done.confidencePending?' disabled':'')+'>'+ (done.confidencePending?'不确定标记随答案保存中…':done.needsReview?'已加入巩固 · 取消标记':'这处还没掌握，加入复习')+'</button><p class="gq-note" id="gq-attention-status">'+(done.confidencePending?'答案与不确定标记已进入补传队列，联网后会自动保存。':done.confidenceUnavailable?'不确定已记录；此题暂不在可调度的复习范围。':done.unsure?'你标记了不确定；实际对错保留。':'')+'</p></div>';
-    if(GQ_UI.quiz.course==='ndf-01'&&GQ_UI.quiz.lessonNo>=1&&GQ_UI.quiz.lessonNo<=23)$('gq-attention').onclick=()=>gqAttention(q,done,!done.needsReview);
+      + kp + '<div style="padding:12px 0"><button id="gq-attention"'+(done.confidencePending?' disabled':'')+'>'+ (done.confidencePending?'不确定标记随答案保存中…':done.reviewAdded?'已在复习计划 · 明天见':'这处还没掌握，加入复习')+'</button><p class="gq-note" id="gq-attention-status">'+(done.confidencePending?'答案与不确定标记已进入补传队列，联网后会自动保存。':done.unsure?'你标记了不确定；实际对错保留。':'')+'</p></div>';
+    const qCourse=GQ_UI.quiz.course, qNo=GQ_UI.quiz.lessonNo;
+    if(qCourse==='ndf-01'&&qNo>=1&&qNo<=23)$('gq-attention').onclick=()=>gqAttention(q,done,!done.needsReview);
+    else if(qCourse==='cfcm-01')$('gq-attention').onclick=()=>gqReviewAdd(q,done);
     else { $('gq-attention').hidden=true; $('gq-attention-status').textContent='此题的作答与不确定状态会保留；尚未接入课程复习调度。'; }
     fb.scrollIntoView({ behavior: 'smooth', block: 'nearest' });   // 判分结果送到眼前, 粘底条保持按钮可见
   }
@@ -3329,6 +3362,18 @@ async function renderFamilies() {
   list.querySelectorAll('[data-fam]').forEach(b => {
     b.onclick = () => startFamReview(b.dataset.fam);
   });
+  if (GQ_FAM_JUMP) {   // 课后练词根 chips 跳入: 定位到对应家族卡
+    const jump = GQ_FAM_JUMP; GQ_FAM_JUMP = null;
+    const target = [...list.querySelectorAll('.famcard')].find(c => {
+      const b = c.querySelector('[data-fam]');
+      return b && (b.dataset.fam === jump || b.dataset.fam.endsWith('|' + jump));
+    });
+    if (target) {
+      target.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      target.style.outline = '2px solid var(--accln)';
+      setTimeout(() => { target.style.outline = ''; }, 2200);
+    }
+  }
 }
 async function startFamReview(key) {
   const fams = await fetchFamilies();
@@ -3468,6 +3513,7 @@ async function renderVoiceReview(){
 window.addEventListener('review-hub-saved',async()=>{try{const remote=await api('/api/records');REC=mergeRemote(remote);recBase=recClone(remote);}catch{}});
 async function renderReview(){
   $('rv-batch').hidden=true;
+  document.querySelectorAll('#rv-seg button').forEach(x=>x.classList.toggle('on',x.dataset.t===RV_TAB));   // 外部跳入(词根 chips)时高亮跟随
   if (RV_TAB === 'families') {if($('rv-voice'))$('rv-voice').innerHTML='';return renderFamilies();}
   await renderVoiceReview();
   $('rv-ph-t').textContent = '待复习';
