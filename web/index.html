@@ -3621,15 +3621,41 @@ async function epRecToggle(i,card){
   const R={rec:rec,chunks:chunks,t0:Date.now(),i:i,mime:(rec.mimeType||'audio/webm')};
   st.recording=R;
   epRecButton();
+  /* 实时音量计: 说话时能看见 bars 在跳; 全程静音在停止时直接报错, 不让 ASR 幻觉骗人 */
+  let analyser=null,buf=null,peak=0;
+  try{
+    const AC=window.AudioContext||window.webkitAudioContext;
+    const actx=new AC();actx.resume&&actx.resume();
+    const src=actx.createMediaStreamSource(stream);
+    analyser=actx.createAnalyser();analyser.fftSize=512;
+    src.connect(analyser);
+    buf=new Uint8Array(analyser.frequencyBinCount);
+    R.levelTimer=setInterval(()=>{
+      if(st.recording!==R)return;
+      if(Date.now()-R.t0>90000){epRecToggle(R.i);return;}   // 忘点停止: 90s 自动收
+      analyser.getByteTimeDomainData(buf);
+      let mx=0;for(let k=0;k<buf.length;k++){const v=Math.abs(buf[k]-128);if(v>mx)mx=v;}
+      if(mx>peak)peak=mx;
+      const bar=$('ep-blist')&&$('ep-blist').querySelector('.ep-bcard .ep-rec .lv i');
+      if(bar)bar.style.width=Math.min(100,Math.round(mx/128*100))+'%';
+      const rt=$('ep-blist')&&$('ep-blist').querySelector('.ep-bcard .ep-rec .rt');
+      if(rt)rt.textContent=fmtDur(Math.round((Date.now()-R.t0)/1000));
+    },150);
+  }catch(e){}
   rec.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data);};
   rec.onstop=async()=>{
     stream.getTracks().forEach(t=>t.stop());
-    clearInterval(st.recTimer);
+    clearInterval(st.recTimer);clearInterval(R.levelTimer);
     const dur=Math.round((Date.now()-R.t0)/1000);
     const wasI=R.i;
     st.recording=null;
     epRecButton();
     const drEl=card&&+card.dataset.i===wasI?card.querySelector('.bvoice .dr'):null;
+    /* 静音守卫: 全程音量近零 = 麦克风没工作, 不送 ASR(静音会幻觉出文本) */
+    if(analyser&&peak<8){
+      if(drEl)drEl.innerHTML='<p class="ep-note">麦克风全程没有收到声音。请检查：①系统声音设置的输入设备 ②浏览器右上角麦克风权限指向的设备。确认后重录。</p>';
+      return;
+    }
     if(drEl)drEl.innerHTML='<p class="ep-note">转写中…</p>';
     const blob=new Blob(chunks,{type:R.mime});
     const b64=await new Promise(res=>{const fr=new FileReader();fr.onload=()=>res(String(fr.result));fr.readAsDataURL(blob);});
@@ -3653,7 +3679,8 @@ async function epRecToggle(i,card){
         const dEl=lc.querySelector('.bvoice .dr');
         if(dEl)dEl.innerHTML='<div class="dw"><b>'+(r.acc>=0.9?'✓ 通过':'词准 '+Math.round(r.acc*100)+'%')+'</b> '+esc(text)+'</div>'
           +'<div class="do">原文: '+esc(u.text)+'</div>'
-          +'<p class="ep-note">用时 '+fmtDur(dur)+' / 原句 '+fmtDur(u.t1-u.t0)+(speed?' · <b class="ok">✓ 同速达成</b>':' · 同速线 '+fmtDur(Math.round((u.t1-u.t0)*1.15)))+'</p>';
+          +'<p class="ep-note">用时 '+fmtDur(dur)+' / 原句 '+fmtDur(u.t1-u.t0)+(speed?' · <b class="ok">✓ 同速达成</b>':' · 同速线 '+fmtDur(Math.round((u.t1-u.t0)*1.15)))+'</p>'
+          +(r.acc<0.15&&dur>=3?'<p class="ep-note">转写内容过短——如果刚才确实在朗读，多半是麦克风音量过低，建议重录。</p>':'');
       }
       epStepsUpdate();epDockNo();
       if(best>=0.9){
@@ -3670,8 +3697,7 @@ async function epRecToggle(i,card){
       if(j2&&j2.ok){drill.rd[wasI]=drill.rd[wasI]||{};drill.rd[wasI].rec=j2.file;recSave();}
     }catch(e){}
   };
-  rec.start();
-  st.recTimer=setInterval(()=>{if(st.recording===R){const b=$('ep-blist')&&$('ep-blist').querySelector('.ep-bcard .ep-rec.ing');if(b)b.innerHTML='■ 停止 · <i class="rt">'+fmtDur(Math.round((Date.now()-R.t0)/1000))+'</i>';}},500);
+  try{rec.start();}catch(e){st.recording=null;clearInterval(R.levelTimer);const nn=$('ep-note');nn.style.display='';nn.textContent='录音启动失败：'+e.message;return;}
 }
 function epRecButton(){
   const st=EP.st;const list=$('ep-blist');
@@ -3680,7 +3706,7 @@ function epRecButton(){
   if(!b)return;
   const i=+b.dataset.i;
   const ing=!!(st.recording&&st.recording.i===i);
-  b.innerHTML=ing?'■ 停止 · <i class="rt">0:00</i>':'🎙 朗读这句';
+  b.innerHTML=ing?'● 停止 · <i class="rt">0:00</i><span class="lv"><i></i></span>':'🎙 朗读这句';
   b.classList.toggle('ing',ing);
 }
 
