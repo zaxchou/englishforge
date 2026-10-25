@@ -1692,3 +1692,26 @@ body.vfull .cs-stage video.tfl{max-height:none}
 .ep-train{max-width:920px}
 .ep-bcard .vrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
 .ep-bcard .vrow .ep-rec{margin-right:0}
+
+/* ============================================================
+   block 44 · 训练卡视觉系统重做(用户: 都是奇丑):
+   ① 头部控件统一 32px 语言——播放/循环改圆形 icon 按钮,
+     seg/徽章同高, 一行只讲"这句怎么练";
+   ② 中文线索带从灰块升级为台词式主角: 左侧墨绿 accent + 17px;
+   ③ 朗读按钮标准胶囊高度, 状态文字同行;
+   ④ 脚注提示去下划线, 淡色不抢戏。
+   ============================================================ */
+.ep-bcard{padding:14px 16px}
+.ep-bcard .bh{align-items:center;margin-bottom:12px}
+.ep-bcard .bh .no{font-size:var(--f3);color:var(--t1)}
+.ep-bcard .bp,.ep-bcard .bl{width:32px;height:32px;padding:0;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:999px;background:transparent;font-size:12px;color:var(--t2)}
+.ep-bcard .bp:hover,.ep-bcard .bl:hover{border-color:var(--acc);color:var(--acc);background:transparent}
+.ep-bcard .bh .bmode{margin-left:2px}
+.ep-bcard .bh .bmode button{height:32px;padding:0 14px}
+.ep-bcard .bh .mini{height:22px;display:inline-flex;align-items:center}
+.ep-bcard .rclue{font-size:17px;line-height:1.7;color:var(--t1);background:none;border-radius:0;border-left:3px solid var(--acc);padding:2px 0 2px 12px;margin-bottom:12px}
+.ep-bcard .bbody{margin-bottom:12px}
+.ep-rec{height:34px;padding:0 18px;border-radius:999px;font-size:var(--f3)}
+.ep-bcard .rhints{margin-top:2px}
+.ep-bcard .rhints button{border:0;background:transparent;text-decoration:none;color:var(--t3);font-size:var(--f4);padding:0}
+.ep-bcard .rhints button:hover{color:var(--acc)}

@@ -3397,7 +3397,7 @@ function epBlockCard(i){
   const seg=[['dict','听写'],['voice','朗读'],['type','默写']].map(m=>'<button data-m="'+m[0]+'"'+(mode===m[0]?' class="on"':'')+'>'+m[1]+'</button>').join('');
   let h='<div class="ep-bcard" data-i="'+i+'">'
     +'<div class="bh"><span class="no">#'+(i+1)+'/'+st.d.dialogue.length+'</span>'
-    +'<button class="bp" title="播放本句">▶ 听</button><button class="bl" title="单句循环">↻</button>'
+    +'<button class="bp" title="播放本句" aria-label="播放本句">▶</button><button class="bl" title="单句循环" aria-label="单句循环">↻</button>'
     +(drill.mode==='exam'?'<span class="dc">'+(3-Math.min(3,plays))+' 次可听</span>':'')
     +'<span class="bmode">'+seg+'</span>'
     +'<span class="grow"></span>'
