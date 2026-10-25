@@ -177,11 +177,14 @@ def parse_practice():
     return questions, answers
 
 
+WMARK = re.compile(r"\s*小红书：?\s*炒粉炒面翻译\s*\d*\s*")   # PDF 页脚水印, 混进题干尾/D 选项尾(55 处)
+
+
 def build_question(chunk, no, num, wordmap):
     """题块文本 -> {stem, options, answer 已由调用方对位, explain, tags}；解析失败返回 None。"""
     text = "\n".join(chunk)
     m = Q_START.match(text.strip())
-    stem0 = text.strip()[m.end():] if m else text.strip()
+    stem0 = WMARK.sub(" ", text.strip()[m.end():] if m else text.strip()).strip()
     marks = list(OPT_MARK.finditer(stem0))
     seq = [mm.group(1) for mm in marks]
     if seq != ["A", "B", "C", "D"]:

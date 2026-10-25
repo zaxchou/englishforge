@@ -11,14 +11,16 @@
      之前行 hover 与选中同用 sunk -> hover 到选中项旁边时两片灰底
      连成一块, 分不清哪个是当前 (豪哥视频课页反馈)。 */
   --hover:rgba(0,0,0,.045);
-  --line:rgba(0,0,0,.16); --line2:rgba(0,0,0,.26);
+  --line:rgba(32,39,37,.13); --line2:rgba(32,39,37,.22);
   --t1:#141414; --t2:#4A4A4A; --t3:#767676;
   --ok:#0B7A4B; --okbg:#E8F4ED; --okln:rgba(11,122,75,.28);
   --bad:#A32D2D; --badbg:#FAEBEB; --badln:rgba(163,45,45,.28);
   --warn:#8A5A0B; --warnbg:#FBF1DE; --warnln:rgba(138,90,11,.28);
-  --acc:#2F5AA8; --accbg:#E9F0FA; --accln:rgba(47,90,168,.28);
+  /* 2026-10-25 视觉升级(Vesper 参考): 强调色蓝→墨绿, 与品牌绿/鼠尾草侧栏一家;
+     线色转暖压浅(分层靠色); 圆角阶梯抬一档(--r 容器/--rs 控件), 大卡另加一档。 */
+  --acc:#1F6B52; --accbg:#E7F1EC; --accln:rgba(31,107,82,.26);
   --glass:rgba(242,241,239,.86);
-  --r:8px; --rs:6px;
+  --r:14px; --rs:10px;
   --sh:0 1px 2px rgba(0,0,0,.04);
   --mark:rgba(0,0,0,.055);
   /* ---- 字号尺度: 5 档, 每档一个角色, 不再多档 ----
@@ -116,7 +118,7 @@ p.sub{font-size:var(--f4);color:var(--t2);margin:0 0 16px}
 .seg button{border:none;background:none;padding:var(--s1) 14px;font-size:var(--f4);
   color:var(--t2);border-radius:4px;position:relative;z-index:1;transition:color .14s}
 .seg button.on{color:var(--t1);font-weight:500}
-.seg .thumb{position:absolute;top:2px;bottom:2px;border-radius:4px;
+.seg .thumb{position:absolute;top:2px;bottom:2px;border-radius:8px;
   background:var(--card);box-shadow:var(--sh);transition:left .2s cubic-bezier(.4,0,.2,1),width .2s cubic-bezier(.4,0,.2,1);z-index:0}
 
 /* ---- 题型行 ---- */
@@ -412,7 +414,7 @@ textarea{width:100%;min-height:150px;padding:var(--s3) 13px;resize:vertical;line
   display:flex;align-items:center;gap:var(--s2)}
 .handout h5 .tag-src{font-size:var(--f5);color:var(--t3);font-weight:400}
 .handout p{font-size:var(--f3);color:var(--t2);line-height:1.75;margin-bottom:var(--s2)}
-.handout .kw{display:inline-block;font-size:var(--f5);padding:1px 7px;border-radius:4px;
+.handout .kw{display:inline-block;font-size:var(--f5);padding:1px 7px;border-radius:6px;
   background:var(--card);border:1px solid var(--line);color:var(--t2);margin:0 var(--s1) var(--s1) 0}
 .linkbar{display:flex;align-items:center;gap:var(--s2);padding:var(--s3) var(--s4);
   background:var(--infobg);border:1px solid var(--infoln);border-radius:var(--rs);
@@ -510,7 +512,7 @@ body{line-height:1.6}button{min-height:40px}button:focus-visible,a:focus-visible
 .part .num{border:0;border-radius:0;padding:0;background:none;min-width:0;height:auto;width:auto}.csqline .qb{padding:0;height:4px}.nav button.on{border-bottom-color:transparent}.opt.right{animation:confirmed .24s ease-out}@keyframes confirmed{from{transform:translateX(-4px);opacity:.6}to{transform:none;opacity:1}}
 /* ==== style block 4 ==== */
 /* Selected study desk: refined publication hierarchy */
-:root{--bg:#f2f0e9;--card:#fffefa;--sunk:#eeece4;--t1:#29382f;--t2:#566158;--t3:#70766e;--acc:#315a47;--line:#deded2;--line2:#b9c2b4;--ok:#226b4b;--okbg:#eef5ef;--bad:#9a3f35;--badbg:#fcf0e9;--r:4px;--rs:4px;--f1:27px;--f2:19px;--f3:16px;--f4:14px;--f5:12px}
+/* 2026-10-25 视觉升级(Vesper 参考): 圆角阶梯 --r 4->14/--rs 4->10, 线压浅。注意: 本块是文件里最后声明的 :root, 为实际生效源; 顶部 block1 的同名变量是历史遗留, 改圆角/线色要改这里 */:root{--bg:#f2f0e9;--card:#fffefa;--sunk:#eeece4;--t1:#29382f;--t2:#566158;--t3:#70766e;--acc:#315a47;--line:#e0e3dc;--line2:#c3cabb;--ok:#226b4b;--okbg:#eef5ef;--bad:#9a3f35;--badbg:#fcf0e9;--r:14px;--rs:10px;--f1:27px;--f2:19px;--f3:16px;--f4:14px;--f5:12px}
 body{font-family:"Segoe UI","Microsoft YaHei",sans-serif;font-size:16px;color:var(--t1);line-height:1.65}
 .top{width:232px;background:#e9eee5;border-right:1px solid #d6ddcf;box-shadow:none}
 .topin{padding:12px 27px 28px;gap:26px}.desk-brand{padding-left:13px}.brand{font-family:Georgia,serif;display:block;font-size:20px;letter-spacing:-.3px;line-height:1.16;font-weight:400;color:#254638}.brand span{font-style:italic;margin-left:5px}.brand-caption{display:block;margin-top:12px;font-size:11px;letter-spacing:.14em;color:#687768}.nav{gap:5px}.nav-label{font-size:11px;color:#687768;letter-spacing:.1em;padding:0 13px 8px}.nav-label.second{margin-top:20px}.nav button{padding:11px 14px;text-align:left;font-size:14px;min-height:43px;color:#4b5b4d;transition:background .16s,color .16s}.nav button.on{background:#d8e2d2;color:#244433;font-weight:600;box-shadow:none;border-radius:4px}.nav button:hover:not(.on){background:#e0e7da}.nav button:focus-visible{outline-offset:2px}
@@ -1214,7 +1216,7 @@ body.vfull .cs-stage video.tfl{max-height:none}
 .cs-outline-toggle{display:none}
 .cs-status{flex-wrap:wrap;gap:8px}
 .cs-speed{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--t2);white-space:nowrap}
-.cs-speed select{min-height:32px;padding:3px 6px;border:1px solid var(--line);border-radius:3px;background:var(--card);color:var(--t1)}
+.cs-speed select{min-height:32px;padding:3px 6px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--t1)}
 .cs-complete{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 0;border-bottom:1px solid var(--line);color:var(--t1)}
 .csmain .htabs{display:flex;margin:0;gap:4px;flex-wrap:nowrap}
 .csmain .htabs button{min-height:40px;min-width:56px;padding:8px 12px;white-space:nowrap;font-size:14px;transition:background .18s,color .18s}
@@ -1230,7 +1232,7 @@ body.vfull .cs-stage video.tfl{max-height:none}
 .handout-scroll .reader-page img{max-height:none;width:100%;height:auto}
 .cs-note-editor{display:grid;gap:10px;padding:18px;border-bottom:1px solid var(--line)}
 .cs-note-editor label{font-size:14px;color:var(--t1)}
-.cs-note-editor textarea{width:100%;resize:vertical;min-height:94px;border:1px solid var(--line);border-radius:3px;background:var(--card);color:var(--t1);font:inherit;line-height:1.6;padding:10px;box-sizing:border-box}
+.cs-note-editor textarea{width:100%;resize:vertical;min-height:94px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--t1);font:inherit;line-height:1.6;padding:10px;box-sizing:border-box}
 .cs-note-editor button{justify-self:start}
 #cs-note-status{font-size:12px;color:#52644f}
 #cs-bookmarks{padding:12px 18px}
@@ -1308,7 +1310,7 @@ body.vfull .cs-stage video.tfl{max-height:none}
 /* ============================================================
    block 27 · 做题主视觉（course quiz 态收起视频）+ 背词边界
    ============================================================ */
-.cs-stick .cs-vdock{display:none;align-items:center;gap:12px;background:var(--sunk);border:1px solid var(--line);border-radius:10px;padding:9px 14px;font-size:13px}
+.cs-stick .cs-vdock{display:none;align-items:center;gap:12px;background:var(--sunk);border:1px solid var(--line);border-radius:999px;padding:9px 14px;font-size:13px}
 .cs-stick.qz .cs-vdock{display:flex}
 .cs-stick.qz .cs-stage video.tfl{display:none}
 .cs-stick.qz .cs-status{display:none}
@@ -1350,7 +1352,7 @@ body.vfull .cs-stage video.tfl{max-height:none}
 .vb-sen-wrap .vb-lessonlink{margin:8px 0 10px}
 .cs-stick.vz .cs-stage video.tfl{display:none}
 .cs-stick.vz .cs-status{display:none}
-.vb-card{max-width:760px}
+.vb-card{max-width:760px;border-radius:18px}
 .vb-word{font-size:56px}
 .vb-word .vb-speak{vertical-align:12px}
 @media(max-width:700px){
