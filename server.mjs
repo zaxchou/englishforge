@@ -1271,9 +1271,32 @@ function nextRecords(incoming) {
       }
       continue;
     }
+    if (k === 'course') {
+      /* 课节内练习账本(drill/marks/collected)逐句键并集: 旧标签页快照缺失的句子键
+         保留服务端现值, 新快照提供的键以新值为准——防止长开旧页覆盖新进度(r27 事故)。 */
+      next[k] = JSON.parse(JSON.stringify(incoming[k]));
+      const curLessons = RECORDS[k] || {};
+      for (const [lid, les] of Object.entries(next[k])) {
+        const cur = curLessons[lid];
+        if (!cur || typeof cur !== 'object') continue;
+        for (const fk of ['marks', 'collected']) {
+          if (les[fk] && typeof les[fk] === 'object' && !Array.isArray(les[fk])) les[fk] = { ...(cur[fk] || {}), ...les[fk] };
+        }
+        if (les.drill && typeof les.drill === 'object' && !Array.isArray(les.drill)) {
+          const cd = cur.drill || {};
+          les.drill = { ...cd, ...les.drill };
+          for (const dk of ['dd', 'rd', 'sd', 'playsS']) {
+            if (les.drill[dk] && typeof les.drill[dk] === 'object' && !Array.isArray(les.drill[dk]) && cd[dk] && typeof cd[dk] === 'object') {
+              les.drill[dk] = { ...cd[dk], ...les.drill[dk] };
+            }
+          }
+        }
+      }
+      continue;
+    }
     next[k] = incoming[k];
   }
-  if (!Array.isArray(incoming.feedback)) throw new Error('invalid feedback');
+  if (!Array.isArray(incoming.feedback)) throw Error('invalid feedback');
   next.feedback = incoming.feedback;
   // 调度及事件账本只能由增量端点更新，旧页面快照也不能回写。
   next.vocab = RECORDS.vocab || {};

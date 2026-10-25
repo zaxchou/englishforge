@@ -655,7 +655,10 @@ function mergeRemote(remote, baseOpt, localOpt) {
         if(field==='course'&&l[key]&&r[key]) {
           const entry={...r[key]};for(const prop of new Set([...Object.keys(b[key]||{}),...Object.keys(l[key])])) {
             if(JSON.stringify(l[key][prop])!==JSON.stringify((b[key]||{})[prop])) {
-              if(prop==='bookmarks'){
+              if((prop==='drill'||prop==='marks'||prop==='collected') && l[key][prop] && r[key][prop] && typeof l[key][prop]==='object' && !Array.isArray(l[key][prop])) {
+                entry[prop]={...r[key][prop],...l[key][prop]};
+                if(prop==='drill'){for(const dk of ['dd','rd','sd','playsS']){const ld=l[key].drill[dk],rv=r[key].drill&&r[key].drill[dk];if(ld&&rv&&typeof ld==='object'&&!Array.isArray(ld))entry[prop][dk]={...rv,...ld};}}
+              }else if(prop==='bookmarks'){
                 entry.bookmarks={...(r[key].bookmarks||{})};
                 for(const [id,mark] of Object.entries(l[key].bookmarks||{}))if(JSON.stringify(mark)!==JSON.stringify(b[key]?.bookmarks?.[id]))entry.bookmarks[id]=mark;
               }else if(prop in l[key])entry[prop]=l[key][prop];else delete entry[prop];
@@ -4513,6 +4516,15 @@ async function boot(){
     }catch(e){saveStatus('本机恢复记录无法读取，请导出备份');}
     recOverlayPending();
     recFlushAttempts();   // 启动即补传上次滞留的作答队列(r56)
+    try{
+      fetch('/api/health',{signal:AbortSignal.timeout(8000)}).then(r=>r.json()).then(h=>{window.BOOT_VER=h.version||null;}).catch(()=>{});
+      setInterval(async()=>{try{
+        const h=await fetch('/api/health',{signal:AbortSignal.timeout(8000)}).then(r=>r.json());
+        if(h.version&&window.BOOT_VER&&h.version!==window.BOOT_VER&&!document.getElementById('ver-bar')){
+          document.body.insertAdjacentHTML('beforeend','<div id="ver-bar" style="position:fixed;left:0;right:0;bottom:0;z-index:98;background:var(--accbg);border-top:1px solid var(--accln);padding:10px 18px;font-size:13px;color:var(--t1);text-align:center">平台已更新到 '+esc(h.version)+'（当前页 '+esc(window.BOOT_VER)+'），旧页面继续保存可能丢进度。<button class="pri" onclick="location.reload()" style="margin-left:12px">立即刷新</button></div>');
+        }
+      }catch(e){}},60000);
+    }catch(e){}
     renderHome();
     route();
     document.querySelectorAll('.seg').forEach(moveThumb);
