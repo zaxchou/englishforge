@@ -1401,3 +1401,17 @@ body.vfull .cs-stage video.tfl{max-height:none}
 .handout{border-radius:var(--rs)}
 .handout-scroll .hslide img{border-radius:10px}
 .htabs button{border-radius:6px}
+
+/* ============================================================
+   block 33 · 课页框架细化(用户: 两条横线/视频圆角不细致):
+   ① cs-complete 从'透明条+下边线'改为 sunk 圆角条——消除它夹在
+     视频卡底线与材料卡顶线之间形成的两条平行横线;
+   ② 宽屏 grid 的 cs-materials 4px→var(--r), 行间距 14px 让表面分开;
+   ③ 视频区黑底改白: 课件类视频 object-fit:contain 的上下黑边
+     与白底课件内容相接生硬, 白底后只剩原生控制条是黑。
+   ============================================================ */
+.cs-complete{background:var(--sunk);border-radius:var(--rs);padding:10px 14px;border-bottom:0;margin:12px 0 2px}
+.csmain .cs-stick{row-gap:14px}
+.csmain .cs-materials{border-radius:var(--r)}
+.cs-stage{background:#fff}
+.cs-stage video.tfl{background:#fff}
