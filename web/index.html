@@ -3379,6 +3379,7 @@ function epRowHtml(i){
     +'<span class="grow"></span>'
     +(acc!=null?'<span class="mini'+(acc>=0.9?' ok':'')+'">写'+Math.round(acc*100)+'%</span>':'')
     +(rec?'<span class="mini'+(rec.acc>=0.9?' ok':'')+'">背'+Math.round(rec.acc*100)+'%</span>':'')
+    +(drill.sd&&drill.sd[i]?'<span class="mini ok">速✓</span>':'')
     +(drill.mode==='exam'&&(drill.playsS[i]||0)>=3?'<span class="mini warn">听3/3</span>':'')
     +'<i class="arr">▸</i></div>';
 }
@@ -3401,8 +3402,9 @@ function epBlockCard(i){
     +(drill.mode==='exam'?'<span class="dc">'+(3-Math.min(3,plays))+' 次可听</span>':'')
     +'<span class="bmode">'+seg+'</span>'
     +'<span class="grow"></span>'
-    +(acc!=null?'<span class="mini'+(acc>=0.9?' ok':'')+'">写'+Math.round(acc*100)+'%</span>':'')
-    +(rec?'<span class="mini'+(rec.acc>=0.9?' ok':'')+'">背'+Math.round(rec.acc*100)+'%</span>':'')
+    +(acc!=null?'<span class="mini'+(acc>=0.9?' ok':'')+'" data-k="d">写'+Math.round(acc*100)+'%</span>':'')
+    +(rec?'<span class="mini'+(rec.acc>=0.9?' ok':'')+'" data-k="r">背'+Math.round(rec.acc*100)+'%</span>':'')
+    +(sd?'<span class="mini ok" data-k="s">速✓</span>':'')
     +'</div>'
     +'<div class="rclue" style="display:'+(mode==='dict'?'none':'')+'">'+esc(clue)+'</div>'
     +'<div class="bbody bdict" style="display:'+(mode==='dict'?'':'none')+'">'
@@ -3509,8 +3511,9 @@ function epWireCard(card){
       const best=prev&&prev.acc!=null?Math.max(prev.acc,r.acc):r.acc;
       drill.dd[i]={acc:best,last:mine,at:Date.now()};
       recSave();
-      const mini=card.querySelectorAll('.bh .mini')[0];
-      if(mini){mini.textContent='写'+Math.round(best*100)+'%';mini.classList.toggle('ok',best>=0.9);mini.style.display='';}
+      let mini=card.querySelector('.bh .mini[data-k="d"]');
+      if(!mini){mini=document.createElement('span');mini.className='mini';mini.dataset.k='d';card.querySelector('.bh').appendChild(mini);}
+      mini.textContent='写'+Math.round(best*100)+'%';mini.classList.toggle('ok',best>=0.9);mini.style.display='';
       body.querySelector('.dr').innerHTML=diffHtml(r);
       epStepsUpdate();epDockNo();
       if(st.doneOf(i)){const nx=$('ep-dock-next');if(nx)nx.classList.add('pulse');}
@@ -3542,8 +3545,9 @@ function epWireCard(card){
       const best=prev&&prev.acc!=null?Math.max(prev.acc,r.acc):r.acc;
       drill.rd[i]={acc:best,last:mine,at:Date.now(),mode:'type'};
       recSave();epStamp(i);
-      const mini=card.querySelectorAll('.bh .mini')[1];
-      if(mini){mini.textContent='背'+Math.round(best*100)+'%';mini.classList.toggle('ok',best>=0.9);mini.style.display='';}
+      let mini=card.querySelector('.bh .mini[data-k="r"]');
+      if(!mini){mini=document.createElement('span');mini.className='mini';mini.dataset.k='r';card.querySelector('.bh').appendChild(mini);}
+      mini.textContent='背'+Math.round(best*100)+'%';mini.classList.toggle('ok',best>=0.9);mini.style.display='';
       body.querySelector('.dr').innerHTML=diffHtml(r);
       epStepsUpdate();epDockNo();
       if(best>=0.9){
@@ -3674,8 +3678,14 @@ async function epRecToggle(i,card){
       recSave();epStamp(wasI);
       const lc=$('ep-blist').querySelector('.ep-bcard[data-i="'+wasI+'"]');
       if(lc){
-        const mini=lc.querySelectorAll('.bh .mini')[1];
-        if(mini){mini.textContent='背'+Math.round(best*100)+'%';mini.classList.toggle('ok',best>=0.9);mini.style.display='';}
+        let mini=lc.querySelector('.bh .mini[data-k="r"]');
+        if(!mini){mini=document.createElement('span');mini.className='mini';mini.dataset.k='r';lc.querySelector('.bh').appendChild(mini);}
+        mini.textContent='背'+Math.round(best*100)+'%';mini.classList.toggle('ok',best>=0.9);mini.style.display='';
+        if(speed){
+          let sm=lc.querySelector('.bh .mini[data-k="s"]');
+          if(!sm){sm=document.createElement('span');sm.className='mini ok';sm.dataset.k='s';lc.querySelector('.bh').appendChild(sm);}
+          sm.textContent='速✓';sm.style.display='';
+        }
         const dEl=lc.querySelector('.bvoice .dr');
         if(dEl)dEl.innerHTML='<div class="dw"><b>'+(r.acc>=0.9?'✓ 通过':'词准 '+Math.round(r.acc*100)+'%')+'</b> '+esc(text)+'</div>'
           +'<div class="do">原文: '+esc(u.text)+'</div>'
