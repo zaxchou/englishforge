@@ -772,14 +772,24 @@ async function aiExplainGen(qidStr, course, mk, no, force) {
    调度: SM-2 纯函数, 参数与 beizitie 一致（学习阶梯 1/3/10 分钟 → 毕业 → 间隔×ease）。
    状态存 records.vocab（词键 → {e,i,s,r,due,n,at,born}）, 判分走 /api/vocab/grade 增量直写(r56 模式)。 */
 const VOCAB_BANK_FILE = path.join(BUILD_DIR, 'vocab', 'cfcm-words.json');
+const EPLOD_CHUNKS_FILE = path.join(BUILD_DIR, 'vocab', 'eplod-chunks.json');
 let VOCAB_BANK = null, VOCAB_INDEX = null;
 const vocabKey = s => String(s || '').toLowerCase().replace(/\s+/g, '');
 function vocabIndex() {
   if (!VOCAB_INDEX) {
     VOCAB_BANK = JSON.parse(fs.readFileSync(VOCAB_BANK_FILE, 'utf8'));
+    /* EnglishPod 词块(第二词库, 管线产物): 同一 SM-2 队列复习。键冲突时官方词优先。 */
+    try {
+      const eb = JSON.parse(fs.readFileSync(EPLOD_CHUNKS_FILE, 'utf8'));
+      const known = new Set(VOCAB_BANK.batches.flatMap(b => b.words.map(w => vocabKey(w.w))));
+      for (const b of eb.batches || []) {
+        b.words = (b.words || []).filter(w => !known.has(vocabKey(w.w)));
+        if (b.words.length) VOCAB_BANK.batches.push(b);
+      }
+    } catch (e) { /* 词块库不存在 = 尚未导入任何期 */ }
     VOCAB_INDEX = new Map();
     for (const b of VOCAB_BANK.batches) for (const w of b.words)
-      VOCAB_INDEX.set(vocabKey(w.w), { w: w.w, ipa: w.ipa, def: w.def, sen: w.sen, senZh: w.senZh, lesson: w.lesson, batch: b.id, root: b.root, gloss: b.gloss });
+      VOCAB_INDEX.set(vocabKey(w.w), { w: w.w, ipa: w.ipa, def: w.def, sen: w.sen, senZh: w.senZh, lesson: w.lesson, batch: b.id, root: b.root, gloss: b.gloss, kind: b.kind || null });
   }
   return VOCAB_INDEX;
 }
@@ -1084,9 +1094,18 @@ function loadCourses() {
   } catch (e) {
     COURSES = { series: [], note: '课程目录尚未生成：先跑 pipeline/scan_courses.py' };
   }
+  /* EnglishPod 系列(build/courses/eplod-catalog.json, build_eplod.py 产物): 独立目录, scan_courses 不会覆盖。 */
+  try {
+    const ec = JSON.parse(fs.readFileSync(path.join(BUILD_DIR, 'courses', 'eplod-catalog.json'), 'utf8'));
+    for (const s of ec.series || []) {
+      const ex = COURSES.series.find(x => x.id === s.id);
+      if (ex) Object.assign(ex, s);
+      else COURSES.series.push(s);
+    }
+  } catch (e) { /* 未导入任何期 */ }
   if (COURSES && COURSES.series) {
     for (const s of COURSES.series) for (const c of s.courses || []) for (const l of c.lessons || []) {
-      if (l.duration_sec == null) {
+      if (l.duration_sec == null && l.video) {
         const sec = videoDurationSec(videoAbsFromUrl(l.video));
         if (Number.isFinite(sec) && sec > 0) l.duration_sec = Math.round(sec);
       }
@@ -1337,6 +1356,13 @@ const handler = async (req, res) => {
       catch (e) { return sendJSON(res, 404, { error: 'set not found' }); }
     }
     if (p === '/api/courses') return sendJSON(res, 200, loadCourses());
+    /* ---- API: EnglishPod 课节数据（对话时间戳/词表/词块/讲解逐字稿, 管线产物） ---- */
+    const mEplod = p.match(/^\/api\/eplod\/lesson\/(\d{4})$/);
+    if (mEplod) {
+      if (req.method !== 'GET') return sendJSON(res, 405, { error: 'method' });
+      try { return sendJSON(res, 200, JSON.parse(fs.readFileSync(path.join(BUILD_DIR, 'eplod', mEplod[1] + '.json'), 'utf8'))); }
+      catch (e) { return sendJSON(res, 404, { error: '该期尚未导入' }); }
+    }
     const mHand = p.match(/^\/api\/handout\/(.+)$/);
     if (mHand) {
       const notesDir = path.join(BUILD_DIR, 'courses', 'notes');
@@ -1662,6 +1688,15 @@ const handler = async (req, res) => {
     if (mCfcm) {
       const base = path.resolve(SIB, CFCM_DIR);
       const abs = path.normalize(path.join(base, mCfcm[1]));
+      if (!abs.startsWith(base + path.sep)) return sendJSON(res, 400, { error: 'bad path' });
+      if (!MEDIA_EXT.has(path.extname(abs).toLowerCase())) return sendJSON(res, 403, { error: 'ext not allowed' });
+      return sendFile(req, res, abs);
+    }
+    /* ---- 媒体: EnglishPod 音频（SIB/EnglishPod音频库/<期>/dg|pb|rv.mp3, 管线拷贝的扁平库） ---- */
+    const mEplodMedia = p.match(/^\/media\/eplod\/(\d{4})\/([\w.\-]+)$/);
+    if (mEplodMedia) {
+      const base = path.resolve(SIB, 'EnglishPod音频库', mEplodMedia[1]);
+      const abs = path.normalize(path.join(base, mEplodMedia[2]));
       if (!abs.startsWith(base + path.sep)) return sendJSON(res, 400, { error: 'bad path' });
       if (!MEDIA_EXT.has(path.extname(abs).toLowerCase())) return sendJSON(res, 403, { error: 'ext not allowed' });
       return sendFile(req, res, abs);

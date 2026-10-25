@@ -2762,7 +2762,7 @@ async function vbLoadBank(){
     const j=await api('/api/vocab/bank',{signal:AbortSignal.timeout(15000)});
     VB.bank=j.bank;
     VB.order=[];
-    for(const b of VB.bank.batches) for(const w of b.words) VB.order.push({w:w.w, ipa:w.ipa, def:w.def, sen:w.sen, senZh:w.senZh, lesson:w.lesson, k:vbKey(w.w), root:b.root, gloss:b.gloss, batch:b.id});
+    for(const b of VB.bank.batches) for(const w of b.words) VB.order.push({w:w.w, ipa:w.ipa, def:w.def, sen:w.sen, senZh:w.senZh, lesson:w.lesson, k:vbKey(w.w), root:b.root, gloss:b.gloss, batch:b.id, kind:b.kind||null});
     vbFlushQueue();
   }catch(e){ VB.err='词库读取失败'; }
   VB.loading=false; vbRender();
@@ -2866,21 +2866,24 @@ function vbRender(){
   }
   const cur=VB.cur, st=vbState()[cur.k]||null;
   const isNew=!st;
+  const isEp=cur.kind==='eplod';
+  const metaTxt=isEp?('EnglishPod · '+esc(cur.gloss)):('第 '+cur.lesson+' 课 · 词根 '+esc(cur.root));
   let h=top+'<div class="vb-card" id="vb-card">'
-    + '<div class="vb-meta">'+(isNew?'<span class="vb-tag new">新词</span>':'<span class="vb-tag">复习</span>')+'第 '+cur.lesson+' 课 · 词根 '+esc(cur.root)+'</div>'
-    + '<div class="vb-word"><span>'+esc(cur.w)+'</span><button class="vb-speak" id="vb-speak" title="发音" aria-label="播放发音"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6.5 8.5H3v7h3.5L11 19Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18 6a8.5 8.5 0 0 1 0 12"/></svg></button></div>'
+    + '<div class="vb-meta">'+(isNew?'<span class="vb-tag new">'+(isEp?'新词块':'新词')+'</span>':'<span class="vb-tag">复习</span>')+metaTxt+'</div>'
+    + '<div class="vb-word'+(isEp?' chunk':'')+'"><span>'+esc(cur.w)+'</span><button class="vb-speak" id="vb-speak" title="发音" aria-label="播放发音"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6.5 8.5H3v7h3.5L11 19Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18 6a8.5 8.5 0 0 1 0 12"/></svg></button></div>'
     + (cur.ipa?'<div class="vb-ipa">'+esc(cur.ipa)+'</div>':'');
   if(!VB.revealed){
-    h+=(VB.hint?'<div class="vb-root">'+esc(cur.root)+'（'+esc(cur.gloss)+'）</div>':'')
-      + '<div class="vb-act"><button class="vb-hintlink" id="vb-hint">'+(VB.hint?'已提示词根（按困难评吧）':'想不起来？看词根提示')+'</button></div>'
+    h+=(!isEp?(VB.hint?'<div class="vb-root">'+esc(cur.root)+'（'+esc(cur.gloss)+'）</div>':''):'')
+      + (!isEp?'<div class="vb-act"><button class="vb-hintlink" id="vb-hint">'+(VB.hint?'已提示词根（按困难评吧）':'想不起来？看词根提示')+'</button></div>':'')
       + '<div class="vb-act"><button class="pri vb-show" id="vb-show">显示答案 <span class="vb-kbd">空格</span></button></div>';
   } else {
     h+='<div class="vb-def">'+esc(cur.def)+'</div>'
-      + '<div class="vb-root">词根 '+esc(cur.root)+'（'+esc(cur.gloss)+'）</div>'
+      + (isEp?'<div class="vb-root">EnglishPod 语块 · '+esc(cur.gloss)+'</div>'
+             :'<div class="vb-root">词根 '+esc(cur.root)+'（'+esc(cur.gloss)+'）</div>')
       /* 例句与出处收进折叠(窄屏默认收起): 评分按钮不滚即达; 桌面默认展开 */
       + '<details class="vb-sen-wrap" id="vb-sen-wrap"'+(cur.sen&&matchMedia('(min-width:701px)').matches?' open':'')+'><summary>'+(cur.sen?'例句与出处':'词在课中')+'</summary>'
           + (cur.sen?'<div class="vb-sen"><p>'+esc(cur.sen)+'</p>'+(cur.senZh?'<p class="vb-senzh">'+esc(cur.senZh)+'</p>':'')+'</div>':'')
-          + '<button class="vb-lessonlink" id="vb-lesson">词在课中 → 第 '+cur.lesson+' 课讲义</button></details>'
+          + '<button class="vb-lessonlink" id="vb-lesson">'+(isEp?'回本节精听':'词在课中 → 第 '+cur.lesson+' 课讲义')+'</button></details>'
       + '<div class="vb-rate">'+[1,2,3,4].map(n=>{
           const pv=sm2Local(n, st, Date.now());
           const names={1:'重来',2:'困难',3:'良好',4:'简单'};
@@ -2894,7 +2897,7 @@ function vbRender(){
   vbWireQuota();
   const show=$('vb-show'); if(show) show.onclick=vbReveal;
   const hint=$('vb-hint'); if(hint) hint.onclick=()=>{VB.hint=true;vbRender();};
-  const lesson=$('vb-lesson'); if(lesson) lesson.onclick=()=>nav('course/cfcm-01-'+String(cur.lesson).padStart(2,'0'));
+  const lesson=$('vb-lesson'); if(lesson) lesson.onclick=()=>nav('course/'+(isEp?('eplod-'+String(cur.lesson).padStart(4,'0')):('cfcm-01-'+String(cur.lesson).padStart(2,'0'))));
   body.querySelectorAll('.vb-rate button').forEach(b=>b.onclick=()=>vbGrade(Number(b.dataset.r)));
   const sp=$('vb-speak'); if(sp) sp.onclick=()=>vbSpeak(VB.cur.w);
   if(VB_SPOKEN!==cur.k){VB_SPOKEN=cur.k;vbSpeak(cur.w);} // 同卡重绘不重复请求音频
@@ -3089,12 +3092,220 @@ function selectLessonHandoutPages(notes,hm){
   return {pages,scopeNote,mapped:true};
 }
 
+/* ---------- EnglishPod 音频深学页（音频+逐字稿: 精听/词块/复习, 平台定位=泛听之后的深化工具） ---------- */
+const EP={cache:{},st:null,keyHandler:null};
+window.renderEplodMain=async function(c){
+  const el=$('cs-main');
+  const l=c.lessons[Math.max(0,Math.min(csSel.l==null?0:csSel.l,c.lessons.length-1))];
+  el.innerHTML='<div class="cs-stick ep"><div class="card" style="padding:32px;text-align:center;color:var(--t2)">加载本期数据…</div></div>';
+  let d=EP.cache[l.ep];
+  if(!d){
+    try{d=EP.cache[l.ep]=await api('/api/eplod/lesson/'+String(l.ep).padStart(4,'0'),{signal:AbortSignal.timeout(15000)});}
+    catch(e){el.innerHTML='<div class="cs-stick ep"><div class="card" style="padding:32px;text-align:center">该期数据未导入（先跑 pipeline/build_eplod.py）</div></div>';return;}
+  }
+  const p=REC.course[l.id]||(REC.course[l.id]={});
+  if(!p.marks||typeof p.marks!=='object'||Array.isArray(p.marks))p.marks={};
+  if(!p.collected||typeof p.collected!=='object'||Array.isArray(p.collected))p.collected={};
+  EP.st={c,l,d,p,seg:'dg',i:-1,loop:false,range:null,mask:false,revealed:{}};
+  const segNames={dg:'对话',pb:'讲解',rv:'复习'};
+  const lineHtml=(x,i,kind)=>{
+    const has=x.t0!=null&&x.t1!=null;
+    const marked=kind==='dg'&&p.marks[i];
+    const open=EP.st.revealed[kind+'-'+i];
+    return '<div class="ep-line'+(has?'':' not')+(marked?' marked':'')+(open?' open':'')+'" data-kind="'+kind+'" data-i="'+i+'"'+(has?' data-t0="'+x.t0+'" data-t1="'+x.t1+'"':'')+'>'
+      +(x.spk?'<span class="spk">'+esc(x.spk)+'</span>':'')
+      +'<span class="tx">'+esc(x.text)+'</span>'
+      +(kind==='dg'&&d.sentencesZh&&d.sentencesZh[i]?'<span class="zh">'+esc(d.sentencesZh[i])+'</span>':'')
+      +(kind==='dg'?'<button class="mk" title="这句没听出来（标记后集中回听）">'+(marked?'◉':'○')+'</button>':'')
+      +'</div>';
+  };
+  const markCount=Object.keys(p.marks).length;
+  el.innerHTML='<div class="cs-stick ep">'
+    +'<div class="csp-meta"><h3>'+esc(l.title)+'</h3><span class="src">'+esc(c.title)+' · '+esc(d.level)+' · 第 '+(csSel.l+1)+'/'+c.lessons.length+' 节</span>'
+    +(p.done?'<span class="pill q">已学完</span>':'')+'</div>'
+    +'<div class="card ep-stage">'
+      +'<div class="ep-segs">'+['dg','pb','rv'].map(s=>'<button data-seg="'+s+'"'+(s==='dg'?' class="on"':'')+'>'+segNames[s]+(d.durations&&d.durations[s]?' <i>'+fmtDur(d.durations[s])+'</i>':'')+'</button>').join('')+'</div>'
+      +'<audio id="ep-audio" controls preload="metadata" src="'+esc(d.audio.dg)+'"></audio>'
+      +'<div class="cs-status ep-status">'
+        +'<button id="ep-loop">↻ 单句循环</button>'
+        +'<button id="ep-mask">遮罩盲听</button>'
+        +'<span class="grow"></span>'
+        +'<label class="cs-speed">速度 <select id="ep-speed" aria-label="播放速度">'+[0.75,1,1.25,1.5].map(n=>'<option value="'+n+'">'+n+'×</option>').join('')+'</select></label>'
+        +'<button id="ep-done">'+(p.done?'取消学完':'标记学完')+'</button></div>'
+      +'<p class="ep-hint">点句子跳播 · Z 重听本句 · X 单句循环 · C 揭示遮罩 · ○=这句没听出来</p>'
+      +'<div class="na-box" id="ep-note" style="display:none"></div>'
+    +'</div>'
+    +'<div class="card ep-listen"><div class="phead"><div class="l"><b>逐句精听 · 对话</b></div><div class="r ep-mc">'+(markCount?markCount+' 句没听出来':'')+'</div></div>'
+      +'<div class="ep-lines" id="ep-lines">'+d.dialogue.map((x,i)=>lineHtml(x,i,'dg')).join('')+'</div></div>'
+    +(d.chunks&&d.chunks.length?'<div class="card ep-chunks"><div class="phead"><div class="l"><b>词块积累</b><span class="ep-note">收藏后进每日复习队列（SM-2）</span></div></div><div class="ep-chunk-grid">'
+      +d.chunks.map(ch=>{
+        const k=ch.chunk.toLowerCase().replace(/\s+/g,'');
+        const got=p.collected[k];
+        return '<div class="ep-chunk'+(got?' got':'')+'" data-k="'+esc(k)+'">'
+          +'<div class="ch">'+esc(ch.chunk)+(ch.pos?' <i>'+esc(ch.pos)+'</i>':'')+'</div>'
+          +'<div class="df">'+esc(ch.def)+'</div>'
+          +(ch.note?'<div class="nt">'+esc(ch.note)+'</div>':'')
+          +'<div class="q"><button class="pb" data-qi="'+ch.qi+'" title="回播原句">▶</button><span>'+esc(ch.quote)+'</span></div>'
+          +(ch.zh?'<div class="zq">'+esc(ch.zh)+'</div>':'')
+          +'<button class="col">'+(got?'已进复习 ✓':'收藏进复习')+'</button></div>';
+      }).join('')+'</div></div>':'')
+    +'<div class="card ep-kv"><div class="phead"><div class="l"><b>官方词汇表</b><span class="ep-note">Key Vocabulary · PDF 原表</span></div></div><div class="ep-kv-grid">'
+      +(d.keyvocab||[]).map(k=>'<div class="kv"><b>'+esc(k.term)+'</b><i>'+esc(k.pos)+'</i><span>'+esc(k.def)+'</span></div>').join('')
+      +(d.suppvocab||[]).map(k=>'<div class="kv sup"><b>'+esc(k.term)+'</b><i>'+esc(k.pos)+'</i><span>'+esc(k.def)+'</span></div>').join('')
+      +'</div></div>'
+    +'<details class="card ep-expl" id="ep-expl"><summary>主持人讲解逐字稿 · '+d.explanation.filter(x=>x.t0!=null).length+'/'+d.explanation.length+' 行可点击回播</summary>'
+      +'<div class="ep-lines">'+d.explanation.map((x,i)=>lineHtml(x,i,'pb')).join('')+'</div></details>'
+    +'</div>';
+  epWire();
+};
+
+function epWire(){
+  const st=EP.st; if(!st) return;
+  const a=$('ep-audio');
+  const seekTo=t0=>{try{a.currentTime=t0;a.play().catch(()=>{});}catch(e){}};
+  const mc=$('cs-main').querySelector('.ep-mc');
+  epHighlight(-1);
+  /* 行点击: 跳播+循环区间; 遮罩态点句=揭示 */
+  $('cs-main').querySelectorAll('.ep-line').forEach(row=>{
+    row.addEventListener('click',e=>{
+      if(e.target.closest('.mk'))return;
+      if(row.dataset.t0==null)return;
+      const kind=row.dataset.kind,i=+row.dataset.i;
+      if(kind!==st.seg)epSeg(kind);
+      seekTo(Number(row.dataset.t0));
+      st.range=[Number(row.dataset.t0),Number(row.dataset.t1)];
+      if(st.mask&&!st.revealed[kind+'-'+i]){st.revealed[kind+'-'+i]=true;row.classList.add('open');}
+      epHighlight(i,kind);
+    });
+  });
+  /* 没听出来标记 */
+  $('cs-main').querySelectorAll('.ep-line[data-kind="dg"] .mk').forEach(btn=>{
+    btn.addEventListener('click',e=>{
+      e.stopPropagation();
+      const row=btn.closest('.ep-line'),i=+row.dataset.i;
+      if(st.p.marks[i])delete st.p.marks[i];else st.p.marks[i]=Date.now();
+      row.classList.toggle('marked',!!st.p.marks[i]);
+      btn.textContent=st.p.marks[i]?'◉':'○';
+      const n=Object.keys(st.p.marks).length;
+      if(mc)mc.textContent=n?n+' 句没听出来':'';
+      recSave();
+    });
+  });
+  /* 词块卡: 原句回播 + 收藏进 SM-2 */
+  $('cs-main').querySelectorAll('.ep-chunk').forEach(card=>{
+    const pb=card.querySelector('.pb');
+    if(pb)pb.onclick=e=>{
+      e.stopPropagation();
+      const i=+pb.dataset.qi,row=$('ep-lines').querySelector('.ep-line[data-i="'+i+'"]');
+      if(row&&row.dataset.t0!=null){
+        if(st.seg!=='dg')epSeg('dg');
+        seekTo(Number(row.dataset.t0));st.range=[Number(row.dataset.t0),Number(row.dataset.t1)];epHighlight(i,'dg');
+      }
+    };
+    card.querySelector('.col').onclick=()=>epCollect(card);
+  });
+  /* 段切换 */
+  $('cs-main').querySelectorAll('.ep-segs button').forEach(b=>b.onclick=()=>epSeg(b.dataset.seg));
+  $('ep-loop').onclick=()=>{st.loop=!st.loop;$('ep-loop').classList.toggle('on',st.loop);};
+  $('ep-mask').onclick=()=>{st.mask=!st.mask;$('ep-mask').classList.toggle('on',st.mask);$('cs-main').querySelector('.ep-listen').classList.toggle('mask',st.mask);};
+  const speed=$('ep-speed');let savedRate=1;try{savedRate=Number(localStorage.getItem('tfl-video-rate'))||1;}catch(e){}
+  if(![0.75,1,1.25,1.5].includes(savedRate))savedRate=1;
+  speed.value=String(savedRate);a.playbackRate=savedRate;
+  speed.onchange=()=>{a.playbackRate=Number(speed.value);try{localStorage.setItem('tfl-video-rate',speed.value);}catch(e){}};
+  $('ep-done').onclick=()=>{st.p.done=!st.p.done;st.p.at=Date.now();recSave();renderCourseNav();$('ep-done').textContent=st.p.done?'取消学完':'标记学完';$('cs-main').querySelector('.csp-meta .pill')?.remove();if(st.p.done)$('cs-main').querySelector('.csp-meta').insertAdjacentHTML('beforeend','<span class="pill q">已学完</span>');};
+  /* 音频事件: 学习计时 / 断点续听 / 循环与当前句 */
+  a.addEventListener('play',()=>{STU=true;
+    if(!TICK)TICK=setInterval(()=>{if(STU&&!document.hidden){studyTick(1);
+      const ce=REC.course[st.l.id]||(REC.course[st.l.id]={});ce.wt=(ce.wt||0)+1;
+      if((REC.study.total||0)%5===0)recSave();}},1000);});
+  a.addEventListener('pause',()=>{STU=false;epSavePos();});
+  let posT=0;
+  a.addEventListener('timeupdate',()=>{
+    const now=Date.now();
+    if(now-posT>5000){posT=now;epSavePos();}
+    if(st.loop&&st.range&&a.currentTime>=st.range[1]-0.03){a.currentTime=st.range[0];return;}
+    epSyncCur();
+  });
+  a.addEventListener('loadedmetadata',()=>{
+    if(st.p.pos&&st.p.pos<a.duration-5){a.currentTime=st.p.pos;const nn=$('ep-note');nn.style.display='';nn.textContent='已定位到上次听到 '+fmtDur(st.p.pos);}
+  });
+  /* 键盘: 空格播放/暂停 · Z 重听 · X 循环 · C 揭示 */
+  if(EP.keyHandler)document.removeEventListener('keydown',EP.keyHandler);
+  EP.keyHandler=e=>{
+    if(!EP.st||!document.querySelector('#v-course.on'))return;
+    if(e.target&&/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName))return;
+    if(e.target&&e.target.isContentEditable)return;
+    const a2=$('ep-audio');if(!a2)return;
+    if(e.key===' '){e.preventDefault();a2.paused?a2.play().catch(()=>{}):a2.pause();}
+    else if(e.key==='z'||e.key==='Z'){if(st.range)seekTo(st.range[0]);}
+    else if(e.key==='x'||e.key==='X'){$('ep-loop').click();}
+    else if(e.key==='c'||e.key==='C'){
+      const row=$('cs-main').querySelector('.ep-line.on')||$('cs-main').querySelector('.ep-listen .ep-line[data-i="0"]');
+      if(row){st.revealed[row.dataset.kind+'-'+row.dataset.i]=true;row.classList.add('open');}
+    }
+  };
+  document.addEventListener('keydown',EP.keyHandler);
+}
+
+function epSeg(seg){
+  const st=EP.st;if(!st)return;
+  st.seg=seg;st.range=null;st.i=-1;
+  const a=$('ep-audio');if(a)a.src=st.d.audio[seg];
+  $('cs-main').querySelectorAll('.ep-segs button').forEach(b=>b.classList.toggle('on',b.dataset.seg===seg));
+  epHighlight(-1);
+  if(seg==='pb'){const det=$('ep-expl');if(det)det.open=true;}
+}
+
+function epHighlight(i,kind){
+  $('cs-main').querySelectorAll('.ep-line.on').forEach(x=>x.classList.remove('on'));
+  if(i<0)return;
+  const row=$('cs-main').querySelector('.ep-line[data-kind="'+kind+'"][data-i="'+i+'"]');
+  if(row)row.classList.add('on');
+}
+
+function epSyncCur(){
+  const st=EP.st;if(!st)return;
+  const a=$('ep-audio');if(!a||a.paused)return;
+  const t=a.currentTime;
+  let cur=-1;
+  st.d[st.seg==='dg'?'dialogue':'explanation'].forEach((x,i)=>{if(x.t0!=null&&x.t1!=null&&t>=x.t0&&t<x.t1)cur=i;});
+  if(cur!==st.i){
+    st.i=cur;
+    epHighlight(cur,st.seg);
+    if(cur>=0){
+      const row=$('cs-main').querySelector('.ep-line.on');
+      if(row)row.scrollIntoView({block:'nearest',behavior:'smooth'});
+    }
+  }
+}
+
+function epSavePos(){
+  const st=EP.st;if(!st)return;
+  const a=$('ep-audio');if(!a)return;
+  const t=a.currentTime;
+  if(Number.isFinite(t)&&(t>0||a.duration>0)){st.p.pos=t;st.p.at=Date.now();recSave();}
+}
+
+function epCollect(card){
+  const st=EP.st;if(!st)return;
+  const k=card.dataset.k;
+  if(st.p.collected[k])return;
+  const ch=(st.d.chunks||[]).find(c=>c.chunk.toLowerCase().replace(/\s+/g,'')===k);if(!ch)return;
+  const id='vb-'+Date.now().toString(36)+Math.random().toString(36).slice(2,8);
+  try{localStorage.setItem(VB_PREFIX+id,JSON.stringify({id,word:ch.chunk,rating:3,at:Date.now()}));}catch(e){}
+  st.p.collected[k]=Date.now();recSave();
+  card.classList.add('got');
+  card.querySelector('.col').textContent='已进复习 ✓';
+  if(typeof vbFlushQueue==='function')vbFlushQueue();
+}
+
 function renderCourseMain(){
   checkpointCourse(true);currentVideoCheckpoint=null;
   const el=$('cs-main');
   $('cs-layout').classList.remove('outline-open');$('cs-outline-toggle').setAttribute('aria-expanded','false');
   const c=courseById(csSel.c);
   if(!c||!c.lessons.length){ el.innerHTML='<div class="card" style="padding:32px;text-align:center">从左侧选一节开始</div>'; return; }
+  if(c.kind==='eplod'){ renderEplodMain(c); return; }
   const l=c.lessons[Math.max(0,Math.min(csSel.l==null?0:csSel.l,c.lessons.length-1))];
   const p=REC.course[l.id]||{};
   const cur=CURATED[l.id];
