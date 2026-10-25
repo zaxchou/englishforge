@@ -3165,7 +3165,7 @@ window.renderEplodMain=async function(c){
     +'<div class="card ep-listen" id="ep-listen"><div class="phead"><div class="l"><b>逐句精听 · 对话</b></div><div class="r ep-mc">'+(markCount?markCount+' 句没听出来':'')+'</div></div>'
       +'<div class="ep-lines" id="ep-lines">'+d.dialogue.map((x,i)=>lineHtml(x,i,'dg')).join('')+'</div></div>'
     +'<div class="card ep-train" id="ep-train" style="display:none">'
-      +'<div class="phead"><div class="l"><b>四步训练 · 对话 '+d.dialogue.length+' 句</b><span class="ep-note">① 听写=听音写 · ③ 背诵=🎙朗读或⌨默写 · ④ 同速=朗读时长≤原句1.15×；列表只给中文线索不剧透英文</span></div>'
+      +'<div class="phead"><div class="l"><b>四步训练 · 对话 '+d.dialogue.length+' 句</b><span class="ep-note">① 听写=听音写 · ③ 背诵=🎙朗读或⌨默写 · ④ 同速=朗读时长≤原句1.15×；列表只给中文线索不剧透英文'+(l.asrText?' · <b>本篇对话文本来自语音转写，个别词可能有出入</b>':'')+'</span></div>'
       +'<div class="r"><span class="ep-dmode"><button data-m="free"'+(drill.mode==='free'?' class="on"':'')+'>自由</button><button data-m="exam"'+(drill.mode==='exam'?' class="on"':'')+'>考试 ×3</button></span></div></div>'
       +'<div class="ep-cov" id="ep-cov"></div>'
       +'<div class="ep-dstats" id="ep-tstats"></div>'
