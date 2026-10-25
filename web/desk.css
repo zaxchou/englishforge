@@ -1613,7 +1613,7 @@ body.vfull .cs-stage video.tfl{max-height:none}
 .ep-bcard .rhints .rr{border:1px solid var(--line)!important;border-radius:6px;text-decoration:none!important;color:var(--t2)!important;padding:3px 10px}
 .ep-bcard .rhints .rr:hover{border-color:var(--okln)!important;color:var(--ok)!important}
 /* 粘底 dock: 悬浮胶囊, 画布语言 */
-.ep-dock{position:fixed;left:50%;transform:translateX(-50%);bottom:14px;z-index:60;display:flex;align-items:center;gap:4px;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:6px 10px;box-shadow:0 4px 18px rgba(32,39,37,.14)}
+.ep-dock{position:sticky;bottom:14px;z-index:60;display:flex;align-self:center;align-items:center;gap:4px;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:6px 10px;box-shadow:0 4px 18px rgba(32,39,37,.14);margin-top:12px}
 .ep-dock button{border:0;background:transparent;border-radius:999px;min-width:34px;height:30px;padding:0 10px;font-size:13px;color:var(--t2);cursor:pointer}
 .ep-dock button:hover{background:var(--hover)}
 .ep-dock #ep-dock-play{background:var(--acc);color:#f6f8f1;min-width:40px}
@@ -1622,4 +1622,10 @@ body.vfull .cs-stage video.tfl{max-height:none}
 .ep-dock .ep-dock-sep{width:1px;height:16px;background:var(--line);margin:0 2px}
 .ep-dock button.pulse{animation:ep-pulse 1.2s ease-in-out infinite}
 @keyframes ep-pulse{0%,100%{box-shadow:0 0 0 0 rgba(49,90,71,.35)}50%{box-shadow:0 0 0 6px rgba(49,90,71,0)}}
-@media (max-width:700px){.ep-dock{bottom:10px;width:calc(100% - 24px);justify-content:center}}
+@media (max-width:700px){.ep-dock{bottom:10px}}
+
+/* block 38 · eplod 宽屏单列(视频课 @container 1080px 双栏 grid 是给"左视频右讲义"的,
+   eplod 的步骤卡/播放器/训练列表被它拆成两栏=用户截图的一塌糊涂; 强制回单列) */
+@container(min-width:1080px){
+  .csmain .cs-stick.ep{display:flex;flex-direction:column;align-items:stretch}
+}
