@@ -1360,3 +1360,14 @@ body.vfull .cs-stage video.tfl{max-height:none}
   .vb-card{max-width:none}
   .vb-word{font-size:36px}
 }
+
+/* ============================================================
+   block 30 · 内容画布面板(Vesper 式): 主内容=白色大圆角面板,
+   侧栏与底色从四周缝里透出, 取代"侧栏|一条线|内容"的分割。
+   生效源变量见 block4 :root。
+   ============================================================ */
+.wrap{margin:12px 14px 14px 246px;max-width:none;padding:26px 38px 56px;
+  background:var(--card);border:1px solid var(--line);border-radius:20px;
+  min-height:calc(100vh - 26px);box-sizing:border-box}
+@media(max-width:800px){.wrap{margin:10px 10px 10px 190px;border-radius:16px;padding:22px 24px 44px}}
+@media(max-width:700px){.wrap{margin:8px;border-radius:14px;padding:20px 16px 40px;min-height:calc(100vh - 16px)}}
