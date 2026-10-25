@@ -1672,7 +1672,8 @@ body.vfull .cs-stage video.tfl{max-height:none}
 .ep-vseg{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;margin-bottom:10px}
 .ep-vseg button{border:0;background:transparent;padding:5px 14px;font-size:var(--f4);color:var(--t2);cursor:pointer}
 .ep-vseg button.on{background:var(--acc);color:#f6f8f1}
-.ep-rec{border:1px solid var(--acc);background:var(--acc);color:#f6f8f1;border-radius:999px;padding:10px 22px;font-size:var(--f3);cursor:pointer;margin-right:10px}
+.ep-rec{border:1px solid var(--acc)!important;background:var(--acc)!important;color:#f6f8f1!important;border-radius:999px;padding:10px 22px;font-size:var(--f3);cursor:pointer;margin-right:10px}
+.ep-bcard .ep-rec:hover{background:#27493a!important;border-color:#27493a!important;color:#f6f8f1!important}
 .ep-rec:hover{opacity:.92}
 .ep-rec.ing{background:var(--bad);border-color:var(--bad);animation:ep-pulse 1.2s ease-in-out infinite}
 .ep-rec .rt{font-style:normal;font-variant-numeric:tabular-nums}

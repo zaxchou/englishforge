@@ -1809,7 +1809,10 @@ const handler = async (req, res) => {
     const abs = path.normalize(path.join(WEB_DIR, rel));
     if (!abs.startsWith(path.normalize(WEB_DIR) + path.sep) && abs !== path.normalize(path.join(WEB_DIR, 'index.html')))
       return sendJSON(res, 400, { error: 'bad path' });
-    if (fs.existsSync(abs) && fs.statSync(abs).isFile()) return sendFile(req, res, abs);
+    if (fs.existsSync(abs) && fs.statSync(abs).isFile()) {
+      if (rel === '/index.html') res.setHeader('Cache-Control', 'no-store');   // 入口页永远最新(css 引用带版本查询参数)
+      return sendFile(req, res, abs);
+    }
     sendJSON(res, 404, { error: 'not found', path: p });
   } catch (e) {
     console.error('[server]', e);
