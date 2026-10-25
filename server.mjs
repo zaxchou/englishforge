@@ -1342,7 +1342,7 @@ function sendFile(req, res, absPath) {
   if (!st.isFile()) return sendJSON(res, 404, { error: 'not found' });
   const type = MIME[path.extname(absPath).toLowerCase()] || 'application/octet-stream';
   const range = req.headers.range;
-  const common = { 'Content-Type': type, 'Accept-Ranges': 'bytes', 'Cache-Control': 'no-cache' };
+  const common = { 'Content-Type': type, 'Accept-Ranges': 'bytes', 'Cache-Control': res.getHeader('Cache-Control') || 'no-cache' };   // 调用方可预设(如 index no-store)
   if (range) {
     const m = /^bytes=(\d*)-(\d*)$/.exec(range);
     let start, end;
