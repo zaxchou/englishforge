@@ -1937,3 +1937,7 @@ body.vfull .cs-stage video.tfl{max-height:none}
   .ep-dock button{height:34px;min-width:34px}
   .ep .ep-stage .ep-segs{margin-bottom:0}
 }
+/* 播放条收尾: 旧 #ep-dock-play 的 40px 固定宽度优先级更高, 胶囊里贴边 */
+.ep .ep-dock{padding:3px 7px}
+#ep-dock-play{min-width:34px;height:30px}
+.ep-dock #ep-dock-next,#ep-dock-prev{padding:0 5px}
