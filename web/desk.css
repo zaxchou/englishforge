@@ -1893,8 +1893,47 @@ body.vfull .cs-stage video.tfl{max-height:none}
 .ep-steps .es.lock i,.ep-steps .es.lock b{color:var(--t2)}
 .csmain .ep-listen .ep-lines{max-width:75ch}
 
-/* 粘底播放器不盖 scrollIntoView 目标: 全局滚动根预留底部空间 */
-html{scroll-padding-bottom:150px}
 /* 语块卡次要文字提到 t2: 4.2:1 低于正文 4.5 标准(截图检查) */
 .ep .ep-chunk .ch i,.ep .ep-chunk .qtx,.ep .ep-chunk .zq{color:var(--t2)}
 .ep .ep-line .zh{color:var(--t2)}
+
+/* ============================================================
+   block 47 · r23 固定画布 + 紧凑播放条(用户: 滚动时三四块一起动;
+   播放器占空白太多)。画布定高, 目录列与内容各自滚动, 页面不再整页滚。
+   ============================================================ */
+@media(min-width:801px){
+  body.course-fixed{overflow:hidden}
+  body.course-fixed .wrap{height:calc(100dvh - 26px);min-height:0;overflow:hidden;display:flex;flex-direction:column;padding-bottom:16px}
+  body.course-fixed #v-course.on{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+  body.course-fixed #v-course>.bhead,body.course-fixed #v-course>.sub{flex:none}
+  body.course-fixed .csplit{flex:1;min-height:0;overflow:hidden;align-items:stretch}
+  body.course-fixed .csnav-col{min-height:0;display:flex;flex-direction:column;overflow:hidden}
+  body.course-fixed .csnav{flex:1;min-height:0;max-height:none;overflow-y:auto;overscroll-behavior:contain}
+  body.course-fixed .csmain{min-height:0;height:100%;overflow-y:auto;overscroll-behavior:contain;scroll-padding-bottom:84px}
+}
+/* 播放条: 一行放完, 展开完整播放器时才多一行 */
+.ep .ep-stage{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;padding:8px 0 6px}
+.ep-stage .ep-dock{order:0;flex:none;gap:0;border:1px solid var(--line);border-radius:999px;padding:2px;margin:0;box-shadow:none;background:var(--card)}
+.ep-dock .ep-dock-no{margin:0;padding:0 2px;font-size:12px}
+.ep-dock button{height:30px;min-width:30px;padding:0 7px;border-radius:999px}
+.ep-dock #ep-dock-listen{min-width:auto;padding:0 10px}
+.ep-stage .ep-segs{order:1;flex:none;margin:0;gap:2px}
+.ep-stage .ep-segs button{padding:2px 6px;font-size:12px}
+.ep-stage .ep-status{order:3;margin-left:auto;flex:none;gap:12px;padding:0;border:0;flex-wrap:nowrap;align-items:center}
+.ep-status .grow{display:none}
+.ep-stage .ep-full-player{order:2;flex:none;margin:0}
+.ep-full-player summary{font-size:12px;color:var(--t3);padding:4px 0}
+.ep-full-player[open]{order:9;flex-basis:100%}
+.ep-full-player audio{width:100%;margin:4px 0 0}
+.ep-stage .na-box{order:10;flex-basis:100%;margin:4px 0 0}
+@media(max-width:700px){
+  .ep .ep-stage{position:sticky;bottom:0;padding:6px 0 calc(6px + env(safe-area-inset-bottom));gap:4px 8px;background:var(--card)}
+  .ep-stage .ep-dock{order:0;flex:0 0 auto}
+  .ep-stage .ep-segs{order:1;flex:0 1 auto}
+  .ep-stage .ep-segs button{font-size:11px;padding:2px 5px}
+  .ep-stage .ep-full-player{order:2;margin-left:auto}
+  .ep-stage .ep-status{order:3;flex:1 1 100%;margin:0;justify-content:space-between;gap:6px;flex-wrap:nowrap;padding-top:2px}
+  .ep-stage .ep-shortcuts{display:none}
+  .ep-dock button{height:34px;min-width:34px}
+  .ep .ep-stage .ep-segs{margin-bottom:0}
+}

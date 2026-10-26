@@ -1077,6 +1077,7 @@ function go(v){
   }
   document.querySelectorAll('.view').forEach(x=>x.classList.remove('on'));
   $('v-'+v).classList.add('on');
+  document.body.classList.toggle('course-fixed',v==='course');   // 画布定高: 只有内容区滚动
   document.querySelectorAll('.seg').forEach(moveThumb);
   if(v==='home') renderHome();
   if(v==='drill') renderDrill();
@@ -3250,10 +3251,10 @@ window.renderEplodMain=async function(c){
     +'</details>'
     +'<footer class="ep-stage">'
       +'<div class="ep-segs">'+['dg','pb','rv'].map(s=>'<button data-seg="'+s+'"'+(s==='dg'?' class="on"':'')+'>'+segNames[s]+(d.durations&&d.durations[s]?' <i>'+fmtDur(d.durations[s])+'</i>':'')+'</button>').join('')+'</div>'
-      +'<details class="ep-full-player"><summary>完整播放器 · 进度与音量</summary><audio id="ep-audio" controls preload="metadata" src="'+esc(d.audio.dg)+'"></audio></details>'
+      +'<details class="ep-full-player"><summary>播放器</summary><audio id="ep-audio" controls preload="metadata" src="'+esc(d.audio.dg)+'"></audio></details>'
       +'<div class="cs-status ep-status">'
-        +'<button id="ep-loop">↻ 单句循环</button>'
-        +'<button id="ep-mask">遮罩盲听</button>'
+        +'<button id="ep-loop">↻ 循环</button>'
+        +'<button id="ep-mask">盲听</button>'
         +'<span class="grow"></span>'
         +'<label class="cs-speed">速度 <select id="ep-speed" aria-label="播放速度">'+[0.75,1,1.25,1.5].map(n=>'<option value="'+n+'">'+n+'×</option>').join('')+'</select></label>'
         +'<details class="ep-shortcuts"><summary>快捷键 ?</summary><p>空格 播放/暂停 · Z 重听 · X 循环 · ←/→ 上一句/下一句 · C 揭示原文</p></details></div>'
@@ -3398,7 +3399,7 @@ function epWire(){
   let resumed=false;
   a.addEventListener('loadedmetadata',()=>{
     if(resumed||st.seekSeq||st.seg!=='dg')return;   // 用户已点句/已 seek → 不再把上次进度拉回来
-    if(st.p.pos&&st.p.pos<a.duration-5){resumed=true;a.currentTime=st.p.pos;const nn=$('ep-note');nn.style.display='';nn.textContent='已定位到上次听到 '+fmtDur(st.p.pos);}
+    if(st.p.pos&&st.p.pos<a.duration-5){resumed=true;a.currentTime=st.p.pos;const nn=$('ep-note');nn.style.display='';nn.textContent='已定位到上次听到 '+fmtDur(st.p.pos);clearTimeout(st._noteT);st._noteT=setTimeout(()=>{if(nn.textContent.startsWith('已定位'))nn.style.display='none';},6000);}
   });
   /* 键盘: 空格播放/暂停 · Z 重听 · X 循环 · C 揭示 */
   if(EP.keyHandler)document.removeEventListener('keydown',EP.keyHandler);
@@ -3959,7 +3960,8 @@ function epSyncCur(){
         const bottom=Math.min(innerHeight-24,dockRect&&dockRect.height&&dockRect.top>0?dockRect.top-12:innerHeight-24);
         if(rect.top<80||(nextRect||rect).bottom>bottom){
           const target=Math.max(80,Math.min(innerHeight*.28,bottom-rect.height-(nextRect?nextRect.height:0)-12));
-          window.scrollBy({top:rect.top-target,behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});
+          const sc=row.closest('.csmain');const by={top:rect.top-target,behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'};
+          if(sc&&sc.scrollHeight>sc.clientHeight)sc.scrollBy(by);else window.scrollBy(by);
         }
       }
     }
