@@ -1958,3 +1958,35 @@ body.vfull .cs-stage video.tfl{max-height:none}
   .ep-seekrow input[type=range]{min-width:0;flex:1 1 0}
   .ep-seekrow button{width:22px;min-width:22px}
 }
+/* ============================================================
+   block 48 · r26 控制台色块分区(用户: 全是白底黑字, 文字水平不齐)
+   ① 页脚整条=浅灰表面, 内部再分: 传输(白胶囊)/音源(白胶囊分段)/开关(药丸开态)/工具(文字)
+   ② 所有右簇控件统一 28px 高、12px 字、居中, 下拉框不再比文字高一头
+   ③ 当前句练习块=浅色面板, 与正文和页脚形成三层: 画布白 / 练习块灰 / 控制台灰
+   ============================================================ */
+.ep .ep-stage{background:var(--sunk);border-radius:14px 14px 0 0;padding:8px 12px 6px;margin-top:10px;border-top:1px solid var(--line)}
+.ep .ep-dock{background:var(--card);border-color:var(--line);box-shadow:0 1px 2px rgba(32,39,37,.05)}
+.ep .ep-stage .ep-segs{background:var(--card);border:1px solid var(--line);border-radius:999px;padding:2px;gap:0}
+.ep .ep-stage .ep-segs button{min-height:0;height:26px;border-radius:999px;padding:0 10px;line-height:26px}
+.ep .ep .ep-stage .ep-segs button i{font-size:11px;margin-left:2px}
+.ep .ep-stage .ep-segs button.on{background:var(--accbg);color:var(--acc);font-weight:500}
+.ep .ep-stage .ep-segs button.on i{color:var(--acc)}
+.ep .ep-stage .ep-status{gap:2px;align-items:center}
+.ep-stage .ep-status>button,.ep-stage .ep-status .ep-player-toggle,.ep-stage .ep-status summary{
+  min-height:0;height:28px;display:inline-flex;align-items:center;font-size:12px;line-height:1;color:var(--t2);padding:0 8px;border-radius:999px}
+.ep-stage .ep-status>button.on{background:var(--accbg);color:var(--acc);font-weight:500}
+.ep-stage .ep-status .cs-speed{height:28px;display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--t2);padding:0 2px 0 8px}
+.ep-stage .ep-status .cs-speed select{height:26px;min-height:0;line-height:24px;font-size:12px;padding:0 22px 0 8px;border-radius:999px;background-color:var(--card);border:1px solid var(--line);color:var(--t1)}
+.ep-stage .ep-status .ep-shortcuts summary{padding:0 6px;color:var(--t3)}
+.ep-stage .ep-status .ep-player-toggle[aria-expanded="true"]{background:var(--accbg);color:var(--acc)}
+.ep-stage .ep-seekrow{padding:4px 2px 0;border-top:1px solid var(--line);margin-top:4px}
+.ep .ep-bcard{background:#f7f9f8;border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:10px}
+.ep-brow{border-radius:8px;padding:10px 8px;border-bottom:0}
+.ep-brow:hover{background:#f2f5f3}
+.ep-brow+ .ep-brow{border-top:1px solid var(--line);border-radius:0}
+@media(max-width:700px){
+  .ep .ep-stage{border-radius:12px 12px 0 0;padding:6px 10px calc(6px + env(safe-area-inset-bottom))}
+  .ep .ep-bcard{padding:12px;border-radius:12px}
+  .ep-stage .ep-status>button,.ep-stage .ep-status .ep-player-toggle,.ep-stage .ep-status summary{padding:0 6px}
+  .ep-stage .ep-status .cs-speed{padding-left:4px}
+}
