@@ -2016,3 +2016,10 @@ body.vfull .cs-stage video.tfl{max-height:none}
 .ep-bcard .ep-compose .dsubmit{position:static;align-self:flex-end;margin:2px 0 0;height:26px;min-height:26px;padding:0 12px;border-radius:8px;background:var(--accbg);color:var(--acc);border:0;font-size:12px;font-weight:600}
 .ep-bcard .ep-compose .dsubmit:hover{background:var(--acc);color:var(--card)}
 .ep-bcard .ep-compose .dsubmit:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+
+/* r30 · 播放栏到底不再上跳: 粘底位置与页脚后方留白相等, 滚动到底时粘性恰好不脱离 */
+body.course-fixed .csmain.ep-page{padding-bottom:0}
+body.course-fixed .csmain.ep-page .ep-stage{bottom:12px}
+@media(max-width:800px){
+  .csmain.ep-page .ep-stage{position:sticky;bottom:0;margin-bottom:0;border-radius:12px 12px 0 0}
+}

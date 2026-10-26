@@ -3031,6 +3031,7 @@ function courseWatchedCount(){
   return (COURSES?.series||[]).reduce((n,s)=>n+(s.courses||[]).reduce((k,c)=>k+(c.lessons||[]).filter(l=>REC.course[l.id]?.done).length,0),0);
 }
 function renderCourse(){
+  const cm=$('cs-main');if(cm)cm.classList.remove('ep-page');
   const t=((COURSES&&COURSES.series)||[]).reduce((a,s)=>a+(s.courses||[]).reduce((b,c)=>b+(c.lesson_count||0),0),0);
   const d=courseWatchedCount();
   $('cs-ct').textContent=d+' / '+t+' 节';
@@ -3176,6 +3177,7 @@ function selectLessonHandoutPages(notes,hm){
 /* ---------- EnglishPod 音频深学页（音频+逐字稿: 精听/词块/复习, 平台定位=泛听之后的深化工具） ---------- */
 const EP={cache:{},st:null,keyHandler:null};
 window.renderEplodMain=async function(c){
+  $('cs-main').classList.add('ep-page');
   const el=$('cs-main');
   const request=EP.loadId=(EP.loadId||0)+1;
   EP.st?.cancelSeek?.();
