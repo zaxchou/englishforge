@@ -3325,6 +3325,7 @@ function epWire(){
     if(!st._iSeek){st.cancelSeek?.();st.seekSeq++;st.stopAtEnd=false;st.loop=false;$('ep-loop').classList.remove('on');}
   });
   a.addEventListener('seeked',()=>{st.seekPending=false;});
+  a.addEventListener('playing',()=>{const n=$('ep-note');if(n&&/音频加载中|播放未能|定位/.test(n.textContent))n.style.display='none';});
   const mc=$('cs-main').querySelector('.ep-mc');
   epHighlight(-1);
   /* 行点击: 跳播+循环区间; 遮罩态点句=揭示 */
