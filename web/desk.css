@@ -2023,3 +2023,9 @@ body.course-fixed .csmain.ep-page .ep-stage{bottom:12px}
 @media(max-width:800px){
   .csmain.ep-page .ep-stage{position:sticky;bottom:0;margin-bottom:0;border-radius:12px 12px 0 0}
 }
+/* r31 · 彻底消除到底上跳: 页脚后方不再留任何空隙, 粘底位置=流位置 */
+body.course-fixed .wrap{padding-bottom:0}
+body.course-fixed .csmain.ep-page .ep-stage{bottom:0;margin-bottom:0;border-radius:12px 12px 0 0}
+body.course-fixed .wrap{padding-bottom:0;margin-bottom:0}
+body.course-fixed .wrap{height:calc(100dvh - 12px);margin-bottom:0;padding-bottom:0}
+body.course-fixed .csplit{margin-bottom:0}
