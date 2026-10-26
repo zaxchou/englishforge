@@ -1990,3 +1990,11 @@ body.vfull .cs-stage video.tfl{max-height:none}
   .ep-stage .ep-status>button,.ep-stage .ep-status .ep-player-toggle,.ep-stage .ep-status summary{padding:0 6px}
   .ep-stage .ep-status .cs-speed{padding-left:4px}
 }
+/* r27 · 控制台改为悬浮层: 四角全圆 + 阴影 + 离底留缝(此前只圆上面两角, 像半成品) */
+.ep .ep-stage{border-radius:14px;border:1px solid var(--line);margin:10px 0 12px;padding:8px 12px 7px;
+  box-shadow:0 1px 2px rgba(32,39,37,.05),0 10px 28px rgba(32,39,37,.10);
+  background:var(--sunk)}
+@media(max-width:700px){
+  .ep .ep-stage{border-radius:12px;margin:8px 0 10px;bottom:8px;
+    box-shadow:0 1px 2px rgba(32,39,37,.05),0 8px 22px rgba(32,39,37,.12)}
+}
