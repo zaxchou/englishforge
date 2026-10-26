@@ -89,7 +89,7 @@ def find_ep_dir(ep):
         for sub in sorted(rng.iterdir()):
             if sub.is_dir() and (sub / ep).is_dir():
                 return sub / ep
-    raise SystemExit(f"未找到期号目录: {ep}")
+    raise RuntimeError(f"未找到期号目录: {ep}")
 
 
 def parse_pdf(pdf_path):
@@ -104,7 +104,7 @@ def parse_pdf(pdf_path):
     # 标题行: "Elementary - Difficult Customer (B0001)" / "Elementary - Making an Appointment"(无期号)
     title_m = re.search(r"^(.+?)\s*-\s*(.+?)\s*(?:\(([A-Z]\d+)\))?\s*$", lines[0].strip())
     if not title_m:
-        raise SystemExit("标题行解析失败: " + lines[0])
+        raise RuntimeError("标题行解析失败: " + lines[0])
     level, title = clean_text(title_m.group(1)), clean_text(title_m.group(2))
     code = clean_text(title_m.group(3)) if title_m.group(3) else "EP"
 
@@ -172,7 +172,7 @@ def load_txt(ep):
     else:
         p = AUDIO_LIB / "_transcripts" / f"{ep}.txt"
         if not p.exists():
-            raise SystemExit(f"逐字稿缺失: zip 已删且无存档 {p}")
+            raise RuntimeError(f"逐字稿缺失: zip 已删且无存档 {p}")
         raw = p.read_text(encoding="utf-8", errors="replace")
     raw = norm_lig(raw).replace("\r\n", "\n")
     # 讲解逐字稿: 保留说话人行结构, 行内硬换行合并; 去掉混排在其中的对话重播段之外的原样保留(讲解即全文)
@@ -210,6 +210,49 @@ def _tokens(s):
     # 数字归一: ASR 常把 "Twenty minutes?" 写成 "20 minutes?", 对齐时等值处理
     return [_NUM_WORDS.get(w, w) for w in re.findall(r"[a-z0-9']+", s.lower())]
 
+
+
+def _wc(t):
+    return max(1, len(re.findall(r"[a-z0-9']+", t.lower())))
+
+
+def fill_time_gaps(dialogue, segs):
+    """无时间戳句子按词数比例插值到相邻锚点之间。
+    用于官方文本与音频不完全一致的期（猪拉丁、演唱、改写版、句子合并），
+    这些期文字级对齐必然失败，但音频里确实说的是同一段对话。
+    返回被插值的句数，调用方据此标记 timeApprox。"""
+    n = len(dialogue)
+    if not n or not segs:
+        return 0
+    t_lo, t_hi = segs[0]["t0"], segs[-1]["t1"]
+    if t_hi - t_lo < 1:
+        return 0
+    filled = 0
+    i = 0
+    while i < n:
+        if dialogue[i].get("t0") is not None:
+            i += 1
+            continue
+        j = i
+        while j < n and dialogue[j].get("t0") is None:
+            j += 1
+        cnt = j - i
+        lo = dialogue[i - 1]["t1"] if i > 0 else t_lo
+        hi = dialogue[j]["t0"] if j < n else t_hi
+        lo, hi = max(lo, t_lo), min(hi, t_hi)
+        if hi - lo < cnt * 0.4:          # 锚点重叠/越界: 退化成固定步长并从边界内收
+            hi = min(max(hi, lo + cnt * 1.2), t_hi)
+            lo = max(hi - cnt * 1.2, t_lo)
+        span = hi - lo
+        total_w = sum(_wc(dialogue[k]["text"]) for k in range(i, j))
+        cur = lo
+        for k in range(i, j):
+            share = span * _wc(dialogue[k]["text"]) / total_w
+            dialogue[k]["t0"], dialogue[k]["t1"] = round(cur, 2), round(cur + share, 2)
+            cur += share
+            filled += 1
+        i = j
+    return filled
 
 def global_align(official_lines, segs):
     """官方行序列 vs whisper 词序列的全局对齐（difflib 词级 LCS）。
@@ -295,7 +338,7 @@ def whisper_segments(mp3, model=None, skip_first=0.0):
     global _WM
     if model is None:
         if _WM is None:
-            _WM = WhisperModel("base.en", device="cpu", compute_type="int8")
+            _WM = WhisperModel("base.en", device="cpu", compute_type="int8", cpu_threads=4)  # 16 核默认吃满曾致整机死机，压到 4 线程
         model = _WM
     import subprocess
     import tempfile
@@ -373,7 +416,7 @@ def ai_cfg():
 def ai_chunks(ep_data):
     cfg = ai_cfg()
     if not cfg["key"]:
-        raise SystemExit("缺 TFL_AI_KEY（.env.local）")
+        raise RuntimeError("缺 TFL_AI_KEY（.env.local）")
     import urllib.request
 
     lines = "\n".join(f"{i}. {d['text']}" for i, d in enumerate(ep_data["dialogue"]))
@@ -403,7 +446,7 @@ def ai_chunks(ep_data):
     dia = ep_data["dialogue"]
     zh = data.get("zh") or []
     if len(zh) != len(dia):
-        raise SystemExit(f"翻译句数不符: {len(zh)} != {len(dia)}")
+        raise RuntimeError(f"翻译句数不符: {len(zh)} != {len(dia)}")
     ep_data["sentencesZh"] = [clean_text(x) for x in zh]
 
     vocab_key_len = 60
@@ -426,7 +469,7 @@ def ai_chunks(ep_data):
             "quote": sent, "zh": clean_text(c.get("zh_quote", ""))[:160], "qi": qi,
         })
     if not out:
-        raise SystemExit("词块全被护栏拒绝，检查提示词/对话解析")
+        raise RuntimeError("词块全被护栏拒绝，检查提示词/对话解析")
     ep_data["chunks"] = out
     return out
 
@@ -455,7 +498,7 @@ def ai_lang(data, batch=45, jobs=("dg", "pb")):
     意群拼回必须逐词等于原句, 否则丢弃该句意群只留翻译。"""
     cfg = ai_cfg()
     if not cfg["key"]:
-        raise SystemExit("缺 TFL_AI_KEY（.env.local）")
+        raise RuntimeError("缺 TFL_AI_KEY（.env.local）")
     sysmsg = "以材料本身为标准，只依据给定句子，不引入外部知识。只输出 JSON。"
     all_jobs = {"dg": [x["text"] for x in data["dialogue"]], "pb": [x["text"] for x in data["explanation"]]}
     jobs = [(k, all_jobs[k]) for k in jobs]
@@ -608,7 +651,7 @@ def parse_companion(ep):
     doc, ranges = companion()
     epn = int(ep)
     if epn not in ranges:
-        raise SystemExit(f"companion 无期 {epn}")
+        raise RuntimeError(f"companion 无期 {epn}")
     p0, p1, m = ranges[epn]
     raw = "\n".join(doc[i].get_text() for i in range(p0, p1))
     raw = norm_lig(raw)
@@ -681,7 +724,7 @@ def run_episode(ep, do_chunks=True, do_apply=True, dg_lang_only=False, keep_ai=T
     if pdfs:
         try:
             data = parse_pdf(pdfs[0])
-        except SystemExit:
+        except RuntimeError:
             data = None
     src_note = "自身PDF"
     if not data or len(data.get("dialogue", [])) < 4:
@@ -690,7 +733,7 @@ def run_episode(ep, do_chunks=True, do_apply=True, dg_lang_only=False, keep_ai=T
             if len(cdata["dialogue"]) >= 4:
                 data = cdata
                 src_note = "附赠全集"
-        except SystemExit:
+        except RuntimeError:
             pass
     if not data:
         src_note = "whisper转写"
@@ -705,7 +748,7 @@ def run_episode(ep, do_chunks=True, do_apply=True, dg_lang_only=False, keep_ai=T
     try:
         expl = load_txt(ep)
         log(f"    官方逐字稿 {len(expl)} 行")
-    except SystemExit:
+    except RuntimeError:
         expl = None
         expl_from_asr = True
         log("    官方逐字稿缺失 → whisper 转写讲解音频")
@@ -723,8 +766,15 @@ def run_episode(ep, do_chunks=True, do_apply=True, dg_lang_only=False, keep_ai=T
         for i, t in enumerate(times):
             data["dialogue"][i]["t0"], data["dialogue"][i]["t1"] = (t if t else [None, None])
         log(f"    对话: {hit}/{len(dia)} 句有时间戳")
+        asr_words = sum(_wc(x["text"]) for x in segs_dg)
+        if asr_words < 15 or (segs_dg[-1]["t1"] - segs_dg[0]["t0"]) < 10:
+            raise RuntimeError(f"对话音频转写失败: {asr_words} 词 / {round(segs_dg[-1]['t1'] - segs_dg[0]['t0'])}s")
         if hit < len(dia) * 0.7:
-            raise RuntimeError(f"对话对齐率过低 {hit}/{len(dia)}")
+            got = fill_time_gaps(data["dialogue"], segs_dg)
+            if got < len(dia) - hit:
+                raise RuntimeError(f"对话对齐率过低 {hit}/{len(dia)}, 仅插值 {got} 句")
+            data["timeApprox"] = True
+            log(f"    时间轴估算: {hit} 句精确 + {got} 句按词数插值（官方文本与音频不完全一致）")
     else:
         for x in segs_dg:
             if x["text"].strip():

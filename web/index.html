@@ -8,7 +8,7 @@
 <link rel="icon" type="image/png" sizes="96x96" href="/assets/brand/t-dot-v1/t-dot-96.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/assets/brand/t-dot-v1/t-dot-180.png">
 <title>TOEFL Lab · 托福自学练习</title>
-<link rel="stylesheet" href="desk.css?v=1792943048">
+<link rel="stylesheet" href="desk.css?v=1792989111">
 <style>
 /* 应用层补充样式（视觉基线在 desk.css，不改它的既有规则） */
 /* 单词与字符格保持同一行；焦点、已填、判题状态沿用研读桌配色。 */
@@ -3032,6 +3032,34 @@ function renderCourse(){
   renderCourseNav(); renderCourseMain();
 }
 function courseSeriesName(n){ return String(n||'').replace(/新D方/g,'新东方'); }
+const EP_LV=[[1,'初级','Elementary'],[2,'中级','Intermediate'],[3,'中高级','Upper Intermediate'],[4,'高级','Advance'],[5,'精通','Proficient']];
+const EP_CHECK='<i class="v"><svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1.8 5.4 4 7.6 8.3 2.9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></i>';
+function epNavListHTML(c,q){
+  /* EnglishPod 课程列表: 按难度 rank 分组; q=关键词(标题/期号/难度), 空则全量 */
+  q=(q||'').toLowerCase();
+  const lvHit=q?EP_LV.filter(x=>x[1]===q||x[2].toLowerCase()===q).map(x=>x[0]):null;
+  const num=q.replace(/^#/,'');
+  const hit=l=>!q||(!!lvHit&&lvHit.includes(l.levelRank))
+    ||l.title.toLowerCase().includes(q)
+    ||String(l.ep).padStart(4,'0').includes(num)
+    ||String(l.ep).includes(num);
+  const doneOf=l=>!!(REC.course[l.id]&&REC.course[l.id].done);
+  let h='',shown=0;
+  for(const [rk,zh,en] of EP_LV){
+    const items=c.lessons.map((l,li)=>[l,li]).filter(([l])=>l.levelRank===rk&&hit(l));
+    if(!items.length)continue;
+    shown+=items.length;
+    const dn=items.filter(([l])=>doneOf(l)).length;
+    h+='<div class="cgrp"><b>'+zh+'</b><span>'+en+'</span><i>'+dn+'/'+items.length+'</i></div>';
+    for(const [l,li] of items){
+      const done=doneOf(l),on=(csSel.c===c.id&&csSel.l===li);
+      h+='<div class="cli'+(done?' done':'')+(on?' on':'')+'" data-cid="'+esc(c.id)+'" data-ix="'+li+'" title="'+esc(l.title)+'">'
+        +'<span class="st">'+(done?EP_CHECK:'<i></i>')+'</span>'
+        +'<span class="lt">'+esc(l.title)+'</span><span class="ld">'+(l.duration_sec?fmtDur(l.duration_sec):'\u2014')+'</span></div>';
+    }
+  }
+  return shown?h:'<div class="cempty">没有匹配的课程，换个关键词试试</div>';
+}
 function renderCourseNav(){
   updateCourseCount();
   const series=(COURSES&&COURSES.series)||[];
@@ -3062,7 +3090,10 @@ function renderCourseNav(){
       +'<span>'+esc(c.teacher||'')+' · '+tot+' 节</span></div>'
       +'<div class="pg"><span class="pb"><i style="width:'+(tot?Math.round(cd/tot*100):0)+'%"></i></span>'
       +'<span class="pn '+(cd===tot&&tot?'full':'')+'">'+cd+'/'+tot+'</span></div></div>';
-    c.lessons.forEach((l,li)=>{
+    if(c.kind==='eplod'){
+      /* 364 期量大: 搜索框只重建 #ep-list, 输入不丢焦点; 分组标题带已学计数 */
+      h+='<div class="ep-q"><input id="ep-q" placeholder="搜索：标题 / 期号 / 难度" autocomplete="off"></div><div id="ep-list"></div>';
+    }else c.lessons.forEach((l,li)=>{
       const done=REC.course[l.id]&&REC.course[l.id].done;
       const qd=GEN_COURSES.has(c.id)&&gqCompleted(l.id);
       const on=(csSel.c===c.id&&csSel.l===li);
@@ -3080,7 +3111,13 @@ function renderCourseNav(){
   }
   const el=$('cs-nav'); el.innerHTML=h;
   el.querySelector('#cs-course').onchange=e=>openCourse(e.target.value);
-  el.querySelectorAll('.cli').forEach(x=>x.onclick=()=>openLesson(x.dataset.cid,+x.dataset.ix));
+  if(c&&c.kind==='eplod'){
+    const qin=el.querySelector('#ep-q');
+    const draw=()=>{ const lst=el.querySelector('#ep-list'); if(!lst)return;
+      lst.innerHTML=epNavListHTML(c,qin.value.trim());
+      lst.querySelectorAll('.cli').forEach(x=>x.onclick=()=>openLesson(x.dataset.cid,+x.dataset.ix)); };
+    qin.oninput=draw; draw('');
+  }else el.querySelectorAll('.cli').forEach(x=>x.onclick=()=>openLesson(x.dataset.cid,+x.dataset.ix));
   const active=el.querySelector('.cli.on');
   if(active){
     const navRect=el.getBoundingClientRect(),itemRect=active.getBoundingClientRect();

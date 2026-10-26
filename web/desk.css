@@ -1720,3 +1720,15 @@ body.vfull .cs-stage video.tfl{max-height:none}
 /* block 45 · 录音音量条(用户: 词准 0% 实为全程静音): 说话可见, 静音可见 */
 .ep-rec .lv{display:inline-block;width:46px;height:6px;background:rgba(246,248,241,.25);border-radius:3px;overflow:hidden;vertical-align:middle;margin-left:10px}
 .ep-rec .lv i{display:block;height:100%;width:0;background:#f6f8f1;border-radius:3px;transition:width .12s}
+
+/* block 46 · EnglishPod 课程列表: 难度分组 + 关键词搜索(用户: 量大要搜, 难度分类要可见) */
+.ep-q{padding:8px var(--s3) 6px 12px}
+.ep-q input{width:100%;height:30px;border:1px solid var(--line);border-radius:var(--rs);padding:0 10px;font-size:var(--f4);color:var(--t1);background:var(--sunk)}
+.ep-q input:focus{outline:none;border-color:var(--acc);background:var(--card)}
+.ep-q input::placeholder{color:var(--t3)}
+.cgrp{display:flex;align-items:baseline;gap:6px;padding:10px 12px 4px;border-top:1px solid var(--line);margin-top:4px}
+#ep-list .cgrp:first-child{border-top:0;margin-top:0}
+.cgrp b{font-size:var(--f4);color:var(--t1)}
+.cgrp span{font-size:var(--f5);color:var(--t3)}
+.cgrp i{margin-left:auto;font-style:normal;font-size:var(--f5);color:var(--t3);font-variant-numeric:tabular-nums}
+.cempty{padding:18px 14px;font-size:var(--f4);color:var(--t3);text-align:center}
