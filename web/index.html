@@ -3251,12 +3251,14 @@ window.renderEplodMain=async function(c){
     +'</details>'
     +'<footer class="ep-stage">'
       +'<div class="ep-segs">'+['dg','pb','rv'].map(s=>'<button data-seg="'+s+'"'+(s==='dg'?' class="on"':'')+'>'+segNames[s]+(d.durations&&d.durations[s]?' <i>'+fmtDur(d.durations[s])+'</i>':'')+'</button>').join('')+'</div>'
-      +'<details class="ep-full-player"><summary>播放器</summary><audio id="ep-audio" controls preload="metadata" src="'+esc(d.audio.dg)+'"></audio></details>'
+      +'<audio id="ep-audio" preload="metadata" hidden src="'+esc(d.audio.dg)+'"></audio>'
+      +'<div class="ep-seekrow" id="ep-seekrow" hidden><button id="ep-seek-play" aria-label="播放或暂停">▶</button><span id="ep-cur">0:00</span><input id="ep-seek" type="range" min="0" max="1000" step="1" value="0" aria-label="播放进度"><span id="ep-dur">—</span><button id="ep-vol" aria-label="静音">🔊</button></div>'
       +'<div class="cs-status ep-status">'
         +'<button id="ep-loop">↻ 循环</button>'
         +'<button id="ep-mask">盲听</button>'
         +'<span class="grow"></span>'
         +'<label class="cs-speed">速度 <select id="ep-speed" aria-label="播放速度">'+[0.75,1,1.25,1.5].map(n=>'<option value="'+n+'">'+n+'×</option>').join('')+'</select></label>'
+        +'<button class="ep-player-toggle" id="ep-player-toggle" aria-expanded="false">播放器</button>'
         +'<details class="ep-shortcuts"><summary>快捷键 ?</summary><p>空格 播放/暂停 · Z 重听 · X 循环 · ←/→ 上一句/下一句 · C 揭示原文</p></details></div>'
 
       +'<div class="na-box" id="ep-note" style="display:none"></div>'
@@ -3377,6 +3379,15 @@ function epWire(){
   if(![0.75,1,1.25,1.5].includes(savedRate))savedRate=1;
   speed.value=String(savedRate);a.playbackRate=savedRate;
   speed.onchange=()=>{a.playbackRate=Number(speed.value);try{localStorage.setItem('tfl-ep-rate',speed.value);}catch(e){}};
+  /* 自绘播放器: 与正文同一条左右基准线, 不再用原生 audio 控件(内距导致 8px 偏移) */
+  const srow=$('ep-seekrow'),seek=$('ep-seek'),cur=$('ep-cur'),durEl=$('ep-dur'),pt=$('ep-player-toggle'),spb=$('ep-seek-play'),vol=$('ep-vol');
+  const syncSeek=()=>{if(!srow||srow.hidden)return;cur.textContent=fmtDur(a.currentTime||0);durEl.textContent=a.duration?fmtDur(a.duration):'—';if(!(seek.matches&&seek.matches(':active')))seek.value=String(a.duration?Math.round(a.currentTime/a.duration*1000):0);};
+  pt.onclick=()=>{const open=srow.hidden;srow.hidden=!open;pt.setAttribute('aria-expanded',String(open));pt.textContent=open?'播放器 ⌃':'播放器';if(open)syncSeek();};
+  seek.oninput=()=>{if(!a.duration)return;st.cancelSeek?.();st.seekSeq=(st.seekSeq||0)+1;st.seekPending=false;clearTimeout(st._iSeekT);st._iSeek=false;a.currentTime=seek.value/1000*a.duration;kurSync();};
+  const kurSync=()=>{if(spb)spb.textContent=a.paused?'▶':'❚❚';};
+  spb.onclick=()=>{if(a.paused)epPlayBlock(EP.st.ai);else a.pause();};
+  vol.onclick=()=>{a.muted=!a.muted;vol.textContent=a.muted?'🔇':'🔊';vol.setAttribute('aria-label',a.muted?'取消静音':'静音');};
+  a.addEventListener('timeupdate',syncSeek);a.addEventListener('loadedmetadata',syncSeek);a.addEventListener('play',kurSync);a.addEventListener('pause',kurSync);
   $('ep-done').onclick=()=>{st.p.done=!st.p.done;st.p.at=Date.now();recSave();renderCourseNav();$('ep-done').textContent=st.p.done?'取消学完':'标记学完';$('cs-main').querySelector('.csp-meta .pill')?.remove();if(st.p.done)$('cs-main').querySelector('.csp-meta').insertAdjacentHTML('beforeend','<span class="pill q">已学完</span>');};
   /* 音频事件: 学习计时 / 断点续听 / 循环与当前句 */
   a.addEventListener('play',()=>{STU=true;

@@ -1941,3 +1941,20 @@ body.vfull .cs-stage video.tfl{max-height:none}
 .ep .ep-dock{padding:3px 7px}
 #ep-dock-play{min-width:34px;height:30px}
 .ep-dock #ep-dock-next,#ep-dock-prev{padding:0 5px}
+
+/* r25 · 播放器与正文同基准线: 标签留在原行, 展开行占满内容宽度 */
+.ep-player-toggle{border:0;background:transparent;color:var(--t3);font-size:12px;padding:4px 0;cursor:pointer;white-space:nowrap}
+.ep-player-toggle[aria-expanded="true"]{color:var(--acc)}
+.ep .ep-seekrow{order:9;flex-basis:100%;display:flex;align-items:center;gap:10px;padding:2px 0 0;margin:0}
+.ep .ep-seekrow[hidden]{display:none}
+.ep-seekrow button{border:0;background:transparent;color:var(--t1);width:24px;height:24px;min-height:24px;padding:0;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
+.ep-seekrow span{font-size:12px;color:var(--t2);font-variant-numeric:tabular-nums;min-width:34px;line-height:24px}
+.ep-seekrow span#ep-dur{text-align:right}
+.ep-seekrow input[type=range]{flex:1;min-width:0;height:20px;margin:0;accent-color:var(--acc)}
+@media(max-width:700px){.ep .ep-seekrow{padding-top:4px}}
+@media(max-width:700px){
+  .ep .ep-seekrow{gap:6px}
+  .ep-seekrow span{min-width:30px;font-size:11px}
+  .ep-seekrow input[type=range]{min-width:0;flex:1 1 0}
+  .ep-seekrow button{width:22px;min-width:22px}
+}
