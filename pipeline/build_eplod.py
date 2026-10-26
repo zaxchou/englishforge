@@ -766,6 +766,11 @@ def run_episode(ep, do_chunks=True, do_apply=True, dg_lang_only=False, keep_ai=T
         for i, t in enumerate(times):
             data["dialogue"][i]["t0"], data["dialogue"][i]["t1"] = (t if t else [None, None])
         log(f"    对话: {hit}/{len(dia)} 句有时间戳")
+        if 0<hit<len(dia)*0.999:   # 少数句漏对齐: 两侧锚点间插值, 不让单句变"无法播放"
+            got0=fill_time_gaps(data["dialogue"],segs_dg)
+            if got0:
+                data["timeApprox"]=True
+                log(f"    对话插值: {got0} 句(官方句未匹配上, 按词数估算)")
         asr_words = sum(_wc(x["text"]) for x in segs_dg)
         if asr_words < 15 or (segs_dg[-1]["t1"] - segs_dg[0]["t0"]) < 10:
             raise RuntimeError(f"对话音频转写失败: {asr_words} 词 / {round(segs_dg[-1]['t1'] - segs_dg[0]['t0'])}s")

@@ -20,6 +20,7 @@
    - 素材根可被 --root / TFL_ROOT 覆盖（Windows 映射盘与 NAS 挂载兼容）。
    ============================================================ */
 import { createReviewHub } from './review-hub.mjs';
+import EplodRecords from './web/eplod-records.js';
 import { validateEvent, linkCoachEvidence } from './web/review/model.mjs';
 import http from 'node:http';
 import https from 'node:https';
@@ -1276,6 +1277,9 @@ function nextRecords(incoming) {
          保留服务端现值, 新快照提供的键以新值为准——防止长开旧页覆盖新进度(r27 事故)。 */
       next[k] = JSON.parse(JSON.stringify(incoming[k]));
       const curLessons = RECORDS[k] || {};
+      for(const [lid,lesson] of Object.entries(curLessons)){
+        if(lid.startsWith('eplod-'))next[k][lid]=EplodRecords.mergeLesson(lesson,next[k][lid]);
+      }
       for (const [lid, les] of Object.entries(next[k])) {
         const cur = curLessons[lid];
         if (!cur || typeof cur !== 'object') continue;
@@ -1286,7 +1290,7 @@ function nextRecords(incoming) {
             if (cur[fk] && typeof cur[fk] === 'object') les[fk] = JSON.parse(JSON.stringify(cur[fk]));
           } else if (fk === 'drill' && les.drill && typeof les.drill === 'object' && !Array.isArray(les.drill)) {
             const cd = cur.drill || {};
-            for (const dk of ['dd', 'rd', 'sd', 'playsS']) {
+            for (const dk of ['dd', 'rd', 'sd', 'playsS', 'stampDays', 'recoveredCover']) {
               if (!Object.prototype.hasOwnProperty.call(les.drill, dk) && cd[dk] && typeof cd[dk] === 'object') {
                 les.drill[dk] = JSON.parse(JSON.stringify(cd[dk]));
               }
@@ -1312,6 +1316,14 @@ function nextRecords(incoming) {
   return next;
 }
 recordsLoad();
+const repairedOkay=EplodRecords.repairOkayScores(RECORDS,id=>{
+  try{return JSON.parse(fs.readFileSync(path.join(BUILD_DIR,'eplod',id.slice(6)+'.json'),'utf8')).dialogue;}catch{return null;}
+});
+if(repairedOkay){
+  const repaired={...RECORDS,revision:(RECORDS.revision||0)+1,saved_at:new Date().toISOString()};
+  recordsSave(repaired);RECORDS=repaired;
+  console.log('[eplod] corrected OK/Okay scores:',repairedOkay);
+}
 const REVIEW_HUB=createReviewHub({web:WEB_DIR,records:()=>RECORDS,setRecords:x=>{RECORDS=x;},save:recordsSave,recordAttempt:serverRecAttempt,quizzes:()=>GQ_STORE,banks:()=>[...REVIEW_BANKS.values()],reviewEvents:()=>REVIEW_EVENTS,ai:AI_CFG});
 
 /* ---------- HTTP 基础 ---------- */
@@ -1759,14 +1771,20 @@ const handler = async (req, res) => {
       if (!MEDIA_EXT.has(path.extname(abs).toLowerCase())) return sendJSON(res, 403, { error: 'ext not allowed' });
       return sendFile(req, res, abs);
     }
-    /* ---- 媒体: 新D方课 ---- */
-    const mNdf = p.match(/^\/media\/ndf\/([^/]+)\/(.+)$/);
+    /* ---- 媒体: 新D方课（/media/ndf-m/<课目录>/<文件>.mp4 = 手机兼容封装副本, faststart; 其余直读源 .mov） ---- */
+    const mNdf = p.match(/^\/media\/ndf(?:-m)?\/([^/]+)\/(.+)$/);
     if (mNdf) {
       const base = path.resolve(SIB, '新D方', '新D方新托福全套');
       const dir = path.normalize(path.join(base, mNdf[1]));
       if (!dir.startsWith(path.normalize(base) + path.sep)) return sendJSON(res, 400, { error: 'bad course dir' });
       const abs = path.normalize(path.join(dir, mNdf[2]));
       if (!abs.startsWith(dir + path.sep)) return sendJSON(res, 400, { error: 'bad path' });
+      if (mNdf[0].startsWith('/media/ndf-m')) {
+        const remux = path.resolve(BUILD_DIR, 'media', 'ndf', decodeURIComponent(mNdf[2]).replace(/\.(mov|mp4)$/i, '.mp4'));
+        if (!remux.startsWith(path.resolve(BUILD_DIR, 'media', 'ndf') + path.sep)) return sendJSON(res, 400, { error: 'bad path' });
+        if (fs.existsSync(remux)) return sendFile(req, res, remux);
+        return sendJSON(res, 404, { error: 'compatible copy not ready' });
+      }
       if (!MEDIA_EXT.has(path.extname(abs).toLowerCase())) return sendJSON(res, 403, { error: 'ext not allowed' });
       return sendFile(req, res, abs);
     }

@@ -8,7 +8,7 @@
 <link rel="icon" type="image/png" sizes="96x96" href="/assets/brand/t-dot-v1/t-dot-96.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/assets/brand/t-dot-v1/t-dot-180.png">
 <title>TOEFL Lab · 托福自学练习</title>
-<link rel="stylesheet" href="desk.css?v=1792989111">
+<link rel="stylesheet" href="desk.css?v=1793000001">
 <style>
 /* 应用层补充样式（视觉基线在 desk.css，不改它的既有规则） */
 /* 单词与字符格保持同一行；焦点、已填、判题状态沿用研读桌配色。 */
@@ -313,6 +313,7 @@ details.ai-tsec[open] summary{margin-bottom:8px}
 
 </div>
 
+<script src="eplod-records.js?v=1"></script>
 <script>
 'use strict';
 /* ============================================================
@@ -603,7 +604,17 @@ function wireAiRegen(qid, panel, btn) {
 /* ---------- 学习记录（服务端唯一真源） ---------- */
 let REC = {attempts:{}, qtimes:{}, mistakes:{}, course:{}, study:{}, writing:{}, drafts:{}, feedback:[]};
 let recT = null, recDirty = false, recReady = false, recSaving = false;
-let recBase = null, recEpoch = 0, recSnapshotId=null,recSnapshotEpoch=-1;
+let recBase = null, recEpoch = 0, recSnapshotId=null,recSnapshotEpoch=-1,recPending=null;
+function recApply(next){
+  next={...next,course:{...(next.course||{})}};
+  for(const [lid,lesson] of Object.entries(REC.course||{})){
+    if(lid.startsWith('eplod-'))next.course[lid]=EplodRecords.mergeLesson(lesson,next.course[lid]);
+  }
+  return EplodRecords.reconcile(REC,next);
+}
+function recBackup(){
+  try{localStorage.setItem('tfl-record-recovery',JSON.stringify({base:recBase,local:REC,snapshotId:recSnapshotId,pending:recPending,at:Date.now()}));return true;}catch(e){return false;}
+}
 const recClone = x => JSON.parse(JSON.stringify(x));
 function saveStatus(msg) {
   let el = $('save-status');
@@ -622,6 +633,7 @@ function saveStatus(msg) {
 }
 function recSave() {
   recDirty=true; recEpoch++; clearTimeout(recT);
+  recBackup();
   recT=setTimeout(flushRecords,400);
 }
 function recSaveNow() {
@@ -661,7 +673,7 @@ function mergeRemote(remote, baseOpt, localOpt) {
                 else if(typeof l[key][prop]==='object'&&l[key][prop]&&!Array.isArray(l[key][prop])){
                   if(prop==='drill'){
                     entry[prop]={...l[key][prop]};
-                    for(const dk of ['dd','rd','sd','playsS']){
+                    for(const dk of ['dd','rd','sd','playsS','stampDays','recoveredCover']){
                       if(!(dk in entry[prop])&&rv&&rv[dk]&&typeof rv[dk]==='object'&&!Array.isArray(rv[dk]))entry[prop][dk]=JSON.parse(JSON.stringify(rv[dk]));
                     }
                   }else entry[prop]=JSON.parse(JSON.stringify(l[key][prop]));
@@ -675,6 +687,11 @@ function mergeRemote(remote, baseOpt, localOpt) {
         } else merged[field][key]=l[key];
       } else delete merged[field][key];   // 本地删除(如不再训练)在合并中保持删除
       if(rs!==bs && rs!==ls) conflicts.push(field+'/'+key);
+    }
+    if(field==='course'){
+      for(const lid of new Set([...Object.keys(r),...Object.keys(l)])){
+        if(lid.startsWith('eplod-'))merged.course[lid]=EplodRecords.mergeLesson(r[lid],merged.course[lid]);
+      }
     }
   }
   // 作答与题目用时由增量端点拥有；快照只合并非作答字段。
@@ -705,27 +722,32 @@ async function flushRecords() {
   if(!recReady) {saveStatus('记录尚未读取成功，暂不覆盖服务端；请导出当前记录备份');return;}
   recSaving=true;
   try {
-    const snapshot=recClone(REC), epoch=recEpoch;
-    if(recSnapshotEpoch!==epoch||!recSnapshotId){recSnapshotId=recEventId();recSnapshotEpoch=epoch;}
-    snapshot.revision=recBase?.revision||0;snapshot.attemptProtocol=2;snapshot.snapshotId=recSnapshotId;
+    if(!recPending){
+      const snapshot=recClone(REC);
+      recSnapshotId=recEventId();recSnapshotEpoch=recEpoch;
+      snapshot.revision=recBase?.revision||0;snapshot.attemptProtocol=2;snapshot.snapshotId=recSnapshotId;
+      recPending={snapshot,epoch:recEpoch};
+    }
+    const {snapshot,epoch}=recPending;
+    recBackup();
     const r=await fetch('/api/records',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(snapshot),signal:AbortSignal.timeout(15000)});
     if(r.status===409) {
       const remote=await api('/api/records');
       if(remote.snapshotEvents?.[snapshot.snapshotId]){
-        REC=mergeRemote(remote,snapshot,REC);recBase=recClone(remote);recDirty=recEpoch!==epoch;
+        recApply(mergeRemote(remote,snapshot,REC));recBase=recClone(remote);recDirty=recEpoch!==epoch;recPending=null;recBackup();
         if(!recDirty){try{localStorage.removeItem('tfl-record-recovery');}catch(e){}}
         recSaving=false;if(recDirty)return await flushRecords();return;
       }
-      const merged=mergeRemote(remote); REC=merged;recBase=recClone(remote);
+      const merged=mergeRemote(remote); recApply(merged);recBase=recClone(remote);recPending=null;recBackup();
       recSaving=false;return await flushRecords();
     }
     if(!r.ok) throw new Error('保存失败（'+r.status+'），记录仍在本页');
     const ack=await r.json();
-    recBase={...snapshot,revision:ack.revision,saved_at:ack.saved_at};
+    recBase={...snapshot,revision:ack.revision,saved_at:ack.saved_at};recPending=null;
     REC.revision=ack.revision;REC.saved_at=ack.saved_at;
     recDirty=recEpoch!==epoch;if(!recDirty){try{localStorage.removeItem('tfl-record-recovery');}catch(e){}}
     if(!recAttQueue.length)saveStatus('');recRetryBackoff=0;
-    if(recDirty) recT=setTimeout(flushRecords,400);
+    if(recDirty){recBackup();recT=setTimeout(flushRecords,400);}
   } catch(e) {saveStatus(e.message+'（每 3 秒自动重试，也可导出留底）'); recScheduleRetry();} finally {recSaving=false;}
 }
 async function recResync() {
@@ -733,7 +755,7 @@ async function recResync() {
   const epoch=recEpoch;
   try {const j=await api('/api/records');
     if(recDirty || recSaving || recAttQueue.length || recEpoch!==epoch) return;
-    REC=Object.assign(REC,j);recBase=recClone(REC);recReady=true;
+    recApply(j);recBase=recClone(REC);recReady=true;
     refreshCurrent();
   }catch(e){saveStatus('无法同步学习记录；本页记录已保留');}
 }
@@ -756,8 +778,8 @@ window.addEventListener('beforeunload',e=>{
   // Preserve unsaved non-attempt work locally before permitting a close.
   if(!recDirty)return;
   let backedUp=false;
-  try{if(recSnapshotEpoch!==recEpoch||!recSnapshotId){recSnapshotId=recEventId();recSnapshotEpoch=recEpoch;}localStorage.setItem('tfl-record-recovery',JSON.stringify({base:recBase,local:REC,snapshotId:recSnapshotId,at:Date.now()}));backedUp=true;}catch(e){}
-  if(recReady&&!recSaving)navigator.sendBeacon('/api/records',new Blob([JSON.stringify({...REC,attemptProtocol:2,snapshotId:recSnapshotId,revision:recBase?.revision||0})],{type:'application/json'}));
+  try{if(recSnapshotEpoch!==recEpoch||!recSnapshotId){recSnapshotId=recEventId();recSnapshotEpoch=recEpoch;}localStorage.setItem('tfl-record-recovery',JSON.stringify({base:recBase,local:REC,snapshotId:recSnapshotId,pending:recPending,at:Date.now()}));backedUp=true;}catch(e){}
+  if(recReady&&!recSaving&&!recPending)navigator.sendBeacon('/api/records',new Blob([JSON.stringify({...REC,attemptProtocol:2,snapshotId:recSnapshotId,revision:recBase?.revision||0})],{type:'application/json'}));
   if(!backedUp){e.preventDefault();e.returnValue='学习记录尚未保存，请导出备份';}
 });
 function studyTick(sec) {
@@ -3034,6 +3056,8 @@ function renderCourse(){
 function courseSeriesName(n){ return String(n||'').replace(/新D方/g,'新东方'); }
 const EP_LV=[[1,'初级','Elementary'],[2,'中级','Intermediate'],[3,'中高级','Upper Intermediate'],[4,'高级','Advance'],[5,'精通','Proficient']];
 const EP_CHECK='<i class="v"><svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1.8 5.4 4 7.6 8.3 2.9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></i>';
+let epNavQuery='';
+const epNavOpen=(()=>{try{const v=JSON.parse(localStorage.getItem('tfl-ep-nav-open')||'{}');return v&&typeof v==='object'&&!Array.isArray(v)?v:{};}catch(e){return {};}})();
 function epNavListHTML(c,q){
   /* EnglishPod 课程列表: 按难度 rank 分组; q=关键词(标题/期号/难度), 空则全量 */
   q=(q||'').toLowerCase();
@@ -3050,13 +3074,16 @@ function epNavListHTML(c,q){
     if(!items.length)continue;
     shown+=items.length;
     const dn=items.filter(([l])=>doneOf(l)).length;
-    h+='<div class="cgrp"><b>'+zh+'</b><span>'+en+'</span><i>'+dn+'/'+items.length+'</i></div>';
+    const selected=c.lessons[csSel.c===c.id?csSel.l:0];
+    const expanded=q?true:(Object.prototype.hasOwnProperty.call(epNavOpen,rk)?epNavOpen[rk]:rk===(selected&&selected.levelRank||1));
+    h+='<details class="ep-level" data-rank="'+rk+'"'+(expanded?' open':'')+'><summary class="cgrp"><svg class="ep-chevron" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="m4 2 4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><b>'+zh+'</b><span>'+en+'</span><i title="已学 / '+(q?'匹配':'总')+'课数">'+dn+'/'+items.length+'</i></summary>';
     for(const [l,li] of items){
       const done=doneOf(l),on=(csSel.c===c.id&&csSel.l===li);
       h+='<div class="cli'+(done?' done':'')+(on?' on':'')+'" data-cid="'+esc(c.id)+'" data-ix="'+li+'" title="'+esc(l.title)+'">'
         +'<span class="st">'+(done?EP_CHECK:'<i></i>')+'</span>'
         +'<span class="lt">'+esc(l.title)+'</span><span class="ld">'+(l.duration_sec?fmtDur(l.duration_sec):'\u2014')+'</span></div>';
     }
+    h+='</details>';
   }
   return shown?h:'<div class="cempty">没有匹配的课程，换个关键词试试</div>';
 }
@@ -3085,14 +3112,14 @@ function renderCourseNav(){
     const cd=(c.lessons||[]).filter(l=>REC.course[l.id]&&REC.course[l.id].done).length;
     const tot=c.lesson_count||0;
     h+='<div class="csi flat" data-cid="'+esc(c.id)+'" title="'+esc(c.title)+'">'
-      +'<span class="no">'+(c.no!=null?c.no:'·')+'</span>'
+      +(c.no!=null?'<span class="no">'+esc(c.no)+'</span>':'')
       +'<div class="t"><b>'+esc(c.title)+(c.unit?' · '+esc(c.unit):'')+'</b>'
-      +'<span>'+esc(c.teacher||'')+' · '+tot+' 节</span></div>'
+      +'<span class="course-meta">'+(c.teacher?'<span class="course-teacher">'+esc(c.teacher)+'</span>':'')+'<span class="course-total">'+tot+' 节</span></span></div>'
       +'<div class="pg"><span class="pb"><i style="width:'+(tot?Math.round(cd/tot*100):0)+'%"></i></span>'
       +'<span class="pn '+(cd===tot&&tot?'full':'')+'">'+cd+'/'+tot+'</span></div></div>';
     if(c.kind==='eplod'){
       /* 364 期量大: 搜索框只重建 #ep-list, 输入不丢焦点; 分组标题带已学计数 */
-      h+='<div class="ep-q"><input id="ep-q" placeholder="搜索：标题 / 期号 / 难度" autocomplete="off"></div><div id="ep-list"></div>';
+      h+='<div class="ep-q"><input id="ep-q" type="search" aria-label="搜索 EnglishPod 课程" placeholder="搜索：标题 / 期号 / 难度" autocomplete="off" value="'+esc(epNavQuery)+'"></div><div id="ep-list"></div>';
     }else c.lessons.forEach((l,li)=>{
       const done=REC.course[l.id]&&REC.course[l.id].done;
       const qd=GEN_COURSES.has(c.id)&&gqCompleted(l.id);
@@ -3115,11 +3142,16 @@ function renderCourseNav(){
     const qin=el.querySelector('#ep-q');
     const draw=()=>{ const lst=el.querySelector('#ep-list'); if(!lst)return;
       lst.innerHTML=epNavListHTML(c,qin.value.trim());
+      lst.querySelectorAll('.ep-level').forEach(group=>group.ontoggle=()=>{
+        if(qin.value.trim())return;
+        epNavOpen[group.dataset.rank]=group.open;
+        try{localStorage.setItem('tfl-ep-nav-open',JSON.stringify(epNavOpen));}catch(e){}
+      });
       lst.querySelectorAll('.cli').forEach(x=>x.onclick=()=>openLesson(x.dataset.cid,+x.dataset.ix)); };
-    qin.oninput=draw; draw('');
+    qin.oninput=()=>{epNavQuery=qin.value;draw();}; draw();
   }else el.querySelectorAll('.cli').forEach(x=>x.onclick=()=>openLesson(x.dataset.cid,+x.dataset.ix));
   const active=el.querySelector('.cli.on');
-  if(active){
+  if(active&&active.getClientRects().length){
     const navRect=el.getBoundingClientRect(),itemRect=active.getBoundingClientRect();
     const itemTop=el.scrollTop+(itemRect.top-navRect.top);
     const itemBottom=itemTop+active.offsetHeight;
@@ -3144,6 +3176,9 @@ function selectLessonHandoutPages(notes,hm){
 const EP={cache:{},st:null,keyHandler:null};
 window.renderEplodMain=async function(c){
   const el=$('cs-main');
+  const request=EP.loadId=(EP.loadId||0)+1;
+  EP.st?.cancelSeek?.();
+  if(EP.st?.recording){const r=EP.st.recording;EP.st.recording=null;r.rec.stop();}
   const l=c.lessons[Math.max(0,Math.min(csSel.l==null?0:csSel.l,c.lessons.length-1))];
   el.innerHTML='<div class="cs-stick ep"><div class="card" style="padding:32px;text-align:center;color:var(--t2)">加载本期数据…</div></div>';
   let d=EP.cache[l.ep];
@@ -3151,6 +3186,7 @@ window.renderEplodMain=async function(c){
     try{d=EP.cache[l.ep]=await api('/api/eplod/lesson/'+String(l.ep).padStart(4,'0'),{signal:AbortSignal.timeout(15000)});}
     catch(e){el.innerHTML='<div class="cs-stick ep"><div class="card" style="padding:32px;text-align:center">该期数据未导入（先跑 pipeline/build_eplod.py）</div></div>';return;}
   }
+  if(request!==EP.loadId)return;
   const p=REC.course[l.id]||(REC.course[l.id]={});
   if(!p.marks||typeof p.marks!=='object'||Array.isArray(p.marks))p.marks={};
   if(!p.collected||typeof p.collected!=='object'||Array.isArray(p.collected))p.collected={};
@@ -3184,48 +3220,46 @@ window.renderEplodMain=async function(c){
   EP.st.amode={}; EP.st.lastMode='dict';
   el.innerHTML='<div class="cs-stick ep">'
     +'<div class="csp-meta"><h3>'+esc(l.title)+'</h3><span class="src">'+esc(c.title)+' · '+esc(d.level)+' · 第 '+(csSel.l+1)+'/'+c.lessons.length+' 节</span>'
-    +(p.done?'<span class="pill q">已学完</span>':'')+'</div>'
-    +'<div class="ep-steps" id="ep-steps"></div>'
-    +'<div class="card ep-stage">'
-      +'<div class="ep-segs">'+['dg','pb','rv'].map(s=>'<button data-seg="'+s+'"'+(s==='dg'?' class="on"':'')+'>'+segNames[s]+(d.durations&&d.durations[s]?' <i>'+fmtDur(d.durations[s])+'</i>':'')+'</button>').join('')+'</div>'
-      +'<audio id="ep-audio" controls preload="metadata" src="'+esc(d.audio.dg)+'"></audio>'
-      +'<div class="cs-status ep-status">'
-        +'<button id="ep-loop">↻ 单句循环</button>'
-        +'<button id="ep-mask">遮罩盲听</button>'
-        +'<span class="grow"></span>'
-        +'<label class="cs-speed">速度 <select id="ep-speed" aria-label="播放速度">'+[0.75,1,1.25,1.5].map(n=>'<option value="'+n+'">'+n+'×</option>').join('')+'</select></label>'
-        +'<button id="ep-done">'+(p.done?'取消学完':'标记学完')+'</button></div>'
-      +'<p class="ep-hint">空格 播放/暂停 · Z 重听 · X 循环 · ←/→ 上一块/下一块 · ○=这句没听出来</p>'
-      +'<div class="na-box" id="ep-note" style="display:none"></div>'
-    +'</div>'
-    +'<div class="ep-tabs" id="ep-tabs"><button data-m="listen" class="on">逐句精听</button><button data-m="train">四步训练 · 对话</button></div>'
+    +(p.done?'<span class="pill q">已学完</span>':'')+'<details class="ep-course-actions"><summary>课程操作 ···</summary><button id="ep-done">'+(p.done?'取消学完':'标记学完')+'</button><button id="ep-materials-toggle">查看课程资料</button></details></div>'
+    +'<div class="ep-tabs" id="ep-tabs" aria-label="学习模式"><button data-m="listen" class="on">逐句精听</button><button data-m="train">四步训练</button><button data-m="chunks">语块积累</button></div>'
+    +'<div class="ep-overview"><div class="ep-steps" id="ep-steps"></div><button class="ep-text-button" id="ep-progress-toggle" aria-expanded="false" aria-controls="ep-progress">查看学习进度</button></div>'
+    +'<section class="ep-progress" id="ep-progress" hidden><h4>本期学习进度</h4><div class="ep-cov" id="ep-cov"></div><div class="ep-dstats" id="ep-tstats"></div></section>'
     +'<div class="card ep-listen" id="ep-listen"><div class="phead"><div class="l"><b>逐句精听 · 对话</b></div><div class="r ep-mc">'+(markCount?markCount+' 句没听出来':'')+'</div></div>'
       +'<div class="ep-lines" id="ep-lines">'+d.dialogue.map((x,i)=>lineHtml(x,i,'dg')).join('')+'</div></div>'
     +'<div class="card ep-train" id="ep-train" style="display:none">'
-      +'<div class="phead"><div class="l"><b>四步训练 · 对话 '+d.dialogue.length+' 句</b><span class="ep-note">① 听写=听音写 · ③ 背诵=🎙朗读或⌨默写 · ④ 同速=朗读时长≤原句1.15×；列表只给中文线索不剧透英文'+(l.asrText?' · <b>本篇对话文本来自语音转写，个别词可能有出入</b>':'')+'</span></div>'
-      +'<div class="r"><span class="ep-dmode"><button data-m="free"'+(drill.mode==='free'?' class="on"':'')+'>自由</button><button data-m="exam"'+(drill.mode==='exam'?' class="on"':'')+'>考试 ×3</button></span></div></div>'
-      +'<div class="ep-cov" id="ep-cov"></div>'
-      +'<div class="ep-dstats" id="ep-tstats"></div>'
+      +'<div class="phead"><div class="l"><b>对话训练 · '+d.dialogue.length+' 句</b></div><div class="r"><details class="ep-settings"><summary>训练设置</summary><div class="ep-dmode"><button data-m="free"'+(drill.mode==='free'?' class="on"':'')+'>自由练习</button><button data-m="exam"'+(drill.mode==='exam'?' class="on"':'')+'>考试 ×3</button></div><p>听写：听音写句子。背诵：朗读或默写。朗读时长不超过原句 1.15 倍即达同速。考试模式每句可听 3 次。</p>'+(l.asrText?'<p>本篇文本来自语音转写，个别词可能有出入。</p>':'')+'</details></div></div>'
       +'<div class="ep-blist" id="ep-blist"></div></div>'
-    +(d.chunks&&d.chunks.length?'<div class="card ep-chunks"><div class="phead"><div class="l"><b>词块积累</b><span class="ep-note">收藏后进每日复习队列（SM-2）</span></div></div><div class="ep-chunk-grid">'
-      +d.chunks.map(ch=>{
+    +('<div class="card ep-chunks" id="ep-chunks" style="display:none"><div class="phead"><div class="l"><b>语块积累</b><span class="ep-note">收藏后进每日复习队列（SM-2）</span></div></div><div class="ep-chunk-grid">'
+      +(d.chunks||[]).map(ch=>{
         const k=ch.chunk.toLowerCase().replace(/\s+/g,'');
         const got=p.collected[k];
         return '<div class="ep-chunk'+(got?' got':'')+'" data-k="'+esc(k)+'">'
-          +'<div class="ch">'+esc(ch.chunk)+(ch.pos?' <i>'+esc(ch.pos)+'</i>':'')+'</div>'
+          +'<div class="ch">'+esc(ch.chunk)+(ch.pos?' <i>'+esc(ch.pos)+'</i>':'')+'<button class="pb" data-qi="'+ch.qi+'" title="回播原句" aria-label="回播原句">▶</button></div>'
           +'<div class="df">'+esc(ch.def)+'</div>'
-          +(ch.note?'<div class="nt">'+esc(ch.note)+'</div>':'')
-          +'<div class="q"><button class="pb" data-qi="'+ch.qi+'" title="回播原句">▶</button><span class="qtx" title="点击显示原句">'+esc(ch.quote)+'</span></div>'
-          +(ch.zh?'<div class="zq">'+esc(ch.zh)+'</div>':'')
+
+          +'<details class="ep-chunk-detail"><summary>用法与例句</summary>'+(ch.note?'<div class="nt">'+esc(ch.note)+'</div>':'')+'<div class="q"><span class="qtx" title="点击显示原句">'+esc(ch.quote)+'</span></div>'
+          +(ch.zh?'<div class="zq">'+esc(ch.zh)+'</div>':'')+'</details>'
           +'<button class="col">'+(got?'已进复习 ✓':'收藏进复习')+'</button></div>';
-      }).join('')+'</div></div>':'')
-    +'<div class="card ep-kv"><div class="phead"><div class="l"><b>官方词汇表</b><span class="ep-note">Key Vocabulary · PDF 原表</span></div></div><div class="ep-kv-grid">'
+      }).join('')+'</div>'+(!(d.chunks||[]).length?'<p class="ep-note">本课暂无语块。</p>':'')+'</div>')
+    +'<details class="ep-materials" id="ep-materials"><summary>课程资料 · 官方词表与讲解逐字稿</summary><div class="card ep-kv"><div class="phead"><div class="l"><b>官方词汇表</b><span class="ep-note">Key Vocabulary · PDF 原表</span></div></div><div class="ep-kv-grid">'
       +(d.keyvocab||[]).map(k=>'<div class="kv"><b>'+esc(k.term)+'</b><i>'+esc(k.pos)+'</i><span>'+esc(k.def)+'</span></div>').join('')
       +(d.suppvocab||[]).map(k=>'<div class="kv sup"><b>'+esc(k.term)+'</b><i>'+esc(k.pos)+'</i><span>'+esc(k.def)+'</span></div>').join('')
       +'</div></div>'
     +'<details class="card ep-expl" id="ep-expl"><summary>主持人讲解逐字稿 · '+d.explanation.filter(x=>x.t0!=null).length+'/'+d.explanation.length+' 行可点击回播</summary>'
       +'<div class="ep-lines">'+d.explanation.map((x,i)=>lineHtml(x,i,'pb')).join('')+'</div></details>'
-    +'</div>'
+    +'</details>'
+    +'<footer class="ep-stage">'
+      +'<div class="ep-segs">'+['dg','pb','rv'].map(s=>'<button data-seg="'+s+'"'+(s==='dg'?' class="on"':'')+'>'+segNames[s]+(d.durations&&d.durations[s]?' <i>'+fmtDur(d.durations[s])+'</i>':'')+'</button>').join('')+'</div>'
+      +'<details class="ep-full-player"><summary>完整播放器 · 进度与音量</summary><audio id="ep-audio" controls preload="metadata" src="'+esc(d.audio.dg)+'"></audio></details>'
+      +'<div class="cs-status ep-status">'
+        +'<button id="ep-loop">↻ 单句循环</button>'
+        +'<button id="ep-mask">遮罩盲听</button>'
+        +'<span class="grow"></span>'
+        +'<label class="cs-speed">速度 <select id="ep-speed" aria-label="播放速度">'+[0.75,1,1.25,1.5].map(n=>'<option value="'+n+'">'+n+'×</option>').join('')+'</select></label>'
+        +'<details class="ep-shortcuts"><summary>快捷键 ?</summary><p>空格 播放/暂停 · Z 重听 · X 循环 · ←/→ 上一句/下一句 · C 揭示原文</p></details></div>'
+
+      +'<div class="na-box" id="ep-note" style="display:none"></div>'
+    +'</footer>'
     +'<div class="ep-dock" id="ep-dock" style="display:none">'
       +'<button id="ep-dock-prev" title="上一块（←）">◀</button>'
       +'<span class="ep-dock-no" id="ep-dock-no"></span>'
@@ -3234,7 +3268,9 @@ window.renderEplodMain=async function(c){
       +'<button id="ep-dock-next" title="下一块（→）">▶|</button>'
       +'<span class="ep-dock-sep"></span>'
       +'<button id="ep-dock-listen" title="回逐句精听">精听</button>'
-      +'</div>';
+      +'</div></div>';
+  const stage=el.querySelector('.ep-stage');
+  stage.prepend($('ep-dock'));
   /* 独立网址: 与视频课分支同款, 把当前期写进 hash——刷新/分享都回到这一期 */
   history.replaceState(null,'','#/course/'+encodeURIComponent(l.id));
   try{var _sv=localStorage.getItem('tfl-ep-tab');}catch(e){}
@@ -3246,9 +3282,44 @@ function epWire(){
   const st=EP.st; if(!st) return;
   const a=$('ep-audio');
   /* 程序性 seek 守卫: 手动拖进度条会触发 seeking→取消句尾停点; 程序 seek 不取消 */
-  st.markSeek=()=>{st._iSeek=true;setTimeout(()=>{st._iSeek=false;},120);};
-  const seekTo=t0=>{st.markSeek();try{a.currentTime=t0;a.play().catch(()=>{});}catch(e){}};
-  a.addEventListener('seeking',()=>{if(!st._iSeek)st.stopAtEnd=false;});
+  st.lastTap=0;   // 用户手动点播时间戳, 自动跳句让位
+  st.markSeek=()=>{st._iSeek=true;clearTimeout(st._iSeekT);st._iSeekT=setTimeout(()=>{st._iSeek=false;},800);};
+  st.seekSeq=st.seekSeq||0;
+  st.seekPosition=t=>{st.markSeek();st.seekPending=true;a.currentTime=t;};
+  const seekTo=st.seekTo=(t0)=>{
+    if(!Number.isFinite(t0)||EP.st!==st)return;
+    st.cancelSeek?.();
+    const seq=++st.seekSeq;
+    let started=false,timer;
+    const cleanup=()=>{clearTimeout(timer);a.removeEventListener('loadedmetadata',go);a.removeEventListener('canplay',go);};
+    st.cancelSeek=()=>{cleanup();st.seekPending=false;};
+    const go=()=>{
+      if(started||seq!==st.seekSeq||EP.st!==st)return;
+      started=true;cleanup();st.markSeek();st.seekPending=true;
+      try{
+        st.seekPosition(t0);
+        const pr=a.play();
+        if(pr&&pr.catch)pr.catch(err=>{
+          if(seq!==st.seekSeq||EP.st!==st)return;
+          st.seekPending=false;
+          const nn=$('ep-note');if(nn){nn.style.display='';nn.textContent='播放未能开始：'+err.message;}
+        });
+      }catch(err){st.seekPending=false;const nn=$('ep-note');if(nn){nn.style.display='';nn.textContent='音频定位失败：'+err.message;}}
+    };
+    if(a.readyState>=1){go();return;}
+    const nn=$('ep-note');if(nn){nn.style.display='';nn.textContent='音频加载中…';}
+    a.addEventListener('loadedmetadata',go);a.addEventListener('canplay',go);
+    timer=setTimeout(()=>{
+      cleanup();if(started||seq!==st.seekSeq||EP.st!==st)return;
+      st.seekPending=false;const n=$('ep-note');if(n){n.style.display='';n.textContent='音频加载超时，请重试播放。';}
+    },15000);
+    if(a.networkState===0||a.networkState===3)a.load();
+  };
+  a.addEventListener('seeking',()=>{
+    if(st.seekPending)return;
+    if(!st._iSeek){st.cancelSeek?.();st.seekSeq++;st.stopAtEnd=false;st.loop=false;$('ep-loop').classList.remove('on');}
+  });
+  a.addEventListener('seeked',()=>{st.seekPending=false;});
   const mc=$('cs-main').querySelector('.ep-mc');
   epHighlight(-1);
   /* 行点击: 跳播+循环区间; 遮罩态点句=揭示 */
@@ -3257,9 +3328,10 @@ function epWire(){
       if(e.target.closest('.mk'))return;
       if(row.dataset.t0==null)return;
       const kind=row.dataset.kind,i=+row.dataset.i;
-      if(kind!==st.seg)epSeg(kind);
+      const fresh=kind!==st.seg;
+      if(fresh)epSeg(kind);
       st.stopAtEnd=false;   // 对照跳播是连续听, 不做句尾停点
-      seekTo(Number(row.dataset.t0));
+      st.seekTo(Number(row.dataset.t0));
       st.range=[Number(row.dataset.t0),Number(row.dataset.t1)];
       if(st.mask&&!st.revealed[kind+'-'+i]){st.revealed[kind+'-'+i]=true;row.classList.add('open');}
       epHighlight(i,kind);
@@ -3285,9 +3357,10 @@ function epWire(){
       e.stopPropagation();
       const i=+pb.dataset.qi,row=$('ep-lines').querySelector('.ep-line[data-i="'+i+'"]');
       if(row&&row.dataset.t0!=null){
-        if(st.seg!=='dg')epSeg('dg');
+        const fresh=st.seg!=='dg';
+        if(fresh)epSeg('dg');
         st.stopAtEnd=true;
-        seekTo(Number(row.dataset.t0));st.range=[Number(row.dataset.t0),Number(row.dataset.t1)];epHighlight(i,'dg');
+        st.seekTo(Number(row.dataset.t0));st.range=[Number(row.dataset.t0),Number(row.dataset.t1)];epHighlight(i,'dg');
       }
     };
     card.querySelector('.col').onclick=()=>epCollect(card);
@@ -3298,10 +3371,11 @@ function epWire(){
   $('cs-main').querySelectorAll('.ep-segs button').forEach(b=>b.onclick=()=>epSeg(b.dataset.seg));
   $('ep-loop').onclick=()=>{st.loop=!st.loop;$('ep-loop').classList.toggle('on',st.loop);};
   $('ep-mask').onclick=()=>{st.mask=!st.mask;$('ep-mask').classList.toggle('on',st.mask);$('cs-main').querySelector('.ep-listen').classList.toggle('mask',st.mask);};
-  const speed=$('ep-speed');let savedRate=1;try{savedRate=Number(localStorage.getItem('tfl-video-rate'))||1;}catch(e){}
+  /* EnglishPod 与视频课倍速分开记忆(用户: EP 常 1×, 词汇课常 1.25×) */
+  const speed=$('ep-speed');let savedRate=1;try{savedRate=Number(localStorage.getItem('tfl-ep-rate'))||1;}catch(e){}
   if(![0.75,1,1.25,1.5].includes(savedRate))savedRate=1;
   speed.value=String(savedRate);a.playbackRate=savedRate;
-  speed.onchange=()=>{a.playbackRate=Number(speed.value);try{localStorage.setItem('tfl-video-rate',speed.value);}catch(e){}};
+  speed.onchange=()=>{a.playbackRate=Number(speed.value);try{localStorage.setItem('tfl-ep-rate',speed.value);}catch(e){}};
   $('ep-done').onclick=()=>{st.p.done=!st.p.done;st.p.at=Date.now();recSave();renderCourseNav();$('ep-done').textContent=st.p.done?'取消学完':'标记学完';$('cs-main').querySelector('.csp-meta .pill')?.remove();if(st.p.done)$('cs-main').querySelector('.csp-meta').insertAdjacentHTML('beforeend','<span class="pill q">已学完</span>');};
   /* 音频事件: 学习计时 / 断点续听 / 循环与当前句 */
   a.addEventListener('play',()=>{STU=true;
@@ -3309,31 +3383,34 @@ function epWire(){
       const ce=REC.course[st.l.id]||(REC.course[st.l.id]={});ce.wt=(ce.wt||0)+1;
       if((REC.study.total||0)%5===0)recSave();}},1000);});
   a.addEventListener('pause',()=>{STU=false;epSavePos();});
-  a.addEventListener('ended',()=>{if(st.range&&st.stopAtEnd){try{a.currentTime=st.range[0];}catch(e){}}});
+  a.addEventListener('ended',()=>{if(st.range&&st.stopAtEnd){try{st.seekPosition(st.range[0]);}catch(e){}}});
   let posT=0;
   a.addEventListener('timeupdate',()=>{
+    if(EP.st!==st)return;
     const now=Date.now();
     if(now-posT>5000){posT=now;epSavePos();}
-    if(st.range&&a.currentTime>=st.range[1]-0.03){
-      if(st.loop){a.currentTime=st.range[0];}
-      else if(st.stopAtEnd&&!a.paused){a.pause();try{a.currentTime=st.range[0];}catch(e){}}   // 播完这句就停, 回到句首待重听
+    if(!a.seeking&&!st.seekPending&&st.range&&a.currentTime>=st.range[1]-0.03){
+      if(st.loop){st.seekTo(st.range[0]);}
+      else if(st.stopAtEnd&&!a.paused){a.pause();try{st.seekPosition(st.range[0]);}catch(e){}}   // 播完这句就停, 回到句首待重听
     }
     epSyncCur();
   });
+  let resumed=false;
   a.addEventListener('loadedmetadata',()=>{
-    if(st.p.pos&&st.p.pos<a.duration-5){a.currentTime=st.p.pos;const nn=$('ep-note');nn.style.display='';nn.textContent='已定位到上次听到 '+fmtDur(st.p.pos);}
+    if(resumed||st.seekSeq||st.seg!=='dg')return;   // 用户已点句/已 seek → 不再把上次进度拉回来
+    if(st.p.pos&&st.p.pos<a.duration-5){resumed=true;a.currentTime=st.p.pos;const nn=$('ep-note');nn.style.display='';nn.textContent='已定位到上次听到 '+fmtDur(st.p.pos);}
   });
   /* 键盘: 空格播放/暂停 · Z 重听 · X 循环 · C 揭示 */
   if(EP.keyHandler)document.removeEventListener('keydown',EP.keyHandler);
   EP.keyHandler=e=>{
     if(!EP.st||!document.querySelector('#v-course.on'))return;
-    if(e.target&&/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName))return;
+    if(e.target&&/^(INPUT|SELECT|TEXTAREA|AUDIO|BUTTON|SUMMARY)$/.test(e.target.tagName))return;
     if(e.target&&e.target.isContentEditable)return;
     const a2=$('ep-audio');if(!a2)return;
     if(e.key===' '){e.preventDefault();a2.paused?a2.play().catch(()=>{}):a2.pause();}
-    else if(e.key==='ArrowLeft'){e.preventDefault();epGo(st.ai-1,true);}
-    else if(e.key==='ArrowRight'){e.preventDefault();epGo(st.ai+1,true);}
-    else if(e.key==='z'||e.key==='Z'){if(st.range){st.stopAtEnd=true;seekTo(st.range[0]);}}
+    else if(st.tab==='train'&&e.key==='ArrowLeft'){e.preventDefault();epGo(st.ai-1,true);}
+    else if(st.tab==='train'&&e.key==='ArrowRight'){e.preventDefault();epGo(st.ai+1,true);}
+    else if(e.key==='z'||e.key==='Z'){if(st.range){st.stopAtEnd=true;st.seekTo(st.range[0]);}}
     else if(e.key==='x'||e.key==='X'){$('ep-loop').click();}
     else if(e.key==='c'||e.key==='C'){
       const row=$('cs-main').querySelector('.ep-line.on')||$('cs-main').querySelector('.ep-listen .ep-line[data-i="0"]');
@@ -3341,7 +3418,17 @@ function epWire(){
     }
   };
   document.addEventListener('keydown',EP.keyHandler);
-  /* 三 tab: 精听 / 听写整期 / 背诵对话; dock 在两个训练列表通用 */
+  $('ep-progress-toggle').onclick=()=>{
+    const panel=$('ep-progress'),open=panel.hidden;
+    panel.hidden=!open;$('ep-progress-toggle').setAttribute('aria-expanded',String(open));
+    $('ep-progress-toggle').textContent=open?'收起学习进度':'查看学习进度';
+  };
+  $('ep-materials-toggle').onclick=()=>{
+    $('ep-materials').open=true;
+    $('ep-materials').scrollIntoView({block:'start',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});
+    $('cs-main').querySelector('.ep-course-actions').open=false;
+  };
+  /* 精听 / 四步训练 / 语块积累 */
   $('ep-tabs').querySelectorAll('button').forEach(b=>b.onclick=()=>epTab(b.dataset.m));
   epTrainWire();
   epStepsUpdate();
@@ -3350,11 +3437,15 @@ function epWire(){
 
 function epTab(m){
   const tabs=$('ep-tabs');if(!tabs)return;
-  tabs.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x.dataset.m===m));
+  if(!['listen','train','chunks'].includes(m))m='listen';
+  EP.st.tab=m;
+  if(m==='train')requestAnimationFrame(()=>$('ep-train')?.querySelectorAll('.dt').forEach(epFitInput));
+  tabs.querySelectorAll('button').forEach(x=>{x.classList.toggle('on',x.dataset.m===m);x.setAttribute('aria-pressed',String(x.dataset.m===m));});
   $('ep-listen').style.display=m==='listen'?'':'none';
   $('ep-train').style.display=m==='train'?'':'none';
+  $('ep-chunks').style.display=m==='chunks'?'':'none';
   const dock=$('ep-dock');
-  if(dock)dock.style.display=m==='listen'?'none':'flex';
+  if(dock){dock.style.display='flex';dock.dataset.tab=m;}
   try{localStorage.setItem('tfl-ep-tab',m);}catch(e){}
 }
 
@@ -3372,18 +3463,21 @@ function epStepsUpdate(){
   const rp=Object.keys(drill.rd||{}).filter(k=>drill.rd[k]&&drill.rd[k].acc!=null&&drill.rd[k].acc>=0.9).length;
   const asr=!!st.d.asr;
   const sp=Object.keys(drill.sd||{}).length;
-  el.innerHTML='<span class="es on"><i>① 听写</i><b>'+(ds.length?Math.round(passed/n*100)+'%':'未开始')+'</b><u>'+(ds.length?'均准 '+accAvg+'%':'对话 '+n+' 句')+'</u></span>'
-    +'<span class="es'+(got>=chunks.length&&chunks.length?' ok':'')+'"><i>② 理解</i><b>'+got+'/'+chunks.length+'</b><u>词块收藏</u></span>'
-    +'<span class="es'+(rp>=n?' ok':'')+'"><i>③ 背诵</i><b>'+rp+'/'+n+'</b><u>对话逐句</u></span>'
-    +'<span class="es'+(!asr?' lock':(sp>=n?' ok':''))+'"><i>④ 同速</i><b>'+(asr?sp+'/'+n:'待开放')+'</b><u>朗读时长</u></span>';
+  el.innerHTML='<span class="es'+(passed>=n?' ok':'')+'"><i>听写</i><b>'+passed+'/'+n+'</b></span>'
+    +'<span class="es'+(got>=chunks.length&&chunks.length?' ok':'')+'"><i>理解</i><b>'+got+'/'+chunks.length+'</b></span>'
+    +'<span class="es'+(rp>=n?' ok':'')+'"><i>背诵</i><b>'+rp+'/'+n+'</b></span>'
+    +'<span class="es'+(!asr?' lock':(sp>=n?' ok':''))+'"><i>同速</i><b>'+(asr?sp+'/'+n:'待开放')+'</b></span>';
   const dst=$('ep-tstats');
-  if(dst)dst.textContent='听写已写 '+ds.length+'/'+n+' · 听写通过 '+passed+' · 默写通过 '+rp+' · 同速 '+sp;
+  if(dst){
+    const pending=st.d.dialogue.map((_,i)=>i).filter(i=>!(drill.rd?.[i]?.acc>=.9));
+    dst.textContent='听写已写 '+ds.length+'/'+n+' · 听写通过 '+passed+' · 背诵通过 '+rp+'/'+n+' · 同速 '+sp+(pending.length?' · 背诵待通过：'+pending.map(i=>'#'+(i+1)).join('、'):' · 背诵全部通过');
+  }
   epCoverUpdate();
 }
 
 /* ---- 听写 diff: 词级 LCS, 返回逐词对错与多写词 ---- */
 function epDiff(official,mine){
-  const T=s=>s.toLowerCase().match(/[a-z0-9']+/g)||[];
+  const T=s=>(s.toLowerCase().match(/[a-z0-9']+/g)||[]).map(w=>w==='okay'?'ok':w);
   const o=T(official),m=T(mine);
   const n=o.length,mm=m.length;
   const dp=Array.from({length:n+1},()=>new Array(mm+1).fill(0));
@@ -3445,7 +3539,7 @@ function epBlockCard(i){
   const orig=u.lines.map(x=>(x.spk?'<i class="spk">'+esc(x.spk)+'</i>':'')+'<span>'+esc(x.text)+'</span>').join(' ');
   const seg=[['dict','听写'],['voice','朗读'],['type','默写']].map(m=>'<button data-m="'+m[0]+'"'+(mode===m[0]?' class="on"':'')+'>'+m[1]+'</button>').join('');
   let h='<div class="ep-bcard" data-i="'+i+'">'
-    +'<div class="bh"><span class="no">#'+(i+1)+'/'+st.d.dialogue.length+'</span>'
+    +'<div class="bh"><span class="no">当前句 '+(i+1)+'/'+st.d.dialogue.length+'</span>'
     +'<button class="bp" title="播放本句" aria-label="播放本句">▶</button><button class="bl" title="单句循环" aria-label="单句循环">↻</button>'
     +(drill.mode==='exam'?'<span class="dc">'+(3-Math.min(3,plays))+' 次可听</span>':'')
     +'<span class="bmode">'+seg+'</span>'
@@ -3469,6 +3563,7 @@ function epBlockCard(i){
       +'<textarea class="dt" rows="2" placeholder="看中文线索，默写完整句子（Enter 提交）">'+(rec&&rec.mode!=='voice'&&rec.last!=null?esc(rec.last):'')+'</textarea>'
       +'<div class="dr"></div></div>'
     +'<div class="rhints" style="display:'+(mode==='dict'?'none':'')+'">'+(senseHtml?'<button class="h1">看意群积木</button>':'')+'<button class="h2">看原文</button><span class="grow"></span><span class="ep-note">通过线 90% · 同速线 1.15×</span></div>'
+    +'<div class="rsense" style="display:none">'+senseHtml+'</div><div class="rorig" style="display:none">'+orig+'</div>'
     +'</div>';
   return h;
 }
@@ -3477,12 +3572,13 @@ function epRenderList(){
   const st=EP.st;if(!st)return;
   const list=$('ep-blist');if(!list)return;
   const items=epItems();
-  let h='';
-  for(let i=0;i<items.length;i++)h+= i===st.ai? epBlockCard(i): epRowHtml(i);
+  let h=epBlockCard(st.ai);
+  for(let i=st.ai+1;i<items.length;i++)h+=epRowHtml(i);
+  if(st.ai>0)h+='<details class="ep-previous"><summary>前面 '+st.ai+' 句</summary>'+items.slice(0,st.ai).map((_,i)=>epRowHtml(i)).join('')+'</details>';
   list.innerHTML=h;
-  list.querySelectorAll('.ep-brow').forEach(row=>{row.onclick=()=>epGo(+row.dataset.i);});
+  list.querySelectorAll('.ep-brow').forEach(row=>{row.onclick=()=>epGo(+row.dataset.i);row.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();e.stopPropagation();epGo(+row.dataset.i);}};});
   const card=list.querySelector('.ep-bcard');
-  if(card)epWireCard(card);
+  if(card){epWireCard(card);requestAnimationFrame(()=>card.querySelectorAll('.dt').forEach(epFitInput));}
   epDockNo();
 }
 
@@ -3504,6 +3600,7 @@ function epGo(i,play){
 
 function epPlayBlock(i){
   const st=EP.st;if(!st)return;
+  st.lastTap=Date.now();
   const drill=st.p.drill,a=$('ep-audio'),u=epItems()[i];
   if(!u||u.t0==null)return;
   if(drill.mode==='exam'){
@@ -3513,13 +3610,19 @@ function epPlayBlock(i){
     const card=$('ep-blist').querySelector('.ep-bcard');
     if(card&&+card.dataset.i===i){let dc=card.querySelector('.dc');if(!dc){dc=document.createElement('span');dc.className='dc';card.querySelector('.bh').appendChild(dc);}dc.textContent=(3-drill.playsS[i])+' 次可听';}
   }
-  if(st.seg!=='dg')epSeg('dg');
+  const fresh=st.seg!=='dg';
+  if(fresh)epSeg('dg');
   st.stopAtEnd=true;   // 点听=只播这一句
   st.markSeek&&st.markSeek();
-  a.currentTime=u.t0;a.play().catch(()=>{});
+  st.loop=false;$('ep-loop').classList.remove('on');
   st.range=[u.t0,u.t1];
+  st.seekTo(u.t0);
 }
 
+function epFitInput(ta){
+  if(!ta||!ta.getClientRects().length)return;
+  ta.style.height='auto';ta.style.height=Math.min(200,Math.max(66,ta.scrollHeight+2))+'px';
+}
 function epWireCard(card){
   const st=EP.st;if(!st)return;
   const drill=st.p.drill,a=$('ep-audio');
@@ -3534,7 +3637,7 @@ function epWireCard(card){
     if(st.seg!=='dg')epSeg('dg');
     st.range=[u.t0,u.t1];st.loop=true;st.stopAtEnd=true;$('ep-loop').classList.add('on');
     st.markSeek&&st.markSeek();
-    a.currentTime=u.t0;a.play().catch(()=>{});
+    st.seekTo(u.t0);
   };
   /* 三练法切换: 听写 / 朗读 / 默写 */
   card.querySelectorAll('.bmode button').forEach(b=>b.onclick=()=>{
@@ -3545,6 +3648,7 @@ function epWireCard(card){
     card.querySelector('.btype').style.display=b.dataset.m==='type'?'':'none';
     card.querySelector('.rclue').style.display=b.dataset.m==='dict'?'none':'';
     card.querySelector('.rhints').style.display=b.dataset.m==='dict'?'none':'';
+    card.querySelectorAll('.dt').forEach(epFitInput);
     if(b.dataset.m==='dict'){const t=card.querySelector('.bdict .dt');if(t)t.focus({preventScroll:true});}
   });
   /* ① 听写: 听音写 → 逐词比对 → drill.dd; 留在本句读 diff */
@@ -3552,6 +3656,7 @@ function epWireCard(card){
     const body=card.querySelector('.bdict');
     const ta=body.querySelector('.dt');
     const submit=()=>{
+      if(EP.st!==st||!card.isConnected)return;
       const mine=ta.value.trim();
       if(!mine)return;
       const r=epDiff(u.text,mine);
@@ -3568,7 +3673,7 @@ function epWireCard(card){
     };
     ta.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();submit();}});
     let sb=null;
-    ta.addEventListener('input',()=>{drill.dd[i]=drill.dd[i]||{};drill.dd[i].last=ta.value;
+    ta.addEventListener('input',()=>{drill.dd[i]=drill.dd[i]||{};drill.dd[i].last=ta.value;recSave();epFitInput(ta);
       clearTimeout(sb);sb=setTimeout(submit,2500);});
     const mkBtn=document.createElement('button');mkBtn.className='dsubmit';mkBtn.textContent='提交';
     mkBtn.onclick=()=>{clearTimeout(sb);submit();};
@@ -3586,27 +3691,28 @@ function epWireCard(card){
     const body=card.querySelector('.btype');
     const ta=body.querySelector('.dt');
     const submit=()=>{
+      if(EP.st!==st||!card.isConnected)return;
       const mine=ta.value.trim();
       if(!mine)return;
       const r=epDiff(u.text,mine);
       const prev=drill.rd[i];
       const best=prev&&prev.acc!=null?Math.max(prev.acc,r.acc):r.acc;
       drill.rd[i]={acc:best,last:mine,at:Date.now(),mode:'type'};
-      recSave();epStamp(i);
+      recSave();epStamp(i,st);
       let mini=card.querySelector('.bh .mini[data-k="r"]');
       if(!mini){mini=document.createElement('span');mini.className='mini';mini.dataset.k='r';card.querySelector('.bh').appendChild(mini);}
       mini.textContent='背'+Math.round(best*100)+'%';mini.classList.toggle('ok',best>=0.9);mini.style.display='';
       body.querySelector('.dr').innerHTML=diffHtml(r);
-      epStepsUpdate();epDockNo();
-      if(best>=0.9){
+      if(EP.st===st){epStepsUpdate();epDockNo();}
+      if(EP.st===st&&best>=0.9){
         const nx=$('ep-dock-next');if(nx)nx.classList.add('pulse');
         const nxt=epItems().findIndex((_,k)=>!st.doneOf(k));
-        if(nxt>=0&&nxt!==i)setTimeout(()=>epGo(nxt),600);
+        if(nxt>=0&&nxt!==i&&Date.now()-st.lastTap>1500)setTimeout(()=>{if(EP.st===st&&st.tab==='train'&&Date.now()-st.lastTap>1500)epGo(nxt);},600);
       }
     };
     ta.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();submit();}});
     let sb=null;
-    ta.addEventListener('input',()=>{drill.rd[i]=drill.rd[i]||{};drill.rd[i].last=ta.value;
+    ta.addEventListener('input',()=>{drill.rd[i]=drill.rd[i]||{};drill.rd[i].last=ta.value;recSave();epFitInput(ta);
       clearTimeout(sb);sb=setTimeout(submit,2500);});
     const mkBtn=document.createElement('button');mkBtn.className='dsubmit';mkBtn.textContent='提交';
     mkBtn.onclick=()=>{clearTimeout(sb);submit();};
@@ -3620,29 +3726,41 @@ function epWireCard(card){
 
 /* ---- 覆盖式背诵(三章法): 每天盖一章, 同一章跨 3 天, 满 6 句提交即盖 ---- */
 function epDay(){return new Date(Date.now()+8*3600000).toISOString().slice(0,10);}
-function epStamp(i){
-  const st=EP.st;if(!st)return;
+function epRecoverCover(drill,total){
+  const need=Math.min(6,total);
+  if(!need||drill.recoveredCover||Object.values(drill.stampDays||{}).some(v=>Array.isArray(v)&&v.length))return false;
+  const sentences=Object.entries(drill.rd||{}).filter(([i,r])=>Number.isInteger(+i)&&+i>=0&&+i<total&&r&&r.acc>=.9).map(([i])=>+i);
+  if(sentences.length<need)return false;
+  drill.recoveredCover={sentences,recognizedAt:Date.now()};
+  return true;
+}
+function epStamp(i,st=EP.st){
+  if(!st||!Number.isInteger(i)||i<0||i>=st.d.dialogue.length)return;
   const days=st.p.drill.stampDays=st.p.drill.stampDays||{};
   const day=epDay();
   (days[day]=days[day]||[]);
   if(!days[day].includes(i))days[day].push(i);
   recSave();
+  if(EP.st===st)epCoverUpdate();
 }
 function epCoverUpdate(){
   const st=EP.st;const el=$('ep-cov');
   if(!el||!st)return;
   const drill=st.p.drill||{};
+  const total=st.d.dialogue.length;
+  if(epRecoverCover(drill,total))recSave();
   const days=drill.stampDays||{};
   const today=epDay();
-  const need=6;
-  const dates=Object.keys(days).filter(d=>(days[d]||[]).length>=need).sort();
+  const need=Math.min(6,total);
+  const dates=Object.keys(days).filter(d=>Array.isArray(days[d])&&days[d].length>=need).sort();
   const todayN=(days[today]||[]).length;
-  const n=Math.min(3,dates.length);
+  const recovered=drill.recoveredCover?1:0;
+  const n=Math.min(3,dates.length+recovered);
   const todayStamped=dates.includes(today);
   let stamps='';
   for(let k=1;k<=3;k++){
-    if(k<=n)stamps+='<span class="stamp ok">第'+k+'遍 '+(dates[k-1]||'').slice(5)+'</span>';
-    else if(k===n+1)stamps+='<span class="stamp cur">第'+k+'遍 · 今天 '+todayN+'/10</span>';
+    if(k<=n)stamps+='<span class="stamp ok">第'+k+'遍 · '+(recovered&&k===1?'已完成（历史补认 '+drill.recoveredCover.sentences.length+'/'+total+'）':(dates[k-1-recovered]||'').slice(5))+'</span>';
+    else if(k===n+1)stamps+='<span class="stamp cur">第'+k+'遍 · '+(todayStamped?'待复背':'今天 '+todayN+'/'+total)+'</span>';
     else stamps+='<span class="stamp">第'+k+'遍</span>';
   }
   let msg;
@@ -3666,6 +3784,7 @@ async function epRecToggle(i,card){
   let stream;
   try{stream=await navigator.mediaDevices.getUserMedia({audio:true});}
   catch(e){const nn=$('ep-note');nn.style.display='';nn.textContent='麦克风不可用：'+e.message+'（可切 ⌨ 默写）';return;}
+  if(EP.st!==st){stream.getTracks().forEach(t=>t.stop());return;}
   let mime='';
   for(const m of ['audio/webm;codecs=opus','audio/webm','audio/mp4'])if(window.MediaRecorder&&MediaRecorder.isTypeSupported(m)){mime=m;break;}
   const rec=new MediaRecorder(stream,mime?{mimeType:mime}:{});
@@ -3677,14 +3796,15 @@ async function epRecToggle(i,card){
   let analyser=null,buf=null,peak=0;
   try{
     const AC=window.AudioContext||window.webkitAudioContext;
-    const actx=new AC();actx.resume&&actx.resume();
+    const actx=new AC();R.actx=actx;actx.resume&&actx.resume();
     const src=actx.createMediaStreamSource(stream);
     analyser=actx.createAnalyser();analyser.fftSize=512;
     src.connect(analyser);
     buf=new Uint8Array(analyser.frequencyBinCount);
     R.levelTimer=setInterval(()=>{
       if(st.recording!==R)return;
-      if(Date.now()-R.t0>90000){epRecToggle(R.i);return;}   // 忘点停止: 90s 自动收
+      if(Date.now()-R.t0>90000){st.recording=null;R.rec.stop();return;}   // 忘点停止: 90s 自动收
+      if(EP.st!==st)return;
       analyser.getByteTimeDomainData(buf);
       let mx=0;for(let k=0;k<buf.length;k++){const v=Math.abs(buf[k]-128);if(v>mx)mx=v;}
       if(mx>peak)peak=mx;
@@ -3697,12 +3817,13 @@ async function epRecToggle(i,card){
   rec.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data);};
   rec.onstop=async()=>{
     stream.getTracks().forEach(t=>t.stop());
+    R.actx?.close().catch(()=>{});
     clearInterval(st.recTimer);clearInterval(R.levelTimer);
     const dur=Math.round((Date.now()-R.t0)/1000);
     const wasI=R.i;
-    st.recording=null;
-    epRecButton();
-    const drEl=card&&+card.dataset.i===wasI?card.querySelector('.bvoice .dr'):null;
+    if(st.recording===R)st.recording=null;
+    if(EP.st===st)epRecButton();
+    const drEl=EP.st===st&&card?.isConnected&&+card.dataset.i===wasI?card.querySelector('.bvoice .dr'):null;
     /* 静音守卫: 全程音量近零 = 麦克风没工作, 不送 ASR(静音会幻觉出文本) */
     if(analyser&&peak<8){
       if(drEl)drEl.innerHTML='<p class="ep-note">麦克风全程没有收到声音。请检查：①系统声音设置的输入设备 ②浏览器右上角麦克风权限指向的设备。确认后重录。</p>';
@@ -3716,15 +3837,15 @@ async function epRecToggle(i,card){
       const j=await api('/api/eplod/asr',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({audio:b64}),signal:AbortSignal.timeout(130000)});
       if(!j.ok)throw Error(j.error||'转写失败');
       const text=String(j.text||'').trim();
-      const u=epItems()[wasI];
+      const u=st.d.dialogue[wasI];
       const r=epDiff(u.text,text);
       const prev=drill.rd[wasI];
       const best=prev&&prev.acc!=null?Math.max(prev.acc,r.acc):r.acc;
       const speed=dur>0&&dur<=(u.t1-u.t0)*1.15+0.5;
       drill.rd[wasI]={acc:best,last:text,at:Date.now(),mode:'voice',dur:dur};
       if(speed){drill.sd=drill.sd||{};drill.sd[wasI]={dur:dur,at:Date.now()};}
-      recSave();epStamp(wasI);
-      const lc=$('ep-blist').querySelector('.ep-bcard[data-i="'+wasI+'"]');
+      recSave();epStamp(wasI,st);
+      const lc=EP.st===st?$('ep-blist')?.querySelector('.ep-bcard[data-i="'+wasI+'"]'):null;
       if(lc){
         let mini=lc.querySelector('.bh .mini[data-k="r"]');
         if(!mini){mini=document.createElement('span');mini.className='mini';mini.dataset.k='r';lc.querySelector('.bh').appendChild(mini);}
@@ -3740,11 +3861,11 @@ async function epRecToggle(i,card){
           +'<p class="ep-note">用时 '+fmtDur(dur)+' / 原句 '+fmtDur(u.t1-u.t0)+(speed?' · <b class="ok">✓ 同速达成</b>':' · 同速线 '+fmtDur(Math.round((u.t1-u.t0)*1.15)))+'</p>'
           +(r.acc<0.15&&dur>=3?'<p class="ep-note">转写内容过短——如果刚才确实在朗读，多半是麦克风音量过低，建议重录。</p>':'');
       }
-      epStepsUpdate();epDockNo();
-      if(best>=0.9){
+      if(EP.st===st){epStepsUpdate();epDockNo();}
+      if(EP.st===st&&best>=0.9){
         const nx=$('ep-dock-next');if(nx)nx.classList.add('pulse');
         const nxt=epItems().findIndex((_,k)=>!st.doneOf(k));
-        if(nxt>=0&&nxt!==wasI)setTimeout(()=>epGo(nxt),800);
+        if(nxt>=0&&nxt!==wasI&&Date.now()-st.lastTap>1500)setTimeout(()=>{if(EP.st===st&&st.tab==='train'&&Date.now()-st.lastTap>1500)epGo(nxt);},800);
       }
     }catch(e){
       if(drEl)drEl.innerHTML='<p class="ep-note">转写失败：'+esc(e.message)+'（可切 ⌨ 默写）</p>';
@@ -3755,7 +3876,7 @@ async function epRecToggle(i,card){
       if(j2&&j2.ok){drill.rd[wasI]=drill.rd[wasI]||{};drill.rd[wasI].rec=j2.file;recSave();}
     }catch(e){}
   };
-  try{rec.start();}catch(e){st.recording=null;clearInterval(R.levelTimer);const nn=$('ep-note');nn.style.display='';nn.textContent='录音启动失败：'+e.message;return;}
+  try{rec.start();}catch(e){st.recording=null;stream.getTracks().forEach(t=>t.stop());R.actx?.close().catch(()=>{});clearInterval(R.levelTimer);const nn=$('ep-note');nn.style.display='';nn.textContent='录音启动失败：'+e.message;return;}
 }
 function epRecButton(){
   const st=EP.st;const list=$('ep-blist');
@@ -3780,7 +3901,7 @@ function epTrainWire(){
   /* 粘底 dock: 句导航 + 播放控制 + 精听入口 */
   $('ep-dock-prev').onclick=()=>epGo(st.ai-1,true);
   $('ep-dock-next').onclick=()=>epGo(st.ai+1,true);
-  $('ep-dock-play').onclick=()=>{a.paused?a.play().catch(()=>{}):a.pause();};
+  $('ep-dock-play').onclick=()=>{if(!a.paused)a.pause();else if(st.tab==='train')epPlayBlock(st.ai);else a.play().catch(()=>{});};
   $('ep-dock-replay').onclick=()=>epPlayBlock(st.ai);
   $('ep-dock-listen').onclick=()=>epTab('listen');
   a.removeEventListener('play',epDockSync);a.removeEventListener('pause',epDockSync);
@@ -3803,11 +3924,14 @@ function epDockNo(){
 
 function epSeg(seg){
   const st=EP.st;if(!st)return;
-  st.seg=seg;st.range=null;st.i=-1;
-  const a=$('ep-audio');if(a)a.src=st.d.audio[seg];
+  st.cancelSeek?.();st.seekSeq=(st.seekSeq||0)+1;
+  clearTimeout(st._iSeekT);st._iSeek=false;st.seekPending=false;
+  st.seg=seg;st.range=null;st.i=-1;st.loop=false;st.stopAtEnd=false;
+  $('ep-loop').classList.remove('on');
+  const a=$('ep-audio');if(a){a.src=st.d.audio[seg];}
   $('cs-main').querySelectorAll('.ep-segs button').forEach(b=>b.classList.toggle('on',b.dataset.seg===seg));
   epHighlight(-1);
-  if(seg==='pb'){const det=$('ep-expl');if(det)det.open=true;}
+  if(seg==='pb'){const materials=$('ep-materials'),det=$('ep-expl');if(materials)materials.open=true;if(det)det.open=true;}
 }
 
 function epHighlight(i,kind){
@@ -3828,7 +3952,16 @@ function epSyncCur(){
     epHighlight(cur,st.seg);
     if(cur>=0){
       const row=$('cs-main').querySelector('.ep-line.on');
-      if(row)row.scrollIntoView({block:'nearest',behavior:'smooth'});
+      if(row&&row.getClientRects().length){
+        const next=st.seg==='dg'?row.nextElementSibling:null;
+        const rect=row.getBoundingClientRect(),nextRect=next&&next.getBoundingClientRect();
+        const dock=$('ep-dock'),dockRect=dock&&dock.getBoundingClientRect();
+        const bottom=Math.min(innerHeight-24,dockRect&&dockRect.height&&dockRect.top>0?dockRect.top-12:innerHeight-24);
+        if(rect.top<80||(nextRect||rect).bottom>bottom){
+          const target=Math.max(80,Math.min(innerHeight*.28,bottom-rect.height-(nextRect?nextRect.height:0)-12));
+          window.scrollBy({top:rect.top-target,behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});
+        }
+      }
     }
   }
 }
@@ -3870,7 +4003,7 @@ function renderCourseMain(){
       ${cur&&cur.notes_verified?'<span class="chip a">讲义已核读</span>':''}</div>
     <div class="cs-stage">
       <div class="cs-vdock" id="cs-vdock" style="display:none"></div>
-      <video class="tfl" id="cs-video" controls preload="metadata" src="${esc(l.video)}"></video>
+      <video class="tfl" id="cs-video" controls preload="metadata" playsinline webkit-playsinline x5-playsinline src="${esc(l.video)}"></video>
       <div class="cs-status" id="cs-status"><span class="pill ${p.done?'q':'t'}">${p.done?'已看完':'未看完'}</span>
         ${(!p.done&&p.pos>10)?`<span class="pill" id="cs-resume">上次看到 ${fmt(p.pos)}</span>`:''}
         <span class="grow"></span>
@@ -3918,8 +4051,11 @@ ${!GEN_COURSES.has(c.id)&&!cur?.practice?'<div class="empty">本节尚无核验�
   v.addEventListener('error',()=>{
     const nn=$('cs-vnote');
     nn.style.display='';
-    nn.innerHTML='浏览器无法播放该文件（格式或编码不支持，源文件为 .'+esc((l.video_file||'').split('.').pop())+'）。'+
-      '请打开原视频观看，或重试加载。<a href="'+esc(l.video)+'" target="_blank" rel="noopener">打开原视频 ↗</a> <button id="cs-video-retry">重试</button>';$('cs-video-retry').onclick=()=>v.load();
+    const ec=v.error&&v.error.code;
+    const why={1:'加载被中断',2:'网络中断（下载超时）',3:'解码失败',4:'格式或编码不支持'}[ec]||('未知错误 '+ec);
+    console.warn('[video] error code',ec,v.error&&v.error.message,l.video);
+    nn.innerHTML='视频加载失败：'+esc(why)+'（码 '+(ec||'?')+'，源 .'+esc((l.video_file||'').split('.').pop())+'）。'+
+      '可重试，或直接打开视频地址测试。<a href="'+esc(l.video)+'" target="_blank" rel="noopener">打开视频地址 ↗</a> <button id="cs-video-retry">重试</button>';$('cs-video-retry').onclick=()=>v.load();
   });
   v.addEventListener('loadedmetadata',()=>{
     $('cs-vnote').style.display='none';const resume=$('cs-resume');
@@ -4292,7 +4428,7 @@ async function renderVoiceReview(){
     box.querySelectorAll('[data-voice-unit]').forEach(b=>b.onclick=()=>{const unit=b.dataset.voiceUnit;sessionStorage.setItem('tfl-review-hub-request',JSON.stringify({unit}));location.hash='#/memory';});
   }catch{box.innerHTML='<p class="muted">AI抽查错题暂未读取，请重新进入错题本。</p>';}
 }
-window.addEventListener('review-hub-saved',async()=>{try{const remote=await api('/api/records');REC=mergeRemote(remote);recBase=recClone(remote);}catch{}});
+window.addEventListener('review-hub-saved',async()=>{try{const remote=await api('/api/records');recApply(mergeRemote(remote));recBase=recClone(remote);}catch{}});
 async function renderReview(){
   $('rv-batch').hidden=true;
   document.querySelectorAll('#rv-seg button').forEach(x=>x.classList.toggle('on',x.dataset.t===RV_TAB));   // 外部跳入(词根 chips)时高亮跟随
@@ -4552,12 +4688,17 @@ async function boot(){
     ]);
     CATALOG=cat; COURSES=courses; CURATED=curated&&curated.lessons?curated.lessons:(curated||{});
     LESSON_HANDOUT_MAP=hmap||{};GQ_COMPLETION_REVISIONS=quizMeta.completionRevisions||{};GQ_REVISIONS=quizMeta.revisions||{};
-    REC=Object.assign(REC,recs);
+    recApply(recs);
     REC.vocab=(REC.vocab&&typeof REC.vocab==='object'&&!Array.isArray(REC.vocab))?REC.vocab:{};
     REC.vocabCfg=(REC.vocabCfg&&Number.isFinite(Number(REC.vocabCfg.daily)))?REC.vocabCfg:{daily:20};
     recBase=recClone(REC);recReady=true;
     try{const recovery=JSON.parse(localStorage.getItem('tfl-record-recovery')||'null');
-      if(recovery?.local){if(recovery.snapshotId&&recs.snapshotEvents?.[recovery.snapshotId])localStorage.removeItem('tfl-record-recovery');else {REC=mergeRemote(recs,recovery.base||{},recovery.local);recDirty=true;recEpoch++;recSnapshotId=recovery.snapshotId||recEventId();recSnapshotEpoch=recEpoch;recT=setTimeout(flushRecords,400);}}
+      if(recovery?.local){
+        const pending=recovery.pending?.snapshot;
+        const committed=pending?.snapshotId&&recs.snapshotEvents?.[pending.snapshotId];
+        if(!pending&&recovery.snapshotId&&recs.snapshotEvents?.[recovery.snapshotId])localStorage.removeItem('tfl-record-recovery');
+        else {recApply(mergeRemote(recs,committed?pending:(recovery.base||{}),recovery.local));recDirty=true;recEpoch++;recPending=null;recSnapshotId=null;recSnapshotEpoch=-1;recBackup();recT=setTimeout(flushRecords,400);}
+      }
     }catch(e){saveStatus('本机恢复记录无法读取，请导出备份');}
     recOverlayPending();
     recFlushAttempts();   // 启动即补传上次滞留的作答队列(r56)

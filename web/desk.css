@@ -1111,8 +1111,15 @@ body.vfull .cs-status button:hover{background:#28392d;border-color:#4d6350}
   border:1px solid #cfdcc9;border-radius:4px;padding:9px 30px 9px 11px;cursor:pointer}
 .cs-pick select:hover{border-color:#b9c9ab}
 .cs-pick select:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
-.csi.flat{cursor:default;border-left-color:transparent;background:none}
+.csi.flat{display:grid;grid-template-columns:minmax(0,1fr);gap:6px;align-items:start;padding:10px 12px 12px;cursor:default;border-left:0;background:none}
 .csi.flat:hover{background:none}
+.csi.flat>.no{display:none}
+.csi.flat .t b{display:block;white-space:normal;overflow:visible;text-overflow:clip;line-height:1.45;word-break:normal;overflow-wrap:break-word;text-wrap:pretty}
+.csi.flat .course-meta{display:flex;align-items:baseline;gap:4px 10px;flex-wrap:wrap;margin-top:4px;line-height:1.5}
+.csi.flat .course-meta .course-teacher,.csi.flat .course-meta .course-total{white-space:nowrap}
+.csi.flat .pg{width:100%;gap:10px}
+.csi.flat .pg .pb{flex:1;width:auto;min-width:20px}
+.csi.flat .pg .pn{white-space:nowrap}
 
 /* 到期复习入口：窄屏允许换行，不挤压标题。 */
 #v-review .phead{flex-wrap:wrap;gap:10px}
@@ -1452,6 +1459,12 @@ body.vfull .cs-stage video.tfl{max-height:none}
 .ep-line .mk:hover{color:var(--warn)}
 .ep-line.marked .mk{color:var(--warn)}
 .ep-line.marked .tx::after{content:'没听出来';font-size:var(--f5);color:var(--warn);margin-left:8px}
+#ep-lines .ep-line{display:grid;grid-template-columns:16px minmax(0,1fr) 28px;column-gap:8px;row-gap:2px;align-items:start;padding:7px 8px}
+#ep-lines .ep-line .spk{grid-column:1;grid-row:1;line-height:24px}
+#ep-lines .ep-line .tx{grid-column:2;grid-row:1;min-width:0;line-height:1.5}
+#ep-lines .ep-line .zh{grid-column:2;grid-row:2;width:auto;min-width:0;padding:0;line-height:1.45}
+#ep-lines .ep-line .mk{grid-column:3;grid-row:1 / span 2;align-self:center;display:flex;align-items:center;justify-content:center;width:28px;height:28px;min-height:28px;padding:0;line-height:1}
+.csmain .ep-listen #ep-lines{margin-top:6px}
 /* 遮罩盲听: 文本模糊, 点击/Z 揭示 */
 .ep-listen.mask .ep-line .tx,.ep-listen.mask .ep-line .zh{filter:blur(7px);transition:filter .15s}
 .ep-listen.mask .ep-line.open .tx,.ep-listen.mask .ep-line.open .zh{filter:none}
@@ -1479,23 +1492,6 @@ body.vfull .cs-stage video.tfl{max-height:none}
 .ep-kv-grid .kv b{font-size:var(--f3)}
 .ep-kv-grid .kv i{font-style:normal;font-size:var(--f5);color:var(--t3)}
 .ep-kv-grid .kv span{font-size:var(--f4);color:var(--t2);width:100%}
-/* 讲解逐字稿 */
-.ep-expl{padding:14px 16px}
-.ep-expl summary{cursor:pointer;font-size:var(--f3);font-weight:600;color:var(--t2)}
-.ep-expl[open] summary{margin-bottom:8px}
-
-/* block 36 · EnglishPod 四步训练(听写/背诵, 尚雯婕法第一批) */
-.ep-steps{display:flex;gap:8px;flex-wrap:wrap}
-.ep-steps .es{flex:1;min-width:130px;background:var(--card);border:1px solid var(--line);border-radius:var(--rs);padding:8px 12px;display:flex;flex-direction:column;gap:2px}
-.ep-steps .es i{font-style:normal;font-size:var(--f4);color:var(--t3)}
-.ep-steps .es b{font-size:var(--f2)}
-.ep-steps .es u{text-decoration:none;font-size:var(--f5);color:var(--t3)}
-.ep-steps .es.ok{border-color:var(--okln);background:var(--okbg)}
-.ep-steps .es.ok b{color:var(--ok)}
-.ep-steps .es.lock{opacity:.55}
-.ep-tabs{display:flex;gap:6px}
-.ep-tabs button{border:1px solid var(--line);background:transparent;border-radius:999px;padding:6px 16px;font-size:var(--f3);color:var(--t2);cursor:pointer}
-.ep-tabs button.on{background:var(--acc);border-color:var(--acc);color:#f6f8f1}
 /* 讲解逐字稿 */
 .ep-expl{padding:14px 16px}
 .ep-expl summary{cursor:pointer;font-size:var(--f3);font-weight:600;color:var(--t2)}
@@ -1568,7 +1564,7 @@ body.vfull .cs-stage video.tfl{max-height:none}
 .ep-brow{display:flex;align-items:center;gap:8px;padding:7px 10px;border:1px solid var(--line);border-radius:var(--rs);cursor:pointer;background:var(--card)}
 .ep-brow:hover{background:var(--hover)}
 .ep-brow.act{border-color:var(--acc);background:var(--accbg)}
-.ep-brow.done{opacity:.62}
+.ep-brow.done{border-color:var(--line);background:var(--card)}
 .ep-brow .no{font-size:var(--f4);font-weight:600;color:var(--t3);flex:none;min-width:30px}
 .ep-brow.act .no{color:var(--acc)}
 .ep-brow .bt{font-size:var(--f5);color:var(--t3);flex:none}
@@ -1726,9 +1722,179 @@ body.vfull .cs-stage video.tfl{max-height:none}
 .ep-q input{width:100%;height:30px;border:1px solid var(--line);border-radius:var(--rs);padding:0 10px;font-size:var(--f4);color:var(--t1);background:var(--sunk)}
 .ep-q input:focus{outline:none;border-color:var(--acc);background:var(--card)}
 .ep-q input::placeholder{color:var(--t3)}
-.cgrp{display:flex;align-items:baseline;gap:6px;padding:10px 12px 4px;border-top:1px solid var(--line);margin-top:4px}
-#ep-list .cgrp:first-child{border-top:0;margin-top:0}
-.cgrp b{font-size:var(--f4);color:var(--t1)}
-.cgrp span{font-size:var(--f5);color:var(--t3)}
-.cgrp i{margin-left:auto;font-style:normal;font-size:var(--f5);color:var(--t3);font-variant-numeric:tabular-nums}
+.ep-level{border-top:1px solid var(--line)}
+#ep-list .ep-level:first-child{border-top:0}
+.ep-level>.cgrp{display:flex;align-items:center;gap:6px;min-height:44px;padding:8px 12px;cursor:pointer;list-style:none;border-radius:var(--rs)}
+.ep-level>.cgrp::-webkit-details-marker{display:none}
+.ep-level>.cgrp:hover{background:var(--sunk)}
+.ep-level>.cgrp:focus-visible{outline:2px solid var(--acc);outline-offset:-2px}
+.ep-chevron{flex-shrink:0;color:var(--t2);transition:transform .15s}
+.ep-level[open]>.cgrp .ep-chevron{transform:rotate(90deg)}
+.cgrp b{flex-shrink:0;font-size:var(--f4);color:var(--t1)}
+.cgrp span{min-width:0;font-size:var(--f5);color:var(--t2)}
+.cgrp i{flex-shrink:0;margin-left:auto;font-style:normal;font-size:var(--f5);color:var(--t2);font-variant-numeric:tabular-nums}
+@media(prefers-reduced-motion:reduce){.ep-chevron{transition:none}}
 .cempty{padding:18px 14px;font-size:var(--f4);color:var(--t3);text-align:center}
+
+/* EnglishPod learning controls stay close to their content. */
+.ep-tabs{position:sticky;top:0;z-index:4;background:var(--card);padding:6px 0;flex-wrap:nowrap}
+.ep-tabs button{white-space:nowrap;padding:6px 12px}
+.ep-tabs button:focus-visible,.ep-chunk-detail summary:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.ep-bcard .dt{min-height:66px;height:66px;max-height:200px;line-height:1.5;resize:vertical}
+.ep-bcard .bbody{margin-bottom:6px}
+.ep-bcard .dsubmit{margin:6px 0}
+.ep-brow .btxt{color:var(--t1)}
+.ep-brow .bt,.ep-brow .no{color:var(--t2)}
+.ep-brow .mini{border:0;padding:0 3px}
+.ep-chunk-detail{margin-top:2px}
+.ep-chunk-detail summary{cursor:pointer;color:var(--t2);font-size:var(--f4);padding:4px 0}
+.ep-chunk-detail[open] summary{margin-bottom:6px}
+.ep-chunk-detail .q{margin-top:6px}
+.ep-chunk-detail .zq{margin-top:4px}
+#save-status{max-height:25vh;overflow:auto;font-size:13px;line-height:1.45}
+#save-status button{min-height:30px;padding:3px 8px;font-size:12px;margin:3px}
+@media(max-width:700px){
+  .ep-steps{gap:0;border:1px solid var(--line);border-radius:var(--rs)}
+  .ep-steps .es{min-width:0;flex:1;padding:6px;border:0;border-radius:0;background:transparent;gap:2px}
+  .ep-steps .es+ .es{border-left:1px solid var(--line)}
+  .ep-steps .es i{font-size:12px;white-space:nowrap}
+  .ep-steps .es b{font-size:17px}
+  .ep-steps .es u{display:none}
+  .csmain .ep-stage{padding:10px 12px}
+  .ep .ep-hint{display:none}
+  .ep-tabs button{flex:1;min-width:0;padding:6px 8px;font-size:14px}
+  .ep-bcard{padding:10px}
+  .ep-bcard .bh{gap:5px;margin-bottom:8px;flex-wrap:wrap}
+  .ep-chunk{padding:10px;gap:5px}
+  .ep-chunk-grid{grid-template-columns:minmax(0,1fr)}
+}
+
+.ep-chunk .ch i{display:inline-block;white-space:nowrap}
+
+.ep-chunk .ch .pb{float:right;width:30px;height:30px;min-height:30px;padding:0;margin-left:6px;border:1px solid var(--line);border-radius:50%;background:transparent;color:var(--acc);font-size:12px}
+.ep-chunk .ch .pb:hover{background:var(--acc);color:var(--card)}
+.ep-bcard .rsense,.ep-bcard .rorig{font-size:var(--f4);line-height:1.6;margin-top:8px}
+
+/* EnglishPod · A 清爽单栏 */
+.csmain .cs-stick.ep{display:flex;flex-direction:column;gap:0;min-height:calc(100dvh - 110px)}
+.ep .csp-meta{position:relative;margin:0;padding:16px 0 18px;border:0;gap:8px}
+.ep .csp-meta h3{width:100%;font-size:22px;line-height:1.35;padding-right:120px}
+.ep .csp-meta .src{color:var(--t2);font-size:12px}
+.ep-course-actions{position:absolute;right:0;top:16px;z-index:7;text-align:right}
+.ep-course-actions summary,.ep-settings summary,.ep-shortcuts summary,.ep-full-player summary{cursor:pointer;color:var(--t2);font-size:13px;list-style:none;padding:6px 0}
+.ep-course-actions summary::-webkit-details-marker,.ep-settings summary::-webkit-details-marker,.ep-shortcuts summary::-webkit-details-marker{display:none}
+.ep-course-actions[open]{background:var(--card);border:1px solid var(--line);border-radius:var(--rs);padding:0 10px 10px;box-shadow:0 5px 18px #20272512}
+.ep-course-actions button{display:block;width:100%;text-align:left;border:0;background:transparent;padding:8px 6px;color:var(--t1);font-size:13px;cursor:pointer}
+.ep-tabs{gap:24px;padding:0;border-bottom:1px solid var(--line);margin-bottom:0}
+.ep-tabs button{border:0;border-bottom:2px solid transparent;border-radius:0;padding:11px 0;background:transparent;font-size:14px;color:var(--t2)}
+.ep-tabs button.on{background:transparent;color:var(--acc);border-color:var(--acc);font-weight:600}
+.ep-overview{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 0;border-bottom:1px solid var(--line)}
+.ep-steps{display:flex;gap:24px;flex-wrap:wrap;border:0;border-radius:0}
+.ep-steps .es{display:flex;flex-direction:row;align-items:baseline;flex:none;min-width:0;gap:6px;padding:0;background:transparent;border:0;border-radius:0}
+.ep-steps .es i{font-size:13px;color:var(--t2)}
+.ep-steps .es b{font-size:14px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--t1)}
+.ep-steps .es.ok{background:transparent;border:0}
+.ep-steps .es.ok b{color:var(--ok)}
+.ep-text-button{border:0;background:transparent;font-size:12px;color:var(--acc);padding:6px 0;white-space:nowrap;cursor:pointer}
+.ep-progress{padding:14px 0;border-bottom:1px solid var(--line);animation:cs-note-in .18s ease-out}
+.ep-progress h4{margin:0;font-size:14px}
+.ep-progress .ep-cov{gap:8px}
+.ep-progress .cvm{width:100%;margin-left:0}
+.ep-progress .ep-dstats{margin-bottom:0;line-height:1.6}
+.csmain .ep-listen,.csmain .ep-train,.csmain .ep-chunks{margin:0;padding:0 0 18px;border:0;border-radius:0;background:transparent;max-width:none}
+.csmain .ep-listen .phead,.csmain .ep-train .phead,.csmain .ep-chunks .phead{margin:0;padding:18px 0 12px;border:0;background:transparent;border-radius:0;align-items:center}
+.ep-settings{font-size:13px;color:var(--t2);max-width:420px;text-align:right}
+.ep-settings[open]{padding-bottom:8px}
+.ep-settings p{font-size:13px;line-height:1.7;text-align:left;margin:10px 0 0}
+.ep-settings .ep-dmode{margin-top:6px}
+.ep-blist{gap:0}
+.ep-bcard{border:0;border-bottom:1px solid var(--line);border-radius:0;padding:12px 0 24px;order:-1;margin-bottom:12px;animation:cs-note-in .18s ease-out}
+.ep-bcard .bh{gap:8px;margin-bottom:22px}
+.ep-bcard .bh .no{font-size:12px;color:var(--t2);margin-right:4px}
+.ep-bcard .bh .bmode{order:2;margin-left:auto;border-radius:var(--rs)}
+.ep-bcard .bh .grow{display:none}
+.ep-bcard .bh .mini{font-size:12px;border:0;padding:0 3px}
+.ep-bcard .rclue{font-size:20px;line-height:1.7;padding:0;margin:0 0 24px;border:0}
+.ep-bcard .vrow{gap:14px;margin-bottom:18px}
+.ep-bcard .ep-rec{height:42px;padding:0 22px}
+.ep-bcard .rhints{padding-top:14px;margin-top:16px;border-top:1px solid var(--line);gap:18px;flex-wrap:wrap}
+.ep-bcard .rhints .ep-note{font-size:12px}
+.ep-brow{border:0;border-bottom:1px solid var(--line);border-radius:0;padding:12px 0;gap:10px;min-height:44px;background:transparent}
+.ep-brow.done{background:transparent;border-color:var(--line)}
+.ep-brow .btxt{white-space:normal;line-height:1.5;min-width:0;flex:1}
+.ep-brow .bt{display:none}
+.ep-brow .grow{display:none}
+.ep-brow .mini{padding:0;border:0;white-space:nowrap;font-size:12px}
+.ep-brow .no{font-size:12px;min-width:28px}
+.ep-materials{margin:12px 0 16px;border-top:1px solid var(--line);color:var(--t2)}
+.ep-materials>summary{padding:12px 0;cursor:pointer;font-size:13px}
+.csmain .ep-materials .ep-kv,.csmain .ep-materials .ep-expl{border:0;border-radius:0;margin:0;padding:12px 0;background:transparent}
+.csmain .ep-materials .phead{margin:0;padding:8px 0;background:transparent}
+.csmain .ep-stage{position:sticky;bottom:0;z-index:6;margin:auto 0 0;padding:12px 0 8px;border:0;border-top:1px solid var(--line);border-radius:0;background:var(--card)}
+.ep-stage .ep-segs{gap:6px;margin:0 0 6px;display:flex;flex-wrap:wrap}
+.ep-stage .ep-segs button{font-size:12px;padding:4px 10px;border:0;border-radius:var(--rs);background:transparent;color:var(--t2)}
+.ep .ep-stage .ep-segs button.on{background:var(--sunk);color:var(--acc);border-color:transparent}
+.ep .ep-stage .ep-segs button.on i{color:var(--t2)}
+.ep-previous{margin-top:8px}
+.ep-previous>summary{font-size:13px;color:var(--t2);padding:10px 0;cursor:pointer}
+.ep .ep-bcard .bmode button.on{background:var(--acc);color:var(--card)}
+.ep-dock[data-tab="listen"] #ep-dock-prev,.ep-dock[data-tab="listen"] #ep-dock-next,.ep-dock[data-tab="listen"] #ep-dock-listen,.ep-dock[data-tab="listen"] .ep-dock-no,.ep-dock[data-tab="chunks"] #ep-dock-prev,.ep-dock[data-tab="chunks"] #ep-dock-next,.ep-dock[data-tab="chunks"] #ep-dock-listen,.ep-dock[data-tab="chunks"] .ep-dock-no{display:none}
+.ep-stage .ep-dock{position:static;align-self:stretch;gap:8px;border:0;border-radius:0;padding:0;margin:0 0 8px;box-shadow:none;background:transparent}
+.ep-dock .ep-dock-no{margin-right:auto;padding:0;font-size:12px}
+.ep-dock button{height:36px;min-width:36px}
+.ep-stage .ep-status{border:0;padding:4px 0 0;background:transparent;gap:12px;flex-wrap:wrap}
+.ep-status>button{border:0;background:transparent;padding:5px 0;color:var(--t2);font-size:12px}
+.ep-status>button.on{color:var(--acc);font-weight:600}
+.ep-status .cs-speed{font-size:12px;white-space:nowrap}
+.ep-status .cs-speed select{font-size:12px;padding:3px 6px}
+.ep-full-player{margin-bottom:4px}
+.ep-full-player summary{font-size:12px}
+.ep-full-player audio{width:100%;height:40px;display:block;margin:8px 0}
+.ep-shortcuts{position:relative}
+.ep-shortcuts summary{font-size:12px;padding:5px 0}
+.ep-shortcuts p{position:absolute;right:0;bottom:100%;width:270px;max-width:70vw;background:var(--card);border:1px solid var(--line);border-radius:var(--rs);padding:12px;line-height:1.8;font-size:13px;box-shadow:0 4px 16px #20272515}
+.ep [hidden]{display:none}
+.ep button:focus-visible,.ep summary:focus-visible,.ep-brow:focus-visible{outline:2px solid var(--acc);outline-offset:3px}
+@media(max-width:700px){
+  .ep .csp-meta{padding-top:12px}
+  .ep .csp-meta h3{font-size:19px;padding-right:90px}
+  .ep-course-actions{top:10px}
+  .ep-course-actions summary{font-size:12px}
+  .ep-tabs{gap:16px}
+  .ep-tabs button{flex:1;padding:10px 0;font-size:13px}
+  .ep-overview{flex-wrap:wrap;gap:4px;padding:10px 0}
+  .ep-steps{width:100%;gap:0;justify-content:space-between}
+  .ep-steps .es{padding:0;border:0;gap:4px}
+  .ep-steps .es+.es{border:0}
+  .ep-steps .es i{font-size:12px}
+  .ep-steps .es b{font-size:13px}
+  .ep-text-button{margin-left:auto}
+  .ep-bcard{padding:8px 0 18px}
+  .ep-bcard .bh{gap:6px;margin-bottom:18px}
+  .ep-bcard .bh .bmode{width:100%;margin:6px 0 0;justify-content:center}
+  .ep-bcard .bh .bmode button{flex:1;height:36px}
+  .ep-bcard .rclue{font-size:18px;margin-bottom:20px}
+  .ep-brow{flex-wrap:wrap;gap:5px}
+  .ep-brow .btxt{flex-basis:calc(100% - 40px)}
+  .ep-brow .mini:first-of-type{margin-left:38px}
+  .ep-bcard .rhints{gap:12px}
+  .ep-bcard .rhints .ep-note{width:100%}
+  .ep-stage .ep-status{gap:10px}
+  .ep-status .grow{display:none}
+  .ep-shortcuts{margin-left:auto}
+  .ep-stage .ep-dock{gap:2px}
+  .ep-dock button{padding:0 8px}
+  .ep .ep-stage .ep-segs{margin-bottom:4px}
+}
+@media(prefers-reduced-motion:reduce){.ep-bcard,.ep-progress{animation:none}}
+
+/* A 布局收尾: 锁定态保对比度(截图检查 2.42:1 不达标), 精听正文限行长 */
+.ep-steps .es.lock{opacity:1}
+.ep-steps .es.lock i,.ep-steps .es.lock b{color:var(--t2)}
+.csmain .ep-listen .ep-lines{max-width:75ch}
+
+/* 粘底播放器不盖 scrollIntoView 目标: 全局滚动根预留底部空间 */
+html{scroll-padding-bottom:150px}
+/* 语块卡次要文字提到 t2: 4.2:1 低于正文 4.5 标准(截图检查) */
+.ep .ep-chunk .ch i,.ep .ep-chunk .qtx,.ep .ep-chunk .zq{color:var(--t2)}
+.ep .ep-line .zh{color:var(--t2)}
