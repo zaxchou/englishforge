@@ -3689,7 +3689,7 @@ function epWireCard(card){
       clearTimeout(sb);sb=setTimeout(submit,2500);});
     const mkBtn=document.createElement('button');mkBtn.className='dsubmit';mkBtn.textContent='提交';
     mkBtn.onclick=()=>{clearTimeout(sb);submit();};
-    ta.insertAdjacentElement('afterend',mkBtn);
+    const cw=document.createElement('div');cw.className='ep-compose';ta.before(cw);cw.append(ta,mkBtn);
   }
   /* ③ 背诵: 双子模式(🎙朗读=录音+ASR / ⌨默写=打字), 同账本 drill.rd; 通过自动跳下一句 */
   card.querySelectorAll('.ep-rec').forEach(b=>b.onclick=()=>epRecToggle(+b.dataset.i,card));
@@ -3728,7 +3728,7 @@ function epWireCard(card){
       clearTimeout(sb);sb=setTimeout(submit,2500);});
     const mkBtn=document.createElement('button');mkBtn.className='dsubmit';mkBtn.textContent='提交';
     mkBtn.onclick=()=>{clearTimeout(sb);submit();};
-    ta.insertAdjacentElement('afterend',mkBtn);
+    const cw=document.createElement('div');cw.className='ep-compose';ta.before(cw);cw.append(ta,mkBtn);
   }
   /* 提示阶梯: 意群积木/原文(点击揭示) */
   const h1=card.querySelector('.h1'),h2=card.querySelector('.h2');
