@@ -2008,3 +2008,11 @@ body.vfull .cs-stage video.tfl{max-height:none}
 .ep-bcard .bbody{margin-bottom:6px}
 @media(max-width:700px){.ep-bcard .ep-compose .dt{min-height:48px;padding-right:76px}}
 .ep-bcard .ep-compose .dt{resize:none}
+/* r29 · 书写面收尾: 外框承载边界, 输入无边框, 提交在框内的右下工具位(不再压住圆角) */
+.ep-bcard .ep-compose{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:12px;background:var(--card);padding:6px 6px 6px 10px;transition:border-color .15s,box-shadow .15s}
+.ep-bcard .ep-compose:focus-within{border-color:var(--acc);box-shadow:0 0 0 3px var(--accbg)}
+.ep-bcard .ep-compose .dt{border:0;background:transparent;border-radius:0;padding:4px 2px;min-height:44px;height:auto;box-shadow:none;resize:none}
+.ep-bcard .ep-compose .dt:focus{outline:0;border:0;box-shadow:none}
+.ep-bcard .ep-compose .dsubmit{position:static;align-self:flex-end;margin:2px 0 0;height:26px;min-height:26px;padding:0 12px;border-radius:8px;background:var(--accbg);color:var(--acc);border:0;font-size:12px;font-weight:600}
+.ep-bcard .ep-compose .dsubmit:hover{background:var(--acc);color:var(--card)}
+.ep-bcard .ep-compose .dsubmit:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
