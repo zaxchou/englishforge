@@ -3031,7 +3031,7 @@ function courseWatchedCount(){
   return (COURSES?.series||[]).reduce((n,s)=>n+(s.courses||[]).reduce((k,c)=>k+(c.lessons||[]).filter(l=>REC.course[l.id]?.done).length,0),0);
 }
 function renderCourse(){
-  const cm=$('cs-main');if(cm)cm.classList.remove('ep-page');
+  const cm=$('cs-main');if(cm)cm.classList.remove('ep-page');document.querySelector('.wrap')?.classList.remove('ep-page');
   const t=((COURSES&&COURSES.series)||[]).reduce((a,s)=>a+(s.courses||[]).reduce((b,c)=>b+(c.lesson_count||0),0),0);
   const d=courseWatchedCount();
   $('cs-ct').textContent=d+' / '+t+' 节';
@@ -3177,7 +3177,7 @@ function selectLessonHandoutPages(notes,hm){
 /* ---------- EnglishPod 音频深学页（音频+逐字稿: 精听/词块/复习, 平台定位=泛听之后的深化工具） ---------- */
 const EP={cache:{},st:null,keyHandler:null};
 window.renderEplodMain=async function(c){
-  $('cs-main').classList.add('ep-page');
+  $('cs-main').classList.add('ep-page');document.querySelector('.wrap')?.classList.add('ep-page');
   const el=$('cs-main');
   const request=EP.loadId=(EP.loadId||0)+1;
   EP.st?.cancelSeek?.();
@@ -3388,7 +3388,7 @@ function epWire(){
   pt.onclick=()=>{const open=srow.hidden;srow.hidden=!open;pt.setAttribute('aria-expanded',String(open));pt.textContent=open?'播放器 ⌃':'播放器';if(open)syncSeek();};
   seek.oninput=()=>{if(!a.duration)return;st.cancelSeek?.();st.seekSeq=(st.seekSeq||0)+1;st.seekPending=false;clearTimeout(st._iSeekT);st._iSeek=false;a.currentTime=seek.value/1000*a.duration;kurSync();};
   const kurSync=()=>{if(spb)spb.textContent=a.paused?'▶':'❚❚';};
-  spb.onclick=()=>{if(a.paused)epPlayBlock(EP.st.ai);else a.pause();};
+  spb.onclick=()=>{const f=window.__epPlayCurrent;if(f)f(false);else if(a.paused)epPlayBlock(EP.st.ai);else a.pause();};
   vol.onclick=()=>{a.muted=!a.muted;vol.textContent=a.muted?'🔇':'🔊';vol.setAttribute('aria-label',a.muted?'取消静音':'静音');};
   a.addEventListener('timeupdate',syncSeek);a.addEventListener('loadedmetadata',syncSeek);a.addEventListener('play',kurSync);a.addEventListener('pause',kurSync);
   $('ep-done').onclick=()=>{st.p.done=!st.p.done;st.p.at=Date.now();recSave();renderCourseNav();$('ep-done').textContent=st.p.done?'取消学完':'标记学完';$('cs-main').querySelector('.csp-meta .pill')?.remove();if(st.p.done)$('cs-main').querySelector('.csp-meta').insertAdjacentHTML('beforeend','<span class="pill q">已学完</span>');};
@@ -3405,7 +3405,16 @@ function epWire(){
     const now=Date.now();
     if(now-posT>5000){posT=now;epSavePos();}
     if(!a.seeking&&!st.seekPending&&st.range&&a.currentTime>=st.range[1]-0.03){
-      if(st.loop){st.seekTo(st.range[0]);}
+      if(st.loop){
+        const ex=st.p.drill.mode==='exam';
+        if(ex){
+          const di=st.ai,dr=st.p.drill;dr.playsS[di]=dr.playsS[di]||0;
+          if(dr.playsS[di]>=3){a.pause();st.loop=false;$('ep-loop').classList.remove('on');try{st.seekPosition(st.range[0]);}catch(e){}
+            const nn=$('ep-note');if(nn){nn.style.display='';nn.textContent='考试模式：本句 3 次已听完，先写再提交。';}return;}
+          dr.playsS[di]++;recSave();
+        }
+        st.seekTo(st.range[0]);
+      }
       else if(st.stopAtEnd&&!a.paused){a.pause();try{st.seekPosition(st.range[0]);}catch(e){}}   // 播完这句就停, 回到句首待重听
     }
     epSyncCur();
@@ -3916,8 +3925,23 @@ function epTrainWire(){
   /* 粘底 dock: 句导航 + 播放控制 + 精听入口 */
   $('ep-dock-prev').onclick=()=>epGo(st.ai-1,true);
   $('ep-dock-next').onclick=()=>epGo(st.ai+1,true);
-  $('ep-dock-play').onclick=()=>{if(!a.paused)a.pause();else if(st.tab==='train')epPlayBlock(st.ai);else a.play().catch(()=>{});};
-  $('ep-dock-replay').onclick=()=>epPlayBlock(st.ai);
+  /* 播放目标按当前 tab: 精听=正在听的那句, 训练=当前卡, 语块=整体播放/暂停 */
+  const epTargetLine=()=>{
+    if(st.tab==='listen'){const i=st.i>=0?st.i:st.ai;const row=$('cs-main').querySelector('.ep-line[data-kind="dg"][data-i="'+i+'"]');if(row&&row.dataset.t0!=null)return {i,t0:+row.dataset.t0,t1:+row.dataset.t1,kind:'dg'};}
+    if(st.tab==='train'){const u=st.d.dialogue[st.ai];if(u&&u.t0!=null)return {i:st.ai,t0:u.t0,t1:u.t1,kind:'dg'};}
+    return null;
+  };
+  const playCurrent=(restart)=>{
+    if(st.tab==='train'){if(restart||a.paused)epPlayBlock(st.ai);else a.pause();return;}
+    const tg=epTargetLine();
+    if(!tg){if(a.paused)a.play().catch(()=>{});else a.pause();return;}
+    if(!restart&&!a.paused){a.pause();return;}
+    st.stopAtEnd=true;st.loop=false;const lp=$('ep-loop');if(lp)lp.classList.remove('on');
+    st.range=[tg.t0,tg.t1];st.seekTo(tg.t0);epHighlight(tg.i,tg.kind);
+  };
+  window.__epPlayCurrent=playCurrent;
+  $('ep-dock-play').onclick=()=>playCurrent(false);
+  $('ep-dock-replay').onclick=()=>playCurrent(true);
   $('ep-dock-listen').onclick=()=>epTab('listen');
   a.removeEventListener('play',epDockSync);a.removeEventListener('pause',epDockSync);
   a.addEventListener('play',epDockSync);a.addEventListener('pause',epDockSync);
