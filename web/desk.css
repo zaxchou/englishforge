@@ -2193,3 +2193,25 @@ html.sb-min .nav-label{display:none!important}   /* 收缩侧栏只留图标 */
   .ep-stage .ep-dock .ep-dock-no{font-size:11px;padding:0 2px}
   .ep-stage .ep-dock #ep-dock-listen{padding:0 6px}
 }
+
+/* ============================================================
+   r14 · 覆盖背诵星星化(用户: 「一二三」换「一颗星~三颗星」, 更游戏化):
+   ① .ep-round 从数字圆圈改为星星——已得=品牌绿实心 / 当前待得=绿描边呼吸 / 未得=灰描边;
+     满三星第三颗带柔光晕
+   ② 概要行改「三星小样 + N/3 遍」; 首页 EP 卡副行用 ★☆ 文本星
+   ============================================================ */
+.ep-round,.ep-round.complete,.ep-round.current,.ep-round.final{
+  border:0;background:transparent;min-width:0;width:26px;height:26px;border-radius:0;padding:0}
+.ep-round svg{width:26px;height:26px;display:block}
+.ep-round svg path{fill:transparent;stroke:var(--line);stroke-width:1.7;stroke-linejoin:round}
+.ep-round.complete svg path{fill:var(--acc);stroke:var(--acc)}
+.ep-round.current svg path{stroke:var(--acc)}
+.ep-round.current svg{animation:ep-star-breathe 1.8s ease-in-out infinite;transform-origin:center;transform-box:fill-box}
+@keyframes ep-star-breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.14)}}
+.ep-round.final svg{filter:drop-shadow(0 0 5px rgba(73,105,87,.4))}
+.ep-nav-cover .ep-round{width:15px;height:15px}
+.ep-nav-cover .ep-round svg{width:15px;height:15px}
+.ep-cover-stars{display:inline-flex;gap:1px;flex:none}
+.ep-cover-stars .ep-round{width:13px;height:13px}
+.ep-cover-stars .ep-round svg{width:13px;height:13px}
+.ep-cover-stars .ep-round.current svg{animation:none}
