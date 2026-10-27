@@ -85,5 +85,29 @@ try{
   passed.push('exam merged view, review tab in course and redirects');console.log('PASS exam/course tabs and redirects');
   await ctx.close();
  }
+ { // 数据分析 · EnglishPod 深学卡
+  const epFixture={
+    'eplod-0002':{done:true,wt:3600,at:Date.now(),drill:{
+      dd:{0:{acc:.95},1:{acc:.95}},
+      rd:{0:{acc:.95}},
+      sd:{0:{acc:.95}},
+      stampDays:{'2026-10-26':[0,1,2,3,4,5],'2026-10-27':[0,1,2,3,4,5]},
+      recoveredCover:{sentences:[0,1,2,3,4,5,6,7,8],recognizedAt:1}}},
+    'eplod-0001':{drill:{stampDays:{'2026-10-26':[0,1,2,3,4,5]}}}
+  };
+  const {ctx,p}=await page(epFixture);
+  p.on('pageerror',e=>errors.push(e.message));
+  await p.goto(base+'/#/stats');await p.locator('#st-ep').waitFor({timeout:60000});
+  assert.equal(await p.locator('#st-ep-ct').textContent(),'已学过 1 / 364 期');
+  const txt=await p.locator('#st-ep').innerText();
+  assert.match(txt,/三遍完成[\s\S]*?1 期/);assert.match(txt,/进行中[\s\S]*?1 期/);
+  assert.match(txt,/听写通过[\s\S]*?2 句/);assert.match(txt,/背诵通过[\s\S]*?1 句/);assert.match(txt,/同速通过[\s\S]*?1 句/);
+  assert.match(txt,/累计精听[\s\S]*?1\.0 h/);assert.match(txt,/最近精听 今天/);
+  assert.ok(await p.locator('#st-ep-go').isVisible());
+  await p.locator('#st-ep-go').click();await p.locator('#ep-tabs').waitFor({state:'visible',timeout:60000});
+  assert.equal(await p.evaluate(()=>location.hash),'#/eplod/eplod-0002');
+  passed.push('stats EnglishPod card computes and navigates');console.log('PASS stats ep card');
+  await ctx.close();
+ }
  assert.deepEqual(errors,[]);fs.writeFileSync(path.join(out,'results.json'),JSON.stringify({base,passed,errors},null,2));
 }finally{await b.close()}})().catch(e=>{console.error(e);process.exitCode=1});

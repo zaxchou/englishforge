@@ -2133,3 +2133,11 @@ html.sb-min .nav-label{display:none!important}   /* 收缩侧栏只留图标 */
   .nav-label{display:block;font-size:11px;letter-spacing:.12em;color:#5c6b60;padding:10px 10px 3px}
   .nav-label.second{margin-top:8px}
 }
+
+/* 数据分析 · EnglishPod 深学卡 */
+.ep-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin:4px 0 6px}
+.ep-stats .es{background:var(--sunk);border:1px solid var(--line);border-radius:10px;padding:12px 14px;min-width:0}
+.ep-stats .es i{display:block;font-style:normal;font-size:12px;color:var(--t3);line-height:1.5}
+.ep-stats .es b{display:block;font-size:20px;font-weight:600;margin-top:4px;color:var(--t1);font-variant-numeric:tabular-nums}
+.ep-stats .es b small{font-size:12px;color:var(--t2);font-weight:400}
+.ep-stats .es.empty i{color:var(--t2)}

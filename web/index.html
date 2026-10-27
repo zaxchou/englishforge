@@ -8,7 +8,7 @@
 <link rel="icon" type="image/png" sizes="96x96" href="/assets/brand/t-dot-v1/t-dot-96.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/assets/brand/t-dot-v1/t-dot-180.png">
 <title>TOEFL Lab · 托福自学练习</title>
-<link rel="stylesheet" href="desk.css?v=1793400000">
+<link rel="stylesheet" href="desk.css?v=1793600000">
 <style>
 /* 应用层补充样式（视觉基线在 desk.css，不改它的既有规则） */
 /* 单词与字符格保持同一行；焦点、已填、判题状态沿用研读桌配色。 */
@@ -326,6 +326,14 @@ details.ai-tsec[open] summary{margin-bottom:8px}
       <div class="bhead"><h2 class="pt">科目进度</h2><span class="ct" id="st-subj-ct"></span></div>
       <div id="st-mastery"></div>
       <p class="note">点一行进入对应科目的专项训练</p>
+    </div>
+  </div>
+  <div class="cols">
+    <div class="card st-card">
+      <div class="bhead"><h2 class="pt">EnglishPod 深学</h2><span class="ct" id="st-ep-ct"></span></div>
+      <div class="ep-stats" id="st-ep"></div>
+      <button class="st-more" id="st-ep-go">打开 EnglishPod →</button>
+      <p class="note">听写/背诵/同速按 ≥90% 通过线累计；覆盖背诵=单期每天满 6 句盖一章，三章即完成。</p>
     </div>
   </div>
 </div>
@@ -4894,6 +4902,36 @@ function renderStats(){
       <span class="n2"><b>${c.done+c.wrong}<i>/${t}</i></b><span>正确率 ${accS}</span></span></div>`;
   }).join('')+`<div class="hm-legend" style="margin-top:10px"><span><i class="lg-ok"></i>已完成</span><span><i class="lg-bad"></i>最近做错</span><span><i class="lg-none"></i>未做</span></div>`;
   $('st-mastery').querySelectorAll('[data-subj]').forEach(el=>{el.onclick=()=>nav('exam/drill/'+el.dataset.subj);});
+
+  /* EnglishPod 深学: 听写/背诵/同速句数(≥90%), 覆盖背诵三档, 精听时长 */
+  let epDone=0,epDD=0,epRD=0,epSD=0,epWT=0,epLast=0,epR3=0,epR2=0;
+  for(const [lid,l] of Object.entries(REC.course||{})){
+    if(!lid.startsWith('eplod-'))continue;
+    if(l.done)epDone++;
+    if(l.at&&l.at>epLast)epLast=l.at;
+    epWT+=l.wt||0;
+    const dr=l.drill||{};
+    epDD+=Object.values(dr.dd||{}).filter(v=>v&&v.acc!=null&&v.acc>=0.9).length;
+    epRD+=Object.values(dr.rd||{}).filter(v=>v&&v.acc!=null&&v.acc>=0.9).length;
+    epSD+=Object.values(dr.sd||{}).filter(v=>v&&v.acc!=null&&v.acc>=0.9).length;
+    const f=courseFind(lid);const epTotal=f?f.c.lessons[f.ix].dialogue_count:0;
+    const stp=EplodRecords.coverProgress(dr,epTotal,epDay());
+    if(stp.completed>=3)epR3++;else if(stp.completed>=1||Object.keys(dr.stampDays||{}).length)epR2++;
+  }
+  const epTotalAll=(()=>{const c=courseById('eplod-01');return c?c.lessons.length:0;})();
+  $('st-ep-ct').textContent='已学过 '+epDone+' / '+epTotalAll+' 期';
+  const epRel=epLast?(()=>{const d=Math.floor((Date.now()+8*3600000)/864e5)-Math.floor((epLast+8*3600000)/864e5);return d<=0?'今天':d===1?'昨天':d+' 天前';})():'';
+  const cell=(k,v)=>'<div class="es"><i>'+k+'</i><b>'+v+'</b></div>';
+  $('st-ep').innerHTML=epLast||epDone?(
+    cell('覆盖背诵 · 三遍完成',epR3+' <small>期</small>')+
+    cell('覆盖背诵 · 进行中',epR2+' <small>期</small>')+
+    cell('听写通过',epDD+' <small>句</small>')+
+    cell('背诵通过',epRD+' <small>句</small>')+
+    cell('同速通过',epSD+' <small>句</small>')+
+    cell('累计精听',epWT>=3600?(epWT/3600).toFixed(1)+' <small>h</small>':Math.round(epWT/60)+' <small>m</small>')
+  ):'<div class="es empty"><i>还没有 EnglishPod 学习记录</i><b>—</b></div>';
+  if(epRel){const hint=$('st-ep').querySelector('.es i');if(hint)hint.textContent+=' · 最近精听 '+epRel;}
+  $('st-ep-go').onclick=()=>nav('eplod');
 }
 
 /* 主按钮涟漪(模式参考 Amicro, MIT): pointerdown 定位, 键盘触发不出涟漪 */
