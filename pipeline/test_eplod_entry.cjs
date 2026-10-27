@@ -30,7 +30,7 @@ try{
   await p.locator('.nav button[data-v=eplod]').click();await p.locator('#ep-tabs').waitFor();
   await p.locator('#ep-list .cli').filter({hasText:'#0014'}).click();await p.waitForFunction(()=>EP.st.l.ep===14);
   await p.locator('.nav button[data-v=course]').click();await p.locator('.cs-pick select').waitFor();
-  await p.locator('.nav button[data-v=eplod]').click();await p.waitForFunction(()=>EP.st?.l.ep===14);
+  await p.locator('.nav button[data-v=eplod]').click();await p.waitForFunction(()=>EP.st?.l?.ep===14&&location.hash==='#/eplod/eplod-0014');
   assert.equal(await p.evaluate(()=>location.hash),'#/eplod/eplod-0014');
   passed.push('top-level entry separates modes and remembers each side');console.log('PASS entry modes');
   await ctx.close();
@@ -55,6 +55,30 @@ try{
   await p.locator('.nav button[data-v=eplod]').click();await p.waitForFunction(()=>EP.st?.l?.ep);
   assert.match(await p.locator('#cs-ct').textContent(),/^1 \/ 364 节$/);
   passed.push('counts stay separate across reload and mode switch');console.log('PASS counts separate');
+  await ctx.close();
+ }
+ { // 真题训练合并视图 + 旧路由重定向 + 课后复习并入视频课
+  const {ctx,p}=await page();p.on('pageerror',e=>errors.push(e.message));
+  await p.goto(base+'/#/sets');await p.locator('#exam-tabs').waitFor({timeout:60000});
+  assert.equal(await p.evaluate(()=>location.hash),'#/exam/sets');
+  assert.equal(await p.locator('#exam-tabs button.on').textContent(),'整套');
+  assert.ok(await p.locator('.exam-badge').isVisible(),'official badge');
+  await p.locator('#exam-tabs [data-t=review]').click();
+  assert.equal(await p.evaluate(()=>location.hash),'#/exam/review');
+  assert.ok(await p.locator('#exam-pane-review').isVisible());
+  assert.ok(await p.locator('#exam-pane-review #rv-list').count());
+  assert.equal(await p.evaluate(()=>location.hash),'#/exam/review');
+  await p.goto(base+'/#/memory');await p.locator('#cs-tabs').waitFor({timeout:60000});
+  assert.equal(await p.evaluate(()=>location.hash),'#/course/review');
+  assert.equal(await p.locator('#cs-tabs button.on').textContent(),'课后复习');
+  assert.ok(await p.locator('#cs-pane-review #course-memory-content').isVisible());
+  await p.locator('#cs-tabs [data-t=learn]').click();
+  assert.ok(await p.locator('#cs-layout').isVisible());
+  // 导航分组: 桌面 6 项 + 学/习标签
+  const labels=await p.locator('.nav .nav-label').allTextContents();
+  assert.deepEqual(labels,['学','习','工具']);
+  assert.equal(await p.locator('.nav button[data-v=exam]').count(),1);
+  passed.push('exam merged view, review tab in course and redirects');console.log('PASS exam/course tabs and redirects');
   await ctx.close();
  }
  assert.deepEqual(errors,[]);fs.writeFileSync(path.join(out,'results.json'),JSON.stringify({base,passed,errors},null,2));

@@ -515,7 +515,7 @@ body{line-height:1.6}button{min-height:40px}button:focus-visible,a:focus-visible
 /* 2026-10-25 视觉升级(Vesper 参考): 圆角阶梯 --r 4->14/--rs 4->10, 线压浅。注意: 本块是文件里最后声明的 :root, 为实际生效源; 顶部 block1 的同名变量是历史遗留, 改圆角/线色要改这里 */:root{--bg:#f5f6f7;--card:#ffffff;--sunk:#eef0ef;--t1:#202725;--t2:#566158;--t3:#70766e;--acc:#315a47;--line:#e7eae8;--line2:#c9cfcb;--ok:#226b4b;--okbg:#eef5ef;--bad:#9a3f35;--badbg:#fcf0e9;--r:14px;--rs:10px;--f1:27px;--f2:19px;--f3:16px;--f4:14px;--f5:12px}
 body{font-family:"Segoe UI","Microsoft YaHei",sans-serif;font-size:16px;color:var(--t1);line-height:1.65}
 .top{width:232px;background:#e9eee5;border-right:1px solid #d6ddcf;box-shadow:none}
-.topin{padding:12px 27px 28px;gap:26px}.desk-brand{padding-left:13px}.brand{font-family:Georgia,serif;display:block;font-size:20px;letter-spacing:-.3px;line-height:1.16;font-weight:400;color:#254638}.brand span{font-style:italic;margin-left:5px}.brand-caption{display:block;margin-top:12px;font-size:11px;letter-spacing:.14em;color:#687768}.nav{gap:5px}.nav-label{font-size:11px;color:#687768;letter-spacing:.1em;padding:0 13px 8px}.nav-label.second{margin-top:20px}.nav button{padding:11px 14px;text-align:left;font-size:14px;min-height:43px;color:#4b5b4d;transition:background .16s,color .16s}.nav button.on{background:#d8e2d2;color:#244433;font-weight:600;box-shadow:none;border-radius:4px}.nav button:hover:not(.on){background:#e0e7da}.nav button:focus-visible{outline-offset:2px}
+.topin{padding:12px 27px 28px;gap:26px}.desk-brand{padding-left:13px}.brand{font-family:Georgia,serif;display:block;font-size:20px;letter-spacing:-.3px;line-height:1.16;font-weight:400;color:#254638}.brand span{font-style:italic;margin-left:5px}.brand-caption{display:block;margin-top:12px;font-size:11px;letter-spacing:.14em;color:#687768}.nav{gap:5px}.nav-label{font-size:11px;color:#5c6b60;letter-spacing:.1em;padding:0 13px 8px}.nav-label.second{margin-top:20px}.nav button{padding:11px 14px;text-align:left;font-size:14px;min-height:43px;color:#4b5b4d;transition:background .16s,color .16s}.nav button.on{background:#d8e2d2;color:#244433;font-weight:600;box-shadow:none;border-radius:4px}.nav button:hover:not(.on){background:#e0e7da}.nav button:focus-visible{outline-offset:2px}
 .wrap{margin-left:232px;padding:12px 62px 58px;max-width:1150px}.lead{margin-bottom:28px;position:relative}.desk-kicker{font-size:11px;letter-spacing:.12em;color:#52644f}.lead h1{font-family:Georgia,"SimSun",serif;font-size:34px;font-weight:400;letter-spacing:-.03em;margin:10px 0 10px;line-height:1.35}.heading-dot{color:#668171;font-family:Georgia;margin-left:7px}.lead p{font-size:14px;color:#526458;margin:0}.notebook{padding:0 30px;background:var(--card);border:1px solid #deded2;border-top:1px solid #deded2;border-radius:4px;box-shadow:0 2px 4px #28352a06,0 10px 28px #28352a04;position:relative}.bookhead{padding:20px 0 18px;font-size:12px;letter-spacing:.025em;border-color:#d9decf;color:#62715e}.bookhead span:first-child{font-weight:600;color:#364d3c}.part{grid-template-columns:34px 1fr auto;gap:20px;padding:23px 0;min-height:104px;border-color:#e6e7de}.part .num{font-family:Georgia,serif;font-size:17px;font-style:italic;color:#62745c;font-weight:400}.part strong{font-family:"SimSun",Georgia,serif;font-weight:400;font-size:23px;line-height:1.3}.part em{font-family:Georgia,serif;font-size:19px;color:#556650;margin-left:18px}.part p{font-family:"Microsoft YaHei",sans-serif;font-size:12px;color:#6d7568;line-height:1.65;margin-top:10px}.part button{font-size:13px;padding:9px 14px;color:#305540;border:1px solid #d7dfcf;border-radius:4px;min-height:38px;background:#f9fbf4;transition:border-color .15s,background .15s}.part button:hover{background:#e8efdf;border-color:#b9c9ab}.part button:active{transform:translateY(1px);background:#dce6d0}.bookfoot{display:flex;align-items:center;gap:18px;padding:17px 0;font-size:11px;color:#7b8574}.bookfoot i{font-style:normal;color:#a3ac98}.resources{margin-top:30px;font-family:"Segoe UI","Microsoft YaHei",sans-serif}.resources h2{font-size:13px;letter-spacing:.03em;font-weight:600;color:#616f5c;margin-bottom:10px}.resource{padding:14px 0;border-bottom:1px solid #dfe3d6;gap:20px}.resource b{font-size:14px;font-weight:500;min-width:105px}.resource span{font-size:12px;color:#737a6c}.resource button{border:0;font-size:12px;color:#52674a;padding:8px 0;min-height:36px;background:none}.resource button:hover{color:#21492f;background:none;text-decoration:underline;text-underline-offset:5px}.resources .resource:last-child{border-bottom:0}
 .pt{font-family:"SimSun",Georgia,serif;font-size:27px;font-weight:400}.bhead{display:flex;align-items:baseline;justify-content:space-between;gap:18px}.ct{font-size:12px;color:#6b7565}.sub{font-size:13px;color:#697562;margin-top:8px;margin-bottom:24px}.card{background:var(--card);border-color:#dfe3d6;border-radius:4px}.phead{background:#f4f5ed;padding:15px 20px;border-color:#e0e4d7}.phead b{font-size:14px;font-weight:600}.phead .r{font-size:12px}.trow{padding:18px 20px;border-color:#e8ebdf}.trow .t b{font-family:Georgia,serif;font-size:18px;font-weight:400}.trow .t span{font-size:12px;margin-top:5px;color:#6a7561}.ovc{border-radius:4px;background:#e9eddf;padding:17px 20px}.ovc .v{font-family:Georgia,serif;font-size:29px;font-weight:400}.seg{background:#e7ebdd}.seg button{font-size:14px}.seg .thumb{background:#fffef9;border:1px solid #dce2d0;box-shadow:none}
 #v-do{max-width:900px;margin:auto}.ctx{background:none;border:0;padding:0 0 18px;border-bottom:1px solid #dfe3d6;margin-bottom:20px;gap:14px}.ctx .bk{font-size:12px;border:0;background:none;padding:8px 0;color:#5c6e50}.ctx .c1{font-size:13px;font-weight:500}.ctx .c2{font-size:12px;color:#738267}.ctx .sp{font-family:Georgia,serif;font-size:14px}.qb{padding:32px 36px}.qt{font-family:Georgia,serif;font-weight:400;font-size:25px;line-height:1.55;letter-spacing:-.02em;margin-bottom:7px}.qd{font-family:"Microsoft YaHei",sans-serif;font-size:13px;color:#737a6b;line-height:1.8;margin-bottom:21px}.opt{border:1px solid #dce2d3;border-radius:4px;padding:16px 19px;font-size:17px;font-family:Georgia,serif;line-height:1.6;margin:11px 0;gap:16px;background:#fffefa}.opt .ol{width:25px;height:25px;min-width:25px;font-family:"Segoe UI",sans-serif;font-size:11px;border-color:#d2dac6;color:#64795a;display:flex;align-items:center;justify-content:center}.opt.sel{border-color:#69825b;background:#edf2e5}.opt.right{border-color:#95b7a3;background:#eef6ef;box-shadow:none}.opt.wrong{border-color:#d6a59c;background:#fff1ed}.pfoot{padding:17px 24px;border-color:#e2e7d8;background:#fbfcf5}.pfoot button{font-size:13px;min-height:40px}.pri{background:#2c503a!important;border-color:#2c503a!important;color:#fff!important;font-weight:500;box-shadow:0 2px 3px #27402a10}.pri:hover{background:#1f402b!important}.ab{padding:15px 25px;background:#f3f5ea;border-color:#e2e6d7}.ab .play{padding:0;min-height:34px;min-width:34px;display:flex;align-items:center;justify-content:center}.ab .play svg{width:12px;height:12px;flex:none}.tbar{background:#f8f9f2;padding:14px 25px;gap:14px}.tval{font-family:Georgia,serif;font-size:18px!important}.tlab{font-size:11px}.fb{border:1px solid #d3e0d4;border-radius:4px;padding:21px 25px;box-shadow:none}.fb.ok{background:#f1f7ef}.fb.bad{background:#fff5ed;border-color:#e1c3b5}.fb .h{margin-bottom:16px;gap:12px}.fb .tt{font-family:"SimSun",serif;font-size:22px;font-weight:400}.fb .qn2{font-size:11px;color:#75806e}.fb .cmp2{border-top:1px solid #dce6d5;padding-top:15px}.fb .k{font-size:12px}.fb .v{font-family:Georgia,serif;font-size:17px}.fb .tagrow{padding-top:16px}.fb .tag{border-radius:3px;font-size:12px}
@@ -2079,4 +2079,53 @@ body.vfull .cs-stage video.tfl{max-height:none}
   .ep .ep-stage .ep-status{order:3;flex-wrap:nowrap;gap:0 2px;padding-top:0}
   .ep .ep-stage .ep-status .cs-speed{padding-left:0;gap:0;min-width:0}
   .ep .ep-stage .ep-status .cs-speed>span{display:none}
+}
+
+/* ============================================================
+   手机可收缩导航 + 首页 EnglishPod 独立卡片
+   ① ≤700px: 顶栏收成一行(菜单键+字标+当前项), 导航收进下拉面板, 选中/点外部即收
+   ② 首页: 继续上次分"视频课/EnglishPod"两条线, hm-cols 三卡自适应
+   ============================================================ */
+.nav-burger{display:none}
+.nav-cur{display:none}
+.hm-cols{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+@media(max-width:700px){
+  .hm-cols{grid-template-columns:1fr}
+  .nav-burger{display:inline-flex;align-items:center;justify-content:center;flex:none;width:42px;height:42px;min-height:42px;padding:0;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--t1);cursor:pointer}
+  .nav-burger:active{transform:translateY(1px)}
+  .topin{display:flex;flex-direction:row;align-items:center;gap:10px;height:auto;padding:8px 14px}
+  .brand{font-size:19px}
+  .brand-caption{display:none}
+  .nav-cur{display:block;margin-left:auto;font-size:12px;color:var(--t2);white-space:nowrap}
+  .nav{display:none;position:absolute;top:100%;left:0;right:0;z-index:70;flex-direction:column;gap:2px;margin:0;padding:8px 10px 12px;overflow:visible;white-space:normal;background:var(--card);border-bottom:1px solid var(--line);box-shadow:0 18px 38px rgba(32,39,37,.18)}
+  .top.nav-open .nav{display:flex}
+  .nav button{display:flex;width:100%;align-items:center;gap:10px;min-height:46px;padding:10px 12px;font-size:14px;border-radius:8px}
+  .nav button.on{background:#d8e2d2;color:#244433;font-weight:600}
+}
+
+/* ============================================================
+   导航 IA 重组 · r6
+   ① 真题训练 = 单视图三页签(整套/专项/错题), 头部常驻「官方真题 · 非 AI 出题」
+   ② 课后复习并入视频课页签(我的课程 | 课后复习), 原 #/memory 重定向进入
+   ③ 侧栏/手机菜单分组: 学 / 习 / 工具
+   ============================================================ */
+.exam-tabs,.cs-tabs{display:flex;gap:22px;border-bottom:1px solid var(--line);margin:14px 0 0}
+.exam-tabs button,.cs-tabs button{border:0;border-bottom:2px solid transparent;background:none;font-size:14px;color:var(--t2);padding:10px 0;cursor:pointer}
+.exam-tabs button.on,.cs-tabs button.on{color:var(--acc);border-color:var(--acc);font-weight:600}
+.exam-badge{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:var(--acc);background:var(--accbg);border-radius:999px;padding:3px 10px;white-space:nowrap}
+.exam-ctrow{min-height:0}
+.exam-ctrow .ct:empty,.exam-ctrow:has(.ct:empty){display:none}
+#cs-pane-review{padding:14px 0 20px}
+@media(min-width:801px){
+  body.course-fixed #cs-pane-learn{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+  body.course-fixed #cs-pane-review{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:0 0 12px}
+}
+.rv-src{font-size:10.5px;border-radius:999px;padding:1px 7px;margin-left:8px;white-space:nowrap}
+.rv-src.real{background:var(--accbg);color:var(--acc);font-weight:600}
+.rv-src.gen{background:#eee9df;color:#7a6a4f}
+@media(max-width:700px){
+  .exam-tabs button,.cs-tabs button{flex:1;text-align:center}
+  .bhead .exam-badge{order:3;flex-basis:100%;justify-self:start;margin-top:6px}
+  .nav-label{display:block;font-size:11px;letter-spacing:.12em;color:#5c6b60;padding:10px 10px 3px}
+  .nav-label.second{margin-top:8px}
 }

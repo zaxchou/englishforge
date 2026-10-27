@@ -8,7 +8,7 @@
 <link rel="icon" type="image/png" sizes="96x96" href="/assets/brand/t-dot-v1/t-dot-96.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/assets/brand/t-dot-v1/t-dot-180.png">
 <title>TOEFL Lab · 托福自学练习</title>
-<link rel="stylesheet" href="desk.css?v=1793200000">
+<link rel="stylesheet" href="desk.css?v=1793300000">
 <style>
 /* 应用层补充样式（视觉基线在 desk.css，不改它的既有规则） */
 /* 单词与字符格保持同一行；焦点、已填、判题状态沿用研读桌配色。 */
@@ -118,31 +118,32 @@ details.ai-tsec[open] summary{margin-bottom:8px}
 
 <div class="top">
   <div class="topin">
+    <button class="nav-burger" id="nav-burger" aria-label="展开导航菜单" aria-expanded="false" aria-controls="nav"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h16"/></svg></button>
     <div class="desk-brand" id="sb-brand" role="button" title="折叠/展开侧栏" aria-label="折叠/展开侧栏"><img class="brand-ico" src="/assets/brand/t-dot-v1/t-dot-48.png" alt="" width="30" height="30"><span class="brand"><span class="brand-name">TOEFL</span> <span class="brand-lab">Lab</span></span></div>
     <div class="nav">
       <button class="on" data-v="home" title="首页"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 10.5 12 3.5l8.5 7"/><path d="M5.5 9.5V20h13V9.5"/></svg><span class="nv-t">首页</span></button>
-      <button data-v="drill" title="专项训练"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.6"/></svg><span class="nv-t">专项训练</span></button>
-      <button data-v="sets" title="整套练习"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M12 3.5 20.5 8 12 12.5 3.5 8Z"/><path d="M4.5 12.5 12 16.5l7.5-4"/><path d="M4.5 16.5 12 20.5l7.5-4"/></svg><span class="nv-t">整套练习</span></button>
+      <div class="nav-label">学</div>
       <button data-v="course" title="视频课"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M10 8.5 16 12l-6 3.5Z"/></svg><span class="nv-t">视频课</span></button>
       <button data-v="eplod" title="EnglishPod 深学"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 13.5a7.5 7.5 0 0 1 15 0"/><path d="M4.5 13.5v4a1.5 1.5 0 0 0 1.5 1.5h.7a1 1 0 0 0 1-1v-3.5a1 1 0 0 0-1-1h-2.2Z"/><path d="M19.5 13.5v4a1.5 1.5 0 0 1-1.5 1.5h-.7a1 1 0 0 1-1-1v-3.5a1 1 0 0 1 1-1h2.2Z"/></svg><span class="nv-t">EnglishPod</span></button>
+      <div class="nav-label second">习</div>
+      <button data-v="exam" title="真题训练（整套/专项/错题 · 官方真题）"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3.5h8a1 1 0 0 1 1 1V7h1.5a1 1 0 0 1 1 1v11a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 19V8a1 1 0 0 1 1-1H7V4.5a1 1 0 0 1 1-1Z"/><path d="M9 3.5h6V7H9Z"/><path d="M8.5 12h7M8.5 15.5h7"/></svg><span class="nv-t">真题训练</span></button>
       <button data-v="vocab" title="背单词"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5h6.5a2 2 0 0 1 2 2V20a1.6 1.6 0 0 0-1.6-1.6H4Z"/><path d="M20 5.5h-6.5a2 2 0 0 0-2 2V20a1.6 1.6 0 0 1 1.6-1.6H20Z"/></svg><span class="nv-t">背单词</span></button>
-      <button data-v="memory" id="course-memory-link" title="课程轻复习"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 11a8 8 0 1 1 1 6M4 4v7h7"/></svg><span class="nv-t">课程复习</span></button>
-      <button data-v="review" title="错题本"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M5 4.5h13.5V20H6.8A1.8 1.8 0 0 1 5 18.2Z"/><path d="M9 4.5V20"/></svg><span class="nv-t">错题本</span></button>
+      <div class="nav-label second">工具</div>
       <button data-v="stats" title="数据分析"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 20h16"/><path d="M7.5 16.5v-5"/><path d="M12 16.5V7"/><path d="M16.5 16.5v-8"/></svg><span class="nv-t">数据分析</span></button>
     </div>
+    <span class="nav-cur" id="nav-cur" aria-hidden="true">首页</span>
   </div>
 </div>
 
 <div class="wrap">
 
-<div class="view" id="v-memory"><div id="course-memory-content"><p role="status">正在读取课程复习…</p></div></div>
 <!-- ============ 研读桌（首页） ============ -->
 <div class="view on" id="v-home">
   <header class="lead"><div class="desk-kicker">TOEFL · 听 / 读 / 写 / 说</div>
     <h1>开始今天的练习<span class="heading-dot">.</span></h1>
     <p id="home-sub">加载中…</p></header>
   <section class="controw" id="hm-continue"></section>
-  <section class="card hprog"><div class="phead"><div class="l"><b>专项训练 · 四科进度</b></div>
+  <section class="card hprog"><div class="phead"><div class="l"><b>真题训练 · 四科进度</b></div>
     <div class="r"><span id="hm-prog-ct"></span></div></div>
     <div id="hm-subjects"></div></section>
   <div class="hm-cols">
@@ -150,35 +151,58 @@ details.ai-tsec[open] summary{margin-bottom:8px}
       <div class="hm-mini" id="hm-review"></div></section>
     <section class="card"><div class="phead"><div class="l"><b>视频课</b></div><div class="r"><span id="hm-cs-ct"></span></div></div>
       <div class="hm-mini" id="hm-course"></div></section>
+    <section class="card"><div class="phead"><div class="l"><b>EnglishPod</b></div><div class="r"><span id="hm-ep-ct"></span></div></div>
+      <div class="hm-mini" id="hm-ep"></div></section>
   </div>
   <section class="card"><div class="phead"><div class="l"><b>学习数据</b></div><div class="r"><span>近 14 天</span></div></div>
     <div class="hm-mini" id="hm-stats"></div></section>
 </div>
 
 <!-- ============ 专项训练 ============ -->
-<div class="view" id="v-drill">
-  <div class="bhead"><h2 class="pt">专项训练</h2><span class="ct" id="dr-ct"></span></div>
-  <p class="sub">按科目 → 按题组（题组来自真实套题，模块/题型/题号独立记录）</p>
-  <div class="seg" id="dr-seg"><span class="thumb"></span>
-    <button class="on" data-s="listening">听力</button>
-    <button data-s="reading">阅读</button>
-    <button data-s="writing">写作</button>
-    <button data-s="speaking">口语</button>
+<!-- ============ 真题训练（整套 | 专项 | 错题 · 全部官方真题, 非 AI 出题） ============ -->
+<div class="view" id="v-exam">
+  <div class="bhead"><h2 class="pt">真题训练</h2><span class="exam-badge" title="整套、专项、错题全部来自官方真题，不是 AI 出的题"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>官方真题 · 非 AI 出题</span><span class="ct" id="exam-ct"></span></div>
+  <p class="sub">整套、专项、错题里的每一道题都来自官方真题；答错的题自动进「错题」按 1/3/7/14 天回来</p>
+  <div class="exam-tabs" id="exam-tabs" role="tablist" aria-label="真题训练板块">
+    <button data-t="sets" class="on" aria-selected="true">整套</button>
+    <button data-t="drill" aria-selected="false">专项</button>
+    <button data-t="review" aria-selected="false">错题</button>
   </div>
-  <div id="dr-body"></div>
-</div>
-
-<!-- ============ 整套 ============ -->
-<div class="view" id="v-sets">
-  <div class="bhead"><h2 class="pt">整套练习</h2><span class="ct" id="sets-ct"></span></div>
-  <p class="sub" id="sets-sub">按顺序作答，中途退出进度保留</p>
-  <div class="seg" id="sets-filter"><span class="thumb"></span>
-    <button class="on" data-f="all">全部</button>
-    <button data-f="todo">未开始</button>
-    <button data-f="doing">进行中</button>
-    <button data-f="done">已完成</button>
+  <div id="exam-pane-sets" role="tabpanel" aria-label="整套">
+    <div class="exam-ctrow"><span class="ct" id="sets-ct"></span></div>
+    <p class="sub" id="sets-sub">按顺序作答，中途退出进度保留</p>
+    <div class="seg" id="sets-filter"><span class="thumb"></span>
+      <button class="on" data-f="all">全部</button>
+      <button data-f="todo">未开始</button>
+      <button data-f="doing">进行中</button>
+      <button data-f="done">已完成</button>
+    </div>
+    <div class="card slist" id="sets"></div>
   </div>
-  <div class="card slist" id="sets"></div>
+  <div id="exam-pane-drill" role="tabpanel" aria-label="专项" hidden>
+    <div class="exam-ctrow"><span class="ct" id="dr-ct"></span></div>
+    <p class="sub">按科目 → 按题组（题组来自真实套题，模块/题型/题号独立记录）</p>
+    <div class="seg" id="dr-seg"><span class="thumb"></span>
+      <button class="on" data-s="listening">听力</button>
+      <button data-s="reading">阅读</button>
+      <button data-s="writing">写作</button>
+      <button data-s="speaking">口语</button>
+    </div>
+    <div id="dr-body"></div>
+  </div>
+  <div id="exam-pane-review" role="tabpanel" aria-label="错题" hidden>
+    <div class="exam-ctrow"><span class="ct" id="rv-ct"></span></div>
+    <p class="sub">复习间隔 1 / 3 / 7 / 14 天（固定节奏，不是对所有题最优的结论）· 也可以直接勾选「不再训练」</p>
+    <div class="seg" id="rv-seg" style="margin-bottom:16px"><span class="thumb"></span>
+      <button class="on" data-t="mistakes">错题复习</button>
+      <button data-t="families">词根家族</button>
+    </div>
+    <div class="stats" id="rv-stats"></div>
+    <div class="card" style="overflow:hidden">
+      <div class="phead"><div class="l"><b id="rv-ph-t">待复习</b></div><div class="r"><span id="rv-due"></span><button class="pri" id="rv-batch" hidden>复习全部到期题</button></div></div>
+      <div id="rv-list"></div>
+    </div>
+  </div>
 </div>
 
 <!-- ============ 做题（任务页, 不占主导航） ============ -->
@@ -238,11 +262,18 @@ details.ai-tsec[open] summary{margin-bottom:8px}
 <div class="view" id="v-course">
   <div class="bhead"><h2 class="pt" id="cs-title">视频课</h2><span class="ct" id="cs-ct"></span></div>
   <p class="sub" id="cs-sub">选择课节，配合讲义学习，再练对应题</p>
+  <div class="cs-tabs" id="cs-tabs" role="tablist" aria-label="视频课板块">
+    <button data-t="learn" class="on" aria-selected="true">我的课程</button>
+    <button data-t="review" aria-selected="false">课后复习</button>
+  </div>
+  <div id="cs-pane-learn">
   <div class="csplit" id="cs-layout">
     <button class="cs-outline-toggle" id="cs-outline-toggle" aria-expanded="false" onclick="csToggleOutline()">课程目录</button>
     <aside class="csnav-col"><div class="csnav" id="cs-nav"></div></aside>
     <section class="csmain" id="cs-main"></section>
   </div>
+  </div>
+  <div id="cs-pane-review" hidden><div id="course-memory-content"><p role="status">正在读取课后复习…</p></div></div>
 </div>
 
 <!-- ============ 背单词 ============ -->
@@ -252,20 +283,7 @@ details.ai-tsec[open] summary{margin-bottom:8px}
   <div id="vb-body"><div class="card" style="padding:28px;text-align:center;color:var(--t2)">正在读取词库…</div></div>
 </div>
 
-<!-- ============ 错题本 ============ -->
-<div class="view" id="v-review">
-  <div class="bhead"><h2 class="pt">错题本</h2><span class="ct" id="rv-ct"></span></div>
-  <p class="sub">复习间隔 1 / 3 / 7 / 14 天（固定节奏，不是对所有题最优的结论）· 也可以直接勾选「不再训练」</p>
-  <div class="seg" id="rv-seg" style="margin-bottom:16px"><span class="thumb"></span>
-    <button class="on" data-t="mistakes">错题复习</button>
-    <button data-t="families">词根家族</button>
-  </div>
-  <div class="stats" id="rv-stats"></div>
-  <div class="card" style="overflow:hidden">
-    <div class="phead"><div class="l"><b id="rv-ph-t">待复习</b></div><div class="r"><span id="rv-due"></span><button class="pri" id="rv-batch" hidden>复习全部到期题</button></div></div>
-    <div id="rv-list"></div>
-  </div>
-</div>
+<!-- ============ 课后复习（并入视频课, 由 #/memory 重定向进入） ============ -->
 
 <!-- ============ 分析 ============ -->
 <div class="view" id="v-stats">
@@ -1076,6 +1094,8 @@ function go(v){
   if(v!=='vocab'&&VB_WAKE){clearTimeout(VB_WAKE);VB_WAKE=null;}
   if(v!=='vocab'&&VB_AUDIO){try{VB_AUDIO.pause();window.speechSynthesis?.cancel();}catch(e){}}
   document.querySelectorAll('.nav button').forEach(x=>x.classList.toggle('on',x.dataset.v===v));
+  const cur=$('nav-cur');if(cur)cur.textContent=NAV_CUR_NAMES[v]||'';
+  navMenuOpen(false);   // 手机上从菜单选中后立即收起
   const navOn=document.querySelector('.nav button.on');   // 窄屏导航横向滚动时, 当前项要滚入视野
   if(navOn&&navOn.scrollIntoView){
     navOn.scrollIntoView({block:'nearest',inline:'center'});
@@ -1090,12 +1110,9 @@ function go(v){
   document.body.classList.toggle('course-fixed',viewV==='course');   // 画布定高: 只有内容区滚动
   document.querySelectorAll('.seg').forEach(moveThumb);
   if(v==='home') renderHome();
-  if(v==='drill') renderDrill();
-  if(v==='sets') renderSets();
-  if(v==='course'||v==='eplod') renderCourse();
-  if(v==='review') renderReview();
+  if(v==='exam') examGo(examTabCur);
+  if(v==='course'||v==='eplod'){ renderCourse(); csCourseGo(csCourseTab); }
   if(v==='stats') renderStats();
-  if(v==='memory') mountCourseMemory();
   if(v==='vocab') mountVocab();
   gqStudyGate();
   window.scrollTo(0,0);
@@ -1110,16 +1127,70 @@ function route(){
   const h=(location.hash||'#/home').replace(/^#\//,'');
   const [v,arg]=h.split('/');
   if(v==='do'){ if(!S) go('home'); else go('do'); return; }   // 做题会话不外链；无会话回首页
-  if(['home','drill','sets','course','eplod','memory','review','stats','vocab'].includes(v)){
+  if(v==='drill'){location.replace('#/exam/drill'+(arg?'/'+arg:''));return;}
+  if(v==='sets'){location.replace('#/exam/sets');return;}
+  if(v==='review'){location.replace('#/exam/review');return;}
+  if(v==='memory'){location.replace('#/course/review');return;}   // 课后复习并入视频课
+  if(['home','course','eplod','exam','stats','vocab'].includes(v)){
     if(v==='drill'&&arg&&SUBN[arg]) drillTab(arg);
-    if(v==='course'&&arg){const f=courseFind(decodeURIComponent(arg));if(f){ if(f.c.kind==='eplod'){location.hash='#/eplod/'+encodeURIComponent(arg);return;} csSel={c:f.c.id,l:f.ix};csPick=f.c.id; } go('course');return;}
+    if(v==='course'&&arg){
+      if(arg==='review'){csCourseTab='review';go('course');return;}
+      const f=courseFind(decodeURIComponent(arg));if(f){ if(f.c.kind==='eplod'){location.hash='#/eplod/'+encodeURIComponent(arg);return;} csSel={c:f.c.id,l:f.ix};csPick=f.c.id; } go('course');return;}
     if(v==='eplod'){ if(arg){const f=courseFind(decodeURIComponent(arg));if(f){csSel={c:f.c.id,l:f.ix};csPick=f.c.id;epSel={c:f.c.id,l:f.ix};}} go('eplod');return;}
+    if(v==='exam'){
+      const parts=arg?arg.split('/'):[];const t=parts[0];
+      if(t==='drill'&&parts[1]&&SUBN[parts[1]])drillTab(parts[1]);
+      examTabCur=['sets','drill','review'].includes(t)?t:'sets';
+      go('exam');return;}
     go(v);
   } else go('home');
 }
 window.addEventListener('hashchange',route);
 window.goBack=function(){ nav(lastNav||'home'); };
 document.querySelectorAll('.nav button').forEach(b=>{ b.onclick=()=>nav(b.dataset.v); });
+
+/* 手机可收缩导航: 左上角菜单键展开面板, 选中/点外部即收起 */
+const NAV_CUR_NAMES={home:'首页',course:'视频课',eplod:'EnglishPod',exam:'真题训练',vocab:'背单词',stats:'数据分析',do:'做题'};
+function navMenuOpen(open){
+  const top=document.querySelector('.top'),burger=$('nav-burger');
+  if(!top||!burger)return;
+  top.classList.toggle('nav-open',open);
+  burger.setAttribute('aria-expanded',String(open));
+  burger.setAttribute('aria-label',open?'收起导航菜单':'展开导航菜单');
+}
+$('nav-burger').onclick=e=>{e.stopPropagation();navMenuOpen(!document.querySelector('.top').classList.contains('nav-open'));};
+document.querySelectorAll('.nav button').forEach(b=>b.addEventListener('click',()=>navMenuOpen(false)));
+document.addEventListener('click',e=>{const top=document.querySelector('.top');if(top?.classList.contains('nav-open')&&!top.contains(e.target))navMenuOpen(false);});
+
+/* 真题训练: 单视图三页签(整套/专项/错题), 页签切换不重进路由 */
+let examTabCur='sets';
+function examGo(t){
+  t=['sets','drill','review'].includes(t)?t:'sets';
+  examTabCur=t;
+  const tabs=$('exam-tabs');
+  tabs.querySelectorAll('button').forEach(b=>{const on=b.dataset.t===t;b.classList.toggle('on',on);b.setAttribute('aria-selected',String(on));});
+  $('exam-pane-sets').hidden=t!=='sets';
+  $('exam-pane-drill').hidden=t!=='drill';
+  $('exam-pane-review').hidden=t!=='review';
+  if(t==='sets')renderSets();
+  else if(t==='drill')renderDrill();
+  else renderReview();
+}
+$('exam-tabs').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{examGo(b.dataset.t);history.replaceState(null,'','#/exam/'+b.dataset.t);}));
+
+/* 视频课: 我的课程 | 课后复习 页签(原课程复习并入) */
+let csCourseTab='learn';
+function csCourseGo(t){
+  csCourseTab=t==='review'?'review':'learn';
+  const tabs=$('cs-tabs');
+  tabs.querySelectorAll('button').forEach(b=>{const on=b.dataset.t===csCourseTab;b.classList.toggle('on',on);b.setAttribute('aria-selected',String(on));});
+  $('cs-pane-learn').hidden=csCourseTab!=='learn';
+  $('cs-pane-review').hidden=csCourseTab!=='review';
+  const sub=$('cs-sub');
+  if(sub)sub.textContent=csCourseTab==='review'?'只覆盖你看过的课：学完 → 隔天回来巩固':'选择课节，配合讲义学习，再练对应题';
+  if(csCourseTab==='review')mountCourseMemory();
+}
+$('cs-tabs').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{csCourseGo(b.dataset.t);history.replaceState(null,'','#/course'+(b.dataset.t==='review'?'/review':''));}));
 
 document.getElementById('sb-brand').onclick=()=>{
   if (matchMedia('(max-width:700px)').matches) return;   /* ≤700 顶栏横向, 折叠无意义 */
@@ -1150,11 +1221,14 @@ function renderHome(){
     ?'继续上次的进度，或挑一科练几题。<span class="sub-meta">'+esc((st.days>1?('连续学习 '+st.days+' 天 · '):'')+'今日已学 '+fmt(st.today||0))+'</span>'
     :'从下面选一科开始，进度会自动保存。';
 
-  /* ---- 继续上次: 最近视频课 / 最近作答的题 ---- */
+  /* ---- 继续上次: 最近视频课 / 最近 EnglishPod / 最近作答的题 (两条线各自续各自) ---- */
   // 最近在看 = 记录时间最新的课, 不排除已看完的(重看也要能接上); 题组类似取最近作答
-  let lastL=null,lastLT=0;
-  for(const [k,c] of Object.entries(REC.course||{}))
-    if(c.at&&c.at>lastLT&&courseFind(k)){lastLT=c.at;lastL=k;}
+  let lastVL=null,lastVLT=0,lastEL=null,lastELT=0;
+  for(const [k,c] of Object.entries(REC.course||{})){
+    if(!c.at||!courseFind(k))continue;
+    if(k.startsWith('eplod-')){if(c.at>lastELT){lastELT=c.at;lastEL=k;}}
+    else if(c.at>lastVLT){lastVLT=c.at;lastVL=k;}
+  }
   let lastQ=null,lastT=0;
   for(const [k,a] of scopedEntries(REC.attempts))
     if(a.last&&a.last>lastT){lastT=a.last;lastQ=k;}
@@ -1167,24 +1241,34 @@ function renderHome(){
   const vbNewLeft=Math.max(0,vbQuota-vbNewToday), vbLeft=vbDueN+vbNewLeft;
   // 视频与题取"更近"的那个做主卡, 另一个做副卡; 都没有则给引导
   let ch='';
-  if(lastL){
-    const cp=REC.course[lastL];
-    const watching=lastLT>=lastT;
+  if(lastVL){
+    const cp=REC.course[lastVL];
+    const watching=lastVLT>=lastT&&lastVLT>=lastELT;
     ch+=`<div class="cont${watching?'':' dim'}"><span class="pill t">视频课</span>
-      <div class="ct2"><b>${esc(lessonTitle(lastL))}</b><span>${cp.done?'视频已看完':(cp.pos>10?('看到 '+fmt(cp.pos)):'还没开始看')}${gqCompleted(lastL)?' · 本节已练':''}</span></div>
-      <button data-go="course/${encodeURIComponent(lastL)}">${cp.tab==='practice'?'继续练习':cp.tab==='notes'?'继续笔记':cp.tab==='script'?'继续课稿':cp.done?'复习本节':'继续看'} →</button></div>`;
+      <div class="ct2"><b>${esc(lessonTitle(lastVL))}</b><span>${cp.done?'视频已看完':(cp.pos>10?('看到 '+fmt(cp.pos)):'还没开始看')}${gqCompleted(lastVL)?' · 本节已练':''}</span></div>
+      <button data-go="course/${encodeURIComponent(lastVL)}">${cp.tab==='practice'?'继续练习':cp.tab==='notes'?'继续笔记':cp.tab==='script'?'继续课稿':cp.done?'复习本节':'继续看'} →</button></div>`;
+  }
+  if(lastEL){
+    const cp=REC.course[lastEL];
+    const f=courseFind(lastEL);const total=f?f.c.lessons[f.ix].dialogue_count:0;
+    const cst=EplodRecords.coverProgress(cp.drill,total,epDay());
+    const watchingE=lastELT>=lastT&&lastELT>=lastVLT;
+    const sub=cp.done?'三遍完成 · 可回归复习':cst.completed?`覆盖背诵 ${cst.completed}/3 遍 · 待第${cst.completed+1}遍`:(cp.pos>10?('听到 '+fmt(cp.pos)):'还没开始背');
+    ch+=`<div class="cont${watchingE?'':' dim'}"><span class="pill t">EnglishPod</span>
+      <div class="ct2"><b>${esc(lessonTitle(lastEL))}</b><span>${esc(sub)}</span></div>
+      <button data-go="eplod/${encodeURIComponent(lastEL)}">继续精听 →</button></div>`;
   }
   if(dueNow>0)
     ch+=`<div class="cont"><span class="pill t">到期复习</span>
       <div class="ct2"><b>错题本</b><span>现在可复习 ${dueNow} 题</span></div>
-      <button data-go="review">去复习 →</button></div>`;
+      <button data-go="exam/review">去复习 →</button></div>`;
   if(vbLeft>0)
     ch+=`<div class="cont"><span class="pill t">背单词</span>
       <div class="ct2"><b>今天的背单词</b><span>还剩 ${vbLeft} 张${vbDueN?('（到期 '+vbDueN+' · 新词 '+vbNewLeft+'）'):('（新词 '+vbNewLeft+'）')}</span></div>
       <button data-go="vocab">去背 →</button></div>`;
   if(lastQ){
     const [qs,subj]=lastQ.split('/');
-    ch+=`<div class="cont"><span class="pill t">专项训练</span>
+    ch+=`<div class="cont"><span class="pill t">真题训练</span>
       <div class="ct2"><b>${SUBN[subj]||subj}</b><span>${esc(qs)} · 上次练到 Q${esc(lastQ.split('/')[4])}</span></div>
       <button data-q="${esc(lastQ)}">继续练 →</button></div>`;
   }
@@ -1223,10 +1307,10 @@ function renderHome(){
   $('hm-subjects').innerHTML=hsub;
   $('hm-prog-ct').textContent='四科共 '+doneAny+' 题有作答';
   $('hm-subjects').querySelectorAll('[data-drill2]').forEach(b=>{
-    b.onclick=()=>nav('drill/'+b.dataset.drill2);
+    b.onclick=()=>nav('exam/drill/'+b.dataset.drill2);
   });
   $('hm-subjects').querySelectorAll('.srow2').forEach(row=>{
-    row.onclick=e=>{ if(e.target.closest('button')) return; nav('drill/'+row.dataset.subj); };
+    row.onclick=e=>{ if(e.target.closest('button')) return; nav('exam/drill/'+row.dataset.subj); };
   });
 
   /* ---- 错题本 / 视频课 待办 ---- */
@@ -1235,7 +1319,7 @@ function renderHome(){
   $('hm-rv-ct').textContent=dueN?('现在可复习 '+dueN+' 题'):(ms.length?'今日已清 · 无到期':'今日无到期');
   $('hm-review').innerHTML=`<div class="mini"><div class="mv${dueN?'':' zero'}">${dueN||ms.length||'0'}</div>
       <div class="mk">${ms.length?(dueN?('现在可复习 · 共 '+ms.length+' 题在册'):('下次复习 · 最早 '+Math.max(1,Math.ceil((Math.min(...ms.map(([,m])=>m.due||Date.now()))-Date.now())/864e5))+' 天后')):'还没有错题'}</div>
-      <button data-go="review">${ms.length?'去复习 →':'查看 →'}</button></div>`;
+      <button data-go="exam/review">${ms.length?'去复习 →':'查看 →'}</button></div>`;
   let nL=0,nC=0,nWatched=0;
   ((COURSES&&COURSES.series)||[]).forEach(s=>(s.courses||[]).forEach(c=>{if(c.kind==='eplod')return;nL+=c.lesson_count||0;nC++;}));   // EnglishPod 已独立成顶层入口, 不混入视频课计数
   nWatched=courseWatchedCount();
@@ -1243,6 +1327,13 @@ function renderHome(){
   $('hm-course').innerHTML=`<div class="mini"><div class="mv">${nWatched}</div>
       <div class="mk">节已看完 · 配讲义</div>
       <button data-go="course">去学习 →</button></div>`;
+  /* EnglishPod 独立卡片: 已学过期数 + 上次听到哪期 */
+  const epLessons=((COURSES&&COURSES.series)||[]).flatMap(s=>s.courses||[]).filter(c=>c.kind==='eplod').flatMap(c=>c.lessons||[]);
+  const epDone=epLessons.filter(l=>REC.course[l.id]?.done).length;
+  $('hm-ep-ct').textContent=epDone+' / '+epLessons.length+' 期';
+  $('hm-ep').innerHTML=`<div class="mini"><div class="mv">${epDone}</div>
+      <div class="mk">${lastEL?('上次听到 '+esc(lessonTitle(lastEL))):'泛听之后的逐句精听与三遍覆盖背诵'}</div>
+      <button data-go="${lastEL?('eplod/'+lastEL):'eplod'}">${lastEL?'继续精听 →':'去精听 →'}</button></div>`;
   $('hm-review').querySelectorAll('[data-go]').forEach(b=>{b.onclick=()=>nav(b.dataset.go);});
   $('hm-course').querySelectorAll('[data-go]').forEach(b=>{b.onclick=()=>nav(b.dataset.go);});
 
@@ -1344,7 +1435,7 @@ window.drillTab=function(s){
   moveThumb($('dr-seg'));
 };
 document.querySelectorAll('#dr-seg button').forEach(b=>{ b.onclick=()=>drillTab(b.dataset.s); });
-document.querySelectorAll('[data-drill]').forEach(b=>{ b.onclick=()=>{ drillSubj=b.dataset.drill; nav('drill/'+b.dataset.drill); }; });
+document.querySelectorAll('[data-drill]').forEach(b=>{ b.onclick=()=>{ drillSubj=b.dataset.drill; nav('exam/drill/'+b.dataset.drill); }; });
 document.querySelectorAll('[data-go]').forEach(b=>{ b.onclick=()=>nav(b.dataset.go); });
 
 /* ---------- 整套 ---------- */
@@ -4178,7 +4269,7 @@ ${!GEN_COURSES.has(c.id)&&!cur?.practice?'<div class="empty">本节尚无核验�
   speed.onchange=()=>{v.playbackRate=Number(speed.value);};
   v.addEventListener('ratechange',()=>{speed.value=String(v.playbackRate);try{localStorage.setItem('tfl-video-rate',String(v.playbackRate));}catch{}});
   $('cs-outline-toggle').textContent='课程目录 · 第 '+(csSel.l+1)+'/'+c.lessons.length+' 节';
-  history.replaceState(null,'','#/course/'+encodeURIComponent(l.id));
+  history.replaceState(null,'','#/course'+(csCourseTab==='review'?'/review':'/'+encodeURIComponent(l.id)));
   v.addEventListener('error',()=>{
     const nn=$('cs-vnote');
     if(!nn)return;   // 已切走(如回 EnglishPod)时视频晚到的报错不再触碰旧面板
@@ -4634,7 +4725,7 @@ async function renderReview(){
       return { k, m, stem, col, dt, subj, label: SUBN[subj] || '', genQ, i: ix++ };
     });
     html.push('<details class="rv-group"'+(gDue ? ' open' : '')+'>'
-      + '<summary><b>' + esc(groupName(gk, g.genQ)) + '</b><span class="rg-n">' + rows.length + ' 题</span>'
+      + '<summary><b>' + esc(groupName(gk, g.genQ)) + '</b><span class="rv-src'+(g.genQ?' gen':' real')+'">'+(g.genQ?'课后练':'真题')+'</span><span class="rg-n">' + rows.length + ' 题</span>'
       + (gDue ? '<span class="rg-due">现在可复习 ' + gDue + '</span>' : '') + '</summary>'
       + rows.map(r => witemHtml(r)).join('')
       + '</details>');
@@ -4787,7 +4878,7 @@ function renderStats(){
         <i class="c" style="width:${wc.toFixed(1)}%"></i></span>
       <span class="n2"><b>${c.done+c.wrong}<i>/${t}</i></b><span>正确率 ${accS}</span></span></div>`;
   }).join('')+`<div class="hm-legend" style="margin-top:10px"><span><i class="lg-ok"></i>已完成</span><span><i class="lg-bad"></i>最近做错</span><span><i class="lg-none"></i>未做</span></div>`;
-  $('st-mastery').querySelectorAll('[data-subj]').forEach(el=>{el.onclick=()=>nav('drill/'+el.dataset.subj);});
+  $('st-mastery').querySelectorAll('[data-subj]').forEach(el=>{el.onclick=()=>nav('exam/drill/'+el.dataset.subj);});
 }
 
 /* 主按钮涟漪(模式参考 Amicro, MIT): pointerdown 定位, 键盘触发不出涟漪 */
