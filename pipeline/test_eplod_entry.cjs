@@ -1,0 +1,61 @@
+const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
+const {chromium}=require(process.env.TFL_PLAYWRIGHT||'C:/Users/zeroz/AppData/Local/npm-cache/_npx/9833c18b2d85bc59/node_modules/playwright');
+const base=process.env.TFL_TEST_URL||'http://127.0.0.1:8020';
+const out=path.resolve(__dirname,'../build/qa/ep-entry');fs.mkdirSync(out,{recursive:true});
+(async()=>{const seed=await(await fetch('http://127.0.0.1:8020/api/records')).json();const b=await chromium.launch({channel:'msedge',headless:true});const passed=[],errors=[];let stored;
+try{
+ async function page(course={}){
+  const ctx=await b.newContext({viewport:{width:1440,height:960},ignoreHTTPSErrors:true});
+  stored={...seed,course:structuredClone(course)};
+  await ctx.route('**/api/records',r=>{if(r.request().method()==='GET')return r.fulfill({json:stored});stored={...r.request().postDataJSON(),revision:(stored.revision||0)+1};return r.fulfill({json:{ok:true,revision:stored.revision}});});
+  return {ctx,p:await ctx.newPage()};
+ }
+ { // 顶层入口与互斥计数
+  const {ctx,p}=await page();p.on('pageerror',e=>errors.push(e.message));
+  await p.goto(base+'/#/eplod');await p.locator('#ep-tabs').waitFor({timeout:60000});
+  assert.ok(await p.locator('.nav button[data-v=eplod]').isVisible(),'nav entry');
+  assert.equal(await p.evaluate(()=>document.querySelector('.nav button.on')?.dataset.v),'eplod');
+  assert.equal(await p.locator('#cs-title').textContent(),'EnglishPod');
+  assert.equal(await p.locator('.cs-pick select').count(),0,'EP mode has no course dropdown');
+  assert.match(await p.locator('#cs-ct').textContent(),/ \/ 364 节$/);
+  assert.match(await p.locator('#cs-nav .csi .t b').textContent(),/EnglishPod/);
+  // 视频课模式: 标题/计数排除 EP
+  await p.locator('.nav button[data-v=course]').click();await p.locator('.cs-pick select').waitFor();
+  assert.equal(await p.locator('#cs-title').textContent(),'视频课');
+  const opts=await p.locator('.cs-pick select option').allTextContents();
+  assert.ok(opts.every(t=>!/EnglishPod/.test(t)),'video dropdown excludes EP');
+  assert.doesNotMatch(await p.locator('#cs-ct').textContent(),/ \/ 364 节$/);
+  assert.match(await p.locator('#cs-ct').textContent(),/ \/ \d+ 节$/);
+  // 记忆: 回 EP 应回到之前那期
+  await p.locator('.nav button[data-v=eplod]').click();await p.locator('#ep-tabs').waitFor();
+  await p.locator('#ep-list .cli').filter({hasText:'#0014'}).click();await p.waitForFunction(()=>EP.st.l.ep===14);
+  await p.locator('.nav button[data-v=course]').click();await p.locator('.cs-pick select').waitFor();
+  await p.locator('.nav button[data-v=eplod]').click();await p.waitForFunction(()=>EP.st?.l.ep===14);
+  assert.equal(await p.evaluate(()=>location.hash),'#/eplod/eplod-0014');
+  passed.push('top-level entry separates modes and remembers each side');console.log('PASS entry modes');
+  await ctx.close();
+ }
+ { // 旧 hash 兼容 + 深链
+  const {ctx,p}=await page();p.on('pageerror',e=>errors.push(e.message));
+  await p.goto(base+'/#/course/eplod-0002');await p.locator('#ep-tabs').waitFor({timeout:60000});
+  assert.equal(await p.evaluate(()=>location.hash),'#/eplod/eplod-0002');
+  assert.equal(await p.locator('#cs-title').textContent(),'EnglishPod');
+  passed.push('legacy course hash redirects to eplod route');console.log('PASS legacy redirect');
+  await ctx.close();
+ }
+ { // 刷新保持 + 计数不互相污染
+  const {ctx,p}=await page({'eplod-0002':{done:true}});
+  p.on('pageerror',e=>errors.push(e.message));
+  await p.goto(base+'/#/eplod');await p.locator('#ep-tabs').waitFor({timeout:60000});
+  assert.match(await p.locator('#cs-ct').textContent(),/^1 \/ 364 节$/);
+  await p.locator('.nav button[data-v=course]').click();await p.locator('.cs-pick select').waitFor();
+  assert.match(await p.locator('#cs-ct').textContent(),/^0 \/ \d+ 节$/);
+  await p.reload();await p.locator('#cs-title').waitFor({timeout:60000});
+  assert.equal(await p.locator('#cs-title').textContent(),'视频课');   // 刷新回到离开时的入口
+  await p.locator('.nav button[data-v=eplod]').click();await p.waitForFunction(()=>EP.st?.l?.ep);
+  assert.match(await p.locator('#cs-ct').textContent(),/^1 \/ 364 节$/);
+  passed.push('counts stay separate across reload and mode switch');console.log('PASS counts separate');
+  await ctx.close();
+ }
+ assert.deepEqual(errors,[]);fs.writeFileSync(path.join(out,'results.json'),JSON.stringify({base,passed,errors},null,2));
+}finally{await b.close()}})().catch(e=>{console.error(e);process.exitCode=1});

@@ -46,7 +46,7 @@ try{
   assert.equal(await p.locator('#ep-done').textContent(),'取消已学');
   await p.evaluate(()=>flushRecords());await p.waitForFunction(()=>!recSaving&&!recDirty);
   assert.equal(store.get().course['eplod-0002'].done,true);
-  assert.equal(await p.evaluate(()=>{updateCourseCount();return $('cs-ct').textContent;}),'1 / 623 节');
+  assert.equal(await p.evaluate(()=>{updateCourseCount();return $('cs-ct').textContent;}),'1 / 364 节');
   await p.reload();await p.locator('#ep-cov .ep-cover-step').first().waitFor();
   assert.ok(await p.evaluate(()=>document.querySelector('#ep-list .cli.on').classList.contains('done')),'check survives reload');
  },{'eplod-0002':{drill:{recoveredCover:{sentences:six,recognizedAt:1},stampDays:days(2)}}});

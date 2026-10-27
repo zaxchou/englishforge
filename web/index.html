@@ -124,6 +124,7 @@ details.ai-tsec[open] summary{margin-bottom:8px}
       <button data-v="drill" title="专项训练"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2.6"/></svg><span class="nv-t">专项训练</span></button>
       <button data-v="sets" title="整套练习"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><path d="M12 3.5 20.5 8 12 12.5 3.5 8Z"/><path d="M4.5 12.5 12 16.5l7.5-4"/><path d="M4.5 16.5 12 20.5l7.5-4"/></svg><span class="nv-t">整套练习</span></button>
       <button data-v="course" title="视频课"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M10 8.5 16 12l-6 3.5Z"/></svg><span class="nv-t">视频课</span></button>
+      <button data-v="eplod" title="EnglishPod 深学"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 13.5a7.5 7.5 0 0 1 15 0"/><path d="M4.5 13.5v4a1.5 1.5 0 0 0 1.5 1.5h.7a1 1 0 0 0 1-1v-3.5a1 1 0 0 0-1-1h-2.2Z"/><path d="M19.5 13.5v4a1.5 1.5 0 0 1-1.5 1.5h-.7a1 1 0 0 1-1-1v-3.5a1 1 0 0 1 1-1h2.2Z"/></svg><span class="nv-t">EnglishPod</span></button>
       <button data-v="vocab" title="背单词"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5h6.5a2 2 0 0 1 2 2V20a1.6 1.6 0 0 0-1.6-1.6H4Z"/><path d="M20 5.5h-6.5a2 2 0 0 0-2 2V20a1.6 1.6 0 0 1 1.6-1.6H20Z"/></svg><span class="nv-t">背单词</span></button>
       <button data-v="memory" id="course-memory-link" title="课程轻复习"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 11a8 8 0 1 1 1 6M4 4v7h7"/></svg><span class="nv-t">课程复习</span></button>
       <button data-v="review" title="错题本"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M5 4.5h13.5V20H6.8A1.8 1.8 0 0 1 5 18.2Z"/><path d="M9 4.5V20"/></svg><span class="nv-t">错题本</span></button>
@@ -235,8 +236,8 @@ details.ai-tsec[open] summary{margin-bottom:8px}
 
 <!-- ============ 视频课 ============ -->
 <div class="view" id="v-course">
-  <div class="bhead"><h2 class="pt">视频课</h2><span class="ct" id="cs-ct"></span></div>
-  <p class="sub">选择课节，配合讲义学习，再练对应题</p>
+  <div class="bhead"><h2 class="pt" id="cs-title">视频课</h2><span class="ct" id="cs-ct"></span></div>
+  <p class="sub" id="cs-sub">选择课节，配合讲义学习，再练对应题</p>
   <div class="csplit" id="cs-layout">
     <button class="cs-outline-toggle" id="cs-outline-toggle" aria-expanded="false" onclick="csToggleOutline()">课程目录</button>
     <aside class="csnav-col"><div class="csnav" id="cs-nav"></div></aside>
@@ -1059,8 +1060,16 @@ window.addEventListener('resize',()=>{
 });
 function go(v){
   const isTask=(v==='do');
-  if(v!=='course'){EP.loadId=(EP.loadId||0)+1;EP.st?.cancelSeek?.();const audio=$('ep-audio');if(audio)audio.pause();document.querySelector('.wrap')?.classList.remove('ep-page');}
-  if(v!=='course')document.body.classList.remove('vfull');   // 任何非课程视图都不留在铺满态(含做题, 否则考试页滚动被锁)
+  const viewV=(v==='eplod')?'course':v;   // EnglishPod 独立入口复用课程页画布, 只换模式与导航态
+  if(viewV!=='course'){EP.loadId=(EP.loadId||0)+1;EP.st?.cancelSeek?.();const audio=$('ep-audio');if(audio)audio.pause();document.querySelector('.wrap')?.classList.remove('ep-page');}
+  if(viewV!=='course')document.body.classList.remove('vfull');   // 任何非课程视图都不留在铺满态(含做题, 否则考试页滚动被锁)
+  if(v==='course'||v==='eplod'){   // 记住当前入口的课节, 再切到目标入口自己那份
+    if(courseMode==='eplod'){if(csSel.c)epSel={c:csSel.c,l:csSel.l};}
+    else if(csSel.c&&courseById(csSel.c)?.kind!=='eplod'){videoSel={c:csSel.c,l:csSel.l};}
+    courseMode=v;
+    const slot=courseMode==='eplod'?epSel:videoSel;
+    if(slot&&courseById(slot.c)){csSel={c:slot.c,l:slot.l};csPick=slot.c;}   // 恢复失败时交回 renderCourse 按模式默认
+  }
   if(!isTask) {checkpointCourse(true);lastNav=v; if(TICK) {TACC=usedSec();QACC=qUsedSec();clearInterval(TICK);TICK=null;} STU=false; $('d-audio').pause();const cv=$('cs-video');if(cv)cv.pause();document.querySelectorAll('.ai-audio').forEach(a=>a.pause());} else if(S && !TICK && !T_PAUSED) tStart();
   if(v!=='course'&&GQ_TICK){clearInterval(GQ_TICK);GQ_TICK=null;}   /* 离开课程页: 课后练计时即停(回到同节 quiz 相位会自动重开) */
   if(v!=='vocab'&&VB_TICK){clearInterval(VB_TICK);VB_TICK=null;}   /* 离开背单词页: 秒表即停 */
@@ -1077,13 +1086,13 @@ function go(v){
     }));
   }
   document.querySelectorAll('.view').forEach(x=>x.classList.remove('on'));
-  $('v-'+v).classList.add('on');
-  document.body.classList.toggle('course-fixed',v==='course');   // 画布定高: 只有内容区滚动
+  $('v-'+viewV).classList.add('on');
+  document.body.classList.toggle('course-fixed',viewV==='course');   // 画布定高: 只有内容区滚动
   document.querySelectorAll('.seg').forEach(moveThumb);
   if(v==='home') renderHome();
   if(v==='drill') renderDrill();
   if(v==='sets') renderSets();
-  if(v==='course') renderCourse();
+  if(v==='course'||v==='eplod') renderCourse();
   if(v==='review') renderReview();
   if(v==='stats') renderStats();
   if(v==='memory') mountCourseMemory();
@@ -1101,9 +1110,10 @@ function route(){
   const h=(location.hash||'#/home').replace(/^#\//,'');
   const [v,arg]=h.split('/');
   if(v==='do'){ if(!S) go('home'); else go('do'); return; }   // 做题会话不外链；无会话回首页
-  if(['home','drill','sets','course','memory','review','stats','vocab'].includes(v)){
+  if(['home','drill','sets','course','eplod','memory','review','stats','vocab'].includes(v)){
     if(v==='drill'&&arg&&SUBN[arg]) drillTab(arg);
-    if(v==='course'&&arg){const f=courseFind(decodeURIComponent(arg));if(f){csSel={c:f.c.id,l:f.ix};csPick=f.c.id;}go('course');return;}
+    if(v==='course'&&arg){const f=courseFind(decodeURIComponent(arg));if(f){ if(f.c.kind==='eplod'){location.hash='#/eplod/'+encodeURIComponent(arg);return;} csSel={c:f.c.id,l:f.ix};csPick=f.c.id; } go('course');return;}
+    if(v==='eplod'){ if(arg){const f=courseFind(decodeURIComponent(arg));if(f){csSel={c:f.c.id,l:f.ix};csPick=f.c.id;epSel={c:f.c.id,l:f.ix};}} go('eplod');return;}
     go(v);
   } else go('home');
 }
@@ -1227,7 +1237,7 @@ function renderHome(){
       <div class="mk">${ms.length?(dueN?('现在可复习 · 共 '+ms.length+' 题在册'):('下次复习 · 最早 '+Math.max(1,Math.ceil((Math.min(...ms.map(([,m])=>m.due||Date.now()))-Date.now())/864e5))+' 天后')):'还没有错题'}</div>
       <button data-go="review">${ms.length?'去复习 →':'查看 →'}</button></div>`;
   let nL=0,nC=0,nWatched=0;
-  ((COURSES&&COURSES.series)||[]).forEach(s=>(s.courses||[]).forEach(c=>{nL+=c.lesson_count||0;nC++;}));
+  ((COURSES&&COURSES.series)||[]).forEach(s=>(s.courses||[]).forEach(c=>{if(c.kind==='eplod')return;nL+=c.lesson_count||0;nC++;}));   // EnglishPod 已独立成顶层入口, 不混入视频课计数
   nWatched=courseWatchedCount();
   $('hm-cs-ct').textContent='共 '+nL+' 节 · '+nC+' 门课';
   $('hm-course').innerHTML=`<div class="mini"><div class="mv">${nWatched}</div>
@@ -2147,10 +2157,13 @@ $('d-outline').onclick=function(){
 
 /* ---------- 视频课（真实素材） ---------- */
 let csSel={c:null,l:null}, csPick=null;
+let courseMode='video';            // 'video'=视频课 | 'eplod'=EnglishPod 独立入口; 两边各自记住课节与计数
+let epSel=null, videoSel=null;     // 各入口上次所在课节 {c,l}
 let currentVideoCheckpoint=null;
 let courseWatchTarget=null;   // 正在观看的课节 id, 播放秒表按它累计 course[].wt
 function checkpointCourse(pause=false){if(currentVideoCheckpoint)currentVideoCheckpoint(pause);}
-function updateCourseCount(){const lessons=((COURSES&&COURSES.series)||[]).flatMap(s=>s.courses||[]).flatMap(c=>c.lessons||[]);$('cs-ct').textContent=lessons.filter(l=>REC.course[l.id]?.done).length+' / '+lessons.length+' 节';}
+function coursePool(){const all=((COURSES&&COURSES.series)||[]).flatMap(s=>s.courses||[]).flatMap(c=>c.lessons||[]);const ep=courseMode==='eplod';return all.filter(l=>l.id.startsWith('eplod-')===ep);}
+function updateCourseCount(){const pool=coursePool();const el=$('cs-ct');if(el)el.textContent=pool.filter(l=>REC.course[l.id]?.done).length+' / '+pool.length+' 节';}
 function courseFind(lid){
   for(const s of (COURSES&&COURSES.series)||[]) for(const c of (s.courses||[]))
     for(let li=0;li<(c.lessons||[]).length;li++) if(c.lessons[li].id===lid) return {s,c,ix:li};
@@ -2159,6 +2172,8 @@ function courseFind(lid){
 window.openLessonById=function(lid){
   const f=courseFind(lid); if(!f) return;
   csSel={c:f.c.id,l:f.ix}; csPick=f.c.id;
+  if(f.c.kind==='eplod'){ epSel={c:f.c.id,l:f.ix}; if(courseMode!=='eplod'){location.hash='#/eplod/'+encodeURIComponent(lid);return;} }
+  else videoSel={c:f.c.id,l:f.ix};
   renderCourseNav(); renderCourseMain();
 };
 function courseById(cid){
@@ -2179,7 +2194,7 @@ window.openCourse=function(cid){
   }
   renderCourseNav(); renderCourseMain();
 };
-window.openLesson=function(cid,ix){ csSel={c:cid,l:ix}; csPick=cid; renderCourseNav(); renderCourseMain(); };
+window.openLesson=function(cid,ix){ csSel={c:cid,l:ix}; csPick=cid; if(courseMode==='eplod')epSel={c:cid,l:ix}; else if(courseById(cid)?.kind!=='eplod')videoSel={c:cid,l:ix}; renderCourseNav(); renderCourseMain(); };
 window.csNextLesson=function(){
   const c=courseById(csSel.c); if(!c) return;
   const n=csSel.l+1; if(n<c.lessons.length) openLesson(c.id,n);   // 最后一节则原地不动
@@ -2698,7 +2713,7 @@ function gqBindTabs(){
 }
 function csToggleOutline(){const box=$('cs-layout'),btn=$('cs-outline-toggle');const on=box.classList.toggle('outline-open');btn.setAttribute('aria-expanded',String(on));if(on)requestAnimationFrame(()=>renderCourseNav());}
 function csCompletionUI(done){
-  const count=$('cs-ct');if(count){const total=(COURSES?.series||[]).reduce((n,s)=>n+(s.courses||[]).reduce((k,c)=>k+(c.lessons||[]).length,0),0);count.textContent=courseWatchedCount()+' / '+total+' 节';}
+  updateCourseCount();
   const st=$('cs-status');if(st){const pill=st.querySelector('.pill');if(pill){pill.className='pill '+(done?'q':'t');pill.textContent=done?'已看完':'未看完';}const b=$('cs-done-btn');if(b)b.textContent=done?'取消看完':'标记看完';}
   const end=$('cs-complete');if(end)end.style.display=done?'':'none';
 }
@@ -3029,29 +3044,44 @@ document.addEventListener('keydown', e=>{
   else if(VB.revealed&&['1','2','3','4'].includes(e.key)){ e.preventDefault(); vbGrade(Number(e.key)); }
 });
 function courseWatchedCount(){
-  return (COURSES?.series||[]).reduce((n,s)=>n+(s.courses||[]).reduce((k,c)=>k+(c.lessons||[]).filter(l=>REC.course[l.id]?.done).length,0),0);
+  return (COURSES?.series||[]).reduce((n,s)=>n+(s.courses||[]).filter(c=>c.kind!=='eplod').reduce((k,c)=>k+(c.lessons||[]).filter(l=>REC.course[l.id]?.done).length,0),0);
+}
+function epDefaultSel(){
+  let lastLid=null,lastT=0;
+  for(const [lid,rec] of Object.entries(REC.course||{})){
+    if(lid.startsWith('eplod-')&&rec.at&&rec.at>lastT&&courseFind(lid)){lastT=rec.at;lastLid=lid;}
+  }
+  if(lastLid){const f=courseFind(lastLid);csSel={c:f.c.id,l:f.ix};csPick=f.c.id;}
+  else{csSel={c:'eplod-01',l:0};csPick='eplod-01';}
 }
 function renderCourse(){
   const cm=$('cs-main');if(cm)cm.classList.remove('ep-page');document.querySelector('.wrap')?.classList.remove('ep-page');
-  const t=((COURSES&&COURSES.series)||[]).reduce((a,s)=>a+(s.courses||[]).reduce((b,c)=>b+(c.lesson_count||0),0),0);
-  const d=courseWatchedCount();
-  $('cs-ct').textContent=d+' / '+t+' 节';
-  if(csSel.c==null){
-    // 继续上次: 优先跳到最近观看的课节 (含未看完的), 没有记录才选第一个未看完的(新东方系列优先)
+  updateCourseCount();
+  const epMode=courseMode==='eplod';
+  const tt=$('cs-title'),sub=$('cs-sub');
+  if(tt)tt.textContent=epMode?'EnglishPod':'视频课';
+  if(sub)sub.textContent=epMode?'听后深化：逐句精听 · 四步训练 · 三遍覆盖背诵':'选择课节，配合讲义学习，再练对应题';
+  if(epMode){
+    if(csSel.c!=='eplod-01'||csSel.l==null)epDefaultSel();   // EP 入口只认 EP 课节, 上次听到哪期就回哪期
+  }else if(csSel.c==null||courseById(csSel.c)?.kind==='eplod'){
+    // 继续上次: 优先跳到最近观看的课节 (含未看完的), 没有记录才选第一个未看完的(新东方系列优先); EP 不混入视频课
     let lastLid=null, lastT=0;
     for(const [lid,c] of Object.entries(REC.course||{})){
-      if(c.at&&c.at>lastT&&courseFind(lid)){ lastT=c.at; lastLid=lid; }
+      const f=courseFind(lid);
+      if(c.at&&c.at>lastT&&f&&f.c.kind!=='eplod'){ lastT=c.at; lastLid=lid; }
     }
     if(lastLid){
       const f=courseFind(lastLid);
       csSel={c:f.c.id,l:f.ix}; csPick=f.c.id;
     } else {
       const ss=((COURSES&&COURSES.series)||[]).slice().sort((a,b)=>(/新东方/.test(courseSeriesName(b.name))?1:0)-(/新东方/.test(courseSeriesName(a.name))?1:0));
-      outer: for(const s of ss) for(const c of (s.courses||[]))
+      outer: for(const s of ss) for(const c of (s.courses||[])){
+        if(c.kind==='eplod')continue;
         for(let i=0;i<(c.lessons||[]).length;i++){
           const p=REC.course[c.lessons[i].id];
           if(!(p&&p.done)){ csSel={c:c.id,l:i}; csPick=c.id; break outer; }
         }
+      }
     }
   }
   renderCourseNav(); renderCourseMain();
@@ -3111,24 +3141,31 @@ function epNavListHTML(c,q){
 function renderCourseNav(){
   updateCourseCount();
   const series=(COURSES&&COURSES.series)||[];
-  /* 当前课有归属就用它, 否则默认新东方系列第一门(用户约定) */
-  if(!csPick||!courseById(csPick)){
+  const epMode=courseMode==='eplod';
+  /* 当前课有归属就用它, 否则默认新东方系列第一门(用户约定); EP 入口固定 eplod-01 */
+  if(!epMode&&(!csPick||!courseById(csPick)||courseById(csPick).kind==='eplod')){
     const ns=series.find(s=>/新东方/.test(courseSeriesName(s.name)));
-    csPick=(ns&&ns.courses&&ns.courses[0])?ns.courses[0].id:((series[0]&&series[0].courses&&series[0].courses[0])?series[0].courses[0].id:null);
+    const fb=(s=>s&&s.courses.filter(x=>x.kind!=='eplod')[0])(series.find(s=>(s.courses||[]).some(x=>x.kind!=='eplod')));
+    csPick=(ns&&ns.courses&&ns.courses.find(x=>x.kind!=='eplod'))?ns.courses.find(x=>x.kind!=='eplod').id:(fb?fb.id:null);
   }
-  const c=courseById(csPick);
+  const c=epMode?courseById('eplod-01'):courseById(csPick);
   const checkSvg='<i class="v"><svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1.8 5.4 4 7.6 8.3 2.9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></i>';   // SVG 勾锁定笔画几何, 文本 ✓ 各行粗细不一
-  let h='<div class="cs-pick"><select id="cs-course" title="切换课程">';
-  for(const s of series){
-    h+='<optgroup label="'+esc(courseSeriesName(s.name))+'">';
-    for(const c2 of (s.courses||[])){
-      const cd2=(c2.lessons||[]).filter(l=>REC.course[l.id]&&REC.course[l.id].done).length;
-      h+='<option value="'+esc(c2.id)+'"'+(c2.id===csPick?' selected':'')+'>'
-        + esc((c2.no!=null?c2.no+'. ':'')+courseSeriesName(c2.title)+(c2.unit?' · '+c2.unit:'')+'（'+cd2+'/'+(c2.lesson_count||0)+'）')+'</option>';
+  let h='';
+  if(!epMode){
+    h='<div class="cs-pick"><select id="cs-course" title="切换课程">';
+    for(const s of series){
+      const cs=(s.courses||[]).filter(c2=>c2.kind!=='eplod');
+      if(!cs.length)continue;
+      h+='<optgroup label="'+esc(courseSeriesName(s.name))+'">';
+      for(const c2 of cs){
+        const cd2=(c2.lessons||[]).filter(l=>REC.course[l.id]&&REC.course[l.id].done).length;
+        h+='<option value="'+esc(c2.id)+'"'+(c2.id===csPick?' selected':'')+'>'
+          + esc((c2.no!=null?c2.no+'. ':'')+courseSeriesName(c2.title)+(c2.unit?' · '+c2.unit:'')+'（'+cd2+'/'+(c2.lesson_count||0)+'）')+'</option>';
+      }
+      h+='</optgroup>';
     }
-    h+='</optgroup>';
+    h+='</select></div>';
   }
-  h+='</select></div>';
   if(c){
     const cd=(c.lessons||[]).filter(l=>REC.course[l.id]&&REC.course[l.id].done).length;
     const tot=c.lesson_count||0;
@@ -3158,7 +3195,7 @@ function renderCourseNav(){
     });
   }
   const el=$('cs-nav'); el.innerHTML=h;
-  el.querySelector('#cs-course').onchange=e=>openCourse(e.target.value);
+  const sel=el.querySelector('#cs-course'); if(sel)sel.onchange=e=>openCourse(e.target.value);
   if(c&&c.kind==='eplod'){
     const qin=el.querySelector('#ep-q');
     const draw=()=>{ const lst=el.querySelector('#ep-list'); if(!lst)return;
@@ -3297,8 +3334,8 @@ window.renderEplodMain=async function(c){
       +'</div></div>';
   const stage=el.querySelector('.ep-stage');
   stage.prepend($('ep-dock'));
-  /* 独立网址: 与视频课分支同款, 把当前期写进 hash——刷新/分享都回到这一期 */
-  history.replaceState(null,'','#/course/'+encodeURIComponent(l.id));
+  /* 独立网址: EnglishPod 用自己的顶层路由, 刷新/分享都回到这一期 */
+  history.replaceState(null,'','#/eplod/'+encodeURIComponent(l.id));
   try{var _sv=localStorage.getItem('tfl-ep-tab');}catch(e){}
   epWire();
   if(_sv&&_sv!=='listen')epTab(_sv);
@@ -4144,6 +4181,7 @@ ${!GEN_COURSES.has(c.id)&&!cur?.practice?'<div class="empty">本节尚无核验�
   history.replaceState(null,'','#/course/'+encodeURIComponent(l.id));
   v.addEventListener('error',()=>{
     const nn=$('cs-vnote');
+    if(!nn)return;   // 已切走(如回 EnglishPod)时视频晚到的报错不再触碰旧面板
     nn.style.display='';
     const ec=v.error&&v.error.code;
     const why={1:'加载被中断',2:'网络中断（下载超时）',3:'解码失败',4:'格式或编码不支持'}[ec]||('未知错误 '+ec);
@@ -4152,7 +4190,7 @@ ${!GEN_COURSES.has(c.id)&&!cur?.practice?'<div class="empty">本节尚无核验�
       '可重试，或直接打开视频地址测试。<a href="'+esc(l.video)+'" target="_blank" rel="noopener">打开视频地址 ↗</a> <button id="cs-video-retry">重试</button>';$('cs-video-retry').onclick=()=>v.load();
   });
   v.addEventListener('loadedmetadata',()=>{
-    $('cs-vnote').style.display='none';const resume=$('cs-resume');
+    const vn=$('cs-vnote');if(vn)vn.style.display='none';const resume=$('cs-resume');
     if(p.pos&&p.pos<v.duration-5){v.currentTime=p.pos;if(resume)resume.textContent='上次看到 '+fmt(p.pos)+' · 已定位';}
     else if(resume)resume.textContent='上次看到片尾 · 本次从头开始';
   });
