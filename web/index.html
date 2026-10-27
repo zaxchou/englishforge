@@ -8,7 +8,7 @@
 <link rel="icon" type="image/png" sizes="96x96" href="/assets/brand/t-dot-v1/t-dot-96.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/assets/brand/t-dot-v1/t-dot-180.png">
 <title>TOEFL Lab · 托福自学练习</title>
-<link rel="stylesheet" href="desk.css?v=1793600000">
+<link rel="stylesheet" href="desk.css?v=1793700000">
 <style>
 /* 应用层补充样式（视觉基线在 desk.css，不改它的既有规则） */
 /* 单词与字符格保持同一行；焦点、已填、判题状态沿用研读桌配色。 */
@@ -3428,12 +3428,14 @@ window.renderEplodMain=async function(c){
       +'<audio id="ep-audio" preload="metadata" hidden src="'+esc(d.audio[initialSeg])+'"></audio>'
       +'<div class="ep-seekrow" id="ep-seekrow" hidden><button id="ep-seek-play" aria-label="播放或暂停">▶</button><span id="ep-cur">0:00</span><input id="ep-seek" type="range" min="0" max="1000" step="1" value="0" aria-label="播放进度"><span id="ep-dur">—</span><button id="ep-vol" aria-label="静音">🔊</button></div>'
       +'<div class="cs-status ep-status">'
-        +'<button id="ep-loop">↻ 循环</button>'
-        +'<button id="ep-mask">盲听</button>'
+        +'<span class="ep-prime"><button id="ep-loop">↻ 循环</button>'
+        +'<button id="ep-mask">盲听</button></span>'
         +'<span class="grow"></span>'
-        +'<label class="cs-speed"><span>速度</span> <select id="ep-speed" aria-label="播放速度">'+[0.75,1,1.25,1.5].map(n=>'<option value="'+n+'">'+n+'×</option>').join('')+'</select></label>'
-        +'<button class="ep-player-toggle" id="ep-player-toggle" aria-expanded="false">播放器</button>'
-        +'<details class="ep-shortcuts"><summary>快捷键 ?</summary><p>空格 播放/暂停 · Z 重听 · X 循环 · ←/→ 上一句/下一句 · C 揭示原文</p></details></div>'
+        +'<span class="ep-extra">'
+          +'<label class="cs-speed"><span>速度</span> <select id="ep-speed" aria-label="播放速度">'+[0.75,1,1.25,1.5].map(n=>'<option value="'+n+'">'+n+'×</option>').join('')+'</select></label>'
+          +'<button class="ep-player-toggle" id="ep-player-toggle" aria-expanded="false">播放器</button>'
+          +'<details class="ep-shortcuts"><summary><span class="sct">快捷键</span><b>?</b></summary><p>空格 播放/暂停 · Z 重听 · X 循环 · ←/→ 上一句/下一句 · C 揭示原文</p></details>'
+        +'</span></div>'
 
       +'<div class="na-box" id="ep-note" style="display:none"></div>'
     +'</footer>'
@@ -3551,6 +3553,36 @@ function epWire(){
   const srow=$('ep-seekrow'),seek=$('ep-seek'),cur=$('ep-cur'),durEl=$('ep-dur'),pt=$('ep-player-toggle'),spb=$('ep-seek-play'),vol=$('ep-vol');
   const syncSeek=()=>{if(!srow||srow.hidden)return;cur.textContent=fmtDur(a.currentTime||0);durEl.textContent=a.duration?fmtDur(a.duration):'—';if(!(seek.matches&&seek.matches(':active')))seek.value=String(a.duration?Math.round(a.currentTime/a.duration*1000):0);};
   pt.onclick=()=>{const open=srow.hidden;srow.hidden=!open;pt.setAttribute('aria-expanded',String(open));pt.textContent=open?'播放器 ⌃':'播放器';if(open)syncSeek();};
+  /* 受控换行: 播放条一行放不下时,不让「速度/播放器/快捷键」整簇甩到右下留大洞——
+     循环/盲听留在首行右, 次要组整体下沉为第二层。判定按流动布局占位宽度估算
+     (各组宽度与流动与否无关, 结论稳定不振荡); ≤700 交给手机专用布局。 */
+  EP.flowRo?.disconnect();
+  const stage=$('ep-dock')?.closest('.ep-stage');
+  if(stage){
+    const epFlowNeed=()=>{
+      const dock=stage.querySelector('.ep-dock'),segs=stage.querySelector('.ep-segs'),
+            prime=stage.querySelector('.ep-prime'),extra=stage.querySelector('.ep-extra'),
+            status=stage.querySelector('.ep-status');
+      if(!dock||!segs||!prime||!extra||!status)return false;
+      const g=x=>x.getBoundingClientRect().width;
+      let need;
+      if(getComputedStyle(status).display==='contents'){
+        /* 流动态: 组间距按 8px 全算 + 48px 余量(保守), 保证不会刚下沉又弹回 */
+        const kids=[...extra.children];
+        need=g(dock)+g(segs)+g(prime)+kids.reduce((s,x)=>s+g(x),0)+8*(2+kids.length)+48;
+      }else{
+        /* 非流动态: 直接量三组实宽, 精确 */
+        need=g(dock)+g(segs)+g(status)+28;
+      }
+      return need>stage.clientWidth-24;
+    };
+    const epFlowApply=()=>stage.classList.toggle('ep-flow',epFlowNeed()&&window.innerWidth>700);
+    EP.flowRo=new ResizeObserver(epFlowApply);
+    EP.flowRo.observe(stage);
+    const epDockEl=$('ep-dock');if(epDockEl)EP.flowRo.observe(epDockEl);
+    epFlowApply();
+    if(document.fonts)document.fonts.ready.then(()=>{if(stage.isConnected)epFlowApply();});
+  }
   seek.oninput=()=>{if(!a.duration)return;const playing=!a.paused;a.pause();st.cancelSeek?.();st.seekSeq=(st.seekSeq||0)+1;st.playSession=null;st.playTarget=null;st.range=null;st.stopAtEnd=false;st.loop=false;$('ep-loop').classList.remove('on');st.seekPosition(seek.value/1000*a.duration);if(playing)epTogglePlayback();syncSeek();};
   const kurSync=()=>{if(spb)spb.textContent=a.paused?'▶':'❚❚';};
   spb.onclick=()=>epTogglePlayback();

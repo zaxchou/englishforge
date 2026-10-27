@@ -1994,9 +1994,9 @@ body.vfull .cs-stage video.tfl{max-height:none}
 .ep .ep-stage .ep-segs button.on{background:var(--accbg);color:var(--acc);font-weight:500}
 .ep .ep-stage .ep-segs button.on i{color:var(--acc)}
 .ep .ep-stage .ep-status{gap:2px;align-items:center}
-.ep-stage .ep-status>button,.ep-stage .ep-status .ep-player-toggle,.ep-stage .ep-status summary{
+.ep-stage .ep-status button,.ep-stage .ep-status .ep-player-toggle,.ep-stage .ep-status summary{
   min-height:0;height:28px;display:inline-flex;align-items:center;font-size:12px;line-height:1;color:var(--t2);padding:0 8px;border-radius:999px;white-space:nowrap;flex-shrink:0}
-.ep-stage .ep-status>button.on{background:var(--accbg);color:var(--acc);font-weight:500}
+.ep-stage .ep-status button.on{background:var(--accbg);color:var(--acc);font-weight:500}
 .ep-stage .ep-status .cs-speed{height:28px;display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--t2);padding:0 2px 0 8px;white-space:nowrap;flex-shrink:0}
 .ep-stage .ep-status .cs-speed select{height:26px;min-height:0;line-height:24px;font-size:12px;padding:0 22px 0 8px;border-radius:999px;background-color:var(--card);border:1px solid var(--line);color:var(--t1)}
 .ep-stage .ep-status .ep-shortcuts summary{padding:0 6px;color:var(--t3)}
@@ -2009,7 +2009,7 @@ body.vfull .cs-stage video.tfl{max-height:none}
 @media(max-width:700px){
 
   .ep .ep-bcard{padding:12px;border-radius:12px}
-  .ep-stage .ep-status>button,.ep-stage .ep-status .ep-player-toggle,.ep-stage .ep-status summary{padding:0 6px}
+  .ep-stage .ep-status button,.ep-stage .ep-status .ep-player-toggle,.ep-stage .ep-status summary{padding:0 6px}
   .ep-stage .ep-status .cs-speed{padding-left:4px}
 }
 /* r27 · 控制台改为悬浮层: 四角全圆 + 阴影 + 离底留缝(此前只圆上面两角, 像半成品) */
@@ -2141,3 +2141,55 @@ html.sb-min .nav-label{display:none!important}   /* 收缩侧栏只留图标 */
 .ep-stats .es b{display:block;font-size:20px;font-weight:600;margin-top:4px;color:var(--t1);font-variant-numeric:tabular-nums}
 .ep-stats .es b small{font-size:12px;color:var(--t2);font-weight:400}
 .ep-stats .es.empty i{color:var(--t2)}
+
+/* ============================================================
+   r10 · 播放条分辨率自适应(用户: 分辨率不同就折成两行留大洞;
+   不常用的功能折叠或缩小):
+   ① 阶梯压缩: ≤1480 快捷键缩成 ? 圆钮; ≤1300 音源时长隐藏;
+     ≤1200 「速度」二字隐藏(select 里的 1× 自明)。
+   ② 受控换行(.ep-flow 由 JS 按占位宽度判定): 放不下时不再是整簇甩到
+     右下留大洞——循环/盲听留在首行右, 速度/播放器/快捷键整组下沉为
+     通栏第二层(左对齐+顶细分隔线), 读作有意的双层控制台。
+   ③ 901-1000 窄带: EP 目录列改上下堆叠(该带侧栏+目录列吃掉 450px+,
+     内容列只剩 370-520, 与 ≤900 的既有形态一致)。
+   ============================================================ */
+.ep-extra{display:contents}
+.ep-stage .ep-shortcuts summary{gap:3px}
+.ep-stage .ep-shortcuts summary b{font-weight:600}
+@media(max-width:1480px){
+  .ep .ep-stage .ep-shortcuts .sct{display:none}
+  .ep .ep-stage .ep-shortcuts summary{padding:0;justify-content:center;color:var(--t3)}
+  .ep .ep-stage .ep-shortcuts summary:hover{background:var(--hover);color:var(--t1)}
+}
+@media(max-width:1300px){
+  .ep .ep-stage .ep-segs button i{display:none}
+}
+@media(max-width:1200px){
+  .ep .ep-stage .ep-status .cs-speed>span{display:none}
+}
+/* 受控两行: status 让位为 contents, 循环+盲听成组(ep-prime, 不可拆行)留在首行右,
+   次要组整行下沉; 首行也放不下时 prime 整组掉行, 仍是右对齐的一对 */
+.ep-prime{display:contents}
+.ep-stage.ep-flow .ep-status{display:contents}
+.ep-stage.ep-flow .ep-prime{display:flex;order:2;margin-left:auto;gap:2px;align-items:center;flex:none}
+.ep-stage.ep-flow .ep-extra{display:flex;flex:1 1 100%;order:9;align-items:center;gap:2px;
+  margin-top:2px;padding-top:7px;border-top:1px solid var(--line)}
+/* 901-1000: EP 目录堆叠(等价于 ≤900 既有形态) */
+@media(min-width:901px) and (max-width:1000px){
+  .wrap.ep-page .csplit{grid-template-columns:1fr}
+  .wrap.ep-page .csnav{position:static;max-height:280px}
+}
+/* ≤700 手机: ep-flow 不启用(JS 已 gate), 此处兜底复位, 保持原生手机布局 */
+@media(max-width:700px){
+  .ep-stage.ep-flow .ep-status{display:flex;flex:1 1 100%;margin:0;justify-content:space-between;flex-wrap:wrap;gap:4px 6px;padding-top:2px}
+  .ep-stage.ep-flow .ep-prime{display:contents}
+  .ep-stage.ep-flow .ep-extra{display:contents}
+}
+/* ≤400: transport 组自占一行仍超宽(320 实测 243>222), 压缩按钮内距与序号 */
+@media(max-width:400px){
+  .ep .ep-dock{padding:2px 4px}
+  .ep-stage .ep-dock button{padding:0 4px;min-width:28px;height:30px}
+  .ep-stage .ep-dock #ep-dock-play{min-width:30px}
+  .ep-stage .ep-dock .ep-dock-no{font-size:11px;padding:0 2px}
+  .ep-stage .ep-dock #ep-dock-listen{padding:0 6px}
+}

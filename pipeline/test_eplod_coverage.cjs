@@ -67,7 +67,7 @@ try{
   const m=await p.evaluate(()=>({
    sub:getComputedStyle(document.querySelector('#v-course>.sub')).display,
    src:document.querySelector('.ep .csp-meta .src').innerText.trim(),
-   rows:new Set([...document.querySelectorAll('.ep-status>*')].filter(e=>e.getClientRects().length).map(e=>Math.round(e.getBoundingClientRect().top))).size,
+   rows:new Set([...document.querySelectorAll('.ep-status button,.ep-status label,.ep-status summary')].filter(e=>e.getClientRects().length).map(e=>Math.round(e.getBoundingClientRect().top))).size,
    stageH:Math.round(document.querySelector('.ep-stage').getBoundingClientRect().height),
    segs:Math.round(document.querySelector('.ep-segs').getBoundingClientRect().top),
    status:Math.round(document.querySelector('.ep-status').getBoundingClientRect().top),
