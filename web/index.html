@@ -1112,6 +1112,7 @@ function go(v){
   if(v==='home') renderHome();
   if(v==='exam') examGo(examTabCur);
   if(v==='course'||v==='eplod'){ renderCourse(); csCourseGo(csCourseTab); }
+  if(v==='course') scheduleReviewPrefetch();   // 进视频课就后台预载课后复习, 点开页签即达
   if(v==='stats') renderStats();
   if(v==='vocab') mountVocab();
   gqStudyGate();
@@ -1182,6 +1183,13 @@ $('exam-tabs').querySelectorAll('button').forEach(b=>b.addEventListener('click',
 /* 视频课: 我的课程 | 课后复习 页签(原课程复习并入) */
 let csCourseTab='learn';
 function csCourseGo(t){
+  if(courseMode==='eplod'){   // EnglishPod 视图没有课程页签: EP 页面渲染在 learn 面板里, 必须强制显示, 课后复习只属于视频课
+    $('cs-tabs').hidden=true;
+    $('cs-pane-learn').hidden=false;
+    $('cs-pane-review').hidden=true;
+    return;
+  }
+  $('cs-tabs').hidden=false;
   csCourseTab=t==='review'?'review':'learn';
   const tabs=$('cs-tabs');
   tabs.querySelectorAll('button').forEach(b=>{const on=b.dataset.t===csCourseTab;b.classList.toggle('on',on);b.setAttribute('aria-selected',String(on));});
@@ -1192,6 +1200,12 @@ function csCourseGo(t){
   if(csCourseTab==='review')mountCourseMemory();
 }
 $('cs-tabs').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{csCourseGo(b.dataset.t);history.replaceState(null,'','#/course'+(b.dataset.t==='review'?'/review':''));}));
+/* 课后复习预载: 模块导入+词库+记录在后台完成, 点开页签不再现等 */
+let reviewPrefetchT=null;
+function scheduleReviewPrefetch(){
+  if(reviewPrefetchT)return;
+  reviewPrefetchT=setTimeout(()=>{reviewPrefetchT=null;if(courseMode==='course')mountCourseMemory();},800);
+}
 
 document.getElementById('sb-brand').onclick=()=>{
   if (matchMedia('(max-width:700px)').matches) return;   /* ≤700 顶栏横向, 折叠无意义 */

@@ -74,6 +74,10 @@ try{
   assert.ok(await p.locator('#cs-pane-review #course-memory-content').isVisible());
   await p.locator('#cs-tabs [data-t=learn]').click();
   assert.ok(await p.locator('#cs-layout').isVisible());
+  // 课后复习页签不得泄露进 EnglishPod 视图
+  await p.locator('.nav button[data-v=eplod]').click();await p.locator('#ep-tabs').waitFor({state:'visible'});
+  const leak=await p.evaluate(()=>({t:getComputedStyle(document.getElementById('cs-tabs')).display,r:getComputedStyle(document.getElementById('cs-pane-review')).display,learn:document.getElementById('cs-pane-learn').offsetParent!==null,ep:!!document.getElementById('ep-tabs').offsetParent}));
+  assert.ok(leak.t==='none'&&leak.r==='none'&&leak.learn&&leak.ep,JSON.stringify(leak));
   // 导航分组: 桌面 6 项 + 学/习标签
   const labels=await p.locator('.nav .nav-label').allTextContents();
   assert.deepEqual(labels,['学','习','工具']);
