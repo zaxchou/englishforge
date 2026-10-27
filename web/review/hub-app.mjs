@@ -35,7 +35,7 @@ export async function mountHub(host){
   $('#hub-scope')?.addEventListener('change',e=>scope=e.target.value);$('#hub-count')?.addEventListener('change',e=>{quantity=Number(e.target.value);render()});$('#hub-extended')?.addEventListener('change',e=>extended=e.target.checked);
  }
  function hide(){epoch++;if(active&&round&&!round.finished&&!feedback){elapsed+=questionSince?Math.max(0,(Date.now()-questionSince)/1000):0;questionSince=0;keep();}active=false;busy=false;if(recording&&recorder?.state==='recording')recorder.stop();recording=false;clearAudio();}
- window.addEventListener('hashchange',()=>{if(!location.hash.startsWith('#/memory'))hide();});
+ window.addEventListener('hashchange',()=>{if(!location.hash.startsWith('#/memory')&&!location.hash.startsWith('#/course/review'))hide();});
  document.addEventListener('visibilitychange',()=>{if(document.hidden&&active){elapsed+=questionSince?Math.max(0,(Date.now()-questionSince)/1000):0;questionSince=0;keep();if(recording)hide();}});
  return {show,hide,isWorking:()=>busy||recording,canSwitch(){if(busy||recording||(pending&&active)){error='请先停止录音或完成当前保存，再切换复习方式。';render();return false;}return true;}};
 }

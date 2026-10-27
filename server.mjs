@@ -27,6 +27,7 @@ import https from 'node:https';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
+import zlib from 'node:zlib';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -774,7 +775,7 @@ async function aiExplainGen(qidStr, course, mk, no, force) {
    状态存 records.vocab（词键 → {e,i,s,r,due,n,at,born}）, 判分走 /api/vocab/grade 增量直写(r56 模式)。 */
 const VOCAB_BANK_FILE = path.join(BUILD_DIR, 'vocab', 'cfcm-words.json');
 const EPLOD_CHUNKS_FILE = path.join(BUILD_DIR, 'vocab', 'eplod-chunks.json');
-let VOCAB_BANK = null, VOCAB_INDEX = null;
+let VOCAB_BANK = null, VOCAB_INDEX = null, VOCAB_BANK_RAW = null, VOCAB_BANK_GZ = null;
 const vocabKey = s => String(s || '').toLowerCase().replace(/\s+/g, '');
 function vocabIndex() {
   if (!VOCAB_INDEX) {
@@ -1562,8 +1563,20 @@ const handler = async (req, res) => {
     /* ---- API: 背单词词库（只读, 一次全量, 客户端会话内缓存） ---- */
     if (p === '/api/vocab/bank') {
       if (req.method !== 'GET') return sendJSON(res, 405, { error: 'method' });
-      try { return sendJSON(res, 200, { ok: true, bank: vocabIndex() ? VOCAB_BANK : null }); }
-      catch (e) { return sendJSON(res, 500, { error: '词库读取失败: ' + e.message }); }
+      try {
+        if (!vocabIndex()) return sendJSON(res, 200, { ok: true, bank: null });
+        /* 1.3 万词的词库一次性下发, gzip 后体积约省 7 成; 词库内容静态, 可长期缓存压缩结果 */
+        if (!VOCAB_BANK_RAW) {
+          VOCAB_BANK_RAW = JSON.stringify({ ok: true, bank: VOCAB_BANK });
+          VOCAB_BANK_GZ = zlib.gzipSync(Buffer.from(VOCAB_BANK_RAW));
+        }
+        if (String(req.headers['accept-encoding'] || '').includes('gzip')) {
+          res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Encoding': 'gzip', 'Cache-Control': 'no-store' });
+          return res.end(VOCAB_BANK_GZ);
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+        return res.end(VOCAB_BANK_RAW);
+      } catch (e) { return sendJSON(res, 500, { error: '词库读取失败: ' + e.message }); }
     }
 
     /* ---- API: 背单词判分（SM-2, 服务端唯一真源, r56 同款增量直写） ---- */

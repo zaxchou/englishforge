@@ -8,7 +8,7 @@
 <link rel="icon" type="image/png" sizes="96x96" href="/assets/brand/t-dot-v1/t-dot-96.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/assets/brand/t-dot-v1/t-dot-180.png">
 <title>TOEFL Lab · 托福自学练习</title>
-<link rel="stylesheet" href="desk.css?v=1793300000">
+<link rel="stylesheet" href="desk.css?v=1793400000">
 <style>
 /* 应用层补充样式（视觉基线在 desk.css，不改它的既有规则） */
 /* 单词与字符格保持同一行；焦点、已填、判题状态沿用研读桌配色。 */
@@ -1061,7 +1061,7 @@ let courseMemoryPromise=null;
 function mountCourseMemory(){
  if(courseMemoryPromise)return courseMemoryPromise.then(()=>{$('course-memory-content').dispatchEvent(new Event('course-review-activate'));});
  const host=$('course-memory-content');
- courseMemoryPromise=import('/review/app.mjs').then(m=>m.mountReview(host)).catch(()=>{
+ courseMemoryPromise=import('/review/app.mjs').then(m=>m.mountReview(host,{embedded:true})).catch(()=>{
    const target=host.shadowRoot||host;target.replaceChildren();const text=document.createElement('p');text.textContent='课程复习未能加载，请重试。';
    const retry=document.createElement('button');retry.textContent='重试';retry.onclick=()=>{courseMemoryPromise=null;mountCourseMemory();};target.append(text,retry);
  });return courseMemoryPromise;
@@ -1175,6 +1175,7 @@ function examGo(t){
   if(t==='sets')renderSets();
   else if(t==='drill')renderDrill();
   else renderReview();
+  requestAnimationFrame(()=>{document.querySelectorAll('#exam-pane-'+t+' .seg').forEach(moveThumb);});   // 面板隐藏时量的滑块宽为 0, 展示后重算
 }
 $('exam-tabs').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{examGo(b.dataset.t);history.replaceState(null,'','#/exam/'+b.dataset.t);}));
 

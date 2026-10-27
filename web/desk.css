@@ -2116,6 +2116,10 @@ body.vfull .cs-stage video.tfl{max-height:none}
 .exam-ctrow{min-height:0}
 .exam-ctrow .ct:empty,.exam-ctrow:has(.ct:empty){display:none}
 #cs-pane-review{padding:14px 0 20px}
+#cs-pane-learn[hidden],#cs-pane-review[hidden]{display:none!important}   /* hidden 不能被 course-fixed 的 display:flex 顶掉 */
+.exam-tabs button,.cs-tabs button{border-radius:0}   /* 全局按钮圆角会让 2px 下划线跟着拐弯 */
+html.sb-min .nav-label{display:none!important}   /* 收缩侧栏只留图标 */
+#exam-pane-review .phead .r{display:flex;align-items:center;flex-wrap:wrap;gap:10px}
 @media(min-width:801px){
   body.course-fixed #cs-pane-learn{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
   body.course-fixed #cs-pane-review{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:0 0 12px}
