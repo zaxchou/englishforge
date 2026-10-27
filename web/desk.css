@@ -1577,8 +1577,6 @@ body.vfull .cs-stage video.tfl{max-height:none}
 .ep-bcard .bh{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
 .ep-bcard .no{font-size:var(--f4);font-weight:600;color:var(--acc)}
 .ep-bcard .bh button{border:1px solid var(--line);background:transparent;border-radius:6px;padding:3px 9px;font-size:var(--f4);cursor:pointer;color:var(--t2)}
-.ep-bcard .bh .bp{color:var(--acc)}
-.ep-bcard .bh .bp:hover{background:var(--acc);color:#f6f8f1;border-color:var(--acc)}
 .ep-bcard .dc{font-size:var(--f5);color:var(--warn)}
 .ep-bcard .bmode{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;margin-left:4px}
 .ep-bcard .bmode button{border:0;border-radius:0;padding:3px 12px;color:var(--t2)}
@@ -1646,10 +1644,10 @@ body.vfull .cs-stage video.tfl{max-height:none}
    eplod 各卡恢复圆角表面+内缩, 内容不再顶边, 平行顶线退役;
    phead 变回卡头圆角带。
    ============================================================ */
-.csmain .ep-stage,.csmain .ep-listen,.csmain .ep-train,
+.csmain .ep-listen,.csmain .ep-train,
 .csmain .ep-chunks,.csmain .ep-kv,.csmain .ep-expl{
   margin:14px 0 0;border:1px solid var(--line);border-radius:var(--r);background:var(--card)}
-.csmain .ep-stage{padding:14px 16px 12px}
+
 .csmain .ep-listen,.csmain .ep-train,.csmain .ep-chunks,.csmain .ep-kv{padding:0 16px 14px}
 .csmain .ep-listen .phead,.csmain .ep-train .phead,
 .csmain .ep-chunks .phead,.csmain .ep-kv .phead{
@@ -1676,12 +1674,44 @@ body.vfull .cs-stage video.tfl{max-height:none}
 .ep-dur .ok{color:var(--ok)}
 .elisten-me{border:1px solid var(--line);background:transparent;border-radius:6px;padding:4px 10px;font-size:var(--f4);cursor:pointer;color:var(--t2)}
 .elisten-me:hover{border-color:var(--acc);color:var(--acc)}
-.ep-cov{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:10px 0 0}
-.ep-cov .cvt{font-size:var(--f4);font-weight:600;color:var(--t2)}
-.ep-cov .stamp{font-size:var(--f5);border:1px dashed var(--line);border-radius:999px;padding:2px 10px;color:var(--t3)}
-.ep-cov .stamp.ok{border:1px solid var(--okln);background:var(--okbg);color:var(--ok);border-style:solid}
-.ep-cov .stamp.cur{border:1px solid var(--accln);background:var(--accbg);color:var(--acc);border-style:solid}
-.ep-cov .cvm{font-size:var(--f4);color:var(--t3);margin-left:auto}
+.ep-cov{padding:12px 0;border-bottom:1px solid var(--line)}
+.ep-cover-heading{display:flex;align-items:center;flex-wrap:wrap;gap:2px 8px;margin-bottom:10px}
+.ep-cover-heading h4{font-size:13px;font-weight:600;margin:0;color:var(--t1)}
+.ep-cover-summary{display:inline-flex;align-items:center;gap:5px;margin-left:auto;font-size:13px;color:var(--t2);white-space:nowrap}
+.ep-cover-summary.complete{color:var(--acc);font-weight:600}
+.ep-cover-track{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.ep-cover-step{display:flex;align-items:center;gap:9px;padding:7px 10px;border:1px solid var(--line);border-radius:var(--rs);background:var(--sunk);min-width:0}
+.ep-cover-step.complete{background:var(--okbg);border-color:var(--okln)}
+.ep-cover-step.current{background:var(--card);border-color:var(--accln)}
+.ep-cover-step.final{border-color:var(--acc)}
+.ep-round{display:inline-flex;align-items:center;justify-content:center;gap:2px;flex:none;min-width:24px;height:24px;border:1px solid var(--line);border-radius:50%;font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--t2);background:var(--card)}
+.ep-round.complete{border-color:var(--okln);background:var(--okbg);color:var(--ok);min-width:32px;border-radius:999px}
+.ep-round.current{border-color:var(--accln);color:var(--acc)}
+.ep-round.final{background:var(--acc);border-color:var(--acc);color:var(--card)}
+.ep-cover-label{display:flex;flex-direction:column;gap:3px;min-width:0}
+.ep-cover-label b{font-size:13px;font-weight:600;white-space:nowrap;color:var(--t1)}
+.ep-cover-label small{display:flex;flex-wrap:wrap;gap:0 5px;font-size:13px;line-height:1.4;color:var(--t2)}
+.ep-cover-label time{white-space:nowrap}
+.ep-cover-label time{font-variant-numeric:tabular-nums}
+.ep-cover-hint{font-size:13px;line-height:1.5;color:var(--t2);margin:8px 0 0}
+.ep-nav-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:5px}
+#ep-list .cli{align-items:flex-start;padding-top:10px;padding-bottom:10px}
+#ep-list .cli .st{margin-top:3px}
+#ep-list .cli .ld{margin-top:1px}
+#ep-list .cli .lt{flex:none;display:block;overflow:visible;-webkit-line-clamp:unset;line-height:1.45}
+.ep-nav-cover{display:flex;align-items:center;flex-wrap:wrap;gap:4px;color:var(--t2);font-size:12px;line-height:1.4}
+.ep-nav-caption{margin-right:2px}
+.ep-nav-cover .ep-round{min-width:19px;height:19px;font-size:11px}
+.ep-nav-cover .ep-round.complete{min-width:26px}
+.ep-nav-cover .ep-round svg{width:9px;height:9px}
+@media(max-width:700px){
+  .ep-cov{padding:10px 0}
+  .ep-cover-track{gap:5px}
+  .ep-cover-step{flex-direction:row;align-items:center;gap:5px;padding:7px 5px}
+  .ep-cover-step>.ep-round{min-width:20px;width:20px;height:20px;border-radius:50%}
+  .ep-cover-step>.ep-round.complete>span{display:none}
+  .ep-cover-label{gap:2px}
+}
 
 /* block 43 · 背诵卡紧凑化(用户: UI 奇怪): 三练法单切换取代双层嵌套;
    录音按钮+状态同行; 训练卡限宽治大屏空白 */
@@ -1759,7 +1789,7 @@ body.vfull .cs-stage video.tfl{max-height:none}
   .ep-steps .es i{font-size:12px;white-space:nowrap}
   .ep-steps .es b{font-size:17px}
   .ep-steps .es u{display:none}
-  .csmain .ep-stage{padding:10px 12px}
+
   .ep-tabs button{flex:1;min-width:0;padding:6px 8px;font-size:14px}
   .ep-bcard{padding:10px}
   .ep-bcard .bh{gap:5px;margin-bottom:8px;flex-wrap:wrap}
@@ -1777,28 +1807,30 @@ body.vfull .cs-stage video.tfl{max-height:none}
 .csmain .cs-stick.ep{display:flex;flex-direction:column;gap:0;min-height:calc(100dvh - 110px)}
 .ep .csp-meta{position:relative;margin:0;padding:16px 0 18px;border:0;gap:8px}
 .ep .csp-meta h3{width:100%;font-size:22px;line-height:1.35;padding-right:120px}
-.ep .csp-meta .src{color:var(--t2);font-size:12px}
+.ep .csp-meta .src{display:flex;flex-wrap:wrap;gap:2px 6px;min-width:0;color:var(--t2);font-size:12px}
+.ep .csp-meta .src>span{white-space:nowrap}
 .ep-course-actions{position:absolute;right:0;top:16px;z-index:7;text-align:right}
-.ep-course-actions summary,.ep-settings summary,.ep-shortcuts summary,.ep-full-player summary{cursor:pointer;color:var(--t2);font-size:13px;list-style:none;padding:6px 0}
+.ep-course-actions summary,.ep-settings summary,.ep-shortcuts summary{cursor:pointer;color:var(--t2);font-size:13px;list-style:none;padding:6px 0}
 .ep-course-actions summary::-webkit-details-marker,.ep-settings summary::-webkit-details-marker,.ep-shortcuts summary::-webkit-details-marker{display:none}
 .ep-course-actions[open]{background:var(--card);border:1px solid var(--line);border-radius:var(--rs);padding:0 10px 10px;box-shadow:0 5px 18px #20272512}
 .ep-course-actions button{display:block;width:100%;text-align:left;border:0;background:transparent;padding:8px 6px;color:var(--t1);font-size:13px;cursor:pointer}
 .ep-tabs{gap:24px;padding:0;border-bottom:1px solid var(--line);margin-bottom:0}
 .ep-tabs button{border:0;border-bottom:2px solid transparent;border-radius:0;padding:11px 0;background:transparent;font-size:14px;color:var(--t2)}
 .ep-tabs button.on{background:transparent;color:var(--acc);border-color:var(--acc);font-weight:600}
-.ep-overview{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 0;border-bottom:1px solid var(--line)}
 .ep-steps{display:flex;gap:24px;flex-wrap:wrap;border:0;border-radius:0}
 .ep-steps .es{display:flex;flex-direction:row;align-items:baseline;flex:none;min-width:0;gap:6px;padding:0;background:transparent;border:0;border-radius:0}
 .ep-steps .es i{font-size:13px;color:var(--t2)}
 .ep-steps .es b{font-size:14px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--t1)}
 .ep-steps .es.ok{background:transparent;border:0}
 .ep-steps .es.ok b{color:var(--ok)}
-.ep-text-button{border:0;background:transparent;font-size:12px;color:var(--acc);padding:6px 0;white-space:nowrap;cursor:pointer}
-.ep-progress{padding:14px 0;border-bottom:1px solid var(--line);animation:cs-note-in .18s ease-out}
-.ep-progress h4{margin:0;font-size:14px}
-.ep-progress .ep-cov{gap:8px}
-.ep-progress .cvm{width:100%;margin-left:0}
-.ep-progress .ep-dstats{margin-bottom:0;line-height:1.6}
+.ep-text-button{display:inline-flex;align-items:center;gap:5px;min-height:30px;border:0;background:transparent;font-size:13px;color:var(--acc);padding:4px 0;white-space:nowrap;cursor:pointer}
+.ep-text-button:focus-visible{outline:2px solid var(--acc);outline-offset:3px;border-radius:4px}
+.ep-progress-chevron{transition:transform .18s ease}
+.ep-text-button[aria-expanded="true"] .ep-progress-chevron{transform:rotate(180deg)}
+@media(prefers-reduced-motion:reduce){.ep-progress-chevron{transition:none}}
+.ep-progress{padding:12px 0 14px;border-bottom:1px solid var(--line);animation:cs-note-in .18s ease-out}
+.ep-progress .ep-steps{margin:0 0 8px}
+.ep-progress .ep-dstats{margin:0;line-height:1.6}
 .csmain .ep-listen,.csmain .ep-train,.csmain .ep-chunks{margin:0;padding:0 0 18px;border:0;border-radius:0;background:transparent;max-width:none}
 .csmain .ep-listen .phead,.csmain .ep-train .phead,.csmain .ep-chunks .phead{margin:0;padding:18px 0 12px;border:0;background:transparent;border-radius:0;align-items:center}
 .ep-settings{font-size:13px;color:var(--t2);max-width:420px;text-align:right}
@@ -1828,7 +1860,7 @@ body.vfull .cs-stage video.tfl{max-height:none}
 .ep-materials>summary{padding:12px 0;cursor:pointer;font-size:13px}
 .csmain .ep-materials .ep-kv,.csmain .ep-materials .ep-expl{border:0;border-radius:0;margin:0;padding:12px 0;background:transparent}
 .csmain .ep-materials .phead{margin:0;padding:8px 0;background:transparent}
-.csmain .ep-stage{position:sticky;bottom:0;z-index:6;margin:auto 0 0;padding:12px 0 8px;border:0;border-top:1px solid var(--line);border-radius:0;background:var(--card)}
+
 .ep-stage .ep-segs{gap:6px;margin:0 0 6px;display:flex;flex-wrap:wrap}
 .ep-stage .ep-segs button{font-size:12px;padding:4px 10px;border:0;border-radius:var(--rs);background:transparent;color:var(--t2)}
 .ep .ep-stage .ep-segs button.on{background:var(--sunk);color:var(--acc);border-color:transparent}
@@ -1857,7 +1889,6 @@ body.vfull .cs-stage video.tfl{max-height:none}
   .ep-course-actions summary{font-size:12px}
   .ep-tabs{gap:16px}
   .ep-tabs button{flex:1;padding:10px 0;font-size:13px}
-  .ep-overview{flex-wrap:wrap;gap:4px;padding:10px 0}
   .ep-steps{width:100%;gap:0;justify-content:space-between}
   .ep-steps .es{padding:0;border:0;gap:4px}
   .ep-steps .es+.es{border:0}
@@ -1898,16 +1929,17 @@ body.vfull .cs-stage video.tfl{max-height:none}
    ============================================================ */
 @media(min-width:801px){
   body.course-fixed{overflow:hidden}
-  body.course-fixed .wrap{height:calc(100dvh - 26px);min-height:0;overflow:hidden;display:flex;flex-direction:column;padding-bottom:16px}
+  body.course-fixed .wrap{height:calc(100dvh - 26px);min-height:0;overflow:hidden;display:flex;flex-direction:column;padding-bottom:12px}
   body.course-fixed #v-course.on{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
   body.course-fixed #v-course>.bhead,body.course-fixed #v-course>.sub{flex:none}
-  body.course-fixed .csplit{flex:1;min-height:0;overflow:hidden;align-items:stretch}
+  body.course-fixed .csplit{flex:1;min-height:0;overflow:hidden;align-items:stretch;margin-bottom:0}
   body.course-fixed .csnav-col{min-height:0;display:flex;flex-direction:column;overflow:hidden}
   body.course-fixed .csnav{flex:1;min-height:0;max-height:none;overflow-y:auto;overscroll-behavior:contain}
-  body.course-fixed .csmain{min-height:0;height:100%;overflow-y:auto;overscroll-behavior:contain;scroll-padding-bottom:84px}
+  body.course-fixed .csmain{min-height:0;height:100%;overflow-y:auto;overscroll-behavior:contain;scroll-padding-bottom:100px}
+  body.course-fixed .csmain.ep-page{padding-bottom:12px}
 }
 /* 播放条: 一行放完, 展开完整播放器时才多一行 */
-.ep .ep-stage{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;padding:8px 0 6px}
+
 .ep-stage .ep-dock{order:0;flex:none;gap:0;border:1px solid var(--line);border-radius:999px;padding:2px;margin:0;box-shadow:none;background:var(--card)}
 .ep-dock .ep-dock-no{margin:0;padding:0 2px;font-size:12px}
 .ep-dock button{height:30px;min-width:30px;padding:0 7px;border-radius:999px}
@@ -1918,11 +1950,11 @@ body.vfull .cs-stage video.tfl{max-height:none}
 .ep-status .grow{display:none}
 .ep-stage .na-box{order:10;flex-basis:100%;margin:4px 0 0}
 @media(max-width:700px){
-  .ep .ep-stage{position:sticky;bottom:0;padding:6px 0 calc(6px + env(safe-area-inset-bottom));gap:4px 8px;background:var(--card)}
+
   .ep-stage .ep-dock{order:0;flex:0 0 auto}
   .ep-stage .ep-segs{order:1;flex:0 1 auto}
   .ep-stage .ep-segs button{font-size:11px;padding:2px 5px}
-  .ep-stage .ep-status{order:3;flex:1 1 100%;margin:0;justify-content:space-between;gap:6px;flex-wrap:nowrap;padding-top:2px}
+  .ep-stage .ep-status{order:3;flex:1 1 100%;margin:0;justify-content:space-between;gap:4px 6px;flex-wrap:wrap;padding-top:2px}
   .ep-stage .ep-shortcuts{display:none}
   .ep-dock button{height:34px;min-width:34px}
   .ep .ep-stage .ep-segs{margin-bottom:0}
@@ -1954,18 +1986,18 @@ body.vfull .cs-stage video.tfl{max-height:none}
    ② 所有右簇控件统一 28px 高、12px 字、居中, 下拉框不再比文字高一头
    ③ 当前句练习块=浅色面板, 与正文和页脚形成三层: 画布白 / 练习块灰 / 控制台灰
    ============================================================ */
-.ep .ep-stage{background:var(--sunk);border-radius:14px 14px 0 0;padding:8px 12px 6px;margin-top:10px;border-top:1px solid var(--line)}
+
 .ep .ep-dock{background:var(--card);border-color:var(--line);box-shadow:0 1px 2px rgba(32,39,37,.05)}
 .ep .ep-stage .ep-segs{background:var(--card);border:1px solid var(--line);border-radius:999px;padding:2px;gap:0}
 .ep .ep-stage .ep-segs button{min-height:0;height:26px;border-radius:999px;padding:0 10px;line-height:26px}
-.ep .ep .ep-stage .ep-segs button i{font-size:11px;margin-left:2px}
+.ep .ep-stage .ep-segs button i{font-size:11px;margin-left:2px}
 .ep .ep-stage .ep-segs button.on{background:var(--accbg);color:var(--acc);font-weight:500}
 .ep .ep-stage .ep-segs button.on i{color:var(--acc)}
 .ep .ep-stage .ep-status{gap:2px;align-items:center}
 .ep-stage .ep-status>button,.ep-stage .ep-status .ep-player-toggle,.ep-stage .ep-status summary{
-  min-height:0;height:28px;display:inline-flex;align-items:center;font-size:12px;line-height:1;color:var(--t2);padding:0 8px;border-radius:999px}
+  min-height:0;height:28px;display:inline-flex;align-items:center;font-size:12px;line-height:1;color:var(--t2);padding:0 8px;border-radius:999px;white-space:nowrap;flex-shrink:0}
 .ep-stage .ep-status>button.on{background:var(--accbg);color:var(--acc);font-weight:500}
-.ep-stage .ep-status .cs-speed{height:28px;display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--t2);padding:0 2px 0 8px}
+.ep-stage .ep-status .cs-speed{height:28px;display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--t2);padding:0 2px 0 8px;white-space:nowrap;flex-shrink:0}
 .ep-stage .ep-status .cs-speed select{height:26px;min-height:0;line-height:24px;font-size:12px;padding:0 22px 0 8px;border-radius:999px;background-color:var(--card);border:1px solid var(--line);color:var(--t1)}
 .ep-stage .ep-status .ep-shortcuts summary{padding:0 6px;color:var(--t3)}
 .ep-stage .ep-status .ep-player-toggle[aria-expanded="true"]{background:var(--accbg);color:var(--acc)}
@@ -1975,29 +2007,17 @@ body.vfull .cs-stage video.tfl{max-height:none}
 .ep-brow:hover{background:#f2f5f3}
 .ep-brow+ .ep-brow{border-top:1px solid var(--line);border-radius:0}
 @media(max-width:700px){
-  .ep .ep-stage{border-radius:12px 12px 0 0;padding:6px 10px calc(6px + env(safe-area-inset-bottom))}
+
   .ep .ep-bcard{padding:12px;border-radius:12px}
   .ep-stage .ep-status>button,.ep-stage .ep-status .ep-player-toggle,.ep-stage .ep-status summary{padding:0 6px}
   .ep-stage .ep-status .cs-speed{padding-left:4px}
 }
 /* r27 · 控制台改为悬浮层: 四角全圆 + 阴影 + 离底留缝(此前只圆上面两角, 像半成品) */
-.ep .ep-stage{border-radius:14px;border:1px solid var(--line);margin:10px 0 12px;padding:8px 12px 7px;
-  box-shadow:0 1px 2px rgba(32,39,37,.05),0 10px 28px rgba(32,39,37,.10);
-  background:var(--sunk)}
+
 @media(max-width:700px){
-  .ep .ep-stage{border-radius:12px;margin:8px 0 10px;bottom:8px;
-    box-shadow:0 1px 2px rgba(32,39,37,.05),0 8px 22px rgba(32,39,37,.12)}
+
 }
 
-/* r28 · 提交并入输入框(用户: 提交独占一行浪费高度): 输入=一个书写面, 提交贴在右下角 */
-.ep-bcard .ep-compose{position:relative}
-.ep-bcard .ep-compose .dt{padding-right:82px;border-radius:12px;background:var(--card);min-height:52px}
-.ep-bcard .ep-compose .dsubmit{position:absolute;right:7px;bottom:7px;margin:0;float:none;height:28px;min-height:28px;
-  padding:0 12px;border-radius:999px;border:0;background:var(--acc);color:var(--card);font-size:12px;font-weight:500;line-height:1}
-.ep-bcard .ep-compose .dsubmit:hover{background:#27493a;color:var(--card)}
-.ep-bcard .bbody{margin-bottom:6px}
-@media(max-width:700px){.ep-bcard .ep-compose .dt{min-height:48px;padding-right:76px}}
-.ep-bcard .ep-compose .dt{resize:none}
 /* r29 · 书写面收尾: 外框承载边界, 输入无边框, 提交在框内的右下工具位(不再压住圆角) */
 .ep-bcard .ep-compose{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:12px;background:var(--card);padding:6px 6px 6px 10px;transition:border-color .15s,box-shadow .15s}
 .ep-bcard .ep-compose:focus-within{border-color:var(--acc);box-shadow:0 0 0 3px var(--accbg)}
@@ -2007,32 +2027,56 @@ body.vfull .cs-stage video.tfl{max-height:none}
 .ep-bcard .ep-compose .dsubmit:hover{background:var(--acc);color:var(--card)}
 .ep-bcard .ep-compose .dsubmit:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 
-/* r30 · 播放栏到底不再上跳: 粘底位置与页脚后方留白相等, 滚动到底时粘性恰好不脱离 */
-body.course-fixed .csmain.ep-page{padding-bottom:0}
-body.course-fixed .csmain.ep-page .ep-stage{bottom:12px}
-@media(max-width:800px){
-  .csmain.ep-page .ep-stage{position:sticky;bottom:0;margin-bottom:0;border-radius:12px 12px 0 0}
-}
-/* r31 · 彻底消除到底上跳: 页脚后方不再留任何空隙, 粘底位置=流位置 */
-body.course-fixed .wrap{padding-bottom:0}
-body.course-fixed .csmain.ep-page .ep-stage{bottom:0;margin-bottom:0;border-radius:12px 12px 0 0}
-body.course-fixed .wrap{padding-bottom:0;margin-bottom:0}
-body.course-fixed .wrap{height:calc(100dvh - 12px);margin-bottom:0;padding-bottom:0}
-body.course-fixed .csplit{margin-bottom:0}
-
-/* r32 · 播放状态与进度不再挤占控制台: 提示收成一行并在开播后消失; 进度行改为浮层; 底角恢复 */
-.ep .ep-stage{position:sticky;bottom:12px;border-radius:14px;margin-bottom:12px}
-body.course-fixed .csmain.ep-page{padding-bottom:12px}
 .ep-stage .ep-seekrow{position:absolute;left:0;right:0;bottom:calc(100% + 6px);order:0;flex-basis:auto;margin:0;
   background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 24px rgba(32,39,37,.12);padding:8px 10px}
 .ep-stage .ep-seekrow[hidden]{display:none}
-.ep .ep-stage .na-box{border:0;background:transparent;padding:2px 2px 0;margin:0;color:var(--t3);font-size:12px;line-height:1.5;flex-basis:100%;box-shadow:none}
-@media(max-width:800px){.ep .ep-stage{bottom:10px;margin-bottom:10px;border-radius:12px}body.course-fixed .csmain.ep-page{padding-bottom:10px}}
+.ep .ep-stage .na-box{border:0;background:transparent;padding:2px 2px 0;margin:0;color:var(--t2);font-size:12px;line-height:1.5;flex-basis:100%;box-shadow:none}
 
-/* r33 · 播放目标按 tab; 考试循环计数; 快捷键对比度; 前后留白相等消除到底跳动 */
+/* The scrolling container reserves the same gap as the sticky player's bottom offset. */
+.ep .ep-stage{position:sticky;bottom:12px;z-index:6;display:flex;flex-wrap:wrap;align-items:center;
+  gap:4px 8px;margin:10px 0 0;padding:8px 12px 7px;border:1px solid var(--line);border-radius:14px;
+  background:var(--sunk);box-shadow:0 1px 2px rgba(32,39,37,.05),0 10px 28px rgba(32,39,37,.10)}
 .ep-stage .ep-status .ep-shortcuts summary{color:var(--t2)}
-body.course-fixed .csmain.ep-page{padding-bottom:0}
-.ep-page .ep-stage{margin-bottom:0;bottom:12px}
-.wrap.ep-page{padding-bottom:12px}
-body.course-fixed .wrap.ep-page{padding-bottom:12px}
-@media(max-width:800px){.ep-page .ep-stage{bottom:10px}.wrap.ep-page{padding-bottom:10px}}
+@media(max-width:800px){
+  .wrap.ep-page{height:auto;min-height:calc(100dvh - 20px);padding-bottom:10px}
+  body.course-fixed .csplit{margin-bottom:0}
+  .ep .ep-stage{bottom:21px;border-radius:12px;box-shadow:0 1px 2px rgba(32,39,37,.05),0 8px 22px rgba(32,39,37,.12)}
+  .csmain.ep-page{padding-bottom:0}
+  .csmain.ep-page .cs-stick.ep{min-height:0}
+}
+@media(max-width:700px){
+  .wrap.ep-page{min-height:calc(100dvh - 16px)}
+  .ep .ep-stage{bottom:19px;padding:6px 10px calc(6px + env(safe-area-inset-bottom))}
+}
+
+/* ============================================================
+   设计评审四项 · 手机首屏层级 / 学过与背诵语义 / 听这句 / 窄屏播放器分组
+   ① 手机课程页收起通用页头说明, 把累计统计收进「学习明细」, 三遍状态仍常显
+   ② 目录文案直接说欠哪一遍; 当前待背遍数用品牌绿浅底突出
+   ③ 当前句主按钮带「听这句」文字, 与底部通用播放器区分职责
+   ④ 400 以下: 传输一行 / 音源一行 / 工具一行, 不再让单个标签独占一行
+   ============================================================ */
+.ep-cover-heading .ep-text-button{margin-left:0}
+.ep-nav-cover .ep-round.current{border-color:var(--acc);background:var(--accbg);color:var(--acc);font-weight:600}
+.ep-nav-cover.full .ep-nav-caption{color:var(--acc)}
+.ep .ep-bcard .bh .bp{width:auto;padding:0 12px;gap:5px;border-color:var(--accln);background:var(--accbg);color:var(--acc);font-size:12px}
+.ep .ep-bcard .bh .bp:hover{background:var(--acc);color:var(--card);border-color:var(--acc)}
+.ep .ep-bcard .bh .bp-tx{white-space:nowrap}
+@media(max-width:800px){
+  .wrap.ep-page{padding-top:14px}
+  .wrap.ep-page #v-course>.sub{display:none}
+  .wrap.ep-page #v-course>.bhead{margin-bottom:2px}
+  .wrap.ep-page #v-course>.bhead .pt{font-size:20px;line-height:1.3}
+  .ep .ep-cov{padding-top:8px}
+  .ep-cover-hint{margin-top:6px}
+}
+@media(max-width:400px){
+  .ep .csp-meta .src>span:first-child{display:none}
+  .ep .ep-cov{padding-top:6px}
+  .ep .ep-cover-step{padding:6px 4px;gap:4px}
+  .ep .ep-stage .ep-segs{flex:1 1 100%;order:2;display:flex}
+  .ep .ep-stage .ep-segs button{flex:1;display:inline-flex;align-items:center;justify-content:center;padding:0 5px}
+  .ep .ep-stage .ep-status{order:3;flex-wrap:nowrap;gap:0 2px;padding-top:0}
+  .ep .ep-stage .ep-status .cs-speed{padding-left:0;gap:0;min-width:0}
+  .ep .ep-stage .ep-status .cs-speed>span{display:none}
+}

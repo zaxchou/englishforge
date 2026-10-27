@@ -31,6 +31,15 @@
     }
     return out;
   }
+  function coverProgress(drill,total,today){
+    drill=object(drill)?drill:{};
+    const need=Math.min(6,total),days=drill.stampDays||{};
+    const count=v=>Array.isArray(v)?new Set(v.filter(i=>Number.isInteger(i)&&i>=0&&i<total)).size:0;
+    const dates=need>0?Object.keys(days).filter(day=>count(days[day])>=need).sort():[];
+    const recovered=!!drill.recoveredCover;
+    const completed=Math.min(3,dates.length+(recovered?1:0));
+    return {total,need,dates,recovered,completed,todayN:count(days[today]),todayStamped:dates.includes(today)};
+  }
   function mergeLesson(current,incoming){
     const a=current||{},b=incoming||{};
     return {...copy(a),...copy(b),drill:mergeDrill(a.drill,b.drill)};
@@ -64,7 +73,7 @@
     }
     return changed;
   }
-  const api={mergeDrill,mergeLesson,reconcile,repairOkayScores};
+  const api={mergeDrill,mergeLesson,reconcile,repairOkayScores,coverProgress};
   if(typeof module==='object'&&module.exports)module.exports=api;
   else root.EplodRecords=api;
 })(typeof globalThis==='object'?globalThis:this);

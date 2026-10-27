@@ -34,6 +34,7 @@ command -v docker >/dev/null || { echo "错误：找不到 docker（需要 Conta
 grep -q "^TOEFLAB_TAG=" "$ENV_FILE" || { echo "错误：.env 缺少 TOEFLAB_TAG 行" >&2; exit 1; }
 
 echo "== 部署 toefl-lab $VER =="
+ROLLBACK_TAG=$(sed -n 's/^TOEFLAB_TAG=//p' "$ENV_FILE" | tr -d '\r')
 T0=$(date +%s)
 
 # 磁盘粗检（镜像约 300MB，留 1GB 余量）
@@ -96,6 +97,12 @@ while [ $i -lt 60 ]; do
           T3=$(date +%s)
           # Long-term user authorization: project-only image cleanup, preserve rollback and data.
           sh "$PROJ/deploy/clean-project-images.sh" "$VER" || echo "镜像清理未全部完成，发布结果保留" >&2
+          if REFERENCED=$(docker ps -a --format '{{.Image}}'); then
+            REFERENCED_TAGS=$(printf '%s\n' "$REFERENCED" | sed -n 's/^toefl-lab://p')
+            sh "$PROJ/deploy/clean-project-releases.sh" "$VER" "$ROLLBACK_TAG" $REFERENCED_TAGS || echo "发布目录清理未完成，发布结果保留" >&2
+          else
+            echo "无法核对容器引用，保留所有发布目录" >&2
+          fi
           echo "完成：健康检查与版本断言通过，$VER 已上线（https://$(grep -E '^NAS_IP=' "$ENV_FILE" | cut -d= -f2 | tr -d '\r'):$PORT）"
           echo "阶段耗时：构建 $((T1-T0))s · 换标签 $((T2-T1))s · 重建+断言 $((T3-T2))s · 总计 $((T3-T0))s"
           exit 0

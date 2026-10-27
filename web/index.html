@@ -8,7 +8,7 @@
 <link rel="icon" type="image/png" sizes="96x96" href="/assets/brand/t-dot-v1/t-dot-96.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/assets/brand/t-dot-v1/t-dot-180.png">
 <title>TOEFL Lab · 托福自学练习</title>
-<link rel="stylesheet" href="desk.css?v=1793000001">
+<link rel="stylesheet" href="desk.css?v=1793200000">
 <style>
 /* 应用层补充样式（视觉基线在 desk.css，不改它的既有规则） */
 /* 单词与字符格保持同一行；焦点、已填、判题状态沿用研读桌配色。 */
@@ -313,7 +313,7 @@ details.ai-tsec[open] summary{margin-bottom:8px}
 
 </div>
 
-<script src="eplod-records.js?v=1"></script>
+<script src="eplod-records.js?v=2"></script>
 <script>
 'use strict';
 /* ============================================================
@@ -1059,6 +1059,7 @@ window.addEventListener('resize',()=>{
 });
 function go(v){
   const isTask=(v==='do');
+  if(v!=='course'){EP.loadId=(EP.loadId||0)+1;EP.st?.cancelSeek?.();const audio=$('ep-audio');if(audio)audio.pause();document.querySelector('.wrap')?.classList.remove('ep-page');}
   if(v!=='course')document.body.classList.remove('vfull');   // 任何非课程视图都不留在铺满态(含做题, 否则考试页滚动被锁)
   if(!isTask) {checkpointCourse(true);lastNav=v; if(TICK) {TACC=usedSec();QACC=qUsedSec();clearInterval(TICK);TICK=null;} STU=false; $('d-audio').pause();const cv=$('cs-video');if(cv)cv.pause();document.querySelectorAll('.ai-audio').forEach(a=>a.pause());} else if(S && !TICK && !T_PAUSED) tStart();
   if(v!=='course'&&GQ_TICK){clearInterval(GQ_TICK);GQ_TICK=null;}   /* 离开课程页: 课后练计时即停(回到同节 quiz 相位会自动重开) */
@@ -3058,6 +3059,24 @@ function renderCourse(){
 function courseSeriesName(n){ return String(n||'').replace(/新D方/g,'新东方'); }
 const EP_LV=[[1,'初级','Elementary'],[2,'中级','Intermediate'],[3,'中高级','Upper Intermediate'],[4,'高级','Advance'],[5,'精通','Proficient']];
 const EP_CHECK='<i class="v"><svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1.8 5.4 4 7.6 8.3 2.9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></i>';
+const EP_TICK='<svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true"><path d="m3 8 3 3 7-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+function epCoverState(lesson,total){return EplodRecords.coverProgress(lesson?.drill,total,epDay());}
+function epCoverMarks(state){
+  return [1,2,3].map(k=>'<span class="ep-round'+(k<=state.completed?' complete':'')+(k===3&&state.completed===3?' final':'')+(k===state.completed+1?' current':'')+'" aria-label="第'+k+'遍'+(k<=state.completed?'已完成':'未完成')+'"><span>'+k+'</span>'+(k<=state.completed?EP_TICK:'')+'</span>').join('');
+}
+function epNavCoverHTML(l){
+  const state=epCoverState(REC.course[l.id],l.dialogue_count??EP.cache[l.ep]?.dialogue.length??0);
+  const label=state.completed===3?'覆盖背诵三遍完成':state.completed?'覆盖背诵待第 '+(state.completed+1)+' 遍':'覆盖背诵尚未开始';
+  const caption=state.completed===3?'三遍完成':state.completed?'待第'+(state.completed+1)+'遍':'背诵';
+  return '<span class="ep-nav-cover'+(state.completed===3?' full':'')+'" title="'+label+'" aria-label="'+label+'"><span class="ep-nav-caption">'+caption+'</span>'+epCoverMarks(state)+'</span>';
+}
+function epNavCoverUpdate(){
+  const c=courseById(csPick);if(c?.kind!=='eplod')return;
+  $('ep-list')?.querySelectorAll('.cli').forEach(row=>{
+    const cover=row.querySelector('.ep-nav-cover');
+    if(cover)cover.outerHTML=epNavCoverHTML(c.lessons[+row.dataset.ix]);
+  });
+}
 let epNavQuery='';
 const epNavOpen=(()=>{try{const v=JSON.parse(localStorage.getItem('tfl-ep-nav-open')||'{}');return v&&typeof v==='object'&&!Array.isArray(v)?v:{};}catch(e){return {};}})();
 function epNavListHTML(c,q){
@@ -3082,8 +3101,8 @@ function epNavListHTML(c,q){
     for(const [l,li] of items){
       const done=doneOf(l),on=(csSel.c===c.id&&csSel.l===li);
       h+='<div class="cli'+(done?' done':'')+(on?' on':'')+'" data-cid="'+esc(c.id)+'" data-ix="'+li+'" title="'+esc(l.title)+'">'
-        +'<span class="st">'+(done?EP_CHECK:'<i></i>')+'</span>'
-        +'<span class="lt">'+esc(l.title)+'</span><span class="ld">'+(l.duration_sec?fmtDur(l.duration_sec):'\u2014')+'</span></div>';
+        +'<span class="st" title="'+(done?'已标记学过':'尚未标记学过')+'">'+(done?EP_CHECK:'<i></i>')+'</span>'
+        +'<span class="ep-nav-body"><span class="lt">'+esc(l.title)+'</span>'+epNavCoverHTML(l)+'</span><span class="ld">'+(l.duration_sec?fmtDur(l.duration_sec):'\u2014')+'</span></div>';
     }
     h+='</details>';
   }
@@ -3180,20 +3199,22 @@ window.renderEplodMain=async function(c){
   $('cs-main').classList.add('ep-page');document.querySelector('.wrap')?.classList.add('ep-page');
   const el=$('cs-main');
   const request=EP.loadId=(EP.loadId||0)+1;
-  EP.st?.cancelSeek?.();
+  EP.st?.cancelSeek?.();$('ep-audio')?.pause();
   if(EP.st?.recording){const r=EP.st.recording;EP.st.recording=null;r.rec.stop();}
   const l=c.lessons[Math.max(0,Math.min(csSel.l==null?0:csSel.l,c.lessons.length-1))];
+  const isCurrent=()=>request===EP.loadId&&document.querySelector('#v-course.on')&&csSel.c===c.id&&c.lessons[csSel.l]?.id===l.id;
   el.innerHTML='<div class="cs-stick ep"><div class="card" style="padding:32px;text-align:center;color:var(--t2)">加载本期数据…</div></div>';
   let d=EP.cache[l.ep];
   if(!d){
     try{d=EP.cache[l.ep]=await api('/api/eplod/lesson/'+String(l.ep).padStart(4,'0'),{signal:AbortSignal.timeout(15000)});}
-    catch(e){el.innerHTML='<div class="cs-stick ep"><div class="card" style="padding:32px;text-align:center">该期数据未导入（先跑 pipeline/build_eplod.py）</div></div>';return;}
+    catch(e){if(isCurrent())el.innerHTML='<div class="cs-stick ep"><div class="card" style="padding:32px;text-align:center">本期加载失败，请重新选择本课重试。</div></div>';return;}
   }
-  if(request!==EP.loadId)return;
+  if(!isCurrent())return;
   const p=REC.course[l.id]||(REC.course[l.id]={});
   if(!p.marks||typeof p.marks!=='object'||Array.isArray(p.marks))p.marks={};
   if(!p.collected||typeof p.collected!=='object'||Array.isArray(p.collected))p.collected={};
-  EP.st={c,l,d,p,seg:'dg',i:-1,loop:false,range:null,mask:false,revealed:{}};
+  const initialSeg=['dg','pb','rv'].includes(p.audioSeg)&&d.audio[p.audioSeg]?p.audioSeg:'dg';
+  EP.st={c,l,d,p,seg:initialSeg,restorePosition:true,i:-1,loop:false,range:null,mask:false,revealed:{}};
   const segNames={dg:'对话',pb:'讲解',rv:'复习'};
   const lineHtml=(x,i,kind)=>{
     const has=x.t0!=null&&x.t1!=null;
@@ -3222,11 +3243,11 @@ window.renderEplodMain=async function(c){
   EP.st.ai=firstTodo();
   EP.st.amode={}; EP.st.lastMode='dict';
   el.innerHTML='<div class="cs-stick ep">'
-    +'<div class="csp-meta"><h3>'+esc(l.title)+'</h3><span class="src">'+esc(c.title)+' · '+esc(d.level)+' · 第 '+(csSel.l+1)+'/'+c.lessons.length+' 节</span>'
-    +(p.done?'<span class="pill q">已学完</span>':'')+'<details class="ep-course-actions"><summary>课程操作 ···</summary><button id="ep-done">'+(p.done?'取消学完':'标记学完')+'</button><button id="ep-materials-toggle">查看课程资料</button></details></div>'
+    +'<div class="csp-meta"><h3>'+esc(l.title)+'</h3><span class="src"><span>'+esc(c.title)+'</span><span>'+esc(d.level)+'</span><span>第 '+(csSel.l+1)+'/'+c.lessons.length+' 节</span></span>'
+    +(p.done?'<span class="pill q">已学过</span>':'')+'<details class="ep-course-actions"><summary>课程操作 ···</summary><button id="ep-done">'+(p.done?'取消已学':'标记已学')+'</button><button id="ep-materials-toggle">查看课程资料</button></details></div>'
     +'<div class="ep-tabs" id="ep-tabs" aria-label="学习模式"><button data-m="listen" class="on">逐句精听</button><button data-m="train">四步训练</button><button data-m="chunks">语块积累</button></div>'
-    +'<div class="ep-overview"><div class="ep-steps" id="ep-steps"></div><button class="ep-text-button" id="ep-progress-toggle" aria-expanded="false" aria-controls="ep-progress">查看学习进度</button></div>'
-    +'<section class="ep-progress" id="ep-progress" hidden><h4>本期学习进度</h4><div class="ep-cov" id="ep-cov"></div><div class="ep-dstats" id="ep-tstats"></div></section>'
+    +'<section class="ep-cov" id="ep-cov" aria-label="覆盖背诵进度"></section>'
+    +'<section class="ep-progress" id="ep-progress" hidden><div class="ep-steps" id="ep-steps"></div><div class="ep-dstats" id="ep-tstats"></div></section>'
     +'<div class="card ep-listen" id="ep-listen"><div class="phead"><div class="l"><b>逐句精听 · 对话</b></div><div class="r ep-mc">'+(markCount?markCount+' 句没听出来':'')+'</div></div>'
       +'<div class="ep-lines" id="ep-lines">'+d.dialogue.map((x,i)=>lineHtml(x,i,'dg')).join('')+'</div></div>'
     +'<div class="card ep-train" id="ep-train" style="display:none">'
@@ -3252,14 +3273,14 @@ window.renderEplodMain=async function(c){
       +'<div class="ep-lines">'+d.explanation.map((x,i)=>lineHtml(x,i,'pb')).join('')+'</div></details>'
     +'</details>'
     +'<footer class="ep-stage">'
-      +'<div class="ep-segs">'+['dg','pb','rv'].map(s=>'<button data-seg="'+s+'"'+(s==='dg'?' class="on"':'')+'>'+segNames[s]+(d.durations&&d.durations[s]?' <i>'+fmtDur(d.durations[s])+'</i>':'')+'</button>').join('')+'</div>'
-      +'<audio id="ep-audio" preload="metadata" hidden src="'+esc(d.audio.dg)+'"></audio>'
+      +'<div class="ep-segs">'+['dg','pb','rv'].map(s=>'<button data-seg="'+s+'"'+(s===initialSeg?' class="on"':'')+'>'+segNames[s]+(d.durations&&d.durations[s]?' <i>'+fmtDur(d.durations[s])+'</i>':'')+'</button>').join('')+'</div>'
+      +'<audio id="ep-audio" preload="metadata" hidden src="'+esc(d.audio[initialSeg])+'"></audio>'
       +'<div class="ep-seekrow" id="ep-seekrow" hidden><button id="ep-seek-play" aria-label="播放或暂停">▶</button><span id="ep-cur">0:00</span><input id="ep-seek" type="range" min="0" max="1000" step="1" value="0" aria-label="播放进度"><span id="ep-dur">—</span><button id="ep-vol" aria-label="静音">🔊</button></div>'
       +'<div class="cs-status ep-status">'
         +'<button id="ep-loop">↻ 循环</button>'
         +'<button id="ep-mask">盲听</button>'
         +'<span class="grow"></span>'
-        +'<label class="cs-speed">速度 <select id="ep-speed" aria-label="播放速度">'+[0.75,1,1.25,1.5].map(n=>'<option value="'+n+'">'+n+'×</option>').join('')+'</select></label>'
+        +'<label class="cs-speed"><span>速度</span> <select id="ep-speed" aria-label="播放速度">'+[0.75,1,1.25,1.5].map(n=>'<option value="'+n+'">'+n+'×</option>').join('')+'</select></label>'
         +'<button class="ep-player-toggle" id="ep-player-toggle" aria-expanded="false">播放器</button>'
         +'<details class="ep-shortcuts"><summary>快捷键 ?</summary><p>空格 播放/暂停 · Z 重听 · X 循环 · ←/→ 上一句/下一句 · C 揭示原文</p></details></div>'
 
@@ -3299,7 +3320,7 @@ function epWire(){
     const cleanup=()=>{clearTimeout(timer);a.removeEventListener('loadedmetadata',go);a.removeEventListener('canplay',go);};
     st.cancelSeek=()=>{cleanup();st.seekPending=false;};
     const go=()=>{
-      if(started||seq!==st.seekSeq||EP.st!==st)return;
+      if(started||seq!==st.seekSeq||EP.st!==st||!document.querySelector('#v-course.on'))return;
       started=true;cleanup();st.markSeek();st.seekPending=true;
       try{
         st.seekPosition(t0);
@@ -3322,7 +3343,7 @@ function epWire(){
   };
   a.addEventListener('seeking',()=>{
     if(st.seekPending)return;
-    if(!st._iSeek){st.cancelSeek?.();st.seekSeq++;st.stopAtEnd=false;st.loop=false;$('ep-loop').classList.remove('on');}
+    if(!st._iSeek){st.cancelSeek?.();st.seekSeq++;st.playSession=null;st.playTarget=null;st.range=null;st.stopAtEnd=false;st.loop=false;$('ep-loop').classList.remove('on');}
   });
   a.addEventListener('seeked',()=>{st.seekPending=false;});
   a.addEventListener('playing',()=>{const n=$('ep-note');if(n&&/音频加载中|播放未能|定位/.test(n.textContent))n.style.display='none';});
@@ -3334,11 +3355,7 @@ function epWire(){
       if(e.target.closest('.mk'))return;
       if(row.dataset.t0==null)return;
       const kind=row.dataset.kind,i=+row.dataset.i;
-      const fresh=kind!==st.seg;
-      if(fresh)epSeg(kind);
-      st.stopAtEnd=false;   // 对照跳播是连续听, 不做句尾停点
-      st.seekTo(Number(row.dataset.t0));
-      st.range=[Number(row.dataset.t0),Number(row.dataset.t1)];
+      epStartPlayback({seg:kind,i,t0:Number(row.dataset.t0),t1:Number(row.dataset.t1)},{continuous:true});
       if(st.mask&&!st.revealed[kind+'-'+i]){st.revealed[kind+'-'+i]=true;row.classList.add('open');}
       epHighlight(i,kind);
     });
@@ -3363,10 +3380,7 @@ function epWire(){
       e.stopPropagation();
       const i=+pb.dataset.qi,row=$('ep-lines').querySelector('.ep-line[data-i="'+i+'"]');
       if(row&&row.dataset.t0!=null){
-        const fresh=st.seg!=='dg';
-        if(fresh)epSeg('dg');
-        st.stopAtEnd=true;
-        st.seekTo(Number(row.dataset.t0));st.range=[Number(row.dataset.t0),Number(row.dataset.t1)];epHighlight(i,'dg');
+        epStartPlayback({seg:'dg',i,t0:Number(row.dataset.t0),t1:Number(row.dataset.t1)});epHighlight(i,'dg');
       }
     };
     card.querySelector('.col').onclick=()=>epCollect(card);
@@ -3375,7 +3389,7 @@ function epWire(){
   });
   /* 段切换 */
   $('cs-main').querySelectorAll('.ep-segs button').forEach(b=>b.onclick=()=>epSeg(b.dataset.seg));
-  $('ep-loop').onclick=()=>{st.loop=!st.loop;$('ep-loop').classList.toggle('on',st.loop);};
+  $('ep-loop').onclick=()=>{if(st.loop){st.loop=false;$('ep-loop').classList.remove('on');}else epStartPlayback(epPlaybackTarget(),{resume:true,loop:true});};
   $('ep-mask').onclick=()=>{st.mask=!st.mask;$('ep-mask').classList.toggle('on',st.mask);$('cs-main').querySelector('.ep-listen').classList.toggle('mask',st.mask);};
   /* EnglishPod 与视频课倍速分开记忆(用户: EP 常 1×, 词汇课常 1.25×) */
   const speed=$('ep-speed');let savedRate=1;try{savedRate=Number(localStorage.getItem('tfl-ep-rate'))||1;}catch(e){}
@@ -3386,44 +3400,46 @@ function epWire(){
   const srow=$('ep-seekrow'),seek=$('ep-seek'),cur=$('ep-cur'),durEl=$('ep-dur'),pt=$('ep-player-toggle'),spb=$('ep-seek-play'),vol=$('ep-vol');
   const syncSeek=()=>{if(!srow||srow.hidden)return;cur.textContent=fmtDur(a.currentTime||0);durEl.textContent=a.duration?fmtDur(a.duration):'—';if(!(seek.matches&&seek.matches(':active')))seek.value=String(a.duration?Math.round(a.currentTime/a.duration*1000):0);};
   pt.onclick=()=>{const open=srow.hidden;srow.hidden=!open;pt.setAttribute('aria-expanded',String(open));pt.textContent=open?'播放器 ⌃':'播放器';if(open)syncSeek();};
-  seek.oninput=()=>{if(!a.duration)return;st.cancelSeek?.();st.seekSeq=(st.seekSeq||0)+1;st.seekPending=false;clearTimeout(st._iSeekT);st._iSeek=false;a.currentTime=seek.value/1000*a.duration;kurSync();};
+  seek.oninput=()=>{if(!a.duration)return;const playing=!a.paused;a.pause();st.cancelSeek?.();st.seekSeq=(st.seekSeq||0)+1;st.playSession=null;st.playTarget=null;st.range=null;st.stopAtEnd=false;st.loop=false;$('ep-loop').classList.remove('on');st.seekPosition(seek.value/1000*a.duration);if(playing)epTogglePlayback();syncSeek();};
   const kurSync=()=>{if(spb)spb.textContent=a.paused?'▶':'❚❚';};
-  spb.onclick=()=>{const f=window.__epPlayCurrent;if(f)f(false);else if(a.paused)epPlayBlock(EP.st.ai);else a.pause();};
+  spb.onclick=()=>epTogglePlayback();
   vol.onclick=()=>{a.muted=!a.muted;vol.textContent=a.muted?'🔇':'🔊';vol.setAttribute('aria-label',a.muted?'取消静音':'静音');};
   a.addEventListener('timeupdate',syncSeek);a.addEventListener('loadedmetadata',syncSeek);a.addEventListener('play',kurSync);a.addEventListener('pause',kurSync);
-  $('ep-done').onclick=()=>{st.p.done=!st.p.done;st.p.at=Date.now();recSave();renderCourseNav();$('ep-done').textContent=st.p.done?'取消学完':'标记学完';$('cs-main').querySelector('.csp-meta .pill')?.remove();if(st.p.done)$('cs-main').querySelector('.csp-meta').insertAdjacentHTML('beforeend','<span class="pill q">已学完</span>');};
+  $('ep-done').onclick=()=>{st.p.done=!st.p.done;st.p.at=Date.now();recSave();renderCourseNav();$('ep-done').textContent=st.p.done?'取消已学':'标记已学';$('cs-main').querySelector('.csp-meta .pill')?.remove();if(st.p.done)$('cs-main').querySelector('.csp-meta').insertAdjacentHTML('beforeend','<span class="pill q">已学过</span>');};
   /* 音频事件: 学习计时 / 断点续听 / 循环与当前句 */
   a.addEventListener('play',()=>{STU=true;
     if(!TICK)TICK=setInterval(()=>{if(STU&&!document.hidden){studyTick(1);
       const ce=REC.course[st.l.id]||(REC.course[st.l.id]={});ce.wt=(ce.wt||0)+1;
       if((REC.study.total||0)%5===0)recSave();}},1000);});
   a.addEventListener('pause',()=>{STU=false;epSavePos();});
-  a.addEventListener('ended',()=>{if(st.range&&st.stopAtEnd){try{st.seekPosition(st.range[0]);}catch(e){}}});
+  a.addEventListener('ended',()=>{if(st.playSession)st.playSession.completed=true;if(st.range&&st.stopAtEnd){try{st.seekPosition(st.range[0]);}catch(e){}}});
   let posT=0;
   a.addEventListener('timeupdate',()=>{
     if(EP.st!==st)return;
     const now=Date.now();
     if(now-posT>5000){posT=now;epSavePos();}
     if(!a.seeking&&!st.seekPending&&st.range&&a.currentTime>=st.range[1]-0.03){
-      if(st.loop){
-        const ex=st.p.drill.mode==='exam';
-        if(ex){
-          const di=st.ai,dr=st.p.drill;dr.playsS[di]=dr.playsS[di]||0;
-          if(dr.playsS[di]>=3){a.pause();st.loop=false;$('ep-loop').classList.remove('on');try{st.seekPosition(st.range[0]);}catch(e){}
-            const nn=$('ep-note');if(nn){nn.style.display='';nn.textContent='考试模式：本句 3 次已听完，先写再提交。';}return;}
-          dr.playsS[di]++;recSave();
-        }
-        st.seekTo(st.range[0]);
-      }
-      else if(st.stopAtEnd&&!a.paused){a.pause();try{st.seekPosition(st.range[0]);}catch(e){}}   // 播完这句就停, 回到句首待重听
+      const target=st.playTarget;
+      if(st.playSession)st.playSession.completed=true;
+      if(!st.stopAtEnd&&!st.loop){st.playTarget=null;st.playSession=null;st.range=null;}
+      if(st.loop){epStartPlayback(target,{loop:true});}
+      else if(st.stopAtEnd&&!a.paused){a.pause();try{st.seekPosition(st.range[0]);}catch(e){}}
     }
     epSyncCur();
   });
-  let resumed=false;
-  a.addEventListener('loadedmetadata',()=>{
-    if(resumed||st.seekSeq||st.seg!=='dg')return;   // 用户已点句/已 seek → 不再把上次进度拉回来
-    if(st.p.pos&&st.p.pos<a.duration-5){resumed=true;a.currentTime=st.p.pos;const nn=$('ep-note');nn.style.display='';nn.textContent='已定位到上次听到 '+fmtDur(st.p.pos);clearTimeout(st._noteT);st._noteT=setTimeout(()=>{if(nn.textContent.startsWith('已定位'))nn.style.display='none';},6000);}
-  });
+  const restorePosition=()=>{
+    if(EP.st!==st||!st.restorePosition)return;
+    st.restorePosition=false;
+    const saved=st.p.audioPositions?.[st.seg];
+    const pos=Number(saved??(st.seg==='dg'?st.p.pos:0));
+    if(Number.isFinite(pos)&&pos>0&&pos<a.duration-.1){
+      st.seekPosition(pos);
+      const n=$('ep-note');n.style.display='';n.textContent='已定位到上次听到 '+fmtDur(pos);
+      clearTimeout(st._noteT);st._noteT=setTimeout(()=>{if(n.textContent.startsWith('已定位'))n.style.display='none';},6000);
+    }
+  };
+  a.addEventListener('loadedmetadata',restorePosition);
+  if(a.readyState>=1)restorePosition();
   /* 键盘: 空格播放/暂停 · Z 重听 · X 循环 · C 揭示 */
   if(EP.keyHandler)document.removeEventListener('keydown',EP.keyHandler);
   EP.keyHandler=e=>{
@@ -3431,10 +3447,10 @@ function epWire(){
     if(e.target&&/^(INPUT|SELECT|TEXTAREA|AUDIO|BUTTON|SUMMARY)$/.test(e.target.tagName))return;
     if(e.target&&e.target.isContentEditable)return;
     const a2=$('ep-audio');if(!a2)return;
-    if(e.key===' '){e.preventDefault();a2.paused?a2.play().catch(()=>{}):a2.pause();}
+    if(e.key===' '){e.preventDefault();epTogglePlayback();}
     else if(st.tab==='train'&&e.key==='ArrowLeft'){e.preventDefault();epGo(st.ai-1,true);}
     else if(st.tab==='train'&&e.key==='ArrowRight'){e.preventDefault();epGo(st.ai+1,true);}
-    else if(e.key==='z'||e.key==='Z'){if(st.range){st.stopAtEnd=true;st.seekTo(st.range[0]);}}
+    else if(e.key==='z'||e.key==='Z'){e.preventDefault();epStartPlayback(epPlaybackTarget());}
     else if(e.key==='x'||e.key==='X'){$('ep-loop').click();}
     else if(e.key==='c'||e.key==='C'){
       const row=$('cs-main').querySelector('.ep-line.on')||$('cs-main').querySelector('.ep-listen .ep-line[data-i="0"]');
@@ -3442,11 +3458,7 @@ function epWire(){
     }
   };
   document.addEventListener('keydown',EP.keyHandler);
-  $('ep-progress-toggle').onclick=()=>{
-    const panel=$('ep-progress'),open=panel.hidden;
-    panel.hidden=!open;$('ep-progress-toggle').setAttribute('aria-expanded',String(open));
-    $('ep-progress-toggle').textContent=open?'收起学习进度':'查看学习进度';
-  };
+  epSyncProgressToggle();
   $('ep-materials-toggle').onclick=()=>{
     $('ep-materials').open=true;
     $('ep-materials').scrollIntoView({block:'start',behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});
@@ -3481,7 +3493,6 @@ function epStepsUpdate(){
   const drill=st.p.drill||{};
   const ds=Object.values(drill.dd||{}).filter(x=>x&&x.acc!=null);
   const passed=ds.filter(x=>x.acc>=0.9).length;
-  const accAvg=ds.length?Math.round(ds.reduce((s,x)=>s+x.acc,0)/ds.length*100):null;
   const chunks=st.d.chunks||[];
   const got=chunks.filter(ch=>st.p.collected[ch.chunk.toLowerCase().replace(/\s+/g,'')]).length;
   const rp=Object.keys(drill.rd||{}).filter(k=>drill.rd[k]&&drill.rd[k].acc!=null&&drill.rd[k].acc>=0.9).length;
@@ -3494,7 +3505,8 @@ function epStepsUpdate(){
   const dst=$('ep-tstats');
   if(dst){
     const pending=st.d.dialogue.map((_,i)=>i).filter(i=>!(drill.rd?.[i]?.acc>=.9));
-    dst.textContent='听写已写 '+ds.length+'/'+n+' · 听写通过 '+passed+' · 背诵通过 '+rp+'/'+n+' · 同速 '+sp+(pending.length?' · 背诵待通过：'+pending.map(i=>'#'+(i+1)).join('、'):' · 背诵全部通过');
+    dst.textContent='听写已写 '+ds.length+'/'+n+' · 听写通过 '+passed+' · 背诵通过 '+rp+'/'+n+' · 同速 '+sp
+      +(pending.length===0?' · 背诵全部通过':pending.length<=3?' · 背诵待通过：'+pending.map(i=>'#'+(i+1)).join('、'):' · 背诵待通过 '+pending.length+' 句');
   }
   epCoverUpdate();
 }
@@ -3564,7 +3576,7 @@ function epBlockCard(i){
   const seg=[['dict','听写'],['voice','朗读'],['type','默写']].map(m=>'<button data-m="'+m[0]+'"'+(mode===m[0]?' class="on"':'')+'>'+m[1]+'</button>').join('');
   let h='<div class="ep-bcard" data-i="'+i+'">'
     +'<div class="bh"><span class="no">当前句 '+(i+1)+'/'+st.d.dialogue.length+'</span>'
-    +'<button class="bp" title="播放本句" aria-label="播放本句">▶</button><button class="bl" title="单句循环" aria-label="单句循环">↻</button>'
+    +'<button class="bp" title="听这句（只播当前句）" aria-label="听这句"><span class="bp-ico">▶</span><span class="bp-tx">听这句</span></button><button class="bl" title="单句循环" aria-label="单句循环">↻</button>'
     +(drill.mode==='exam'?'<span class="dc">'+(3-Math.min(3,plays))+' 次可听</span>':'')
     +'<span class="bmode">'+seg+'</span>'
     +'<span class="grow"></span>'
@@ -3610,6 +3622,7 @@ function epGo(i,play){
   const st=EP.st;if(!st)return;
   const n=st.d.dialogue.length;
   i=Math.max(0,Math.min(n-1,i));
+  if(st.ai!==i&&st.seg==='dg'){st.cancelSeek?.();$('ep-audio')?.pause();st.playSession=null;st.playTarget=null;st.range=null;st.loop=false;$('ep-loop').classList.remove('on');}
   st.ai=i;
   epRenderList();
   const card=$('ep-blist').querySelector('.ep-bcard');
@@ -3622,25 +3635,60 @@ function epGo(i,play){
   if(play)epPlayBlock(i);   // dock/键盘的上一句下一句=跳转并播放
 }
 
-function epPlayBlock(i){
+function epPlaybackTarget(){
+  const st=EP.st,a=$('ep-audio');if(!st||!a)return null;
+  if(st.seg==='dg'&&st.tab==='train'){const u=st.d.dialogue[st.ai];return u&&u.t0!=null?{seg:'dg',i:st.ai,t0:u.t0,t1:u.t1}:null;}
+  if(st.playTarget?.seg===st.seg&&(st.stopAtEnd||st.playTarget.t1==null||a.currentTime<st.playTarget.t1))return st.playTarget;
+  const lines=st.seg==='dg'?st.d.dialogue:st.seg==='pb'?st.d.explanation:[];
+  const t=a.currentTime;
+  let i=lines.findIndex(x=>x.t0!=null&&x.t1!=null&&t>=x.t0&&t<x.t1);
+  if(i<0&&st.seg==='dg'&&st.tab==='train')i=st.ai;
+  if(i<0)i=lines.findIndex(x=>x.t0!=null&&x.t1!=null);
+  const u=lines[i];
+  return u?{seg:st.seg,i,t0:u.t0,t1:u.t1}:{seg:st.seg,i:null,t0:0,t1:null};
+}
+function epPlaybackCountUpdate(){
   const st=EP.st;if(!st)return;
-  st.lastTap=Date.now();
-  const drill=st.p.drill,a=$('ep-audio'),u=epItems()[i];
-  if(!u||u.t0==null)return;
-  if(drill.mode==='exam'){
-    drill.playsS[i]=drill.playsS[i]||0;
-    if(drill.playsS[i]>=3){const nn=$('ep-note');nn.style.display='';nn.textContent='考试模式：本句 3 次已听完，先写再提交。';return;}
-    drill.playsS[i]++;recSave();
-    const card=$('ep-blist').querySelector('.ep-bcard');
-    if(card&&+card.dataset.i===i){let dc=card.querySelector('.dc');if(!dc){dc=document.createElement('span');dc.className='dc';card.querySelector('.bh').appendChild(dc);}dc.textContent=(3-drill.playsS[i])+' 次可听';}
+  const card=$('ep-blist')?.querySelector('.ep-bcard');
+  if(card&&st.p.drill.mode==='exam'){
+    let dc=card.querySelector('.dc');
+    if(!dc){dc=document.createElement('span');dc.className='dc';card.querySelector('.bh').appendChild(dc);}
+    dc.textContent=Math.max(0,3-(st.p.drill.playsS[card.dataset.i]||0))+' 次可听';
   }
-  const fresh=st.seg!=='dg';
-  if(fresh)epSeg('dg');
-  st.stopAtEnd=true;   // 点听=只播这一句
-  st.markSeek&&st.markSeek();
-  st.loop=false;$('ep-loop').classList.remove('on');
-  st.range=[u.t0,u.t1];
-  st.seekTo(u.t0);
+}
+function epStartPlayback(target,{resume=false,loop=false,continuous=false,startAt=null}={}){
+  const st=EP.st,a=$('ep-audio');if(!st||!a||!target||!Number.isFinite(target.t0))return false;
+  const session=st.playSession;
+  const same=target.seg===st.seg&&session&&session.seg===target.seg&&session.i===target.i&&!session.completed;
+  const continuing=resume&&same&&a.currentTime>=target.t0&&(target.t1==null||a.currentTime<target.t1-.03);
+  const exam=st.p.drill.mode==='exam'&&target.seg==='dg'&&Number.isInteger(target.i);
+  if(exam&&!(continuing&&session.counted)){
+    const plays=st.p.drill.playsS;
+    if((plays[target.i]||0)>=3){
+      a.pause();st.cancelSeek?.();st.loop=false;$('ep-loop').classList.remove('on');
+      const n=$('ep-note');n.style.display='';n.textContent='考试模式：本句 3 次已听完，先写再提交。';
+      epPlaybackCountUpdate();return false;
+    }
+    plays[target.i]=(plays[target.i]||0)+1;recSave();epPlaybackCountUpdate();
+  }
+  const position=continuing?a.currentTime:Number.isFinite(startAt)&&startAt>=target.t0&&(target.t1==null||startAt<target.t1-.03)?startAt:target.t0;
+  if(st.seg!==target.seg)epSeg(target.seg);
+  st.restorePosition=false;st.lastTap=Date.now();st.playTarget={...target};st.playSession={seg:target.seg,i:target.i,counted:exam,completed:false};
+  st.range=Number.isFinite(target.t1)?[target.t0,target.t1]:null;
+  st.stopAtEnd=exam||!continuous;st.loop=loop&&!!st.range;$('ep-loop').classList.toggle('on',st.loop);
+  st.seekTo(position);return true;
+}
+function epTogglePlayback(){
+  const st=EP.st,a=$('ep-audio');if(!st||!a)return;
+  if(!a.paused){a.pause();return;}
+  const target=epPlaybackTarget();
+  if(target&&a.currentTime>=target.t0&&(target.t1==null||a.currentTime<target.t1-.03)&&!st.playSession){
+    epStartPlayback(target,{startAt:a.currentTime,continuous:st.tab!=='train'});
+  }else epStartPlayback(target,{resume:true,loop:st.loop,continuous:st.tab!=='train'});
+}
+function epPlayBlock(i){
+  const st=EP.st,u=st?.d.dialogue[i];if(!u||u.t0==null)return;
+  epStartPlayback({seg:'dg',i,t0:u.t0,t1:u.t1});
 }
 
 function epFitInput(ta){
@@ -3657,12 +3705,7 @@ function epWireCard(card){
     +(r.extras.length?'<div class="dx">多写: '+r.extras.map(x=>esc(x)).join(' · ')+'</div>':'')
     +'<div class="do">原文: '+esc(u.text)+'</div>';
   card.querySelector('.bp').onclick=()=>epPlayBlock(i);
-  card.querySelector('.bl').onclick=()=>{
-    if(st.seg!=='dg')epSeg('dg');
-    st.range=[u.t0,u.t1];st.loop=true;st.stopAtEnd=true;$('ep-loop').classList.add('on');
-    st.markSeek&&st.markSeek();
-    st.seekTo(u.t0);
-  };
+  card.querySelector('.bl').onclick=()=>epStartPlayback({seg:'dg',i,t0:u.t0,t1:u.t1},{loop:true});
   /* 三练法切换: 听写 / 朗读 / 默写 */
   card.querySelectorAll('.bmode button').forEach(b=>b.onclick=()=>{
     st.amode[i]=b.dataset.m;st.lastMode=b.dataset.m;
@@ -3773,26 +3816,43 @@ function epCoverUpdate(){
   const drill=st.p.drill||{};
   const total=st.d.dialogue.length;
   if(epRecoverCover(drill,total))recSave();
-  const days=drill.stampDays||{};
-  const today=epDay();
-  const need=Math.min(6,total);
-  const dates=Object.keys(days).filter(d=>Array.isArray(days[d])&&days[d].length>=need).sort();
-  const todayN=(days[today]||[]).length;
-  const recovered=drill.recoveredCover?1:0;
-  const n=Math.min(3,dates.length+recovered);
-  const todayStamped=dates.includes(today);
+  const state=epCoverState(st.p,total);
+  const {completed:n,dates,recovered,todayN,todayStamped,need}=state;
+  if(n>=3&&!st.p.done){   /* 三遍盖满即自动记为已学过, 目录勾与计数同步, 无需手动标记 */
+    st.p.done=true;st.p.at=Date.now();recSave();renderCourseNav();
+    const meta=$('cs-main')?.querySelector('.csp-meta');
+    if(meta&&!meta.querySelector('.pill'))meta.insertAdjacentHTML('beforeend','<span class="pill q">已学过</span>');
+    const db=$('ep-done');if(db)db.textContent='取消已学';
+  }
+  const labels=['第一遍','第二遍','第三遍'];
   let stamps='';
   for(let k=1;k<=3;k++){
-    if(k<=n)stamps+='<span class="stamp ok">第'+k+'遍 · '+(recovered&&k===1?'已完成（历史补认 '+drill.recoveredCover.sentences.length+'/'+total+'）':(dates[k-1-recovered]||'').slice(5))+'</span>';
-    else if(k===n+1)stamps+='<span class="stamp cur">第'+k+'遍 · '+(todayStamped?'待复背':'今天 '+todayN+'/'+total)+'</span>';
-    else stamps+='<span class="stamp">第'+k+'遍</span>';
+    const done=k<=n,current=k===n+1;
+    const date=dates[k-1-(recovered?1:0)];
+    const detail=done?(recovered&&k===1?'历史补认':'<time>'+date.slice(5)+'</time>')
+      :current?(todayStamped?'隔天复背':todayN?'今天 '+todayN+'/'+need+' 句':n?'待复背':'待开始'):'待复背';
+    stamps+='<div class="ep-cover-step'+(done?' complete':'')+(current?' current':'')+(k===3&&n===3?' final':'')+'"><span class="ep-round'+(done?' complete':'')+(k===3&&n===3?' final':'')+'"><span>'+k+'</span>'+(done?EP_TICK:'')+'</span><span class="ep-cover-label"><b>'+labels[k-1]+'</b><small>'+detail+'</small></span></div>';
   }
-  let msg;
-  if(n>=3)msg='三章盖满 · 这一篇可以脱口而出了';
-  else if(todayStamped)msg='本遍已盖 · 覆盖式背法：隔天再来盖下一章';
-  else if(n>0)msg='今天该复背第 '+(n+1)+' 遍了（先本篇，再带一遍上一篇）';
-  else msg='盖第一遍章：朗读/默写满 '+need+' 句即成';
-  el.innerHTML='<span class="cvt">覆盖背诵</span>'+stamps+'<span class="cvm">'+esc(msg)+'</span>';
+  const msg=n>=3?'三遍复背已完成':todayStamped?'本遍已完成，隔天继续第 '+(n+1)+' 遍'
+    :'朗读或默写 '+need+' 句，完成第 '+(n+1)+' 遍';
+  el.innerHTML='<div class="ep-cover-heading"><h4>覆盖背诵</h4><span class="ep-cover-summary'+(n===3?' complete':'')+'">'+(n===3?EP_TICK:'')+n+'/3 遍完成</span>'
+    +'<button class="ep-text-button" id="ep-progress-toggle" aria-expanded="false" aria-controls="ep-progress"><svg width="16" height="16" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 15V9m6 6V4m6 11v-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>学习明细</span><svg class="ep-progress-chevron" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="m3 4 3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>'
+    +'<div class="ep-cover-track">'+stamps+'</div><p class="ep-cover-hint">'+msg+'</p>';
+  epSyncProgressToggle();
+  epNavCoverUpdate();
+}
+function epSyncProgressToggle(){
+  const b=$('ep-progress-toggle'),panel=$('ep-progress');
+  if(!b||!panel)return;
+  const open=!panel.hidden;
+  b.setAttribute('aria-expanded',String(open));
+  const s=b.querySelector('span');if(s)s.textContent=open?'收起明细':'学习明细';
+  b.onclick=epProgressToggle;
+}
+function epProgressToggle(){
+  const panel=$('ep-progress');if(!panel)return;
+  panel.hidden=!panel.hidden;
+  epSyncProgressToggle();
 }
 
 /* ---- 朗读背诵: 录音 → ASR 转写 → 逐词比对 + 时长同速判定 ---- */
@@ -3917,6 +3977,7 @@ function epTrainWire(){
   const st=EP.st;if(!st)return;
   const drill=st.p.drill,a=$('ep-audio');
   $('cs-main').querySelectorAll('.ep-dmode button').forEach(b=>b.onclick=()=>{
+    if(drill.mode!==b.dataset.m){st.cancelSeek?.();a.pause();st.playSession=null;st.loop=false;$('ep-loop').classList.remove('on');}
     drill.mode=b.dataset.m;recSave();
     $('cs-main').querySelectorAll('.ep-dmode button').forEach(x=>x.classList.toggle('on',x===b));
     epRenderList();epStepsUpdate();
@@ -3925,23 +3986,8 @@ function epTrainWire(){
   /* 粘底 dock: 句导航 + 播放控制 + 精听入口 */
   $('ep-dock-prev').onclick=()=>epGo(st.ai-1,true);
   $('ep-dock-next').onclick=()=>epGo(st.ai+1,true);
-  /* 播放目标按当前 tab: 精听=正在听的那句, 训练=当前卡, 语块=整体播放/暂停 */
-  const epTargetLine=()=>{
-    if(st.tab==='listen'){const i=st.i>=0?st.i:st.ai;const row=$('cs-main').querySelector('.ep-line[data-kind="dg"][data-i="'+i+'"]');if(row&&row.dataset.t0!=null)return {i,t0:+row.dataset.t0,t1:+row.dataset.t1,kind:'dg'};}
-    if(st.tab==='train'){const u=st.d.dialogue[st.ai];if(u&&u.t0!=null)return {i:st.ai,t0:u.t0,t1:u.t1,kind:'dg'};}
-    return null;
-  };
-  const playCurrent=(restart)=>{
-    if(st.tab==='train'){if(restart||a.paused)epPlayBlock(st.ai);else a.pause();return;}
-    const tg=epTargetLine();
-    if(!tg){if(a.paused)a.play().catch(()=>{});else a.pause();return;}
-    if(!restart&&!a.paused){a.pause();return;}
-    st.stopAtEnd=true;st.loop=false;const lp=$('ep-loop');if(lp)lp.classList.remove('on');
-    st.range=[tg.t0,tg.t1];st.seekTo(tg.t0);epHighlight(tg.i,tg.kind);
-  };
-  window.__epPlayCurrent=playCurrent;
-  $('ep-dock-play').onclick=()=>playCurrent(false);
-  $('ep-dock-replay').onclick=()=>playCurrent(true);
+  $('ep-dock-play').onclick=()=>epTogglePlayback();
+  $('ep-dock-replay').onclick=()=>epStartPlayback(epPlaybackTarget());
   $('ep-dock-listen').onclick=()=>epTab('listen');
   a.removeEventListener('play',epDockSync);a.removeEventListener('pause',epDockSync);
   a.addEventListener('play',epDockSync);a.addEventListener('pause',epDockSync);
@@ -3965,8 +4011,10 @@ function epSeg(seg){
   const st=EP.st;if(!st)return;
   st.cancelSeek?.();st.seekSeq=(st.seekSeq||0)+1;
   clearTimeout(st._iSeekT);st._iSeek=false;st.seekPending=false;
+  const previous=$('ep-audio');if(previous){epSavePos();previous.pause();}st.playSession=null;st.playTarget=null;
   st.seg=seg;st.range=null;st.i=-1;st.loop=false;st.stopAtEnd=false;
   $('ep-loop').classList.remove('on');
+  st.restorePosition=true;st.p.audioSeg=seg;recSave();
   const a=$('ep-audio');if(a){a.src=st.d.audio[seg];}
   $('cs-main').querySelectorAll('.ep-segs button').forEach(b=>b.classList.toggle('on',b.dataset.seg===seg));
   epHighlight(-1);
@@ -4010,7 +4058,11 @@ function epSavePos(){
   const st=EP.st;if(!st)return;
   const a=$('ep-audio');if(!a)return;
   const t=a.currentTime;
-  if(Number.isFinite(t)&&(t>0||a.duration>0)){st.p.pos=t;st.p.at=Date.now();recSave();}
+  if(!st.restorePosition&&Number.isFinite(t)&&(t>0||a.duration>0)){
+    st.p.audioPositions={...(st.p.audioPositions||{}),[st.seg]:t};st.p.audioSeg=st.seg;
+    if(st.seg==='dg')st.p.pos=t;
+    st.p.at=Date.now();recSave();
+  }
 }
 
 function epCollect(card){
@@ -4033,6 +4085,8 @@ function renderCourseMain(){
   const c=courseById(csSel.c);
   if(!c||!c.lessons.length){ el.innerHTML='<div class="card" style="padding:32px;text-align:center">从左侧选一节开始</div>'; return; }
   if(c.kind==='eplod'){ renderEplodMain(c); return; }
+  EP.loadId=(EP.loadId||0)+1;EP.st?.cancelSeek?.();$('ep-audio')?.pause();
+  el.classList.remove('ep-page');document.querySelector('.wrap')?.classList.remove('ep-page');
   const l=c.lessons[Math.max(0,Math.min(csSel.l==null?0:csSel.l,c.lessons.length-1))];
   const p=REC.course[l.id]||{};
   const cur=CURATED[l.id];

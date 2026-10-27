@@ -588,7 +588,7 @@ def update_catalog(ep_data, dur_pb, level_map):
         s["courses"].append(c)
     lesson = {"id": f"eplod-{ep4}", "title": f"#{ep4} {ep_data['title']}", "level": level, "levelRank": rank,
               "channel": ep_data.get("channel") or "", "audio": audio_urls(ep4),
-              "duration_sec": dur_pb, "ep": epn,
+              "duration_sec": dur_pb, "ep": epn, "dialogue_count": len(ep_data["dialogue"]),
               **({"asrText": True} if ep_data.get("dialogueSrc") == "whisper转写" else {})}
     c["lessons"] = [l for l in c["lessons"] if l["id"] != lesson["id"]] + [lesson]
     # 官方难度穿插: 目录按 级别 rank → 期号 排序

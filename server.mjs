@@ -1107,6 +1107,12 @@ function loadCourses() {
   try {
     const ec = JSON.parse(fs.readFileSync(path.join(BUILD_DIR, 'courses', 'eplod-catalog.json'), 'utf8'));
     for (const s of ec.series || []) {
+      for (const c of s.courses || []) for (const l of c.lessons || []) {
+        if (l.dialogue_count == null) {
+          try { l.dialogue_count = JSON.parse(fs.readFileSync(path.join(BUILD_DIR, 'eplod', String(l.ep).padStart(4, '0') + '.json'), 'utf8')).dialogue.length; }
+          catch { /* 缺课节时保留未知总句数。 */ }
+        }
+      }
       const ex = COURSES.series.find(x => x.id === s.id);
       if (ex) Object.assign(ex, s);
       else COURSES.series.push(s);

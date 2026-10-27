@@ -17,6 +17,7 @@ const {chromium}=require(process.env.TFL_PLAYWRIGHT||'C:/Users/zeroz/AppData/Loc
  const p=await ctx.newPage(),errors=[];p.on('pageerror',e=>errors.push(e.message));
  await p.goto((process.env.TFL_TEST_URL||'https://192.168.31.246:8018')+'/#/course/eplod-0002');
  await p.waitForSelector('#ep-tabs');await p.locator('#ep-tabs [data-m="train"]').click();
+ await p.locator('.ep-settings summary').click();await p.locator('.ep-dmode [data-m="free"]').click();await p.locator('.ep-settings summary').click();
  await p.locator('#ep-blist .ep-brow[data-i="6"]').click();
  const state=()=>p.evaluate(()=>({t:document.querySelector('#ep-audio').currentTime,paused:document.querySelector('#ep-audio').paused,loop:EP.st.loop,range:EP.st.range,ai:EP.st.ai}));
  await p.locator('.ep-bcard .bp').click();
