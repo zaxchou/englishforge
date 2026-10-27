@@ -8,7 +8,7 @@
 <link rel="icon" type="image/png" sizes="96x96" href="/assets/brand/t-dot-v1/t-dot-96.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/assets/brand/t-dot-v1/t-dot-180.png">
 <title>TOEFL Lab · 托福自学练习</title>
-<link rel="stylesheet" href="desk.css?v=1793800000">
+<link rel="stylesheet" href="desk.css?v=1793900000">
 <style>
 /* 应用层补充样式（视觉基线在 desk.css，不改它的既有规则） */
 /* 单词与字符格保持同一行；焦点、已填、判题状态沿用研读桌配色。 */
@@ -142,6 +142,7 @@ details.ai-tsec[open] summary{margin-bottom:8px}
   <header class="lead"><div class="desk-kicker">TOEFL · 听 / 读 / 写 / 说</div>
     <h1>开始今天的练习<span class="heading-dot">.</span></h1>
     <p id="home-sub">加载中…</p></header>
+  <section class="checkin" id="checkin" hidden></section>
   <section class="controw" id="hm-continue"></section>
   <section class="card hprog"><div class="phead"><div class="l"><b>真题训练 · 四科进度</b></div>
     <div class="r"><span id="hm-prog-ct"></span></div></div>
@@ -818,6 +819,11 @@ function studyTick(sec) {
     S.day = d; S.today = 0;
   }
   S.today = (S.today||0) + sec; S.total = (S.total||0) + sec;
+  /* 每日打卡(r15): 按日历存每日秒数, 连续天数从日历倒推(S.days 的会话推导跨天会算错) */
+  S.cal = S.cal || {};
+  S.cal[d] = (S.cal[d] || 0) + sec;
+  const ks = Object.keys(S.cal);
+  if (ks.length > 120) { ks.sort().slice(0, ks.length - 120).forEach(k => { delete S.cal[k]; }); }
 }
 
 /* ---------- 题库适配层 ----------
@@ -1239,10 +1245,32 @@ function lessonTitle(lid){
 function renderHome(){
   const sets=CATALOK();
   const st=REC.study||{};
-  const hasMeta=(st.days>1)||(st.today>60);
-  $('home-sub').innerHTML=hasMeta
-    ?'继续上次的进度，或挑一科练几题。<span class="sub-meta">'+esc((st.days>1?('连续学习 '+st.days+' 天 · '):'')+'今日已学 '+fmt(st.today||0))+'</span>'
-    :'从下面选一科开始，进度会自动保存。';
+  $('home-sub').innerHTML='继续上次的进度，或挑一科练几题。';
+  /* 每日打卡条(r15): 目标环+连续天数+近7天。连续从日历倒推(每天满 1 分钟记 1 天,
+     今天没学不打断已有连续, 只是不增长); 目标点击轮换 10/15/20/30 分钟(localStorage)。 */
+  const goal=(()=>{let m=15;try{m=Number(localStorage.getItem('tfl-goal-min'))||15;}catch(e){}return [10,15,20,30].includes(m)?m:15;})();
+  const cal=st.cal||{};
+  const dayN=n=>localDay(new Date(Date.now()-n*864e5));
+  const act=d=>(cal[d]||0)>=60;
+  const todaySec=st.day===localDay()?(st.today||0):0;
+  let streak=0;const i0=act(dayN(0))?0:1;
+  if(act(dayN(i0)))while(act(dayN(i0+streak)))streak++;
+  const pct=Math.min(1,todaySec/(goal*60)),C=2*Math.PI*26;
+  const ring='<svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="26" class="bg"/><circle cx="32" cy="32" r="26" class="fg" stroke-dasharray="'+C.toFixed(1)+'" stroke-dashoffset="'+(C*(1-pct)).toFixed(1)+'"/></svg>'
+    +'<span class="ck-pct">'+(pct>=1?'✓':Math.round(pct*100)+'%')+'</span>';
+  const flame='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2c1.2 4-3.4 6-3.4 10.6a4.9 4.9 0 0 0 9.8 0c0-1.9-.9-3.4-1.9-4.6-.1 1.3-.8 2.2-1.9 2.5C14.8 7.9 13.4 4.9 12 2z"/></svg>';
+  const dots=[...Array(7)].map((_,k)=>{const n=6-k,d=new Date(Date.now()-n*864e5);
+    return '<span class="ck-dot'+(act(dayN(n))?' on':'')+(n===0?' today':'')+'" title="'+dayN(n)+'">'+('一二三四五六日'[(d.getDay()+6)%7])+'</span>';}).join('');
+  const ci=$('checkin');
+  if(ci){ci.hidden=false;
+    ci.innerHTML='<button class="ck-ring" id="ck-ring" title="每日目标 '+goal+' 分钟，点击更换">'+ring+'</button>'
+      +'<div class="ck-txt"><b>'+(pct>=1?'今日目标已达成':'再学 '+Math.max(1,Math.ceil((goal*60-todaySec)/60))+' 分钟达成目标')+'</b>'
+      +'<span>今日已学 '+fmt(todaySec)+' · 目标 '+goal+' 分钟</span></div>'
+      +'<div class="ck-streak'+(streak?'':' off')+'" title="连续天数：每天学满 1 分钟记 1 天">'+flame+'<div><b>'+streak+'</b><span>天连续</span></div></div>'
+      +'<div class="ck-week" title="最近 7 天，学满 1 分钟点亮">'+dots+'</div>';
+    $('ck-ring').onclick=()=>{const nx=[10,15,20,30][([10,15,20,30].indexOf(goal)+1)%4];
+      try{localStorage.setItem('tfl-goal-min',nx);}catch(e){}renderHome();};
+  }
 
   /* ---- 继续上次: 最近视频课 / 最近 EnglishPod / 最近作答的题 (两条线各自续各自) ---- */
   // 最近在看 = 记录时间最新的课, 不排除已看完的(重看也要能接上); 题组类似取最近作答
