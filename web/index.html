@@ -3391,7 +3391,7 @@ window.renderEplodMain=async function(c){
   drill.dd=drill.dd||{}; drill.rd=drill.rd||{}; drill.playsS=drill.playsS||{};
   EP.st.doneOf=i=>{const d=drill.dd[i],r=drill.rd[i];return !!(d&&d.acc!=null&&d.acc>=0.9&&r&&r.acc!=null&&r.acc>=0.9);};
   const firstTodo=()=>{const i=d.dialogue.findIndex((_,k)=>!EP.st.doneOf(k));return i<0?0:i;};
-  EP.st.ai=firstTodo();
+  EP.st.ai=epNearestAnchored(firstTodo(),1);
   EP.st.amode={}; EP.st.lastMode='dict';
   el.innerHTML='<div class="cs-stick ep">'
     +'<div class="csp-meta"><h3>'+esc(l.title)+'</h3><span class="src"><span>'+esc(c.title)+'</span><span>'+esc(d.level)+'</span><span>第 '+(csSel.l+1)+'/'+c.lessons.length+' 节</span></span>'
@@ -3720,6 +3720,20 @@ function epDiff(official,mine){
 function epItems(){
   return EP.st.d.dialogue.map((x,ix)=>({t0:x.t0,t1:x.t1,text:x.text,li:[ix],lines:[{spk:x.spk,text:x.text}]}));
 }
+/* 对齐残留(ASR 未锚定的句, 全库 127 期各有 1~3 句): 这几句定位不到音频,
+   不能落为当前句(听这句会哑), 加载/跳转一律滑到最近有锚句;
+   方向跟随移动方向(「下一句」向后优先, 「上一句」向前优先)。 */
+function epAnchored(i){
+  const st=EP.st,u=st&&st.d.dialogue[i];return !!(u&&u.t0!=null);
+}
+function epNearestAnchored(i,dir){
+  const n=EP.st.d.dialogue.length;
+  if(epAnchored(i))return i;
+  const scan=(from,to,step)=>{for(let k=from;step>0?k<n:k>=0;k+=step)if(epAnchored(k))return k;return -1;};
+  const f=scan(i,n,1),b=scan(i,-1,-1);
+  if(dir<0)return b>=0?b:(f>=0?f:i);
+  return f>=0?f:(b>=0?b:i);
+}
 function epSenseOf(item){
   const li=item.li[0],st=EP.st;
   return (st.d.sense&&st.d.sense.dg&&st.d.sense.dg[li])||[];
@@ -3805,6 +3819,7 @@ function epGo(i,play){
   const st=EP.st;if(!st)return;
   const n=st.d.dialogue.length;
   i=Math.max(0,Math.min(n-1,i));
+  if(!epAnchored(i))i=epNearestAnchored(i,i>=(st.ai||0)?1:-1);   // 无锚句不落为当前句
   if(st.ai!==i&&st.seg==='dg'){st.cancelSeek?.();$('ep-audio')?.pause();st.playSession=null;st.playTarget=null;st.range=null;st.loop=false;$('ep-loop').classList.remove('on');}
   st.ai=i;
   epRenderList();
@@ -3870,7 +3885,11 @@ function epTogglePlayback(){
   }else epStartPlayback(target,{resume:true,loop:st.loop,continuous:st.tab!=='train'});
 }
 function epPlayBlock(i){
-  const st=EP.st,u=st?.d.dialogue[i];if(!u||u.t0==null)return;
+  const st=EP.st,u=st?.d.dialogue[i];if(!u)return;
+  if(u.t0==null){   // 理论上到不了(epGo 已滑过), 兜底: 说明原因并跳到最近可播句
+    const n=$('ep-note');if(n){n.style.display='';n.textContent='本句没有音频锚点（定位不到它在音频里的位置），已跳到最近可播放的一句。';}
+    epGo(epNearestAnchored(i,i>=st.ai?1:-1),true);return;
+  }
   epStartPlayback({seg:'dg',i,t0:u.t0,t1:u.t1});
 }
 
