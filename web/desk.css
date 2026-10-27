@@ -2057,7 +2057,8 @@ body.vfull .cs-stage video.tfl{max-height:none}
    ④ 400 以下: 传输一行 / 音源一行 / 工具一行, 不再让单个标签独占一行
    ============================================================ */
 .ep-cover-heading .ep-text-button{margin-left:0}
-.ep-nav-cover .ep-round.current{border-color:var(--acc);background:var(--accbg);color:var(--acc);font-weight:600}
+/* 旧版「当前遍」圆圈带浅绿底色(r23), 星星化后成突兀矩形(r15 清除): 星星统一无背景 */
+.ep-nav-cover .ep-round.current{background:transparent;border:0;font-weight:400;color:inherit}
 .ep-nav-cover.full .ep-nav-caption{color:var(--acc)}
 .ep .ep-bcard .bh .bp{width:auto;padding:0 12px;gap:5px;border-color:var(--accln);background:var(--accbg);color:var(--acc);font-size:12px}
 .ep .ep-bcard .bh .bp:hover{background:var(--acc);color:var(--card);border-color:var(--acc)}
@@ -2206,7 +2207,7 @@ html.sb-min .nav-label{display:none!important}   /* 收缩侧栏只留图标 */
 /* 未得=柔和实心幽灵星(用户: 灰描边丑且与进行中分不清); 进行中=浅绿填充+绿描边呼吸; 已得=绿实心 */
 .ep-round svg path{fill:#d9dfd2;stroke:none}
 .ep-round.complete svg path{fill:var(--acc);stroke:var(--acc)}
-.ep-round.current svg path{fill:var(--accbg);stroke:var(--acc);stroke-width:1.7}
+.ep-round.current svg path{fill:transparent;stroke:var(--acc);stroke-width:1.7;stroke-linejoin:round}
 .ep-round.current svg{animation:ep-star-breathe 1.8s ease-in-out infinite;transform-origin:center;transform-box:fill-box}
 @keyframes ep-star-breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.14)}}
 .ep-round.final svg{filter:drop-shadow(0 0 5px rgba(73,105,87,.4))}
@@ -2216,6 +2217,8 @@ html.sb-min .nav-label{display:none!important}   /* 收缩侧栏只留图标 */
 .ep-cover-stars .ep-round{width:13px;height:13px}
 .ep-cover-stars .ep-round svg{width:13px;height:13px}
 .ep-cover-stars .ep-round.current svg{animation:none}
+/* 目录行星等宽(旧 min-width:26px 只作用于已得星, 三颗宽度不齐) */
+.ep-nav-cover .ep-round.complete{min-width:0}
 
 /* ============================================================
    r15 · 首页每日打卡条(用户拍板: 每日打卡/连续天数/今日目标时间):
