@@ -3728,7 +3728,7 @@ function epStepsUpdate(){
 
 /* ---- 听写 diff: 词级 LCS, 返回逐词对错与多写词 ---- */
 function epDiff(official,mine){
-  const T=s=>(s.toLowerCase().match(/[a-z0-9']+/g)||[]).map(w=>w==='okay'?'ok':w);
+  const T=s=>EplodRecords.normTokens(s);   /* 数字/oh/okay 归一(r19), 与服务端重修同口径 */
   const o=T(official),m=T(mine);
   const n=o.length,mm=m.length;
   const dp=Array.from({length:n+1},()=>new Array(mm+1).fill(0));
