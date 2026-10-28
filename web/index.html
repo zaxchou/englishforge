@@ -3318,9 +3318,11 @@ function renderCourseNav(){
   if(c){
     const cd=(c.lessons||[]).filter(l=>REC.course[l.id]&&REC.course[l.id].done).length;
     const tot=c.lesson_count||0;
-    h+='<div class="csi flat" data-cid="'+esc(c.id)+'" title="'+esc(c.title)+'">'
+    /* 期数与页面标题同名时, 目录条只显示后半段, 避免与页头重复两次 "EnglishPod" */
+    const cShow=c.kind==='eplod'&&c.title.startsWith('EnglishPod ')?c.title.slice('EnglishPod '.length):c.title;
+    h+='<div class="csi flat'+(c.kind==='eplod'?' ep-csi':'')+'" data-cid="'+esc(c.id)+'" title="'+esc(c.title)+'">'
       +(c.no!=null?'<span class="no">'+esc(c.no)+'</span>':'')
-      +'<div class="t"><b>'+esc(c.title)+(c.unit?' · '+esc(c.unit):'')+'</b>'
+      +'<div class="t"><b>'+esc(cShow)+(c.unit?' · '+esc(c.unit):'')+'</b>'
       +'<span class="course-meta">'+(c.teacher?'<span class="course-teacher">'+esc(c.teacher)+'</span>':'')+'<span class="course-total">'+tot+' 节</span></span></div>'
       +'<div class="pg"><span class="pb"><i style="width:'+(tot?Math.round(cd/tot*100):0)+'%"></i></span>'
       +'<span class="pn '+(cd===tot&&tot?'full':'')+'">'+cd+'/'+tot+'</span></div></div>';

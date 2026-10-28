@@ -2250,3 +2250,15 @@ html.sb-min .nav-label{display:none!important}   /* 收缩侧栏只留图标 */
   .wrap>.card,.wrap .card{border-radius:14px}
   .wrap .bhead+.card,.wrap .lead+.card{border-radius:14px}
 }
+/* EnglishPod 目录条课程行: 与视频课同一尺寸(页头已是 EnglishPod, 这里只留课程后缀) */
+@media(min-width:801px){
+  .csnav-col .csi.ep-csi{padding:2px 12px 10px}
+  .csnav-col .csi.ep-csi .t{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+  .csnav-col .csi.ep-csi .t>b{font-size:12.5px;font-weight:600;color:var(--t1)}
+  .csnav-col .csi.ep-csi .course-meta{gap:8px;font-size:11.5px;color:var(--t2)}
+  .csnav-col .csi.ep-csi .pg{margin-top:6px}
+  .csnav-col .csi.ep-csi .pg .pb{height:3px}
+  .csnav-col .csi.ep-csi .pn{font-size:11px;color:var(--t2)}
+}
+/* 页头已显示同一进度, 目录条不再重复一遍计数 */
+@media(min-width:801px){.csnav-col .csi.ep-csi .pg{display:none}.csnav-col .csi.ep-csi{padding-bottom:6px}}
