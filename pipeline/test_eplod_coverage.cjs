@@ -67,17 +67,17 @@ try{
   const m=await p.evaluate(()=>({
    sub:getComputedStyle(document.querySelector('#v-course>.sub')).display,
    src:document.querySelector('.ep .csp-meta .src').innerText.trim(),
-   rows:new Set([...document.querySelectorAll('.ep-status button,.ep-status label,.ep-status summary')].filter(e=>e.getClientRects().length).map(e=>Math.round(e.getBoundingClientRect().top))).size,
+   rows:new Set([...document.querySelectorAll('.ep-status button,.ep-status label,.ep-status summary')].filter(e=>e.checkVisibility()).map(e=>Math.round(e.getBoundingClientRect().top))).size,
    stageH:Math.round(document.querySelector('.ep-stage').getBoundingClientRect().height),
    segs:Math.round(document.querySelector('.ep-segs').getBoundingClientRect().top),
    status:Math.round(document.querySelector('.ep-status').getBoundingClientRect().top),
    dock:Math.round(document.querySelector('.ep-dock').getBoundingClientRect().top),
    playW:document.querySelector('#ep-dock-play').getBoundingClientRect().height,
-   toggle:!!document.querySelector('#ep-player-toggle').getClientRects().length,
+   toggle:!!document.querySelector('#ep-more>summary').getClientRects().length,
    speaker:!!document.querySelector('#ep-speed').getClientRects().length
   }));
-  assert.equal(m.sub,'none');assert.ok(!/EnglishPod/.test(m.src),m.src);assert.equal(m.rows,1,JSON.stringify(m));
-  assert.ok(m.stageH<=145,JSON.stringify(m));assert.ok(m.dock<=m.segs&&m.segs<m.status,JSON.stringify(m));
+  assert.equal(m.sub,'none');assert.ok(!/EnglishPod/.test(m.src),m.src);assert.equal(m.rows,2,JSON.stringify(m));
+  assert.ok(m.stageH<=110,JSON.stringify(m));assert.ok(m.dock<m.segs&&Math.abs(m.segs-m.status)<8,JSON.stringify(m));
   assert.ok(m.toggle&&m.speaker);assert.ok(m.playW>=30,JSON.stringify(m));
   await p.setViewportSize({width:390,height:844});assert.equal(await p.evaluate(()=>getComputedStyle(document.querySelector('#v-course>.sub')).display),'none');
   await p.setViewportSize({width:1440,height:960});assert.notEqual(await p.evaluate(()=>getComputedStyle(document.querySelector('#v-course>.sub')).display),'none');

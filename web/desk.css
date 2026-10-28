@@ -1136,7 +1136,8 @@ body.vfull .cs-status button:hover{background:#28392d;border-color:#4d6350}
 /* 2026-10-25.r7(用户定案): 画布方案下侧栏融入底色——鼠尾草色块与边线取消,
    整体背景=Vesper 浅冷灰蓝(--bg), 内容画布成为唯一浮起的一层; 选中=品牌绿药丸保留。 */
 .top{background:transparent;border-right:0}
-.brand-caption,.nav-label{color:#70766e}
+.brand-caption{color:#70766e}
+.nav-label{color:var(--t2)}
 .nav button:hover:not(.on){background:rgba(32,39,37,.06)}
 .nav button.on{background:var(--acc);color:#f6f8f1}
 @media(max-width:700px){
@@ -1434,16 +1435,8 @@ body.vfull .cs-stage video.tfl{max-height:none}
    音频+逐字稿, 深化学习(精听/词块/复习)。跟随画布语言:
    卡面 var(--r) / 控件 var(--rs) / sunk 弱面 / 无多余竖线。
    ============================================================ */
-.ep .ep-segs{display:flex;gap:6px;margin-bottom:10px}
-.ep .ep-segs button{border:1px solid var(--line);background:transparent;border-radius:999px;padding:5px 14px;font-size:var(--f3);color:var(--t2);cursor:pointer}
-.ep .ep-segs button i{font-style:normal;font-size:var(--f5);color:var(--t3)}
-.ep .ep-segs button.on{background:var(--acc);border-color:var(--acc);color:#f6f8f1}
-.ep .ep-segs button.on i{color:rgba(246,248,241,.75)}
+.ep{--accbg:#e8f0eb;--accln:#b5cdbf}
 .ep #ep-audio{width:100%;border-radius:var(--rs)}
-.ep-status{display:flex;align-items:center;gap:8px;margin-top:10px;flex-wrap:wrap}
-.ep-status button{border:1px solid var(--line);background:transparent;border-radius:6px;padding:5px 12px;font-size:var(--f4);color:var(--t2);cursor:pointer}
-.ep-status button:hover{background:var(--hover)}
-.ep-status button.on{background:var(--acc);border-color:var(--acc);color:#f6f8f1}
 /* 逐句行 */
 .ep-lines{display:flex;flex-direction:column}
 .ep-line{display:flex;align-items:baseline;gap:10px;padding:8px 10px;border-radius:var(--rs);cursor:pointer;flex-wrap:wrap}
@@ -1574,26 +1567,40 @@ body.vfull .cs-stage video.tfl{max-height:none}
 .ep-brow .arr{font-style:normal;color:var(--t3);flex:none}
 /* 展开卡 */
 .ep-bcard{border:1px solid var(--acc);border-radius:var(--rs);padding:10px 12px;background:var(--card)}
-.ep-bcard .bh{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
-.ep-bcard .no{font-size:var(--f4);font-weight:600;color:var(--acc)}
-.ep-bcard .bh button{border:1px solid var(--line);background:transparent;border-radius:6px;padding:3px 9px;font-size:var(--f4);cursor:pointer;color:var(--t2)}
-.ep-bcard .dc{font-size:var(--f5);color:var(--warn)}
-.ep-bcard .bmode{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;margin-left:4px}
-.ep-bcard .bmode button{border:0;border-radius:0;padding:3px 12px;color:var(--t2)}
-.ep-bcard .bmode button.on{background:var(--acc);color:#f6f8f1}
-.ep-bcard .mini{font-size:var(--f5);border:1px solid var(--line);border-radius:999px;padding:0 7px;color:var(--t3)}
-.ep-bcard .mini.ok{color:var(--ok);border-color:var(--okln)}
+.ep-bcard .bh{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 12px;margin-bottom:16px}
+.ep-card-title{display:contents}
+.ep-bcard .bh .no{grid-column:1;grid-row:1}
+.ep-bcard .bh .bmode{grid-column:2;grid-row:1 / span 2;align-self:start}
+.ep-card-tools{display:flex;align-items:center;gap:6px 12px;flex-wrap:wrap;grid-column:1;grid-row:2}
+.ep-bcard .bh .no{font-size:13px;font-weight:600;color:var(--t2);white-space:nowrap;font-variant-numeric:tabular-nums}
+.ep-bcard .bh button{display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:32px;height:32px;border:1px solid var(--line);background:var(--card);border-radius:8px;padding:0 10px;font-size:13px;cursor:pointer;color:var(--t2);white-space:nowrap}
+.ep-bcard .dc{font-size:12px;color:var(--warn);white-space:nowrap}
+.ep-bcard .bmode{display:inline-flex;gap:2px;border:1px solid var(--line);background:var(--card);border-radius:var(--rs);padding:3px}
+.ep-bcard .bh .bmode button{border:0;border-radius:7px;padding:0 14px;background:transparent}
+.ep-bcard .bh .bmode button.on{background:var(--acc);color:var(--card);font-weight:600}
+.ep-card-audio{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.ep-card-history{display:flex;align-items:center;gap:4px 12px;flex-wrap:wrap;margin-left:auto}
+.ep-card-history:empty{display:none}
+.ep-bcard .bh .mini{font-size:12px;color:var(--t2);border:0;padding:0;white-space:nowrap;font-variant-numeric:tabular-nums}
+.ep-bcard .bh .mini[data-k="s"]{color:var(--ok)}
 .ep-bcard .dt{width:100%;border:1px solid var(--line);border-radius:var(--rs);padding:8px 10px;font-size:var(--f3);font-family:inherit;resize:vertical;background:var(--card)}
 .ep-bcard .dt:focus{outline:2px solid var(--accln);border-color:var(--acc)}
 .ep-bcard .dsubmit{margin-top:6px;border:1px solid var(--line);background:transparent;border-radius:6px;padding:5px 14px;font-size:var(--f4);cursor:pointer;color:var(--t2);float:right}
 .ep-bcard .dsubmit:hover{background:var(--acc);border-color:var(--acc);color:#f6f8f1}
-.ep-bcard .dr{clear:both;padding-top:8px}
-.ep-bcard .dw{font-size:var(--f3);line-height:1.8}
-.ep-bcard .dw b{color:var(--t2);margin-right:8px;font-size:var(--f4)}
+.ep-bcard .dr{clear:both;padding-top:0}
+.ep-bcard .dr:empty{display:none}
+.ep-result{padding-top:14px;border-top:1px solid var(--line)}
+.ep-result-head{display:flex;align-items:baseline;gap:12px;margin-bottom:8px;font-size:13px;line-height:1.5;color:var(--t2);font-variant-numeric:tabular-nums}
+.ep-result-head b{font-size:14px;color:var(--t1);font-weight:600}
+.ep-result.pass .ep-result-head b{color:var(--ok)}
+.ep-result-head>span{white-space:nowrap;font-size:12px}
+.ep-bcard .dw{font-size:16px;line-height:1.75;overflow-wrap:anywhere}
 .ep-bcard .dw .ok{color:var(--t1)}
-.ep-bcard .dw .miss{color:var(--bad);text-decoration:underline wavy var(--bad)}
-.ep-bcard .dx{font-size:var(--f4);color:var(--warn);margin-top:4px}
-.ep-bcard .do{font-size:var(--f4);color:var(--t3);margin-top:4px;line-height:1.7}
+.ep-bcard .dw .miss{color:var(--bad);text-decoration:underline wavy var(--bad);text-underline-offset:4px;text-decoration-thickness:1px}
+.ep-bcard .dx{font-size:13px;color:var(--warn);margin-top:8px;line-height:1.6}
+.ep-bcard .do{font-size:14px;color:var(--t2);margin-top:10px;line-height:1.65;overflow-wrap:anywhere}
+.ep-bcard .do>span{display:block;font-size:12px;color:var(--t2);margin-bottom:2px}
+.ep-bcard .dr>.ep-note{font-size:13px;line-height:1.6;margin-top:10px}
 .ep-bcard .rclue{font-size:var(--f3);line-height:1.8;background:var(--sunk);border-radius:var(--rs);padding:8px 10px}
 .ep-bcard .rsense{margin-top:8px;display:flex;flex-wrap:wrap;gap:6px}
 .ep-bcard .rsense .su{border:1px dashed var(--line);border-radius:var(--rs);padding:4px 8px;font-size:var(--f4);display:flex;flex-direction:column;gap:1px}
@@ -1606,16 +1613,8 @@ body.vfull .cs-stage video.tfl{max-height:none}
 .ep-bcard .rhints .rr{border:1px solid var(--line)!important;border-radius:6px;text-decoration:none!important;color:var(--t2)!important;padding:3px 10px}
 .ep-bcard .rhints .rr:hover{border-color:var(--okln)!important;color:var(--ok)!important}
 /* 粘底 dock: 悬浮胶囊, 画布语言 */
-.ep-dock{position:sticky;bottom:14px;z-index:60;display:flex;align-self:center;align-items:center;gap:4px;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:6px 10px;box-shadow:0 4px 18px rgba(32,39,37,.14);margin-top:12px}
-.ep-dock button{border:0;background:transparent;border-radius:999px;min-width:34px;height:30px;padding:0 10px;font-size:13px;color:var(--t2);cursor:pointer}
-.ep-dock button:hover{background:var(--hover)}
-.ep-dock #ep-dock-play{background:var(--acc);color:#f6f8f1;min-width:40px}
-.ep-dock #ep-dock-play:hover{background:var(--acc);opacity:.92}
-.ep-dock .ep-dock-no{font-size:var(--f4);color:var(--t2);padding:0 6px;font-variant-numeric:tabular-nums}
-.ep-dock .ep-dock-sep{width:1px;height:16px;background:var(--line);margin:0 2px}
-.ep-dock button.pulse{animation:ep-pulse 1.2s ease-in-out infinite}
 @keyframes ep-pulse{0%,100%{box-shadow:0 0 0 0 rgba(49,90,71,.35)}50%{box-shadow:0 0 0 6px rgba(49,90,71,0)}}
-@media (max-width:700px){.ep-dock{bottom:10px}}
+
 
 /* block 38 · eplod 宽屏单列(视频课 @container 1080px 双栏 grid 是给"左视频右讲义"的,
    eplod 的步骤卡/播放器/训练列表被它拆成两栏=用户截图的一塌糊涂; 强制回单列) */
@@ -1665,13 +1664,11 @@ body.vfull .cs-stage video.tfl{max-height:none}
 .ep-vseg{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;margin-bottom:10px}
 .ep-vseg button{border:0;background:transparent;padding:5px 14px;font-size:var(--f4);color:var(--t2);cursor:pointer}
 .ep-vseg button.on{background:var(--acc);color:#f6f8f1}
-.ep-rec{border:1px solid var(--acc)!important;background:var(--acc)!important;color:#f6f8f1!important;border-radius:999px;padding:10px 22px;font-size:var(--f3);cursor:pointer;margin-right:10px}
-.ep-bcard .ep-rec:hover{background:#27493a!important;border-color:#27493a!important;color:#f6f8f1!important}
-.ep-rec:hover{opacity:.92}
-.ep-rec.ing{background:var(--bad);border-color:var(--bad);animation:ep-pulse 1.2s ease-in-out infinite}
+.ep-rec{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;border:1px solid var(--acc);background:var(--acc);color:#fff;border-radius:var(--rs);padding:0 20px;font-size:15px;font-weight:600;cursor:pointer;margin:0}
+.ep-bcard .ep-rec:hover{background:#27493a;border-color:#27493a;color:#fff}
+.ep-rec.ing,.ep-bcard .ep-rec.ing:hover{background:var(--bad);border-color:var(--bad);animation:ep-pulse 1.2s ease-in-out infinite}
+.ep-rec svg{flex:none}
 .ep-rec .rt{font-style:normal;font-variant-numeric:tabular-nums}
-.ep-dur{font-size:var(--f4);color:var(--t2);margin-right:8px}
-.ep-dur .ok{color:var(--ok)}
 .elisten-me{border:1px solid var(--line);background:transparent;border-radius:6px;padding:4px 10px;font-size:var(--f4);cursor:pointer;color:var(--t2)}
 .elisten-me:hover{border-color:var(--acc);color:var(--acc)}
 .ep-cov{padding:12px 0;border-bottom:1px solid var(--line)}
@@ -1691,6 +1688,7 @@ body.vfull .cs-stage video.tfl{max-height:none}
 .ep-cover-label{display:flex;flex-direction:column;gap:3px;min-width:0}
 .ep-cover-label b{font-size:13px;font-weight:600;white-space:nowrap;color:var(--t1)}
 .ep-cover-label small{display:flex;flex-wrap:wrap;gap:0 5px;font-size:13px;line-height:1.4;color:var(--t2)}
+.ep-cover-label small>span{white-space:nowrap}
 .ep-cover-label time{white-space:nowrap}
 .ep-cover-label time{font-variant-numeric:tabular-nums}
 .ep-cover-hint{font-size:13px;line-height:1.5;color:var(--t2);margin:8px 0 0}
@@ -1719,27 +1717,9 @@ body.vfull .cs-stage video.tfl{max-height:none}
 .ep-bcard .vrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px}
 .ep-bcard .vrow .ep-rec{margin-right:0}
 
-/* ============================================================
-   block 44 · 训练卡视觉系统重做(用户: 都是奇丑):
-   ① 头部控件统一 32px 语言——播放/循环改圆形 icon 按钮,
-     seg/徽章同高, 一行只讲"这句怎么练";
-   ② 中文线索带从灰块升级为台词式主角: 左侧墨绿 accent + 17px;
-   ③ 朗读按钮标准胶囊高度, 状态文字同行;
-   ④ 脚注提示去下划线, 淡色不抢戏。
-   ============================================================ */
-.ep-bcard{padding:14px 16px}
-.ep-bcard .bh{align-items:center;margin-bottom:12px}
-.ep-bcard .bh .no{font-size:var(--f3);color:var(--t1)}
-.ep-bcard .bp,.ep-bcard .bl{width:32px;height:32px;padding:0;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:999px;background:transparent;font-size:12px;color:var(--t2)}
-.ep-bcard .bp:hover,.ep-bcard .bl:hover{border-color:var(--acc);color:var(--acc);background:transparent}
-.ep-bcard .bh .bmode{margin-left:2px}
-.ep-bcard .bh .bmode button{height:32px;padding:0 14px}
-.ep-bcard .bh .mini{height:22px;display:inline-flex;align-items:center}
-.ep-bcard .rclue{font-size:17px;line-height:1.7;color:var(--t1);background:none;border-radius:0;border-left:3px solid var(--acc);padding:2px 0 2px 12px;margin-bottom:12px}
-.ep-bcard .bbody{margin-bottom:12px}
-.ep-rec{height:34px;padding:0 18px;border-radius:999px;font-size:var(--f3)}
-.ep-bcard .rhints{margin-top:2px}
-.ep-bcard .rhints button{border:0;background:transparent;text-decoration:none;color:var(--t3);font-size:var(--f4);padding:0}
+.ep-bcard .bp:hover,.ep-bcard .bl:hover{border-color:var(--acc);color:var(--acc);background:var(--card)}
+.ep-bcard .rclue{color:var(--t1);background:none;border-radius:0}
+.ep-bcard .rhints button{border:0;background:transparent;text-decoration:none;color:var(--t2);font-size:13px;padding:0;min-height:32px}
 .ep-bcard .rhints button:hover{color:var(--acc)}
 
 /* block 45 · 录音音量条(用户: 词准 0% 实为全程静音): 说话可见, 静音可见 */
@@ -1810,8 +1790,8 @@ body.vfull .cs-stage video.tfl{max-height:none}
 .ep .csp-meta .src{display:flex;flex-wrap:wrap;gap:2px 6px;min-width:0;color:var(--t2);font-size:12px}
 .ep .csp-meta .src>span{white-space:nowrap}
 .ep-course-actions{position:absolute;right:0;top:16px;z-index:7;text-align:right}
-.ep-course-actions summary,.ep-settings summary,.ep-shortcuts summary{cursor:pointer;color:var(--t2);font-size:13px;list-style:none;padding:6px 0}
-.ep-course-actions summary::-webkit-details-marker,.ep-settings summary::-webkit-details-marker,.ep-shortcuts summary::-webkit-details-marker{display:none}
+.ep-course-actions summary,.ep-settings summary{cursor:pointer;color:var(--t2);font-size:13px;list-style:none;padding:6px 0}
+.ep-course-actions summary::-webkit-details-marker,.ep-settings summary::-webkit-details-marker{display:none}
 .ep-course-actions[open]{background:var(--card);border:1px solid var(--line);border-radius:var(--rs);padding:0 10px 10px;box-shadow:0 5px 18px #20272512}
 .ep-course-actions button{display:block;width:100%;text-align:left;border:0;background:transparent;padding:8px 6px;color:var(--t1);font-size:13px;cursor:pointer}
 .ep-tabs{gap:24px;padding:0;border-bottom:1px solid var(--line);margin-bottom:0}
@@ -1833,51 +1813,32 @@ body.vfull .cs-stage video.tfl{max-height:none}
 .ep-progress .ep-dstats{margin:0;line-height:1.6}
 .csmain .ep-listen,.csmain .ep-train,.csmain .ep-chunks{margin:0;padding:0 0 18px;border:0;border-radius:0;background:transparent;max-width:none}
 .csmain .ep-listen .phead,.csmain .ep-train .phead,.csmain .ep-chunks .phead{margin:0;padding:18px 0 12px;border:0;background:transparent;border-radius:0;align-items:center}
+.csmain .ep-train .phead>.l{width:auto}
+.csmain .ep-train .phead>.r{margin-left:auto}
 .ep-settings{font-size:13px;color:var(--t2);max-width:420px;text-align:right}
 .ep-settings[open]{padding-bottom:8px}
 .ep-settings p{font-size:13px;line-height:1.7;text-align:left;margin:10px 0 0}
 .ep-settings .ep-dmode{margin-top:6px}
 .ep-blist{gap:0}
 .ep-bcard{border:0;border-bottom:1px solid var(--line);border-radius:0;padding:12px 0 24px;margin-bottom:12px;animation:cs-note-in .18s ease-out}
-.ep-bcard .bh{gap:8px;margin-bottom:22px}
-.ep-bcard .bh .no{font-size:12px;color:var(--t2);margin-right:4px}
-.ep-bcard .bh .bmode{order:2;margin-left:auto;border-radius:var(--rs)}
-.ep-bcard .bh .grow{display:none}
-.ep-bcard .bh .mini{font-size:12px;border:0;padding:0 3px}
-.ep-bcard .rclue{font-size:20px;line-height:1.7;padding:0;margin:0 0 24px;border:0}
-.ep-bcard .vrow{gap:14px;margin-bottom:18px}
-.ep-bcard .ep-rec{height:42px;padding:0 22px}
-.ep-bcard .rhints{padding-top:14px;margin-top:16px;border-top:1px solid var(--line);gap:18px;flex-wrap:wrap}
-.ep-bcard .rhints .ep-note{font-size:12px}
-.ep-brow{border:0;border-bottom:1px solid var(--line);border-radius:0;padding:12px 0;gap:10px;min-height:44px;background:transparent}
+.ep-bcard .rclue{font-size:19px;line-height:1.65;padding:0;margin:0 0 18px;border:0}
+.ep-bcard .vrow{gap:12px;margin-bottom:16px}
+.ep-bcard .rhints{padding:0;margin-top:10px;border:0;gap:20px;flex-wrap:wrap}
+.ep-brow{display:grid;grid-template-columns:28px minmax(0,1fr) auto auto;column-gap:10px;row-gap:4px;border:0;border-bottom:1px solid var(--line);border-radius:0;padding:12px 0;min-height:48px;background:transparent}
 .ep-brow.done{background:transparent;border-color:var(--line)}
-.ep-brow .btxt{white-space:normal;line-height:1.5;min-width:0;flex:1}
+.ep-brow .btxt{grid-column:2;white-space:normal;line-height:1.6;min-width:0;font-size:14px;overflow-wrap:anywhere}
 .ep-brow .bt{display:none}
-.ep-brow .grow{display:none}
 .ep-brow .mini{padding:0;border:0;white-space:nowrap;font-size:12px}
-.ep-brow .no{font-size:12px;min-width:28px}
+.ep-brow .no{grid-column:1;grid-row:1;align-self:start;font-size:12px;min-width:0;line-height:22px;font-variant-numeric:tabular-nums}
+.ep-row-progress{display:flex;align-items:center;justify-content:flex-end;gap:4px 10px;flex-wrap:wrap;max-width:240px;min-width:0}
+.ep-row-progress:empty{display:none}
+.ep-row-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;grid-column:4;grid-row:1}
+.ep-brow .arr{font-size:20px;line-height:22px}
 .ep-materials{margin:12px 0 16px;border-top:1px solid var(--line);color:var(--t2)}
 .ep-materials>summary{padding:12px 0;cursor:pointer;font-size:13px}
 .csmain .ep-materials .ep-kv,.csmain .ep-materials .ep-expl{border:0;border-radius:0;margin:0;padding:12px 0;background:transparent}
 .csmain .ep-materials .phead{margin:0;padding:8px 0;background:transparent}
-
-.ep-stage .ep-segs{gap:6px;margin:0 0 6px;display:flex;flex-wrap:wrap}
-.ep-stage .ep-segs button{font-size:12px;padding:4px 10px;border:0;border-radius:var(--rs);background:transparent;color:var(--t2)}
-.ep .ep-stage .ep-segs button.on{background:var(--sunk);color:var(--acc);border-color:transparent}
-.ep .ep-stage .ep-segs button.on i{color:var(--t2)}
 .ep .ep-bcard .bmode button.on{background:var(--acc);color:var(--card)}
-.ep-dock[data-tab="listen"] #ep-dock-prev,.ep-dock[data-tab="listen"] #ep-dock-next,.ep-dock[data-tab="listen"] #ep-dock-listen,.ep-dock[data-tab="listen"] .ep-dock-no,.ep-dock[data-tab="chunks"] #ep-dock-prev,.ep-dock[data-tab="chunks"] #ep-dock-next,.ep-dock[data-tab="chunks"] #ep-dock-listen,.ep-dock[data-tab="chunks"] .ep-dock-no{display:none}
-.ep-stage .ep-dock{position:static;align-self:stretch;gap:8px;border:0;border-radius:0;padding:0;margin:0 0 8px;box-shadow:none;background:transparent}
-.ep-dock .ep-dock-no{margin-right:auto;padding:0;font-size:12px}
-.ep-dock button{height:36px;min-width:36px}
-.ep-stage .ep-status{border:0;padding:4px 0 0;background:transparent;gap:12px;flex-wrap:wrap}
-.ep-status>button{border:0;background:transparent;padding:5px 0;color:var(--t2);font-size:12px}
-.ep-status>button.on{color:var(--acc);font-weight:600}
-.ep-status .cs-speed{font-size:12px;white-space:nowrap}
-.ep-status .cs-speed select{font-size:12px;padding:3px 6px}
-.ep-shortcuts{position:relative}
-.ep-shortcuts summary{font-size:12px;padding:5px 0}
-.ep-shortcuts p{position:absolute;right:0;bottom:100%;width:270px;max-width:70vw;background:var(--card);border:1px solid var(--line);border-radius:var(--rs);padding:12px;line-height:1.8;font-size:13px;box-shadow:0 4px 16px #20272515}
 .ep [hidden]{display:none}
 .ep button:focus-visible,.ep summary:focus-visible,.ep-brow:focus-visible{outline:2px solid var(--acc);outline-offset:3px}
 @media(max-width:700px){
@@ -1893,22 +1854,26 @@ body.vfull .cs-stage video.tfl{max-height:none}
   .ep-steps .es i{font-size:12px}
   .ep-steps .es b{font-size:13px}
   .ep-text-button{margin-left:auto}
-  .ep-bcard{padding:8px 0 18px}
-  .ep-bcard .bh{gap:6px;margin-bottom:18px}
-  .ep-bcard .bh .bmode{width:100%;margin:6px 0 0;justify-content:center}
-  .ep-bcard .bh .bmode button{flex:1;height:36px}
-  .ep-bcard .rclue{font-size:18px;margin-bottom:20px}
-  .ep-brow{flex-wrap:wrap;gap:5px}
-  .ep-brow .btxt{flex-basis:calc(100% - 40px)}
-  .ep-brow .mini:first-of-type{margin-left:38px}
-  .ep-bcard .rhints{gap:12px}
-  .ep-bcard .rhints .ep-note{width:100%}
-  .ep-stage .ep-status{gap:10px}
-  .ep-status .grow{display:none}
-  .ep-shortcuts{margin-left:auto}
-  .ep-stage .ep-dock{gap:2px}
-  .ep-dock button{padding:0 8px}
-  .ep .ep-stage .ep-segs{margin-bottom:4px}
+  .csmain.ep-page{padding-inline:0}
+  .ep-card-title{display:contents}
+  .ep-bcard .bh{gap:8px;margin-bottom:14px}
+  .ep-bcard .bh .no{grid-column:1;grid-row:1}
+  .ep-bcard .bh .bmode{grid-column:1 / -1;grid-row:2;width:100%;margin:0;justify-content:center}
+  .ep-card-tools{display:contents}
+  .ep-card-audio{grid-column:1 / -1;grid-row:3}
+  .ep-card-history{grid-column:2;grid-row:1;justify-content:flex-end;align-self:center}
+  .ep-bcard .bh .mini{font-size:12px}
+  .ep-bcard[data-mode="dict"] .ep-card-history [data-k="r"],.ep-bcard[data-mode="dict"] .ep-card-history [data-k="s"],.ep-bcard:not([data-mode="dict"]) .ep-card-history [data-k="d"],.ep-bcard:not([data-mode="dict"]) .ep-card-history [data-k="s"]{display:none}
+  .ep-bcard .bh .bmode button{flex:1;height:38px;min-height:38px}
+  .ep-bcard .bh .ep-card-audio button{min-height:36px;height:36px}
+  .ep-card-tools{gap:6px}
+  .ep-card-history{margin-left:0;gap:4px 12px}
+  .ep-bcard .rclue{font-size:18px;margin-bottom:16px}
+  .ep-brow{grid-template-columns:24px minmax(0,1fr) auto;column-gap:8px;row-gap:4px}
+  .ep-row-progress{grid-column:2;grid-row:2;justify-content:flex-start;max-width:none;gap:4px 10px}
+  .ep-row-actions{grid-column:3;grid-row:1 / span 2;align-self:center;gap:4px}
+  .ep-bcard .rhints{gap:20px}
+  .ep-bcard .rhints button{min-height:40px}
 }
 @media(prefers-reduced-motion:reduce){.ep-bcard,.ep-progress{animation:none}}
 
@@ -1936,70 +1901,7 @@ body.vfull .cs-stage video.tfl{max-height:none}
   body.course-fixed .csmain{min-height:0;height:100%;overflow-y:auto;overscroll-behavior:contain;scroll-padding-bottom:100px}
   body.course-fixed .csmain.ep-page{padding-bottom:12px}
 }
-/* 播放条: 一行放完, 展开完整播放器时才多一行 */
-
-.ep-stage .ep-dock{order:0;flex:none;gap:0;border:1px solid var(--line);border-radius:999px;padding:2px;margin:0;box-shadow:none;background:var(--card)}
-.ep-dock .ep-dock-no{margin:0;padding:0 2px;font-size:12px}
-.ep-dock button{height:30px;min-width:30px;padding:0 7px;border-radius:999px}
-.ep-dock #ep-dock-listen{min-width:auto;padding:0 10px}
-.ep-stage .ep-segs{order:1;flex:none;margin:0;gap:2px}
-.ep-stage .ep-segs button{padding:2px 6px;font-size:12px}
-.ep-stage .ep-status{order:3;margin-left:auto;flex:none;gap:12px;padding:0;border:0;flex-wrap:nowrap;align-items:center}
-.ep-status .grow{display:none}
-.ep-stage .na-box{order:10;flex-basis:100%;margin:4px 0 0}
-@media(max-width:700px){
-
-  .ep-stage .ep-dock{order:0;flex:0 0 auto}
-  .ep-stage .ep-segs{order:1;flex:0 1 auto}
-  .ep-stage .ep-segs button{font-size:11px;padding:2px 5px}
-  .ep-stage .ep-status{order:3;flex:1 1 100%;margin:0;justify-content:space-between;gap:4px 6px;flex-wrap:wrap;padding-top:2px}
-  .ep-stage .ep-shortcuts{display:none}
-  .ep-dock button{height:34px;min-width:34px}
-  .ep .ep-stage .ep-segs{margin-bottom:0}
-}
-/* 播放条收尾: 旧 #ep-dock-play 的 40px 固定宽度优先级更高, 胶囊里贴边 */
-.ep .ep-dock{padding:3px 7px}
-#ep-dock-play{min-width:34px;height:30px}
-.ep-dock #ep-dock-next,#ep-dock-prev{padding:0 5px}
-
-/* r25 · 播放器与正文同基准线: 标签留在原行, 展开行占满内容宽度 */
-.ep-player-toggle{border:0;background:transparent;color:var(--t3);font-size:12px;padding:4px 0;cursor:pointer;white-space:nowrap}
-.ep-player-toggle[aria-expanded="true"]{color:var(--acc)}
-.ep .ep-seekrow{order:9;flex-basis:100%;display:flex;align-items:center;gap:10px;padding:2px 0 0;margin:0}
-.ep .ep-seekrow[hidden]{display:none}
-.ep-seekrow button{border:0;background:transparent;color:var(--t1);width:24px;height:24px;min-height:24px;padding:0;font-size:13px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
-.ep-seekrow span{font-size:12px;color:var(--t2);font-variant-numeric:tabular-nums;min-width:34px;line-height:24px}
-.ep-seekrow span#ep-dur{text-align:right}
-.ep-seekrow input[type=range]{flex:1;min-width:0;height:20px;margin:0;accent-color:var(--acc)}
-@media(max-width:700px){.ep .ep-seekrow{padding-top:4px}}
-@media(max-width:700px){
-  .ep .ep-seekrow{gap:6px}
-  .ep-seekrow span{min-width:30px;font-size:11px}
-  .ep-seekrow input[type=range]{min-width:0;flex:1 1 0}
-  .ep-seekrow button{width:22px;min-width:22px}
-}
-/* ============================================================
-   block 48 · r26 控制台色块分区(用户: 全是白底黑字, 文字水平不齐)
-   ① 页脚整条=浅灰表面, 内部再分: 传输(白胶囊)/音源(白胶囊分段)/开关(药丸开态)/工具(文字)
-   ② 所有右簇控件统一 28px 高、12px 字、居中, 下拉框不再比文字高一头
-   ③ 当前句练习块=浅色面板, 与正文和页脚形成三层: 画布白 / 练习块灰 / 控制台灰
-   ============================================================ */
-
-.ep .ep-dock{background:var(--card);border-color:var(--line);box-shadow:0 1px 2px rgba(32,39,37,.05)}
-.ep .ep-stage .ep-segs{background:var(--card);border:1px solid var(--line);border-radius:999px;padding:2px;gap:0}
-.ep .ep-stage .ep-segs button{min-height:0;height:26px;border-radius:999px;padding:0 10px;line-height:26px}
-.ep .ep-stage .ep-segs button i{font-size:11px;margin-left:2px}
-.ep .ep-stage .ep-segs button.on{background:var(--accbg);color:var(--acc);font-weight:500}
-.ep .ep-stage .ep-segs button.on i{color:var(--acc)}
-.ep .ep-stage .ep-status{gap:2px;align-items:center}
-.ep-stage .ep-status button,.ep-stage .ep-status .ep-player-toggle,.ep-stage .ep-status summary{
-  min-height:0;height:28px;display:inline-flex;align-items:center;font-size:12px;line-height:1;color:var(--t2);padding:0 8px;border-radius:999px;white-space:nowrap;flex-shrink:0}
-.ep-stage .ep-status button.on{background:var(--accbg);color:var(--acc);font-weight:500}
-.ep-stage .ep-status .cs-speed{height:28px;display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--t2);padding:0 2px 0 8px;white-space:nowrap;flex-shrink:0}
-.ep-stage .ep-status .cs-speed select{height:26px;min-height:0;line-height:24px;font-size:12px;padding:0 22px 0 8px;border-radius:999px;background-color:var(--card);border:1px solid var(--line);color:var(--t1)}
-.ep-stage .ep-status .ep-shortcuts summary{padding:0 6px;color:var(--t3)}
-.ep-stage .ep-status .ep-player-toggle[aria-expanded="true"]{background:var(--accbg);color:var(--acc)}
-.ep-stage .ep-seekrow{padding:4px 2px 0;border-top:1px solid var(--line);margin-top:4px}
+/* 当前句用浅色表面区分列表，书写区保留白底。 */
 .ep .ep-bcard{background:#f7f9f8;border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:10px}
 .ep-brow{border-radius:8px;padding:10px 8px;border-bottom:0}
 .ep-brow:hover{background:#f2f5f3}
@@ -2007,44 +1909,25 @@ body.vfull .cs-stage video.tfl{max-height:none}
 @media(max-width:700px){
 
   .ep .ep-bcard{padding:12px;border-radius:12px}
-  .ep-stage .ep-status button,.ep-stage .ep-status .ep-player-toggle,.ep-stage .ep-status summary{padding:0 6px}
-  .ep-stage .ep-status .cs-speed{padding-left:4px}
 }
-/* r27 · 控制台改为悬浮层: 四角全圆 + 阴影 + 离底留缝(此前只圆上面两角, 像半成品) */
-
-@media(max-width:700px){
-
-}
-
 /* r29 · 书写面收尾: 外框承载边界, 输入无边框, 提交在框内的右下工具位(不再压住圆角) */
 .ep-bcard .ep-compose{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:12px;background:var(--card);padding:6px 6px 6px 10px;transition:border-color .15s,box-shadow .15s}
 .ep-bcard .ep-compose:focus-within{border-color:var(--acc);box-shadow:0 0 0 3px var(--accbg)}
 .ep-bcard .ep-compose .dt{border:0;background:transparent;border-radius:0;padding:4px 2px;min-height:44px;height:auto;box-shadow:none;resize:none}
 .ep-bcard .ep-compose .dt:focus{outline:0;border:0;box-shadow:none}
-.ep-bcard .ep-compose .dsubmit{position:static;align-self:flex-end;margin:2px 0 0;height:26px;min-height:26px;padding:0 12px;border-radius:8px;background:var(--accbg);color:var(--acc);border:0;font-size:12px;font-weight:600}
+.ep-bcard .ep-compose .dsubmit{position:static;align-self:flex-end;margin:2px 0 0;height:36px;min-height:36px;padding:0 16px;border-radius:8px;background:var(--acc);color:var(--card);border:0;font-size:13px;font-weight:600}
 .ep-bcard .ep-compose .dsubmit:hover{background:var(--acc);color:var(--card)}
 .ep-bcard .ep-compose .dsubmit:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 
-.ep-stage .ep-seekrow{position:absolute;left:0;right:0;bottom:calc(100% + 6px);order:0;flex-basis:auto;margin:0;
-  background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 24px rgba(32,39,37,.12);padding:8px 10px}
-.ep-stage .ep-seekrow[hidden]{display:none}
-.ep .ep-stage .na-box{border:0;background:transparent;padding:2px 2px 0;margin:0;color:var(--t2);font-size:12px;line-height:1.5;flex-basis:100%;box-shadow:none}
-
 /* The scrolling container reserves the same gap as the sticky player's bottom offset. */
-.ep .ep-stage{position:sticky;bottom:12px;z-index:6;display:flex;flex-wrap:wrap;align-items:center;
-  gap:4px 8px;margin:10px 0 0;padding:8px 12px 7px;border:1px solid var(--line);border-radius:14px;
-  background:var(--sunk);box-shadow:0 1px 2px rgba(32,39,37,.05),0 10px 28px rgba(32,39,37,.10)}
-.ep-stage .ep-status .ep-shortcuts summary{color:var(--t2)}
 @media(max-width:800px){
   .wrap.ep-page{height:auto;min-height:calc(100dvh - 20px);padding-bottom:10px}
   body.course-fixed .csplit{margin-bottom:0}
-  .ep .ep-stage{bottom:21px;border-radius:12px;box-shadow:0 1px 2px rgba(32,39,37,.05),0 8px 22px rgba(32,39,37,.12)}
   .csmain.ep-page{padding-bottom:0}
   .csmain.ep-page .cs-stick.ep{min-height:0}
 }
 @media(max-width:700px){
   .wrap.ep-page{min-height:calc(100dvh - 16px)}
-  .ep .ep-stage{bottom:19px;padding:6px 10px calc(6px + env(safe-area-inset-bottom))}
 }
 
 /* ============================================================
@@ -2073,11 +1956,6 @@ body.vfull .cs-stage video.tfl{max-height:none}
   .ep .csp-meta .src>span:first-child{display:none}
   .ep .ep-cov{padding-top:6px}
   .ep .ep-cover-step{padding:6px 4px;gap:4px}
-  .ep .ep-stage .ep-segs{flex:1 1 100%;order:2;display:flex}
-  .ep .ep-stage .ep-segs button{flex:1;display:inline-flex;align-items:center;justify-content:center;padding:0 5px}
-  .ep .ep-stage .ep-status{order:3;flex-wrap:nowrap;gap:0 2px;padding-top:0}
-  .ep .ep-stage .ep-status .cs-speed{padding-left:0;gap:0;min-width:0}
-  .ep .ep-stage .ep-status .cs-speed>span{display:none}
 }
 
 /* ============================================================
@@ -2141,57 +2019,83 @@ html.sb-min .nav-label{display:none!important}   /* 收缩侧栏只留图标 */
 .ep-stats .es b small{font-size:12px;color:var(--t2);font-weight:400}
 .ep-stats .es.empty i{color:var(--t2)}
 
-/* ============================================================
-   r10 · 播放条分辨率自适应(用户: 分辨率不同就折成两行留大洞;
-   不常用的功能折叠或缩小):
-   ① 阶梯压缩: ≤1480 快捷键缩成 ? 圆钮; ≤1300 音源时长隐藏;
-     ≤1200 「速度」二字隐藏(select 里的 1× 自明)。
-   ② 受控换行(.ep-flow 由 JS 按占位宽度判定): 放不下时不再是整簇甩到
-     右下留大洞——循环/盲听留在首行右, 速度/播放器/快捷键整组下沉为
-     通栏第二层(左对齐+顶细分隔线), 读作有意的双层控制台。
-   ③ 901-1000 窄带: EP 目录列改上下堆叠(该带侧栏+目录列吃掉 450px+,
-     内容列只剩 370-520, 与 ≤900 的既有形态一致)。
-   ============================================================ */
-.ep-extra{display:contents}
-.ep-stage .ep-shortcuts summary{gap:3px}
-.ep-stage .ep-shortcuts summary b{font-weight:600}
-@media(max-width:1480px){
-  .ep .ep-stage .ep-shortcuts .sct{display:none}
-  .ep .ep-stage .ep-shortcuts summary{padding:0;justify-content:center;color:var(--t3)}
-  .ep .ep-stage .ep-shortcuts summary:hover{background:var(--hover);color:var(--t1)}
+/* EnglishPod 播放栏：窄容器两行，低频工具向上展开。 */
+.cs-stick.ep{container-type:inline-size}
+.ep .ep-stage{position:sticky;bottom:12px;z-index:6;display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;margin:12px 0 0;padding:8px 10px;border:1px solid var(--line);border-radius:14px;background:var(--sunk);box-shadow:0 2px 4px #20272506,0 8px 22px #20272512}
+.ep .ep-stage .ep-dock{position:static;display:flex;align-items:center;gap:2px;order:0;flex:none;align-self:auto;padding:3px 5px;margin:0;border:1px solid var(--line);border-radius:999px;background:var(--card);box-shadow:none}
+.ep-dock button{display:inline-flex;align-items:center;justify-content:center;min-height:30px;height:30px;min-width:28px;padding:0 5px;border:0;border-radius:999px;background:transparent;color:var(--t2);font-size:12px;white-space:nowrap}
+.ep-dock button:hover{background:var(--sunk)}
+.ep-dock #ep-dock-play{min-width:34px;height:34px;background:var(--acc);color:#fff}
+.ep-dock .ep-dock-no{padding:0 2px;font-size:12px;color:var(--t2);font-variant-numeric:tabular-nums;white-space:nowrap}
+.ep-dock .ep-dock-sep{width:1px;height:14px;background:var(--line);margin:0 3px}
+.ep-dock #ep-dock-listen{min-width:0;padding:0 7px}
+.ep-dock button.pulse{animation:ep-pulse 1.2s ease-in-out infinite}
+.ep-dock[data-tab="listen"] #ep-dock-prev,.ep-dock[data-tab="listen"] #ep-dock-next,.ep-dock[data-tab="listen"] #ep-dock-listen,.ep-dock[data-tab="listen"] .ep-dock-no,.ep-dock[data-tab="chunks"] #ep-dock-prev,.ep-dock[data-tab="chunks"] #ep-dock-next,.ep-dock[data-tab="chunks"] #ep-dock-listen,.ep-dock[data-tab="chunks"] .ep-dock-no{display:none}
+.ep .ep-stage .ep-segs{display:flex;align-items:center;flex:none;order:1;gap:2px;margin:0;padding:3px;border:1px solid var(--line);border-radius:999px;background:var(--card)}
+.ep .ep-stage .ep-segs button{display:inline-flex;align-items:center;justify-content:center;min-height:30px;height:30px;border:0;border-radius:999px;padding:0 10px;background:transparent;color:var(--t2);font-size:12px;white-space:nowrap}
+.ep .ep-stage .ep-segs button.on{background:var(--accbg);color:var(--acc);font-weight:600}
+.ep .ep-stage .ep-segs i{font-size:11px;font-style:normal;margin-left:4px;color:var(--t2)}
+.ep .ep-stage .ep-status{display:flex;align-items:center;justify-content:flex-end;flex:none;order:2;gap:6px;margin:0 0 0 auto;padding:0;border:0;background:transparent}
+.ep-stage .cs-speed{display:inline-flex;align-items:center;gap:6px;color:var(--t2);font-size:12px;white-space:nowrap}
+.ep-stage .cs-speed select{font:inherit;font-size:13px;color:var(--t1);height:32px;min-height:32px;max-width:78px;padding:0 5px;border:1px solid var(--line);border-radius:var(--rs);background:var(--card)}
+.ep-more{position:relative}
+.ep-more>summary{display:flex;align-items:center;justify-content:center;list-style:none;min-width:34px;height:34px;padding:0 8px;border:1px solid var(--line);border-radius:var(--rs);background:var(--card);color:var(--t2);font-size:14px;letter-spacing:1px;cursor:pointer}
+.ep-more>summary::-webkit-details-marker{display:none}
+.ep-more[open]>summary,.ep-more:has(button.on)>summary{color:var(--acc);border-color:var(--accln);background:var(--accbg)}
+.ep-more:has(button.on)>summary::after{content:'';width:5px;height:5px;position:absolute;top:3px;right:3px;border-radius:50%;background:var(--acc)}
+.ep-more-panel{position:absolute;right:0;bottom:calc(100% + 10px);width:190px;max-width:calc(100vw - 40px);max-height:65dvh;overflow-y:auto;display:flex;flex-direction:column;gap:4px;padding:8px;border:1px solid var(--line2);border-radius:12px;background:var(--card);box-shadow:0 8px 28px #2027251c}
+.ep-stage .ep-more-panel>button,.ep-stage .ep-shortcuts>summary{display:flex;align-items:center;gap:8px;justify-content:space-between;width:100%;min-height:38px;height:auto;border:0;border-radius:8px;background:transparent;padding:8px 10px;color:var(--t2);font-size:13px;line-height:1.4;text-align:left;cursor:pointer;list-style:none;white-space:nowrap}
+.ep-stage .ep-more-panel>button:hover,.ep-stage .ep-shortcuts>summary:hover{background:var(--sunk)}
+.ep-stage .ep-more-panel>button.on{background:var(--accbg);color:var(--acc);font-weight:600}
+.ep-stage .ep-more-panel>button.on::after{content:'✓'}
+.ep-shortcuts summary::-webkit-details-marker{display:none}
+.ep-shortcuts p{margin:4px 6px 2px;padding:8px 4px 2px;border-top:1px solid var(--line);font-size:13px;line-height:1.9;color:var(--t2)}
+.ep .ep-seekrow{position:absolute;left:0;right:0;bottom:calc(100% + 8px);display:flex;align-items:center;gap:8px;margin:0;padding:10px;background:var(--card);border:1px solid var(--line2);border-radius:12px;box-shadow:0 8px 24px #20272518}
+.ep .ep-seekrow[hidden]{display:none}
+.ep-seekrow button{display:inline-flex;align-items:center;justify-content:center;flex:none;width:28px;min-width:28px;height:30px;min-height:30px;padding:0;border:0;color:var(--t1);font-size:13px}
+.ep-seekrow span{flex:none;min-width:32px;font-size:12px;color:var(--t2);font-variant-numeric:tabular-nums}
+.ep-seekrow #ep-dur{text-align:right}
+.ep-seekrow input[type=range]{flex:1;min-width:0;height:24px;margin:0;accent-color:var(--acc)}
+.ep .ep-stage .na-box{order:10;flex-basis:100%;margin:0;padding:6px 2px 0;background:transparent;border:0;font-size:13px;line-height:1.5;color:var(--t2);box-shadow:none}
+@container(max-width:780px){.ep-stage .ep-segs i{display:none}.ep-stage .cs-speed>span{display:none}}
+@container(max-width:580px){
+  .ep .ep-stage{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 8px;padding:7px 8px}
+  .ep .ep-stage .ep-dock{grid-column:1 / -1;grid-row:1;justify-self:start;margin:0}
+  .ep .ep-stage .ep-segs{grid-column:1;grid-row:2;min-width:0;width:100%}
+  .ep .ep-stage .ep-segs button{flex:1;min-width:0;padding:0 8px}
+  .ep .ep-stage .ep-status{grid-column:2;grid-row:2;margin:0;gap:0}
+  .ep .ep-stage .na-box{grid-column:1 / -1}
+  .ep .ep-stage .ep-segs i{display:none}
+  .ep .ep-stage .cs-speed>span{display:none}
+  .ep-more{position:static}
+  .ep-more>summary{position:absolute;top:11px;right:9px;width:36px;height:36px}
+  .ep-more-panel{right:0;bottom:calc(100% + 8px)}
 }
-@media(max-width:1300px){
-  .ep .ep-stage .ep-segs button i{display:none}
-}
-@media(max-width:1200px){
-  .ep .ep-stage .ep-status .cs-speed>span{display:none}
-}
-/* 受控两行: status 让位为 contents, 循环+盲听成组(ep-prime, 不可拆行)留在首行右,
-   次要组整行下沉; 首行也放不下时 prime 整组掉行, 仍是右对齐的一对 */
-.ep-prime{display:contents}
-.ep-stage.ep-flow .ep-status{display:contents}
-.ep-stage.ep-flow .ep-prime{display:flex;order:2;margin-left:auto;gap:2px;align-items:center;flex:none}
-.ep-stage.ep-flow .ep-extra{display:flex;flex:1 1 100%;order:9;align-items:center;gap:2px;
-  margin-top:2px;padding-top:7px;border-top:1px solid var(--line)}
-/* 901-1000: EP 目录堆叠(等价于 ≤900 既有形态) */
 @media(min-width:901px) and (max-width:1000px){
   .wrap.ep-page .csplit{grid-template-columns:1fr}
   .wrap.ep-page .csnav{position:static;max-height:280px}
 }
-/* ≤700 手机: ep-flow 不启用(JS 已 gate), 此处兜底复位, 保持原生手机布局 */
+@media(max-width:800px){.ep .ep-stage{bottom:21px}}
+@media(max-width:700px){.ep .ep-stage{bottom:19px}}
 @media(max-width:700px){
-  .ep-stage.ep-flow .ep-status{display:flex;flex:1 1 100%;margin:0;justify-content:space-between;flex-wrap:wrap;gap:4px 6px;padding-top:2px}
-  .ep-stage.ep-flow .ep-prime{display:contents}
-  .ep-stage.ep-flow .ep-extra{display:contents}
+  .ep .ep-stage{padding-bottom:calc(7px + env(safe-area-inset-bottom))}
+  .ep .ep-stage .ep-dock{margin-right:0}
+  .ep-stage .cs-speed select{height:34px;min-height:34px}
+  .ep .ep-stage .ep-segs button{min-height:32px;height:32px}
+  .ep-more-panel>button,.ep-stage .ep-shortcuts>summary{min-height:44px}
+  .ep-bcard .ep-compose .dsubmit{height:42px;min-height:42px;padding:0 18px}
 }
-/* ≤400: transport 组自占一行仍超宽(320 实测 243>222), 压缩按钮内距与序号 */
-@media(max-width:400px){
-  .ep .ep-dock{padding:2px 4px}
-  .ep-stage .ep-dock button{padding:0 4px;min-width:28px;height:30px}
-  .ep-stage .ep-dock #ep-dock-play{min-width:30px}
-  .ep-stage .ep-dock .ep-dock-no{font-size:11px;padding:0 2px}
-  .ep-stage .ep-dock #ep-dock-listen{padding:0 6px}
+@media(max-width:360px){
+  .ep-dock button{min-width:26px;padding:0 4px}
+  .ep-dock .ep-dock-no{font-size:11px;padding:0 1px}
+  .ep-dock #ep-dock-listen{padding:0 5px}
+  .ep .ep-stage .ep-segs button{padding:0 6px}
+  .ep-stage .cs-speed select{max-width:64px}
 }
+@container(max-width:300px){
+  .ep-dock #ep-dock-listen,.ep-dock .ep-dock-sep{display:none}
+}
+@media(prefers-reduced-motion:reduce){.ep-dock button.pulse{animation:none}}
 
 /* ============================================================
    r14 · 覆盖背诵星星化(用户: 「一二三」换「一颗星~三颗星」, 更游戏化):
@@ -2250,7 +2154,7 @@ html.sb-min .nav-label{display:none!important}   /* 收缩侧栏只留图标 */
 /* r20 · 四步训练列表: 全句平铺不折叠; 行级/卡头回听我的录音 */
 .elisten-row{border:0;background:transparent;color:var(--acc);font-size:11px;flex:none;padding:2px 7px;border-radius:999px;cursor:pointer}
 .elisten-row:hover{background:var(--accbg)}
-.ep-bcard .bh .elisten-me{border:0;background:var(--accbg);color:var(--acc);height:26px;padding:0 9px;border-radius:999px;font-size:12px;cursor:pointer;flex:none;font-weight:600}
+.ep-bcard .bh .elisten-me{border:0;background:var(--accbg);color:var(--acc);padding:0 9px;border-radius:var(--rs);font-size:13px;cursor:pointer;flex:none;font-weight:600}
 .ep-bcard .bh .elisten-me:hover{background:var(--acc);color:var(--card)}
 
 /* 训练结果留在本句，顺序与列表一致。 */
@@ -2259,6 +2163,8 @@ html.sb-min .nav-label{display:none!important}   /* 收缩侧栏只留图标 */
 .ep-sentence-nav button:last-child{background:var(--accbg);color:var(--acc)}
 .ep-sentence-nav span{font-size:12px;color:var(--t2);white-space:nowrap;flex:none}
 .ep-sentence-nav button:disabled,.ep-bcard button:disabled{opacity:.45;cursor:default}
+@media(max-width:700px){.ep-sentence-nav button{min-height:42px}}
 .elisten-me.playing,.elisten-row.playing{outline:2px solid var(--acc);outline-offset:2px}
 .ep-retry-asr{border:1px solid var(--line);border-radius:var(--rs);background:var(--card);color:var(--acc);padding:6px 10px}
 .ep-bcard{scroll-margin-top:80px;scroll-margin-bottom:160px}
+.ep-sentence-nav,.ep-sentence-nav button,.ep-bcard .dt{scroll-margin-bottom:150px}

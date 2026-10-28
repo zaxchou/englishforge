@@ -8,7 +8,7 @@
 <link rel="icon" type="image/png" sizes="96x96" href="/assets/brand/t-dot-v1/t-dot-96.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/assets/brand/t-dot-v1/t-dot-180.png">
 <title>TOEFL Lab · 托福自学练习</title>
-<link rel="stylesheet" href="desk.css?v=1794200000">
+<link rel="stylesheet" href="desk.css?v=20261028r23">
 <style>
 /* 应用层补充样式（视觉基线在 desk.css，不改它的既有规则） */
 /* 单词与字符格保持同一行；焦点、已填、判题状态沿用研读桌配色。 */
@@ -3457,16 +3457,14 @@ window.renderEplodMain=async function(c){
     +'<footer class="ep-stage">'
       +'<div class="ep-segs">'+['dg','pb','rv'].map(s=>'<button data-seg="'+s+'"'+(s===initialSeg?' class="on"':'')+'>'+segNames[s]+(d.durations&&d.durations[s]?' <i>'+fmtDur(d.durations[s])+'</i>':'')+'</button>').join('')+'</div>'
       +'<audio id="ep-audio" preload="metadata" hidden src="'+esc(d.audio[initialSeg])+'"></audio>'
-      +'<div class="ep-seekrow" id="ep-seekrow" hidden><button id="ep-seek-play" aria-label="播放或暂停">▶</button><span id="ep-cur">0:00</span><input id="ep-seek" type="range" min="0" max="1000" step="1" value="0" aria-label="播放进度"><span id="ep-dur">—</span><button id="ep-vol" aria-label="静音">🔊</button></div>'
+      +'<div class="ep-seekrow" id="ep-seekrow" hidden><button id="ep-seek-play" aria-label="播放或暂停">▶</button><span id="ep-cur">0:00</span><input id="ep-seek" type="range" min="0" max="1000" step="1" value="0" aria-label="播放进度"><span id="ep-dur">—</span><button id="ep-vol" aria-label="静音">🔊</button><button id="ep-seek-close" aria-label="收起播放进度">×</button></div>'
       +'<div class="cs-status ep-status">'
-        +'<span class="ep-prime"><button id="ep-loop">↻ 循环</button>'
-        +'<button id="ep-mask">盲听</button></span>'
-        +'<span class="grow"></span>'
-        +'<span class="ep-extra">'
-          +'<label class="cs-speed"><span>速度</span> <select id="ep-speed" aria-label="播放速度">'+[0.75,1,1.25,1.5].map(n=>'<option value="'+n+'">'+n+'×</option>').join('')+'</select></label>'
-          +'<button class="ep-player-toggle" id="ep-player-toggle" aria-expanded="false">播放器</button>'
-          +'<details class="ep-shortcuts"><summary><span class="sct">快捷键</span><b>?</b></summary><p>空格 播放/暂停 · Z 重听 · X 循环 · ←/→ 上一句/下一句 · C 揭示原文</p></details>'
-        +'</span></div>'
+        +'<label class="cs-speed"><span>速度</span> <select id="ep-speed" aria-label="播放速度">'+[0.75,1,1.25,1.5].map(n=>'<option value="'+n+'">'+n+'×</option>').join('')+'</select></label>'
+        +'<details class="ep-more" id="ep-more"><summary aria-label="更多播放工具">•••</summary><div class="ep-more-panel">'
+          +'<button id="ep-loop">↻ 单句循环</button><button id="ep-mask">盲听原文</button>'
+          +'<button class="ep-player-toggle" id="ep-player-toggle" aria-label="展开播放进度" aria-expanded="false">播放进度</button>'
+          +'<details class="ep-shortcuts"><summary>键盘快捷键 <b>?</b></summary><p>空格　播放 / 暂停<br>Z　重听　X　循环<br>← / →　上一句 / 下一句<br>C　揭示原文</p></details>'
+        +'</div></details></div>'
 
       +'<div class="na-box" id="ep-note" style="display:none"></div>'
     +'</footer>'
@@ -3582,37 +3580,17 @@ function epWire(){
   /* 自绘播放器: 与正文同一条左右基准线, 不再用原生 audio 控件(内距导致 8px 偏移) */
   const srow=$('ep-seekrow'),seek=$('ep-seek'),cur=$('ep-cur'),durEl=$('ep-dur'),pt=$('ep-player-toggle'),spb=$('ep-seek-play'),vol=$('ep-vol');
   const syncSeek=()=>{if(!srow||srow.hidden)return;cur.textContent=fmtDur(a.currentTime||0);durEl.textContent=a.duration?fmtDur(a.duration):'—';if(!(seek.matches&&seek.matches(':active')))seek.value=String(a.duration?Math.round(a.currentTime/a.duration*1000):0);};
-  pt.onclick=()=>{const open=srow.hidden;srow.hidden=!open;pt.setAttribute('aria-expanded',String(open));pt.textContent=open?'播放器 ⌃':'播放器';if(open)syncSeek();};
-  /* 受控换行: 播放条一行放不下时,不让「速度/播放器/快捷键」整簇甩到右下留大洞——
-     循环/盲听留在首行右, 次要组整体下沉为第二层。判定按流动布局占位宽度估算
-     (各组宽度与流动与否无关, 结论稳定不振荡); ≤700 交给手机专用布局。 */
-  EP.flowRo?.disconnect();
-  const stage=$('ep-dock')?.closest('.ep-stage');
-  if(stage){
-    const epFlowNeed=()=>{
-      const dock=stage.querySelector('.ep-dock'),segs=stage.querySelector('.ep-segs'),
-            prime=stage.querySelector('.ep-prime'),extra=stage.querySelector('.ep-extra'),
-            status=stage.querySelector('.ep-status');
-      if(!dock||!segs||!prime||!extra||!status)return false;
-      const g=x=>x.getBoundingClientRect().width;
-      let need;
-      if(getComputedStyle(status).display==='contents'){
-        /* 流动态: 组间距按 8px 全算 + 48px 余量(保守), 保证不会刚下沉又弹回 */
-        const kids=[...extra.children];
-        need=g(dock)+g(segs)+g(prime)+kids.reduce((s,x)=>s+g(x),0)+8*(2+kids.length)+48;
-      }else{
-        /* 非流动态: 直接量三组实宽, 精确 */
-        need=g(dock)+g(segs)+g(status)+28;
-      }
-      return need>stage.clientWidth-24;
-    };
-    const epFlowApply=()=>stage.classList.toggle('ep-flow',epFlowNeed()&&window.innerWidth>700);
-    EP.flowRo=new ResizeObserver(epFlowApply);
-    EP.flowRo.observe(stage);
-    const epDockEl=$('ep-dock');if(epDockEl)EP.flowRo.observe(epDockEl);
-    epFlowApply();
-    if(document.fonts)document.fonts.ready.then(()=>{if(stage.isConnected)epFlowApply();});
-  }
+  pt.onclick=()=>{const open=srow.hidden;srow.hidden=!open;pt.setAttribute('aria-expanded',String(open));pt.setAttribute('aria-label',open?'收起播放进度':'展开播放进度');if(open){$('ep-more').open=false;syncSeek();seek.focus({preventScroll:true});}};
+  $('ep-seek-close').onclick=()=>{srow.hidden=true;pt.setAttribute('aria-expanded','false');pt.setAttribute('aria-label','展开播放进度');$('ep-more').querySelector('summary').focus({preventScroll:true});};
+  const more=$('ep-more');
+  more.addEventListener('toggle',()=>{if(more.open){srow.hidden=true;pt.setAttribute('aria-expanded','false');pt.setAttribute('aria-label','展开播放进度');}});
+  const closeTools=e=>{
+    if(!more.isConnected){document.removeEventListener('pointerdown',closeTools);return;}
+    if(more.open&&!more.contains(e.target))more.open=false;
+  };
+  document.addEventListener('pointerdown',closeTools);
+  more.addEventListener('keydown',e=>{if(e.key==='Escape'){e.stopPropagation();more.open=false;more.querySelector('summary').focus({preventScroll:true});}});
+  srow.addEventListener('keydown',e=>{if(e.key==='Escape'){e.stopPropagation();$('ep-seek-close').click();}});
   seek.oninput=()=>{if(!a.duration)return;const playing=!a.paused;a.pause();st.cancelSeek?.();st.seekSeq=(st.seekSeq||0)+1;st.playSession=null;st.playTarget=null;st.range=null;st.stopAtEnd=false;st.loop=false;$('ep-loop').classList.remove('on');st.seekPosition(seek.value/1000*a.duration);if(playing)epTogglePlayback();syncSeek();};
   const kurSync=()=>{if(spb)spb.textContent=a.paused?'▶':'❚❚';};
   spb.onclick=()=>epTogglePlayback();
@@ -3795,7 +3773,6 @@ function epCancelRecording(st=EP.st){
 function epLeave(){
   const st=EP.st;if(!st)return;
   epCancelRecording(st);epStopOriginal(st);epStopReplay();
-  EP.flowRo?.disconnect();
   st.active=false;
 }
 async function epReplay(i){
@@ -3819,10 +3796,11 @@ function epResultHTML(text,result){
     const ok=r.marks.slice(at,at+n).every(Boolean);at+=n;
     return '<span class="'+(ok?'ok':'miss')+'">'+esc(p)+'</span>';
   }).join('');
-  return '<div class="dw"><b>'+(r.acc>=.9?'✓ 本次通过':'本次词准 '+Math.round(r.acc*100)+'%')+'</b> '+marked+'</div>'
-    +(result.mode==='voice'?'<div class="do">转写：'+esc(result.text||'（未识别到内容）')+'</div>':'')
-    +(r.extras.length?'<div class="dx">多写：'+r.extras.map(esc).join(' · ')+'</div>':'')
-    +'<div class="do">原文：'+esc(text)+'</div>';
+  const passed=r.acc>=.9;
+  return '<div class="ep-result'+(passed?' pass':'')+'"><div class="ep-result-head"><b>'+(passed?'✓ 本次通过':'本次词准 '+Math.round(r.acc*100)+'%')+'</b><span>'+(passed?'词准 '+Math.round(r.acc*100)+'%':'通过线 90%')+'</span></div>'
+    +'<div class="dw" aria-label="原文逐词对照">'+marked+'</div>'
+    +(result.mode==='voice'?'<div class="do"><span>我的转写</span>'+esc(result.text||'（未识别到内容）')+'</div>':'')
+    +(r.extras.length?'<div class="dx">多出词：'+r.extras.map(esc).join(' · ')+'</div>':'')+'</div>';
 }
 function epSavedResult(record,mode){
   if(!record)return null;
@@ -3841,7 +3819,7 @@ function epVoiceFeedback(st,i){
   if(!take&&reading?.recAttemptId&&reading.recAttemptId!==result?.id)return '<p class="ep-note">最新录音已保存，尚无对应识别结果；可回听或重新朗读。上方为历史最好成绩。</p>'+archive;
   if(!result)return archive;
   const duration=Number(result.dur),sourceDur=u.t1-u.t0;
-  return epResultHTML(u.text,result)+(duration>0?'<p class="ep-note">用时 '+fmtDur(duration)+(u.t0!=null&&sourceDur>0?' / 原句 '+fmtDur(sourceDur)+(result.speed?' · ✓ 本次同速达成':result.acc>=.9?' · 内容通过，可重录练同速':' · 内容通过后再判断同速'):' · 本句尚无音频定位，暂不判断同速')+'</p>':'')+archive;
+  return epResultHTML(u.text,result)+(duration>0?'<p class="ep-note">用时 '+fmtDur(duration)+(u.t0!=null&&sourceDur>0?' / 原句 '+fmtDur(sourceDur)+(result.speed?' · ✓ 本次同速达成':result.acc>=.9?' · 可重录练同速':''):' · 本句尚无音频定位，暂不判断同速')+'</p>':'')+archive;
 }
 function epRefreshSentence(st,i){
   if(EP.st!==st&&EP.st?.active&&EP.st.l.id===st.l.id)st=EP.st;
@@ -3853,14 +3831,14 @@ function epRefreshSentence(st,i){
     if(epHasReplay(st,i)&&!replay){
       replay=document.createElement('button');replay.className='elisten-me';replay.dataset.i=i;
       replay.title='回听我的录音';replay.textContent='▶ 回听';replay.onclick=()=>epReplay(i);
-      card.querySelector('.bh .bmode').before(replay);
+      card.querySelector('.ep-card-audio').append(replay);
     }
     const r=st.p.drill.rd[i];let badge=card.querySelector('[data-k="r"]');
-    if(r?.acc!=null){if(!badge){badge=document.createElement('span');badge.className='mini';badge.dataset.k='r';card.querySelector('.bh').append(badge);}badge.textContent='背最好 '+Math.round(r.acc*100)+'%';badge.classList.toggle('ok',r.acc>=.9);}
+    if(r?.acc!=null){if(!badge){badge=document.createElement('span');badge.className='mini';badge.dataset.k='r';card.querySelector('.ep-card-history').append(badge);}badge.textContent='背诵历史最好 '+Math.round(r.acc*100)+'%';badge.classList.toggle('ok',r.acc>=.9);}
     let speed=card.querySelector('[data-k="s"]');
     const passed=EplodRecords.speedPassed(st.p.drill.sd?.[i],r,st.d.dialogue[i]);
-    if(passed&&!speed){speed=document.createElement('span');speed.className='mini ok';speed.dataset.k='s';card.querySelector('.bh').append(speed);}
-    if(speed){speed.textContent='速✓';speed.hidden=!passed;}
+    if(passed&&!speed){speed=document.createElement('span');speed.className='mini ok';speed.dataset.k='s';card.querySelector('.ep-card-history').append(speed);}
+    if(speed){speed.textContent='同速 ✓';speed.hidden=!passed;}
     card.querySelector('.bvoice .dr').innerHTML=epVoiceFeedback(st,i);
     const retry=card.querySelector('.ep-retry-asr');if(retry)retry.onclick=()=>epProcessTake(st,epTake(st,i));
     const retryArchive=card.querySelector('.ep-retry-archive');if(retryArchive)retryArchive.onclick=()=>epArchiveTake(st,epTake(st,i));
@@ -3878,6 +3856,8 @@ function epWireRow(row){
   const replay=row.querySelector('.elisten-row');if(replay)replay.onclick=e=>{e.stopPropagation();epReplay(+row.dataset.i);};
 }
 
+function epCoveredToday(st,i){return (st.p.drill.stampDays?.[epDay()]||[]).includes(i);}
+function epCoverageLabel(st,i){return epCoverState(st.p,st.d.dialogue.length).completed>=3?'三遍完成':epCoveredToday(st,i)?'今日已计入':'今日待练';}
 function epRowHtml(i){
   const st=EP.st,drill=st.p.drill,u=epItems()[i];
   const acc=drill.dd[i]&&drill.dd[i].acc,rec=drill.rd[i]&&drill.rd[i].acc!=null?drill.rd[i]:null;
@@ -3886,13 +3866,14 @@ function epRowHtml(i){
     +'<span class="no">#'+(i+1)+'</span>'
     +'<span class="bt">'+(u.t0!=null?fmtDur(u.t0):'—')+'</span>'
     +'<span class="btxt">'+esc(zh0.length>42?zh0.slice(0,42)+'…':(zh0||'（无线索）'))+'</span>'
-    +'<span class="grow"></span>'
-    +(acc!=null?'<span class="mini'+(acc>=0.9?' ok':'')+'">写'+Math.round(acc*100)+'%</span>':'')
-    +(rec?'<span class="mini'+(rec.acc>=0.9?' ok':'')+'">背'+Math.round(rec.acc*100)+'%</span>':'')
-    +(EplodRecords.speedPassed(drill.sd?.[i],drill.rd[i],st.d.dialogue[i])?'<span class="mini ok">速✓</span>':'')
-    +(drill.mode==='exam'&&(drill.playsS[i]||0)>=3?'<span class="mini warn">听3/3</span>':'')
-    +(epHasReplay(st,i)?'<button class="elisten-row" data-i="'+i+'" title="回听我的录音" aria-label="回听第'+(i+1)+'句录音">▶</button>':'')
-    +'<i class="arr">▸</i></div>';
+    +'<span class="ep-row-progress">'
+    +(epCoveredToday(st,i)?'<span class="mini ok">今日 ✓</span>':'')
+    +(acc!=null?'<span class="mini'+(acc>=0.9?' ok':'')+'">写 '+Math.round(acc*100)+'%</span>':'')
+    +(rec?'<span class="mini'+(rec.acc>=0.9?' ok':'')+'">背 '+Math.round(rec.acc*100)+'%</span>':'')
+    +(EplodRecords.speedPassed(drill.sd?.[i],drill.rd[i],st.d.dialogue[i])?'<span class="mini ok">同速 ✓</span>':'')
+    +(drill.mode==='exam'&&(drill.playsS[i]||0)>=3?'<span class="mini warn">听 3/3</span>':'')+'</span>'
+    +'<span class="ep-row-actions">'+(epHasReplay(st,i)?'<button class="elisten-row" data-i="'+i+'" title="回听我的录音" aria-label="回听第'+(i+1)+'句录音">▶</button>':'')
+    +'<i class="arr" aria-hidden="true">›</i></span></div>';
 }
 
 function epBlockCard(i){
@@ -3907,18 +3888,17 @@ function epBlockCard(i){
   const clue=zh.length?zh.join(' / '):(sense.length?sense.map(x=>x.zh).join(' / '):'（本句无中文线索，听原音背诵）');
   const senseHtml=sense.length?sense.map(x=>'<span class="su"><b>'+esc(x.u)+'</b><i>'+esc(x.zh)+'</i></span>').join(''):'';
   const orig=u.lines.map(x=>(x.spk?'<i class="spk">'+esc(x.spk)+'</i>':'')+'<span>'+esc(x.text)+'</span>').join(' ');
-  const seg=[['dict','听写'],['voice','朗读'],['type','默写']].map(m=>'<button data-m="'+m[0]+'"'+(mode===m[0]?' class="on"':'')+'>'+m[1]+'</button>').join('');
-  let h='<div class="ep-bcard" data-i="'+i+'">'
-    +'<div class="bh"><span class="no">当前句 '+(i+1)+'/'+st.d.dialogue.length+'</span>'
-    +'<button class="bp" title="听这句（只播当前句）" aria-label="听这句"'+(epAnchored(i)?'':' disabled')+'><span class="bp-ico">▶</span><span class="bp-tx">听这句</span></button><button class="bl" title="单句循环" aria-label="单句循环"'+(epAnchored(i)?'':' disabled')+'>↻</button>'
+  const seg=[['dict','听写'],['voice','朗读'],['type','默写']].map(m=>'<button data-m="'+m[0]+'" aria-pressed="'+(mode===m[0])+'"'+(mode===m[0]?' class="on"':'')+'>'+m[1]+'</button>').join('');
+  let h='<div class="ep-bcard" data-i="'+i+'" data-mode="'+mode+'">'
+    +'<div class="bh"><div class="ep-card-title"><span class="no">当前句 '+(i+1)+' / '+st.d.dialogue.length+'</span><span class="bmode" role="group" aria-label="练习方式">'+seg+'</span></div>'
+    +'<div class="ep-card-tools"><span class="ep-card-audio"><button class="bp" title="听这句（只播当前句）" aria-label="听这句"'+(epAnchored(i)?'':' disabled')+'><span class="bp-ico" aria-hidden="true">▶</span><span class="bp-tx">听这句</span></button><button class="bl" title="单句循环" aria-label="单句循环"'+(epAnchored(i)?'':' disabled')+'>↻</button>'
     +(epHasReplay(st,i)?'<button class="elisten-me" data-i="'+i+'" title="回听我的录音">▶ 回听</button>':'')
-    +(drill.mode==='exam'?'<span class="dc">'+(3-Math.min(3,plays))+' 次可听</span>':'')
-    +'<span class="bmode">'+seg+'</span>'
-    +'<span class="grow"></span>'
-    +(acc!=null?'<span class="mini'+(acc>=0.9?' ok':'')+'" data-k="d">写'+Math.round(acc*100)+'%</span>':'')
-    +(rec?'<span class="mini'+(rec.acc>=0.9?' ok':'')+'" data-k="r">背最好 '+Math.round(rec.acc*100)+'%</span>':'')
-    +(sd?'<span class="mini ok" data-k="s">速✓</span>':'')
-    +'</div>'
+    +(drill.mode==='exam'?'<span class="dc">'+(3-Math.min(3,plays))+' 次可听</span>':'')+'</span>'
+    +'<span class="ep-card-history" aria-label="历史最好成绩">'
+    +(acc!=null?'<span class="mini'+(acc>=0.9?' ok':'')+'" data-k="d">听写历史最好 '+Math.round(acc*100)+'%</span>':'')
+    +(rec?'<span class="mini'+(rec.acc>=0.9?' ok':'')+'" data-k="r">背诵历史最好 '+Math.round(rec.acc*100)+'%</span>':'')
+    +(sd?'<span class="mini ok" data-k="s">同速 ✓</span>':'')
+    +'</span></div></div>'
     +(!epAnchored(i)?'<p class="ep-note">本句尚无音频定位，可用默写完成；同速暂不评定。</p>':'')
     +'<div class="rclue" style="display:'+(mode==='dict'?'none':'')+'">'+esc(clue)+'</div>'
     +'<div class="bbody bdict" style="display:'+(mode==='dict'?'':'none')+'">'
@@ -3926,17 +3906,15 @@ function epBlockCard(i){
       +'<div class="dr">'+epResultHTML(u.text,epSavedResult(drill.dd[i],'dict'))+'</div></div>'
     +'<div class="bbody bvoice" style="display:'+(mode==='voice'?'':'none')+'">'
       +(asr
-        ?'<div class="vrow"><button class="ep-rec" data-i="'+i+'">'+(st.recording&&st.recording.i===i?'■ 停止 · <i class="rt">0:00</i>':'🎙 朗读这句')+'</button>'
-          +(rec&&rec.mode==='voice'&&rec.dur?'<span class="ep-dur">用时 '+fmtDur(rec.dur)+(u.t0!=null&&u.t1!=null?' / 原句 '+fmtDur(u.t1-u.t0)+(sd?' · <b class="ok">✓ 同速</b>':''):' · 本句无音频定位')+'</span>':'')
-          +'</div>'
+        ?'<div class="vrow"><button class="ep-rec" data-i="'+i+'">'+epRecLabel()+'</button></div>'
         :'<p class="ep-note">朗读背诵需要转写服务（未配置 ASR），请用默写。</p>')
       +'<div class="dr">'+epVoiceFeedback(st,i)+'</div></div>'
     +'<div class="bbody btype" style="display:'+(mode==='type'?'':'none')+'">'
       +'<textarea class="dt" rows="2" placeholder="看中文线索，默写完整句子（Enter 提交）">'+esc(drill.rd[i]?.draft??epSavedResult(drill.rd[i],'type')?.text??'')+'</textarea>'
       +'<div class="dr">'+epResultHTML(u.text,epSavedResult(drill.rd[i],'type'))+'</div></div>'
-    +'<div class="rhints" style="display:'+(mode==='dict'?'none':'')+'">'+(senseHtml?'<button class="h1">看意群积木</button>':'')+'<button class="h2">看原文</button><span class="grow"></span><span class="ep-note">通过线 90% · 同速线 1.15×</span></div>'
+    +'<div class="rhints" style="display:'+(mode==='dict'?'none':'')+'">'+(senseHtml?'<button class="h1">意群提示</button>':'')+'<button class="h2">查看原文</button></div>'
     +'<div class="rsense" style="display:none">'+senseHtml+'</div><div class="rorig" style="display:none">'+orig+'</div>'
-    +'<div class="ep-sentence-nav"><button class="ep-sentence-prev"'+(i===0?' disabled':'')+'>上一句</button><span>'+(i+1)+' / '+st.d.dialogue.length+'</span><button class="ep-sentence-next"'+(i===st.d.dialogue.length-1?' disabled':'')+'>下一句 →</button></div>'
+    +'<div class="ep-sentence-nav"><button class="ep-sentence-prev"'+(i===0?' disabled':'')+'>上一句</button><span class="ep-card-coverage">'+epCoverageLabel(st,i)+'</span><button class="ep-sentence-next"'+(i===st.d.dialogue.length-1?' disabled':'')+'>下一句 →</button></div>'
     +'</div>';
   return h;
 }
@@ -3994,7 +3972,7 @@ function epPlaybackCountUpdate(){
   const card=$('ep-blist')?.querySelector('.ep-bcard');
   if(card&&st.p.drill.mode==='exam'){
     let dc=card.querySelector('.dc');
-    if(!dc){dc=document.createElement('span');dc.className='dc';card.querySelector('.bh').appendChild(dc);}
+    if(!dc){dc=document.createElement('span');dc.className='dc';card.querySelector('.ep-card-audio').appendChild(dc);}
     dc.textContent=Math.max(0,3-(st.p.drill.playsS[card.dataset.i]||0))+' 次可听';
   }
 }
@@ -4052,15 +4030,20 @@ function epWireCard(card){
   /* 三练法切换: 听写 / 朗读 / 默写 */
   card.querySelectorAll('.bmode button').forEach(b=>b.onclick=()=>{
     if((st.amode[i]||st.lastMode)!==b.dataset.m){epCancelRecording(st);epStopOriginal(st);epStopReplay();}
-    st.amode[i]=b.dataset.m;st.lastMode=b.dataset.m;
-    card.querySelectorAll('.bmode button').forEach(x=>x.classList.toggle('on',x===b));
+    st.amode[i]=b.dataset.m;st.lastMode=b.dataset.m;card.dataset.mode=b.dataset.m;
+    card.querySelectorAll('.bmode button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',String(x===b));});
     card.querySelector('.bdict').style.display=b.dataset.m==='dict'?'':'none';
     card.querySelector('.bvoice').style.display=b.dataset.m==='voice'?'':'none';
     card.querySelector('.btype').style.display=b.dataset.m==='type'?'':'none';
     card.querySelector('.rclue').style.display=b.dataset.m==='dict'?'none':'';
     card.querySelector('.rhints').style.display=b.dataset.m==='dict'?'none':'';
     card.querySelectorAll('.dt').forEach(epFitInput);
-    if(b.dataset.m==='dict'){const t=card.querySelector('.bdict .dt');if(t)t.focus({preventScroll:true});}
+    const target=card.querySelector('.bbody:not([style*="none"]) .dt')||card.querySelector('.ep-rec');
+    if(target){
+      const r=target.getBoundingClientRect(),bottom=document.querySelector('.ep-stage')?.getBoundingClientRect().top||innerHeight;
+      if(r.bottom>bottom-12||r.top<($('ep-tabs')?.getBoundingClientRect().bottom||70))card.scrollIntoView({block:'start',behavior:'instant'});
+      if(b.dataset.m!=='voice')target.focus({preventScroll:true});
+    }
   });
   /* ① 听写: 听音写 → 逐词比对 → drill.dd; 留在本句读 diff */
   {
@@ -4077,8 +4060,8 @@ function epWireCard(card){
       drill.dd[i].draft=mine;
       recSave();
       let mini=card.querySelector('.bh .mini[data-k="d"]');
-      if(!mini){mini=document.createElement('span');mini.className='mini';mini.dataset.k='d';card.querySelector('.bh').appendChild(mini);}
-      mini.textContent='写'+Math.round(best*100)+'%';mini.classList.toggle('ok',best>=0.9);mini.style.display='';
+      if(!mini){mini=document.createElement('span');mini.className='mini';mini.dataset.k='d';card.querySelector('.ep-card-history').appendChild(mini);}
+      mini.textContent='听写历史最好 '+Math.round(best*100)+'%';mini.classList.toggle('ok',best>=0.9);mini.style.display='';
       body.querySelector('.dr').innerHTML=epResultHTML(u.text,drill.dd[i].latest);
       epStepsUpdate();epDockNo();
       if(st.doneOf(i)){const nx=$('ep-dock-next');if(nx)nx.classList.add('pulse');}
@@ -4111,8 +4094,8 @@ function epWireCard(card){
       drill.rd[i].draft=mine;
       st.p.at=Date.now();recSave();if(r.acc>=.9)epStamp(i,st);
       let mini=card.querySelector('.bh .mini[data-k="r"]');
-      if(!mini){mini=document.createElement('span');mini.className='mini';mini.dataset.k='r';card.querySelector('.bh').appendChild(mini);}
-      mini.textContent='背最好 '+Math.round(best*100)+'%';mini.classList.toggle('ok',best>=0.9);mini.style.display='';
+      if(!mini){mini=document.createElement('span');mini.className='mini';mini.dataset.k='r';card.querySelector('.ep-card-history').appendChild(mini);}
+      mini.textContent='背诵历史最好 '+Math.round(best*100)+'%';mini.classList.toggle('ok',best>=0.9);mini.style.display='';
       body.querySelector('.dr').innerHTML=epResultHTML(u.text,drill.rd[i].typed);
       if(EP.st===st){epStepsUpdate();epDockNo();}
 
@@ -4168,7 +4151,7 @@ function epCoverUpdate(){
     const done=k<=n,current=k===n+1;
     const date=dates[k-1-(recovered?1:0)];
     const detail=done?(recovered&&k===1?'历史补认':'<time>'+date.slice(5)+'</time>')
-      :current?(todayStamped?'隔天复背':todayN?'今天 '+todayN+'/'+need+' 句':n?'待复背':'待开始'):'待复背';
+      :current?(todayStamped?'隔天复背':todayN?'<span>今天</span><span>'+todayN+'/'+need+' 句</span>':n?'待复背':'待开始'):'待复背';
     stamps+='<div class="ep-cover-step'+(done?' complete':'')+(current?' current':'')+(k===3&&n===3?' final':'')+'"><span class="ep-round'+(done?' complete':'')+(current?' current':'')+(k===3&&n===3?' final':'')+'" role="img" aria-label="第'+k+'遍'+(done?'已完成':'未完成')+'">'+EP_STAR+'</span><span class="ep-cover-label"><b>'+labels[k-1]+'</b><small>'+detail+'</small></span></div>';
   }
   const msg=n>=3?'三遍复背已完成':todayStamped?'本遍已完成，隔天继续第 '+(n+1)+' 遍'
@@ -4178,6 +4161,7 @@ function epCoverUpdate(){
     +'<div class="ep-cover-track">'+stamps+'</div><p class="ep-cover-hint">'+msg+'</p>';
   epSyncProgressToggle();
   epNavCoverUpdate();
+  const card=$('ep-blist')?.querySelector('.ep-bcard'),label=card?.querySelector('.ep-card-coverage');if(label)label.textContent=epCoverageLabel(st,+card.dataset.i);
 }
 function epSyncProgressToggle(){
   const b=$('ep-progress-toggle'),panel=$('ep-progress');
@@ -4314,12 +4298,15 @@ async function epRecToggle(i,card){
   try{rec.start();}
   catch(e){st.recording=null;clearInterval(r.levelTimer);clearTimeout(r.limitTimer);stream.getTracks().forEach(t=>t.stop());r.actx?.close().catch(()=>{});epRecButton();epNote('录音启动失败：'+e.message,st);}
 }
+function epRecLabel(){
+  return '<svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><rect x="7" y="2" width="6" height="10" rx="3"/><path d="M4 9v1a6 6 0 0 0 12 0V9M10 16v2M7 18h6"/></svg><span>朗读这句</span>';
+}
 function epRecButton(){
   const st=EP.st,list=$('ep-blist');if(!list||!st)return;
   const b=list.querySelector('.ep-bcard .ep-rec');if(!b)return;
   const i=+b.dataset.i,ing=st.recording?.i===i,pending=st.recPending?.i===i;
   b.disabled=pending;
-  b.innerHTML=pending?'正在打开麦克风…':ing?'● 停止 · <i class="rt">0:00</i><span class="lv"><i></i></span>':'🎙 朗读这句';
+  b.innerHTML=pending?'正在打开麦克风…':ing?'● 停止 · <i class="rt">0:00</i><span class="lv"><i></i></span>':epRecLabel();
   b.classList.toggle('ing',ing);
 }
 
