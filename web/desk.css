@@ -1838,7 +1838,7 @@ body.vfull .cs-stage video.tfl{max-height:none}
 .ep-settings p{font-size:13px;line-height:1.7;text-align:left;margin:10px 0 0}
 .ep-settings .ep-dmode{margin-top:6px}
 .ep-blist{gap:0}
-.ep-bcard{border:0;border-bottom:1px solid var(--line);border-radius:0;padding:12px 0 24px;order:-1;margin-bottom:12px;animation:cs-note-in .18s ease-out}
+.ep-bcard{border:0;border-bottom:1px solid var(--line);border-radius:0;padding:12px 0 24px;margin-bottom:12px;animation:cs-note-in .18s ease-out}
 .ep-bcard .bh{gap:8px;margin-bottom:22px}
 .ep-bcard .bh .no{font-size:12px;color:var(--t2);margin-right:4px}
 .ep-bcard .bh .bmode{order:2;margin-left:auto;border-radius:var(--rs)}
@@ -2252,3 +2252,13 @@ html.sb-min .nav-label{display:none!important}   /* 收缩侧栏只留图标 */
 .elisten-row:hover{background:var(--accbg)}
 .ep-bcard .bh .elisten-me{border:0;background:var(--accbg);color:var(--acc);height:26px;padding:0 9px;border-radius:999px;font-size:12px;cursor:pointer;flex:none;font-weight:600}
 .ep-bcard .bh .elisten-me:hover{background:var(--acc);color:var(--card)}
+
+/* 训练结果留在本句，顺序与列表一致。 */
+.ep-sentence-nav{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:16px;padding-top:12px;border-top:1px solid var(--line)}
+.ep-sentence-nav button{min-height:36px;padding:6px 10px;background:var(--card);border:1px solid var(--line);border-radius:var(--rs);color:var(--t1);white-space:nowrap;flex:none;font-size:13px}
+.ep-sentence-nav button:last-child{background:var(--accbg);color:var(--acc)}
+.ep-sentence-nav span{font-size:12px;color:var(--t2);white-space:nowrap;flex:none}
+.ep-sentence-nav button:disabled,.ep-bcard button:disabled{opacity:.45;cursor:default}
+.elisten-me.playing,.elisten-row.playing{outline:2px solid var(--acc);outline-offset:2px}
+.ep-retry-asr{border:1px solid var(--line);border-radius:var(--rs);background:var(--card);color:var(--acc);padding:6px 10px}
+.ep-bcard{scroll-margin-top:80px;scroll-margin-bottom:160px}

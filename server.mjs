@@ -813,6 +813,9 @@ const ASR_CFG = {
   url: (process.env.TFL_ASR_URL ? new URL(process.env.TFL_ASR_URL).origin : '') + '/compatible-mode/v1/chat/completions',
 };
 const RECORDING_DIR = path.join(RECORDS_DIR, 'recordings');
+// Date.now().toString(36) + '-' + a random base36 suffix; no path or URL metacharacters.
+const EPLOD_TAKE_ID = /^[a-z0-9]{1,16}-[a-z0-9]{1,32}$/;
+const EPLOD_RECORDING_FILE = /^eplod-\d{4}-\d{1,2}(?:-[a-z0-9]{1,16}-[a-z0-9]{1,32})?\.[\w]+$/;
 function ttsWavParse(buf) {
   if (buf.length < 44 || buf.toString('ascii', 0, 4) !== 'RIFF' || buf.toString('ascii', 8, 12) !== 'WAVE') throw new Error('NOT_A_WAV');
   let off = 12, fmt = null, dataBytes = 0, headerBytes = 44, hasData = false;
@@ -1339,6 +1342,14 @@ if(repairedNum){
   recordsSave(repaired);RECORDS=repaired;
   console.log('[eplod] corrected number-token scores:',repairedNum);
 }
+const repairedSpeed=EplodRecords.repairSpeedScores(RECORDS,id=>{
+  try{return JSON.parse(fs.readFileSync(path.join(BUILD_DIR,'eplod',id.slice(6)+'.json'),'utf8')).dialogue;}catch{return null;}
+});
+if(repairedSpeed){
+  const repaired={...RECORDS,revision:(RECORDS.revision||0)+1,saved_at:new Date().toISOString()};
+  recordsSave(repaired);RECORDS=repaired;
+  console.log('[eplod] verified legacy same-speed results:',repairedSpeed);
+}
 const REVIEW_HUB=createReviewHub({web:WEB_DIR,records:()=>RECORDS,setRecords:x=>{RECORDS=x;},save:recordsSave,recordAttempt:serverRecAttempt,quizzes:()=>GQ_STORE,banks:()=>[...REVIEW_BANKS.values()],reviewEvents:()=>REVIEW_EVENTS,ai:AI_CFG});
 
 /* ---------- HTTP 基础 ---------- */
@@ -1457,7 +1468,7 @@ const handler = async (req, res) => {
         return sendJSON(res, /timeout/i.test(e.message) ? 504 : 502, { error: 'ASR 失败: ' + e.message });
       }
     }
-    /* ---- API: eplod 录音存档(每句覆盖, 供回听自己) ---- */
+    /* ---- API: eplod 录音存档(take 独立归档；未提供 takeId 的旧客户端按句覆盖) ---- */
     const mEpRec = p.match(/^\/api\/eplod\/recording$/);
     if (mEpRec) {
       if (req.method !== 'POST') return sendJSON(res, 405, { error: 'method' });
@@ -1465,16 +1476,25 @@ const handler = async (req, res) => {
       if (origin && origin !== `http://${req.headers.host}` && origin !== `https://${req.headers.host}`) return sendJSON(res, 403, { error: 'cross-origin rejected' });
       let body; try { body = await readBody(req, 12 * 1024 * 1024); } catch (e) { return sendJSON(res, 413, { error: e.message }); }
       let inc; try { inc = JSON.parse(body.toString('utf8') || '{}'); } catch (e) { return sendJSON(res, 400, { error: 'bad json' }); }
+      if (!inc || typeof inc !== 'object' || Array.isArray(inc)) return sendJSON(res, 400, { error: 'bad json' });
       const ep = String(inc.ep || ''), ix = inc.i, audio = String(inc.audio || '');
       if (!/^\d{4}$/.test(ep) || !Number.isInteger(ix) || ix < 0 || ix > 99) return sendJSON(res, 400, { error: 'bad ep/i' });
+      const hasTakeId = Object.hasOwn(inc, 'takeId');
+      if (hasTakeId && (typeof inc.takeId !== 'string' || !EPLOD_TAKE_ID.test(inc.takeId))) return sendJSON(res, 400, { error: 'bad takeId' });
       const m = audio.match(/^data:(audio\/[\w.+-]+(?:;[\w.=+-]+)?);base64,([A-Za-z0-9+/=]+)$/);
       if (!m) return sendJSON(res, 400, { error: 'audio 须为 data:audio/*;base64' });
       const ext = (m[1].split(';')[0].split('/')[1].replace(/[^\w]/g, '')) || 'webm';
       if (m[2].length > 11 * 1024 * 1024) return sendJSON(res, 413, { error: '录音过大' });
+      const file = `eplod-${ep}-${ix}${hasTakeId ? '-' + inc.takeId : ''}.${ext}`;
       try {
         fs.mkdirSync(RECORDING_DIR, { recursive: true });
-        fs.writeFileSync(path.join(RECORDING_DIR, `eplod-${ep}-${ix}.${ext}`), Buffer.from(m[2], 'base64'));
-        return sendJSON(res, 200, { ok: true, file: `eplod-${ep}-${ix}.${ext}` });
+        try {
+          fs.writeFileSync(path.join(RECORDING_DIR, file), Buffer.from(m[2], 'base64'), { flag: hasTakeId ? 'wx' : 'w' });
+        } catch (e) {
+          // A retry keeps the original take bytes, even if another request arrived first.
+          if (!hasTakeId || e.code !== 'EEXIST') throw e;
+        }
+        return sendJSON(res, 200, { ok: true, file });
       } catch (e) { return sendJSON(res, 503, { error: '录音落盘失败: ' + e.message }); }
     }
     const mHand = p.match(/^\/api\/handout\/(.+)$/);
@@ -1833,10 +1853,12 @@ const handler = async (req, res) => {
       if (!MEDIA_EXT.has(path.extname(abs).toLowerCase())) return sendJSON(res, 403, { error: 'ext not allowed' });
       return sendFile(req, res, abs);
     }
-    /* ---- 媒体: 用户录音回放(records 卷/recordings, 每句覆盖) ---- */
-    const mRecMedia = p.match(/^\/media\/rec\/(eplod-\d{4}-\d{1,2}\.[\w]+)$/);
+    /* ---- 媒体: 用户录音回放(records 卷/recordings，兼容旧句子文件与独立 take) ---- */
+    const mRecMedia = p.match(/^\/media\/rec\/(.+)$/);
     if (mRecMedia) {
-      const abs = path.join(RECORDING_DIR, mRecMedia[1]);
+      if (!EPLOD_RECORDING_FILE.test(mRecMedia[1])) return sendJSON(res, 400, { error: 'bad recording path' });
+      const abs = path.resolve(RECORDING_DIR, mRecMedia[1]);
+      if (!abs.startsWith(RECORDING_DIR + path.sep)) return sendJSON(res, 400, { error: 'bad recording path' });
       if (!fs.existsSync(abs)) return sendJSON(res, 404, { error: 'no recording' });
       return sendFile(req, res, abs);
     }

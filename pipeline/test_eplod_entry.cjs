@@ -90,7 +90,7 @@ try{
     'eplod-0002':{done:true,wt:3600,at:Date.now(),drill:{
       dd:{0:{acc:.95},1:{acc:.95}},
       rd:{0:{acc:.95}},
-      sd:{0:{acc:.95}},
+      sd:{0:{id:'speed-test',at:1,acc:.95,dur:2,sourceDur:3,verified:true}},
       stampDays:{'2026-10-26':[0,1,2,3,4,5,6,7,8],'2026-10-27':[0,1,2,3,4,5,6,7,8]},
       recoveredCover:{sentences:[0,1,2,3,4,5,6,7,8],recognizedAt:1}}},
     'eplod-0001':{drill:{stampDays:{'2026-10-26':[0,1,2,3,4,5,6,7,8]}}}
