@@ -217,9 +217,16 @@ async function endpointChecks() {
     const duplicate = await post({...payload, takeId: newId, audio: audio('changed duplicate bytes')});
     assert.equal(duplicate.status, 200);
     assert.equal(await (await fetch(base + '/media/rec/' + duplicate.body.file)).text(), 'new take bytes');
-    const range = await fetch(base + '/media/rec/' + newer.body.file, {headers: {Range: 'bytes=0-2'}});
+    // r22 保留策略: 同句最多两份 take(按落盘时间), 第三份出现时最旧一份被清理
+    const third = await post({...payload, takeId: 'mhe99900-thirdab'});
+    assert.equal(third.status, 200);
+    await new Promise(r => setTimeout(r, 30));
+    const kept = fs.readdirSync(path.join(dirs.records, 'recordings')).filter(f => f.startsWith('eplod-0016-2-')).sort();
+    assert.deepEqual(kept, [`eplod-0016-2-${oldId}.webm`, 'eplod-0016-2-mhe99900-thirdab.webm'].sort());   // mtime 最新两份=第三份+晚写入的 old
+    assert.equal((await fetch(base + '/media/rec/eplod-0016-2-mhe99900-thirdab.webm')).status, 200);
+    const range = await fetch(base + '/media/rec/' + older.body.file, {headers: {Range: 'bytes=0-2'}});
     assert.equal(range.status, 206);
-    assert.equal(await range.text(), 'new');
+    assert.equal(await range.text(), 'old');   // newId 已被保留策略清理, Range 用存活的 oldId 文件验证
     const legacy = await post(payload);
     assert.equal(legacy.body.file, 'eplod-0016-2.webm');
     assert.equal((await post({...payload, audio: audio('legacy replacement')})).status, 200);

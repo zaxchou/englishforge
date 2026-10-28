@@ -25,7 +25,7 @@ const production = [
   sourceBetween('function epStamp(i,st=EP.st)', 'function epCoverUpdate('),
   sourceBetween('function epTakeKey(st,i)', 'function epHasReplay('),
   sourceBetween('function epCancelRecording(st=EP.st)', 'function epLeave('),
-  sourceBetween('async function epArchiveTake(st,take)', 'function epTrainWire(')
+  sourceBetween('function epSettleTake(take)', 'function epTrainWire(')
 ].join('\n');
 const keyboard = sourceBetween('  EP.keyHandler=e=>{', "  document.addEventListener('keydown',EP.keyHandler);");
 

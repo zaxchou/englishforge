@@ -1494,6 +1494,17 @@ const handler = async (req, res) => {
           // A retry keeps the original take bytes, even if another request arrived first.
           if (!hasTakeId || e.code !== 'EEXIST') throw e;
         }
+        if (hasTakeId) {
+          // 每句保留最新两份 take(当前 + 上一份, 兜住归档乱序): 其余清理; 无 takeId 的 legacy 名不动, 磁盘有界
+          const prefix = `eplod-${ep}-${ix}-`;
+          try {
+            const stale = fs.readdirSync(RECORDING_DIR)
+              .filter(f => f.startsWith(prefix) && f !== file)
+              .map(f => ({ f, m: fs.statSync(path.join(RECORDING_DIR, f)).mtimeMs }))
+              .sort((a, b) => b.m - a.m).slice(1);
+            for (const { f } of stale) fs.unlinkSync(path.join(RECORDING_DIR, f));
+          } catch (e) {}
+        }
         return sendJSON(res, 200, { ok: true, file });
       } catch (e) { return sendJSON(res, 503, { error: '录音落盘失败: ' + e.message }); }
     }

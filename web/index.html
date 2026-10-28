@@ -3927,7 +3927,7 @@ function epBlockCard(i){
     +'<div class="bbody bvoice" style="display:'+(mode==='voice'?'':'none')+'">'
       +(asr
         ?'<div class="vrow"><button class="ep-rec" data-i="'+i+'">'+(st.recording&&st.recording.i===i?'■ 停止 · <i class="rt">0:00</i>':'🎙 朗读这句')+'</button>'
-          +(rec&&rec.mode==='voice'&&rec.dur?'<span class="ep-dur">用时 '+fmtDur(rec.dur)+' / 原句 '+fmtDur(u.t1-u.t0)+(sd?' · <b class="ok">✓ 同速</b>':'')+'</span>':'')
+          +(rec&&rec.mode==='voice'&&rec.dur?'<span class="ep-dur">用时 '+fmtDur(rec.dur)+(u.t0!=null&&u.t1!=null?' / 原句 '+fmtDur(u.t1-u.t0)+(sd?' · <b class="ok">✓ 同速</b>':''):' · 本句无音频定位')+'</span>':'')
           +'</div>'
         :'<p class="ep-note">朗读背诵需要转写服务（未配置 ASR），请用默写。</p>')
       +'<div class="dr">'+epVoiceFeedback(st,i)+'</div></div>'
@@ -3952,6 +3952,7 @@ function epRenderList(){
   list.querySelectorAll('.ep-brow').forEach(epWireRow);
   const card=list.querySelector('.ep-bcard');
   if(card){epWireCard(card);requestAnimationFrame(()=>card.querySelectorAll('.dt').forEach(epFitInput));}
+  epRecButton();   // 重渲染后恢复「正在打开麦克风/录音中」按钮态
   epDockNo();
 }
 
@@ -3969,7 +3970,7 @@ function epGo(i,play){
     const rect=card.getBoundingClientRect(),dock=$('ep-stage')||document.querySelector('.ep-stage');
     const bottom=dock?.getBoundingClientRect().top||innerHeight;
     if(rect.top<70||rect.top>bottom-100)card.scrollIntoView({block:'start',behavior:'smooth'});
-    const ta=card.querySelector('.bdict:not([style*="none"]) .dt');
+    const ta=card.querySelector('.bbody:not([style*="none"]) .dt')||card.querySelector('.ep-rec');
     if(ta&&!play)requestAnimationFrame(()=>{if(card.isConnected&&EP.st===st&&st.ai===i)ta.focus({preventScroll:true});});
   }
   epDockNo();
@@ -3998,7 +3999,11 @@ function epPlaybackCountUpdate(){
   }
 }
 function epStartPlayback(target,{resume=false,loop=false,continuous=false,startAt=null}={}){
-  const st=EP.st,a=$('ep-audio');if(!st||!a||!target||!Number.isFinite(target.t0))return false;
+  const st=EP.st,a=$('ep-audio');if(!st||!a)return false;
+  if(!target||!Number.isFinite(target.t0)){
+    if(st.seg==='dg'&&st.tab==='train'&&!epAnchored(st.ai))epNote('本句尚无音频定位，播放类操作不可用；可用默写完成。',st);
+    return false;
+  }
   epCancelRecording(st);epStopReplay();
   const session=st.playSession;
   const same=target.seg===st.seg&&session&&session.seg===target.seg&&session.i===target.i&&!session.completed;
@@ -4189,6 +4194,7 @@ function epProgressToggle(){
 }
 
 /* ---- 朗读背诵: 录音 → ASR 转写 → 逐词比对 + 时长同速判定 ---- */
+function epSettleTake(take){if(take.status==='done'&&take.archived)take.audio='';}   // 双条件齐备即释放 base64
 async function epArchiveTake(st,take){
   try{
     const j=await api('/api/eplod/recording',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ep:String(st.l.ep).padStart(4,'0'),i:take.i,takeId:take.id,audio:take.audio}),signal:AbortSignal.timeout(30000)});
@@ -4198,7 +4204,7 @@ async function epArchiveTake(st,take){
     if(take.at>recAt||(take.at===recAt&&take.id>=String(rd.recAttemptId||''))){
       rd.rec=j.file;rd.recAt=take.at;rd.recAttemptId=take.id;recSave();
     }
-    take.archived=true;take.archiveError='';
+    take.archived=true;take.archiveError='';epSettleTake(take);
   }catch(e){take.archiveError='录音未上传，本页仍可回听；刷新前请重试保存。';}
   if(epTake(st,take.i)===take)epRefreshSentence(st,take.i);
 }
@@ -4226,7 +4232,7 @@ async function epProcessTake(st,take){
     recSave();if(r.acc>=.9)epStamp(take.i,st);
     take.status='done';
   }catch(e){take.error='识别失败：'+e.message+'。录音已保留，可以回听或重试识别。';take.status='error';}
-  finally{take.processing=false;if(epTake(st,take.i)===take)epRefreshSentence(st,take.i);}
+  finally{take.processing=false;epSettleTake(take);if(epTake(st,take.i)===take)epRefreshSentence(st,take.i);}
 }
 async function epRecToggle(i,card){
   const st=EP.st;
@@ -4287,6 +4293,11 @@ async function epRecToggle(i,card){
     if(newer){
       EP.takes=EP.takes||{};if(old?.url)URL.revokeObjectURL(old.url);
       take.url=URL.createObjectURL(blob);EP.takes[key]=take;
+      const keys=Object.keys(EP.takes);
+      if(keys.length>24){   // 回听缓存上限: 淘汰最旧, 防长会话 blob/base64 无限累积
+        keys.sort((a,b)=>(EP.takes[a].at||0)-(EP.takes[b].at||0)).slice(0,keys.length-24)
+          .forEach(k=>{const t=EP.takes[k];if(t?.url)URL.revokeObjectURL(t.url);delete EP.takes[k];});
+      }
     }
     if(analyser&&peak<8&&!r.cancelled){
       take.status='silent';take.error='麦克风没有收到声音，请检查输入设备后重新朗读。';
