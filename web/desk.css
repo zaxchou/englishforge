@@ -2189,3 +2189,12 @@ html.sb-min .nav-label{display:none!important}   /* 收缩侧栏只留图标 */
   body.course-fixed .csnav-col .csgrp .csg-title,body.course-fixed .csnav-col .gq-prog{color:var(--t2)}
   body.course-fixed .pn{color:var(--t2)}
 }
+/* 视频课外壳细节对齐 EnglishPod: 页签成白卡胶囊 / 视频区去套卡 /
+   目录条去重课程副行(胶囊已含) / 课后复习页签同享白画布 */
+@media(min-width:801px){
+  body.course-fixed #cs-tabs{width:max-content;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:2px 8px;margin:0 0 10px;box-shadow:0 1px 2px #20272508}
+  body.course-fixed #cs-tabs button{min-height:36px;padding:7px 14px}
+  body.course-fixed .csmain .cs-stage{background:transparent;border:0;border-radius:12px;overflow:hidden}
+  body.course-fixed .csnav-col:has(.cs-pick) .csi .course-meta{display:none}
+  body.course-fixed #cs-pane-review{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px 20px 12px}
+}
