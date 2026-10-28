@@ -548,6 +548,25 @@ def ai_lang(data, batch=45, jobs=("dg", "pb")):
         print(f"    {kind}: 翻译 {got_zh}/{len(lines)} · 意群 {got_s}/{len(lines)}")
 
 
+def apply_errata(data):
+    if int(data.get("ep", 0)) != 16:
+        return data
+    def correct(value):
+        if isinstance(value, str):
+            value = value.replace("原文为 cut though(应为 cut through),表示穿过某地以抄近路。",
+                                  "表示穿过某地以抄近路，常接地点，如 cut through the park。")
+            return value.replace("cut though", "cut through").replace("past or though something", "past or through something")
+        if isinstance(value, list):
+            return [correct(x) for x in value]
+        if isinstance(value, dict):
+            return {k: correct(v) for k, v in value.items()}
+        return value
+    corrected = correct(data)
+    data.clear()
+    data.update(corrected)
+    return data
+
+
 # ---------------- 产物 ----------------
 def audio_urls(ep):
     return {"dg": f"/media/eplod/{ep}/dg.mp3", "pb": f"/media/eplod/{ep}/pb.mp3", "rv": f"/media/eplod/{ep}/rv.mp3"}
@@ -599,6 +618,7 @@ def update_catalog(ep_data, dur_pb, level_map):
 
 
 def update_chunk_bank(ep_data):
+    apply_errata(ep_data)
     bank = {"version": 1, "generated": time.strftime("%F %T"), "source": "eplod", "batches": []}
     if CHUNK_BANK.exists():
         bank = json.loads(CHUNK_BANK.read_text(encoding="utf-8"))
@@ -740,6 +760,7 @@ def run_episode(ep, do_chunks=True, do_apply=True, dg_lang_only=False, keep_ai=T
         data = {"level": (load_level_map().get(int(ep), {}).get("name") or "Unknown"),
                 "title": f"Episode {int(ep)}", "code": "EP", "dialogue": [], "keyvocab": [], "suppvocab": []}
     data["ep"] = int(ep)
+    apply_errata(data)
     data["dialogueSrc"] = src_note
     log(f"    {data['level']} - {data['title']} ({data['code']}) [{src_note}]  对话 {len(data['dialogue'])} 句  词表 {len(data['keyvocab'])}+{len(data['suppvocab'])}")
 
@@ -835,6 +856,7 @@ def run_episode(ep, do_chunks=True, do_apply=True, dg_lang_only=False, keep_ai=T
             log("    翻译+意群已有, 跳过")
         update_chunk_bank(data)
 
+    apply_errata(data)
     if do_apply:
         outd = AUDIO_LIB / ep
         outd.mkdir(parents=True, exist_ok=True)
