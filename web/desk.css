@@ -2222,3 +2222,31 @@ html.sb-min .nav-label{display:none!important}   /* 收缩侧栏只留图标 */
 @media(min-width:801px){
   body.course-fixed .csnav-col .pn,body.course-fixed .csnav-col .csi .pg{color:var(--t2)}
 }
+
+/* ============================================================
+   2026-10-29 r5 · 外壳全局统一(用户: 上下右有白边 + 其他页面风格不一致):
+   ① 石墨侧栏与暖纸底色从课程页推广到全部页面; 内容表面统一为白卡;
+   ② 外层画布取消 12/14px 外留白与圆角 — 纸面通铺到视口右缘与底边, 不再露白边。
+   ============================================================ */
+@media(min-width:801px){
+  .top{background:#33352f;border-right:0}
+  .brand,.brand span{color:#f5f4ec}
+  .brand-caption{color:#b9b7aa}
+  .nav-label{color:#c8c6b9}
+  .nav button{color:#dedcd2}
+  .nav button:hover:not(.on){background:rgba(255,255,255,.08);color:#fff}
+  .nav button.on{background:#585c50;color:#fff}
+
+  .wrap{background:#efeee7;border:0;border-radius:0;box-shadow:none;max-width:none;
+    margin:0 0 0 232px;min-height:100dvh;padding:24px 34px 44px}
+  body.course-fixed .wrap{height:100dvh;min-height:0;padding-bottom:12px}
+
+  .card{background:#fff;border-color:#e6e4db}
+  #v-do .qb,#d-card,.fb,.list,.tblwrap,.sheet{background:#fff}
+}
+/* 深色侧栏上的字标与白色表面圆角, 与课程画布同一套阶梯 */
+@media(min-width:801px){
+  .top .brand,.top .brand span{color:#f5f4ec}
+  .wrap>.card,.wrap .card{border-radius:14px}
+  .wrap .bhead+.card,.wrap .lead+.card{border-radius:14px}
+}
