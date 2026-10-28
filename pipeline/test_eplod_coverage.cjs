@@ -3,13 +3,13 @@ const {coverProgress}=require('../web/eplod-records.js');
 const {chromium}=require(process.env.TFL_PLAYWRIGHT||'C:/Users/zeroz/AppData/Local/npm-cache/_npx/9833c18b2d85bc59/node_modules/playwright');
 const base=process.env.TFL_TEST_URL||'http://127.0.0.1:8020';
 const out=path.resolve(__dirname,'../build/qa/ep-coverage');fs.mkdirSync(out,{recursive:true});
-const six=[0,1,2,3,4,5],today=new Date(Date.now()+8*3600000).toISOString().slice(0,10);
+const nine=[0,1,2,3,4,5,6,7,8],today=new Date(Date.now()+8*3600000).toISOString().slice(0,10);
 const date=n=>new Date(Date.now()+8*3600000-n*86400000).toISOString().slice(0,10);
-const days=n=>Object.fromEntries(Array.from({length:n},(_,i)=>[date(n-i),six]));
+const days=n=>Object.fromEntries(Array.from({length:n},(_,i)=>[date(n-i),nine]));
 assert.equal(coverProgress({stampDays:{[today]:[0,1,2]}},3,today).completed,1);
 assert.equal(coverProgress({stampDays:{[today]:[0,0,1,2,9,-1]}},3,today).todayN,3);
-assert.equal(coverProgress({stampDays:{[today]:six}},0,today).completed,0);
-assert.equal(coverProgress({recoveredCover:{sentences:six},stampDays:days(3)},9,today).completed,3);
+assert.equal(coverProgress({stampDays:{[today]:nine}},0,today).completed,0);
+assert.equal(coverProgress({recoveredCover:{sentences:nine},stampDays:days(3)},9,today).completed,3);
 (async()=>{const seed=await(await fetch('http://127.0.0.1:8020/api/records')).json();const browser=await chromium.launch({channel:'msedge',headless:true});const passed=[],errors=[];
 try{
  async function test(name,fn,course={}){
@@ -37,7 +37,7 @@ try{
  },{'eplod-0002':{done:true,drill:{stampDays:days(n)}}});
  await test('today stamp waits for tomorrow and historical recognition stays identifiable',async p=>{
   assert.equal(await p.locator('#ep-cov .complete.ep-cover-step').count(),2);assert.match(await p.locator('#ep-cov').innerText(),/历史补认/);assert.match(await p.locator('#ep-cov').innerText(),/隔天继续第 3 遍/);assert.equal(await p.locator('#ep-list .cli.on .ep-round.complete').count(),2);
- },{'eplod-0002':{drill:{recoveredCover:{sentences:six,recognizedAt:1},stampDays:{[today]:six}}}});
+ },{'eplod-0002':{drill:{recoveredCover:{sentences:nine,recognizedAt:1},stampDays:{[today]:nine}}}});
  await test('third completed round checks the lesson automatically without manual marking',async(p,store)=>{
   const row=p.locator('#ep-list .cli.on');
   assert.equal(await row.locator('.ep-round.complete').count(),3);
@@ -49,14 +49,14 @@ try{
   assert.equal(await p.evaluate(()=>{updateCourseCount();return $('cs-ct').textContent;}),'1 / 364 节');
   await p.reload();await p.locator('#ep-cov .ep-cover-step').first().waitFor();
   assert.ok(await p.evaluate(()=>document.querySelector('#ep-list .cli.on').classList.contains('done')),'check survives reload');
- },{'eplod-0002':{drill:{recoveredCover:{sentences:six,recognizedAt:1},stampDays:days(2)}}});
+ },{'eplod-0002':{drill:{recoveredCover:{sentences:nine,recognizedAt:1},stampDays:days(2)}}});
  await test('new stamp updates navigation, survives save failure retry and reload',async(p,store)=>{
   store.reject(true);
-  await p.evaluate(()=>{epStamp(5);flushRecords();});
+  await p.evaluate(()=>{epStamp(8);flushRecords();});   /* 第9句(下标8)补齐全部9句 */
   await p.waitForFunction(()=>!recSaving&&recDirty);assert.ok(store.failures()>0);assert.equal(await p.locator('#ep-list .cli.on .ep-round.complete').count(),1);assert.equal(await p.locator('#ep-cov .ep-cover-step.complete').count(),1);
-  store.reject(false);await p.evaluate(()=>flushRecords());await p.waitForFunction(()=>!recSaving&&!recDirty);assert.deepEqual(store.get().course['eplod-0002'].drill.stampDays[today],six);
+  store.reject(false);await p.evaluate(()=>flushRecords());await p.waitForFunction(()=>!recSaving&&!recDirty);assert.deepEqual(store.get().course['eplod-0002'].drill.stampDays[today],nine);
   await p.reload();await p.locator('#ep-cov .ep-cover-step').first().waitFor();assert.equal(await p.locator('#ep-list .cli.on .ep-round.complete').count(),1);assert.equal(await p.locator('#ep-cov .ep-cover-step.complete').count(),1);
- },{'eplod-0002':{drill:{stampDays:{[today]:six.slice(0,5)}}}});
+ },{'eplod-0002':{drill:{stampDays:{[today]:nine.slice(0,8)}}}});
  await test('all catalog lessons have true sentence counts; short lessons use their total',async p=>{
   const lessons=await p.evaluate(()=>courseById('eplod-01').lessons.map(l=>({id:l.id,n:l.dialogue_count})));
   assert.equal(lessons.length,364);assert.ok(lessons.every(l=>Number.isInteger(l.n)&&l.n>0));assert.equal(lessons.find(l=>l.id==='eplod-0002').n,9);

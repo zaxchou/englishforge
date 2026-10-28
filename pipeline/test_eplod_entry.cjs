@@ -91,9 +91,9 @@ try{
       dd:{0:{acc:.95},1:{acc:.95}},
       rd:{0:{acc:.95}},
       sd:{0:{acc:.95}},
-      stampDays:{'2026-10-26':[0,1,2,3,4,5],'2026-10-27':[0,1,2,3,4,5]},
+      stampDays:{'2026-10-26':[0,1,2,3,4,5,6,7,8],'2026-10-27':[0,1,2,3,4,5,6,7,8]},
       recoveredCover:{sentences:[0,1,2,3,4,5,6,7,8],recognizedAt:1}}},
-    'eplod-0001':{drill:{stampDays:{'2026-10-26':[0,1,2,3,4,5]}}}
+    'eplod-0001':{drill:{stampDays:{'2026-10-26':[0,1,2,3,4,5,6,7,8]}}}
   };
   const {ctx,p}=await page(epFixture);
   p.on('pageerror',e=>errors.push(e.message));

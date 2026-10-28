@@ -33,7 +33,7 @@
   }
   function coverProgress(drill,total,today){
     drill=object(drill)?drill:{};
-    const need=Math.min(6,total),days=drill.stampDays||{};
+    const need=total,days=drill.stampDays||{};   /* 一遍=当天过完全部句子(用户口径 2026-10-28) */
     const count=v=>Array.isArray(v)?new Set(v.filter(i=>Number.isInteger(i)&&i>=0&&i<total)).size:0;
     const dates=need>0?Object.keys(days).filter(day=>count(days[day])>=need).sort():[];
     const recovered=!!drill.recoveredCover;

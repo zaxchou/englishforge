@@ -334,7 +334,7 @@ details.ai-tsec[open] summary{margin-bottom:8px}
       <div class="bhead"><h2 class="pt">EnglishPod 深学</h2><span class="ct" id="st-ep-ct"></span></div>
       <div class="ep-stats" id="st-ep"></div>
       <button class="st-more" id="st-ep-go">打开 EnglishPod →</button>
-      <p class="note">听写/背诵/同速按 ≥90% 通过线累计；覆盖背诵=单期每天满 6 句盖一章，三章即完成。</p>
+      <p class="note">听写/背诵/同速按 ≥90% 通过线累计；覆盖背诵=单期一天过完全部句子记一遍，三个不同日期各一遍即三星。</p>
     </div>
   </div>
 </div>
@@ -4025,10 +4025,10 @@ function epWireCard(card){
   if(h2)h2.onclick=()=>{const s=card.querySelector('.rorig');s.style.display=s.style.display==='none'?'':'none';};
 }
 
-/* ---- 覆盖式背诵(三章法): 每天盖一章, 同一章跨 3 天, 满 6 句提交即盖 ---- */
+/* ---- 覆盖式背诵(三章法): 一遍=当天过完全部句子, 三个不同日期各一遍即三星 ---- */
 function epDay(){return new Date(Date.now()+8*3600000).toISOString().slice(0,10);}
 function epRecoverCover(drill,total){
-  const need=Math.min(6,total);
+  const need=total;
   if(!need||drill.recoveredCover||Object.values(drill.stampDays||{}).some(v=>Array.isArray(v)&&v.length))return false;
   const sentences=Object.entries(drill.rd||{}).filter(([i,r])=>Number.isInteger(+i)&&+i>=0&&+i<total&&r&&r.acc>=.9).map(([i])=>+i);
   if(sentences.length<need)return false;
