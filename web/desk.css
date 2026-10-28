@@ -2168,3 +2168,24 @@ html.sb-min .nav-label{display:none!important}   /* 收缩侧栏只留图标 */
 .ep-retry-asr{border:1px solid var(--line);border-radius:var(--rs);background:var(--card);color:var(--acc);padding:6px 10px}
 .ep-bcard{scroll-margin-top:80px;scroll-margin-bottom:160px}
 .ep-sentence-nav,.ep-sentence-nav button,.ep-bcard .dt{scroll-margin-bottom:150px}
+
+/* ============================================================
+   2026-10-29 · 课程三栏外壳(用户定案 A+C):
+   中间目录条=浅冷灰蓝 #EDF1F4 整条, 右侧学习内容=独立白色圆角画布,
+   导航列与目录条落在全局底色上, 三栏任务分区一眼可辨。
+   仅 ≥801px 的课程页(视频课/EnglishPod 共用); ≤800 移动端维持原白画布。
+   ============================================================ */
+@media(min-width:801px){
+  body.course-fixed .wrap{background:var(--bg);border-color:transparent;border-radius:0;box-shadow:none;padding:10px 14px 12px}
+  body.course-fixed .csplit{background:transparent;border:0;box-shadow:none;border-radius:0;gap:14px}
+  body.course-fixed .csnav-col{background:#edf1f4;border-right:0;border-radius:14px}
+  body.course-fixed .csplit .csnav{background:transparent;border:0}
+  body.course-fixed .csmain{background:var(--card);border:1px solid var(--line);border-radius:16px}
+  body.course-fixed .ep-q input{background:var(--card)}
+}
+/* 目录条底色比白纸深一档, 其上的次要小字提到 t2 保 4.5:1 */
+@media(min-width:801px){
+  body.course-fixed .csnav-col .course-teacher,body.course-fixed .csnav-col .course-total,
+  body.course-fixed .csnav-col .csgrp .csg-title,body.course-fixed .csnav-col .gq-prog{color:var(--t2)}
+  body.course-fixed .pn{color:var(--t2)}
+}
