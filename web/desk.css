@@ -2169,32 +2169,56 @@ html.sb-min .nav-label{display:none!important}   /* 收缩侧栏只留图标 */
 .ep-bcard{scroll-margin-top:80px;scroll-margin-bottom:160px}
 .ep-sentence-nav,.ep-sentence-nav button,.ep-bcard .dt{scroll-margin-bottom:150px}
 
-/* ============================================================
-   2026-10-29 · 课程三栏外壳(用户定案 A+C):
-   中间目录条=浅冷灰蓝 #EDF1F4 整条, 右侧学习内容=独立白色圆角画布,
-   导航列与目录条落在全局底色上, 三栏任务分区一眼可辨。
-   仅 ≥801px 的课程页(视频课/EnglishPod 共用); ≤800 移动端维持原白画布。
-   ============================================================ */
-@media(min-width:801px){
-  body.course-fixed .wrap{background:var(--bg);border-color:transparent;border-radius:0;box-shadow:none;padding:10px 14px 12px}
-  body.course-fixed .csplit{background:transparent;border:0;box-shadow:none;border-radius:0;gap:14px}
-  body.course-fixed .csnav-col{background:#edf1f4;border-right:0;border-radius:14px}
-  body.course-fixed .csplit .csnav{background:transparent;border:0}
-  body.course-fixed .csmain{background:var(--card);border:1px solid var(--line);border-radius:16px}
-  body.course-fixed .ep-q input{background:var(--card)}
-}
-/* 目录条底色比白纸深一档, 其上的次要小字提到 t2 保 4.5:1 */
-@media(min-width:801px){
-  body.course-fixed .csnav-col .course-teacher,body.course-fixed .csnav-col .course-total,
-  body.course-fixed .csnav-col .csgrp .csg-title,body.course-fixed .csnav-col .gq-prog{color:var(--t2)}
-  body.course-fixed .pn{color:var(--t2)}
-}
 /* 视频课外壳细节对齐 EnglishPod: 页签成白卡胶囊 / 视频区去套卡 /
    目录条去重课程副行(胶囊已含) / 课后复习页签同享白画布 */
 @media(min-width:801px){
-  body.course-fixed #cs-tabs{width:max-content;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:2px 8px;margin:0 0 10px;box-shadow:0 1px 2px #20272508}
-  body.course-fixed #cs-tabs button{min-height:36px;padding:7px 14px}
   body.course-fixed .csmain .cs-stage{background:transparent;border:0;border-radius:12px;overflow:hidden}
   body.course-fixed .csnav-col:has(.cs-pick) .csi .course-meta{display:none}
-  body.course-fixed #cs-pane-review{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px 20px 12px}
+}
+
+
+/* ============================================================
+   2026-10-29 r4 · 课程三栏 C 案(用户定案):
+   ① 全局导航石墨 #33352f, 页面底色暖纸 #efeee7, 右侧内容纯白 — 深→浅→白;
+   ② 中间目录条与顶部标题栏共用同一张纸, 不画分割线, 也不再单独成块;
+   ③ 目录条与白色画布之间留 14px 间隙, 画布左侧投影分层;
+   ④ 视频课页头压成一行: 页名 15px / 分段页签 / 节数右对齐, 收起解释行。
+   ============================================================ */
+@media(min-width:801px){
+  body.course-fixed .top{background:#33352f;border-right:0}
+  body.course-fixed .brand,body.course-fixed .brand span{color:#f5f4ec}
+  body.course-fixed .brand-caption{color:#b9b7aa}
+  body.course-fixed .nav-label{color:#c8c6b9}
+  body.course-fixed .nav button{color:#dedcd2}
+  body.course-fixed .nav button:hover:not(.on){background:rgba(255,255,255,.08);color:#fff}
+  body.course-fixed .nav button.on{background:#585c50;color:#fff}
+
+  body.course-fixed .wrap{background:#efeee7;border-color:transparent;border-radius:0;box-shadow:none}
+  body.course-fixed .csplit{gap:14px;background:transparent;border:0;box-shadow:none;border-radius:0}
+  body.course-fixed .csnav-col{background:transparent;border-right:0;border-radius:0}
+  body.course-fixed .csplit .csnav{background:transparent;border:0}
+  body.course-fixed .csmain{background:#fff;border:1px solid #e6e4db;border-radius:16px;box-shadow:-6px 0 18px rgba(32,39,37,.06)}
+  body.course-fixed .ep-q input{background:#fff}
+  body.course-fixed #cs-pane-review{background:#fff;border:1px solid #e6e4db;border-radius:16px;box-shadow:-6px 0 18px rgba(32,39,37,.06);padding:14px 20px 12px}
+
+  .cs-headrow{display:flex;align-items:center;gap:12px;padding:2px 2px 12px}
+  .cs-headrow>.bhead{flex:none;display:flex;align-items:center;margin:0;padding:0}
+  .cs-headrow .pt{font-size:15px;font-weight:600;line-height:1.3;margin:0;white-space:nowrap}
+  .cs-headrow>.sub{display:none}
+  .cs-headrow>.ct{margin-left:auto;font-size:12px;color:#6b6f66;white-space:nowrap;font-variant-numeric:tabular-nums}
+  .cs-headrow>#cs-tabs{display:flex;gap:2px;margin:0;padding:3px;border:0;border-radius:10px;background:#e5e3d9}
+  .cs-headrow>#cs-tabs button{min-height:30px;padding:5px 14px;border:0;border-radius:8px;font-size:12.5px;color:#4d5148;background:transparent}
+  .cs-headrow>#cs-tabs button.on{background:#fff;color:var(--acc);font-weight:600;box-shadow:0 1px 2px #20272514}
+}
+/* 手机: 页名与节数同一行, 说明与页签依次换行(不能把节数挤到页签下面) */
+@media(max-width:800px){
+  .cs-headrow{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px}
+  .cs-headrow>.bhead{order:1;flex:none}
+  .cs-headrow>.ct{order:2;margin-left:auto}
+  .cs-headrow>.sub{order:3;flex:1 0 100%;margin:0}
+  .cs-headrow>#cs-tabs{order:4;flex:1 0 100%;margin-top:6px}
+}
+/* 目录条纸色上: 进度分数小字加深一档, 满足正文对比度 */
+@media(min-width:801px){
+  body.course-fixed .csnav-col .pn,body.course-fixed .csnav-col .csi .pg{color:var(--t2)}
 }
