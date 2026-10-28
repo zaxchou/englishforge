@@ -1865,8 +1865,6 @@ body.vfull .cs-stage video.tfl{max-height:none}
 .ep-stage .ep-segs button{font-size:12px;padding:4px 10px;border:0;border-radius:var(--rs);background:transparent;color:var(--t2)}
 .ep .ep-stage .ep-segs button.on{background:var(--sunk);color:var(--acc);border-color:transparent}
 .ep .ep-stage .ep-segs button.on i{color:var(--t2)}
-.ep-previous{margin-top:8px}
-.ep-previous>summary{font-size:13px;color:var(--t2);padding:10px 0;cursor:pointer}
 .ep .ep-bcard .bmode button.on{background:var(--acc);color:var(--card)}
 .ep-dock[data-tab="listen"] #ep-dock-prev,.ep-dock[data-tab="listen"] #ep-dock-next,.ep-dock[data-tab="listen"] #ep-dock-listen,.ep-dock[data-tab="listen"] .ep-dock-no,.ep-dock[data-tab="chunks"] #ep-dock-prev,.ep-dock[data-tab="chunks"] #ep-dock-next,.ep-dock[data-tab="chunks"] #ep-dock-listen,.ep-dock[data-tab="chunks"] .ep-dock-no{display:none}
 .ep-stage .ep-dock{position:static;align-self:stretch;gap:8px;border:0;border-radius:0;padding:0;margin:0 0 8px;box-shadow:none;background:transparent}
@@ -2248,3 +2246,9 @@ html.sb-min .nav-label{display:none!important}   /* 收缩侧栏只留图标 */
   .ck-streak{margin-left:0}
   .ck-week{margin-left:auto}
 }
+
+/* r20 · 四步训练列表: 全句平铺不折叠; 行级/卡头回听我的录音 */
+.elisten-row{border:0;background:transparent;color:var(--acc);font-size:11px;flex:none;padding:2px 7px;border-radius:999px;cursor:pointer}
+.elisten-row:hover{background:var(--accbg)}
+.ep-bcard .bh .elisten-me{border:0;background:var(--accbg);color:var(--acc);height:26px;padding:0 9px;border-radius:999px;font-size:12px;cursor:pointer;flex:none;font-weight:600}
+.ep-bcard .bh .elisten-me:hover{background:var(--acc);color:var(--card)}

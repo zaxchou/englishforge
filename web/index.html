@@ -8,7 +8,7 @@
 <link rel="icon" type="image/png" sizes="96x96" href="/assets/brand/t-dot-v1/t-dot-96.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/assets/brand/t-dot-v1/t-dot-180.png">
 <title>TOEFL Lab · 托福自学练习</title>
-<link rel="stylesheet" href="desk.css?v=1794000000">
+<link rel="stylesheet" href="desk.css?v=1794100000">
 <style>
 /* 应用层补充样式（视觉基线在 desk.css，不改它的既有规则） */
 /* 单词与字符格保持同一行；焦点、已填、判题状态沿用研读桌配色。 */
@@ -3714,7 +3714,7 @@ function epStepsUpdate(){
   const asr=!!st.d.asr;
   const sp=Object.keys(drill.sd||{}).length;
   el.innerHTML='<span class="es'+(passed>=n?' ok':'')+'"><i>听写</i><b>'+passed+'/'+n+'</b></span>'
-    +'<span class="es'+(got>=chunks.length&&chunks.length?' ok':'')+'"><i>理解</i><b>'+got+'/'+chunks.length+'</b></span>'
+    +'<span class="es'+(got>=chunks.length&&chunks.length?' ok':'')+'" title="语块积累：在「语块积累」页签收藏本课语块的进度"><i>语块</i><b>'+got+'/'+chunks.length+'</b></span>'
     +'<span class="es'+(rp>=n?' ok':'')+'"><i>背诵</i><b>'+rp+'/'+n+'</b></span>'
     +'<span class="es'+(!asr?' lock':(sp>=n?' ok':''))+'"><i>同速</i><b>'+(asr?sp+'/'+n:'待开放')+'</b></span>';
   const dst=$('ep-tstats');
@@ -3788,6 +3788,7 @@ function epRowHtml(i){
     +(rec?'<span class="mini'+(rec.acc>=0.9?' ok':'')+'">背'+Math.round(rec.acc*100)+'%</span>':'')
     +(drill.sd&&drill.sd[i]?'<span class="mini ok">速✓</span>':'')
     +(drill.mode==='exam'&&(drill.playsS[i]||0)>=3?'<span class="mini warn">听3/3</span>':'')
+    +(drill.rd[i]&&drill.rd[i].rec?'<button class="elisten-row" data-i="'+i+'" title="回听我的录音">▶</button>':'')
     +'<i class="arr">▸</i></div>';
 }
 
@@ -3806,6 +3807,7 @@ function epBlockCard(i){
   let h='<div class="ep-bcard" data-i="'+i+'">'
     +'<div class="bh"><span class="no">当前句 '+(i+1)+'/'+st.d.dialogue.length+'</span>'
     +'<button class="bp" title="听这句（只播当前句）" aria-label="听这句"><span class="bp-ico">▶</span><span class="bp-tx">听这句</span></button><button class="bl" title="单句循环" aria-label="单句循环">↻</button>'
+    +(drill.rd[i]&&drill.rd[i].rec?'<button class="elisten-me" title="回听我的录音">▶我</button>':'')
     +(drill.mode==='exam'?'<span class="dc">'+(3-Math.min(3,plays))+' 次可听</span>':'')
     +'<span class="bmode">'+seg+'</span>'
     +'<span class="grow"></span>'
@@ -3821,7 +3823,7 @@ function epBlockCard(i){
       +(asr
         ?'<div class="vrow"><button class="ep-rec" data-i="'+i+'">'+(st.recording&&st.recording.i===i?'■ 停止 · <i class="rt">0:00</i>':'🎙 朗读这句')+'</button>'
           +(rec&&rec.mode==='voice'&&rec.dur?'<span class="ep-dur">用时 '+fmtDur(rec.dur)+' / 原句 '+fmtDur(u.t1-u.t0)+(sd?' · <b class="ok">✓ 同速</b>':'')+'</span>':'')
-          +(rec&&rec.mode==='voice'?'<button class="elisten-me" data-i="'+i+'">▶ 回听我的录音</button>':'')+'</div>'
+          +'</div>'
         :'<p class="ep-note">朗读背诵需要转写服务（未配置 ASR），请用默写。</p>')
       +'<div class="dr"></div></div>'
     +'<div class="bbody btype" style="display:'+(mode==='type'?'':'none')+'">'
@@ -3837,11 +3839,15 @@ function epRenderList(){
   const st=EP.st;if(!st)return;
   const list=$('ep-blist');if(!list)return;
   const items=epItems();
-  let h=epBlockCard(st.ai);
-  for(let i=st.ai+1;i<items.length;i++)h+=epRowHtml(i);
-  if(st.ai>0)h+='<details class="ep-previous"><summary>前面 '+st.ai+' 句</summary>'+items.slice(0,st.ai).map((_,i)=>epRowHtml(i)).join('')+'</details>';
+  /* 全句平铺(r20 用户定案): 不折叠, 每句都可见; 当前句展开为练习卡, 点行=只展开该句 */
+  let h='';
+  for(let i=0;i<items.length;i++)h+=i===st.ai?epBlockCard(i):epRowHtml(i);
   list.innerHTML=h;
   list.querySelectorAll('.ep-brow').forEach(row=>{row.onclick=()=>epGo(+row.dataset.i);row.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();e.stopPropagation();epGo(+row.dataset.i);}};});
+  list.querySelectorAll('.elisten-row').forEach(b=>{b.onclick=e=>{e.stopPropagation();
+    const rd=st.p.drill.rd[+b.dataset.i];
+    if(!rd||!rd.rec){const nn=$('ep-note');nn.style.display='';nn.textContent='录音存档还没写完，稍等一下。';return;}
+    new Audio('/media/rec/'+rd.rec).play();};});
   const card=list.querySelector('.ep-bcard');
   if(card){epWireCard(card);requestAnimationFrame(()=>card.querySelectorAll('.dt').forEach(epFitInput));}
   epDockNo();
@@ -4007,8 +4013,8 @@ function epWireCard(card){
       if(EP.st===st){epStepsUpdate();epDockNo();}
       if(EP.st===st&&best>=0.9){
         const nx=$('ep-dock-next');if(nx)nx.classList.add('pulse');
-        const nxt=epItems().findIndex((_,k)=>!st.doneOf(k));
-        if(nxt>=0&&nxt!==i&&Date.now()-st.lastTap>1500)setTimeout(()=>{if(EP.st===st&&st.tab==='train'&&Date.now()-st.lastTap>1500)epGo(nxt);},600);
+        const nxt=i+1;   /* 顺序前进(r20): 重练早句通过后不再瞬移到远处未完成句 */
+        if(nxt<epItems().length&&!st.doneOf(nxt)&&Date.now()-st.lastTap>1500)setTimeout(()=>{if(EP.st===st&&st.tab==='train'&&Date.now()-st.lastTap>1500)epGo(nxt);},600);
       }
     };
     ta.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();submit();}});
@@ -4180,10 +4186,10 @@ async function epRecToggle(i,card){
           +(r.acc<0.15&&dur>=3?'<p class="ep-note">转写内容过短——如果刚才确实在朗读，多半是麦克风音量过低，建议重录。</p>':'');
       }
       if(EP.st===st){epStepsUpdate();epDockNo();}
-      if(EP.st===st&&best>=0.9){
+      if(EP.st===st&&best>=0.9&&!st.recording){
         const nx=$('ep-dock-next');if(nx)nx.classList.add('pulse');
-        const nxt=epItems().findIndex((_,k)=>!st.doneOf(k));
-        if(nxt>=0&&nxt!==wasI&&Date.now()-st.lastTap>1500)setTimeout(()=>{if(EP.st===st&&st.tab==='train'&&Date.now()-st.lastTap>1500)epGo(nxt);},800);
+        const nxt=wasI+1;   /* 顺序前进(r20); 录音中绝不抢跳(用户: 说到一半被跳走) */
+        if(nxt<epItems().length&&!st.doneOf(nxt)&&Date.now()-st.lastTap>1500)setTimeout(()=>{if(EP.st===st&&st.tab==='train'&&!st.recording&&Date.now()-st.lastTap>1500)epGo(nxt);},800);
       }
     }catch(e){
       if(drEl)drEl.innerHTML='<p class="ep-note">转写失败：'+esc(e.message)+'（可切 ⌨ 默写）</p>';
