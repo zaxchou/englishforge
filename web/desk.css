@@ -2262,3 +2262,11 @@ html.sb-min .nav-label{display:none!important}   /* 收缩侧栏只留图标 */
 }
 /* 页头已显示同一进度, 目录条不再重复一遍计数 */
 @media(min-width:801px){.csnav-col .csi.ep-csi .pg{display:none}.csnav-col .csi.ep-csi{padding-bottom:6px}}
+/* EnglishPod 目录课程行: 单行「精听深学 · Marco & Amira」; 总期数只在页头出现一次 */
+@media(min-width:801px){
+  .csnav-col .csi.ep-csi .t{flex-wrap:nowrap;white-space:nowrap;overflow:hidden;gap:6px}
+  .csnav-col .csi.ep-csi .course-total{display:none}
+  .csnav-col .csi.ep-csi .course-meta::before{content:'·';margin-right:2px;color:var(--t3)}
+}
+/* 页头行高度固定, EnglishPod(无页签)与视频课(有页签)完全等高 */
+@media(min-width:801px){.cs-headrow{min-height:50px;padding-top:0;padding-bottom:12px}}
