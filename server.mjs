@@ -814,6 +814,15 @@ const ASR_CFG = {
   url: (process.env.TFL_ASR_URL ? new URL(process.env.TFL_ASR_URL).origin : '') + '/compatible-mode/v1/chat/completions',
 };
 const RECORDING_DIR = path.join(RECORDS_DIR, 'recordings');
+/* EnglishPod 录音只应是英语: 识别结果出现明显非拉丁文字时, 视为语种跑偏,
+   不入成绩、保留录音让用户重试(避免日语/中文转写被当成拼写错误)。
+   拉丁字母多时容忍个别符号; 纯外语或外语占多数才拦。 */
+function epAsrLooksForeign(text) {
+  const s = String(text || '');
+  const latin = (s.match(/[A-Za-z]/g) || []).length;
+  const foreign = (s.match(/[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af\u0400-\u04ff\u0590-\u05ff\u0600-\u06ff\u0e00-\u0e7f]/g) || []).length;
+  return foreign > 0 && foreign >= Math.max(2, latin * 0.15);
+}
 // Date.now().toString(36) + '-' + a random base36 suffix; no path or URL metacharacters.
 const EPLOD_TAKE_ID = /^[a-z0-9]{1,16}-[a-z0-9]{1,32}$/;
 const EPLOD_RECORDING_FILE = /^eplod-\d{4}-\d{1,2}(?:-[a-z0-9]{1,16}-[a-z0-9]{1,32})?\.[\w]+$/;
@@ -1461,22 +1470,29 @@ const handler = async (req, res) => {
       if (!/^data:audio\/[\w.+-]+(?:;[\w.=+-]+)?;base64,[A-Za-z0-9+/=]+$/.test(audio)) return sendJSON(res, 400, { error: 'audio 须为 data:audio/*;base64' });
       if (audio.length > 11 * 1024 * 1024) return sendJSON(res, 413, { error: '录音过大' });
       try {
-        const rr = await fetch(ASR_CFG.url, {
+        /* 先带英语语言提示; 端点若不接受该参数(400), 去掉提示重试一次, 不影响可用性 */
+        const ask = extra => fetch(ASR_CFG.url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + ASR_CFG.key },
           body: JSON.stringify({
             model: ASR_CFG.model,
             messages: [{ role: 'user', content: [{ type: 'input_audio', input_audio: { data: audio } }] }],
             stream: false,
-            asr_options: { enable_itn: false },
+            asr_options: { enable_itn: false, ...extra },
           }),
           signal: AbortSignal.timeout(120000),
         });
+        let rr = await ask({ language: 'en' });
+        if (rr.status === 400) rr = await ask({});
         if (!rr.ok) return sendJSON(res, 502, { error: 'ASR 接口 ' + rr.status });
         const j = await rr.json();
         const c = j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content;
-        const text = typeof c === 'string' ? c : Array.isArray(c) ? c.map(x => x.text || '').join('') : '';
-        return sendJSON(res, 200, { ok: true, text: String(text || '').trim() });
+        const text = String((typeof c === 'string' ? c : Array.isArray(c) ? c.map(x => x.text || '').join('') : '') || '').trim();
+        if (epAsrLooksForeign(text)) return sendJSON(res, 422, {
+          ok: false, code: 'asr_not_english',
+          error: '这次录音被识别成了其他语言，没有计入成绩。请重试识别，或重新朗读。',
+        });
+        return sendJSON(res, 200, { ok: true, text });
       } catch (e) {
         return sendJSON(res, /timeout/i.test(e.message) ? 504 : 502, { error: 'ASR 失败: ' + e.message });
       }

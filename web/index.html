@@ -391,9 +391,9 @@ const SETCACHE = {};
 async function api(path, opts) {
   const r = await fetch(path, opts);
   if (!r.ok) {
-    let msg = path + ' -> ' + r.status;
-    try { const j = await r.json(); if (j.error) msg = j.error; } catch (e) {}
-    throw new Error(msg);
+    let msg = path + ' -> ' + r.status, code = '';
+    try { const j = await r.json(); if (j.error) msg = j.error; if (j.code) code = j.code; } catch (e) {}
+    const err = new Error(msg); if (code) err.code = code; throw err;
   }
   return r.json();
 }
@@ -4246,7 +4246,7 @@ async function epProcessTake(st,take){
     st.p.at=Math.max(Number(st.p.at||0),take.at);
     recSave();if(r.acc>=.9)epStamp(take.i,st);
     take.status='done';
-  }catch(e){take.error='识别失败：'+e.message+'。录音已保留，可以回听或重试识别。';take.status='error';}
+  }catch(e){const m=String(e.message||'');take.error=(e.code==='asr_not_english'?'':'识别失败：')+m+(/[。！？.]$/.test(m)?'':'。')+'录音已保留，可以回听或重试识别。';take.status='error';}
   finally{take.processing=false;epSettleTake(take);if(epTake(st,take.i)===take)epRefreshSentence(st,take.i);}
 }
 async function epRecToggle(i,card){
