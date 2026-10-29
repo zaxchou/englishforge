@@ -19,6 +19,7 @@
    - 学习记录持久化目录 records/ 与可再生目录 build/ 分离。
    - 素材根可被 --root / TFL_ROOT 覆盖（Windows 映射盘与 NAS 挂载兼容）。
    ============================================================ */
+import { createCoursePlanHandler, Model as CoursePlanModel, ensurePlans, applyPlanAttempt, publicPlan, attemptFingerprint, questionSignature } from './course-plan.mjs';
 import { createReviewHub } from './review-hub.mjs';
 import EplodRecords from './web/eplod-records.js';
 import { validateEvent, linkCoachEvidence } from './web/review/model.mjs';
@@ -1191,7 +1192,16 @@ for (const set of CATALOG) {
   } catch(e) { console.warn('[sentence-reference]',set.id,e.message); }
 }
 const sentenceNorm = s => (String(s||'').toLowerCase().replace(/[‘’]/g,"'").match(/[a-z0-9]+(?:'[a-z0-9]+)*/g)||[]).join(' ');
+function generatedQuestion(qid) {
+  const parsed=CoursePlanModel.parseQid(qid);
+  if(!parsed)return null;
+  return GQ_STORE[parsed.lessonId]?.questions?.find(q=>q.id===parsed.id)||null;
+}
 function attemptVerdict(ref,inc) {
+  if(CoursePlanModel.isManagedQid(ref.qid)) {
+    const q=generatedQuestion(ref.qid);
+    return q&&typeof inc.answer==='string'&&Object.hasOwn(q.options||{},inc.answer)?inc.answer===q.answer:null;
+  }
   const subject=String(ref.qid||'').split('/')[1];
   if(subject==='writing'||subject==='speaking') {
     const reference=SENTENCE_REFERENCES.get(ref.qid);
@@ -1237,7 +1247,9 @@ function serverRecAttempt(store, ref, inc) {
   const ok = attemptVerdict(ref,inc);
   const a = store.attempts[k] = store.attempts[k] || { st: 'doing', n: 0, right: 0, history: [] };
   a.n++; a.last = t; a.last_answer = inc.answer;
-  a.history.push({ id:inc.id, t, answer: inc.answer, ok: ok, secs: Math.round(inc.secs || 0),...(typeof inc.unsure==='boolean'?{unsure:inc.unsure}:{}) });
+  const genQuestion=generatedQuestion(k);
+  a.history.push({ id:inc.id, t, answer: inc.answer, ok: ok, secs: Math.round(inc.secs || 0),...(typeof inc.unsure==='boolean'?{unsure:inc.unsure}:{}),
+    ...(genQuestion?{coursePlanSignature:questionSignature(genQuestion),...(!inc.planRound?{coursePlanAutonomous:true}:{})}:{}) });
   if (ok === true) { a.right++; a.st = 'done'; }
   else if (ok === false) a.st = 'wrong';
   else a.st = 'submitted';
@@ -1350,6 +1362,7 @@ if(repairedSpeed){
   recordsSave(repaired);RECORDS=repaired;
   console.log('[eplod] verified legacy same-speed results:',repairedSpeed);
 }
+const COURSE_PLAN=createCoursePlanHandler({records:()=>RECORDS,setRecords:x=>{RECORDS=x;},save:recordsSave,quizzes:()=>GQ_STORE,now:()=>Date.now()});
 const REVIEW_HUB=createReviewHub({web:WEB_DIR,records:()=>RECORDS,setRecords:x=>{RECORDS=x;},save:recordsSave,recordAttempt:serverRecAttempt,quizzes:()=>GQ_STORE,banks:()=>[...REVIEW_BANKS.values()],reviewEvents:()=>REVIEW_EVENTS,ai:AI_CFG});
 
 /* ---------- HTTP 基础 ---------- */
@@ -1521,6 +1534,7 @@ const handler = async (req, res) => {
     }
 
     /* ---- API: 学习记录 ---- */
+    if(await COURSE_PLAN.handle(req,res,p,readBody,sendJSON))return;
     if(await REVIEW_HUB.handle(req,res,p,readBody,sendJSON))return;
     if(p==='/api/course-review/catalog'){
       if(req.method!=='GET')return sendJSON(res,405,{error:'method not allowed'});
@@ -1580,22 +1594,36 @@ const handler = async (req, res) => {
       if(inc.unsure!==undefined&&typeof inc.unsure!=='boolean')return sendJSON(res,400,{error:'unsure must be boolean'});
       if (!inc.delete && inc.ok != null && typeof inc.ok !== 'boolean') return sendJSON(res,400,{error:'ok must be boolean or null'});
       if (inc.secs !== undefined && (!Number.isFinite(inc.secs) || inc.secs < 0 || inc.secs > 86400)) return sendJSON(res,400,{error:'invalid seconds'});
-      if (inc.id && RECORDS.attemptEvents?.[inc.id]) {
-        if (RECORDS.attemptEvents[inc.id].qid !== ref.qid) return sendJSON(res,409,{error:'event id already used'});
-        return sendJSON(res,200,{ok:true,duplicate:true,attentionSaved:!!inc.unsure&&REVIEW_HUB.pool().some(x=>x.qid===ref.qid&&RECORDS.reviewHub?.attention?.[ref.qid]?.signature===x.signature&&!RECORDS.reviewHub.attention[ref.qid].cleared),attempt:RECORDS.attempts[ref.qid]||null,
+      if (['__proto__','constructor','prototype'].includes(inc.id)) return sendJSON(res,400,{error:'invalid event id'});
+      const planLesson=CoursePlanModel.parseQid(ref.qid)?.lessonId;
+      const planResult=store=>planLesson&&store.coursePlan?.plans[planLesson]?publicPlan(store.coursePlan,planLesson,Date.now()):null;
+      if (inc.id && Object.hasOwn(RECORDS.attemptEvents||{},inc.id)) {
+        const event=RECORDS.attemptEvents[inc.id];
+        if (event.qid !== ref.qid || (event.fingerprint && event.fingerprint !== attemptFingerprint(inc)) ||
+            (!event.fingerprint && (inc.planRound || inc.planPhase!==undefined))) return sendJSON(res,409,{error:'event id already used',code:'event_payload_conflict'});
+        return sendJSON(res,event.planError?409:200,{ok:!event.planError,duplicate:true,attemptSaved:true,...(event.planError||{}),
+          ...(inc.planRound||inc.planPhase!==undefined?{plan:planResult(RECORDS)}:{}),
+          attentionSaved:!!inc.unsure&&REVIEW_HUB.pool().some(x=>x.qid===ref.qid&&RECORDS.reviewHub?.attention?.[ref.qid]?.signature===x.signature&&!RECORDS.reviewHub.attention[ref.qid].cleared),attempt:RECORDS.attempts[ref.qid]||null,
           mistake:RECORDS.mistakes[ref.qid]||null,qtime:RECORDS.qtimes[ref.qid]||0,revision:RECORDS.revision,saved_at:RECORDS.saved_at});
       }
       // Copy, persist, then publish. Failed writes leave the acknowledged state untouched.
       const next = JSON.parse(JSON.stringify(RECORDS));
-      let a;
+      let a, planError=null;
+      const hasPlan=inc.planRound!==undefined||inc.planPhase!==undefined;
+      // Initialize before appending this answer so it cannot turn into a historical stamp.
+      if(hasPlan) {
+        try { ensurePlans(next,GQ_STORE,Date.now());applyPlanAttempt(next,GQ_STORE,inc,Date.now()); }
+        catch(e) { if(!e.status)return sendJSON(res,503,{error:'course plan unavailable'});planError={error:e.message,planError:e.message,code:e.code}; }
+      }
       let attentionSaved=false;
       try { a = serverRecAttempt(next, ref, inc);if(!inc.delete)attentionSaved=REVIEW_HUB.recordConfidence(next,ref.qid,inc); } catch (e) { return sendJSON(res, 400, { error: e.message }); }
-      if (inc.id) { next.attemptEvents=next.attemptEvents||{};next.attemptEvents[inc.id]={qid:ref.qid}; }
+      if (inc.id) { next.attemptEvents=next.attemptEvents||{};next.attemptEvents[inc.id]={qid:ref.qid,fingerprint:attemptFingerprint(inc),...(planError?{planError}:{})}; }
       next.revision=(RECORDS.revision||0)+1;
       next.saved_at = new Date().toISOString();
       try { recordsSave(next); } catch (e) { console.error('[attempt]', e.message); return sendJSON(res, 503, { error: 'records not persisted' }); }
       RECORDS=next;
-      return sendJSON(res, 200, { ok: true, attentionSaved, attempt: a, mistake:next.mistakes[ref.qid]||null,
+      return sendJSON(res, planError?409:200, { ok: !planError, attemptSaved:true,...(planError||{}),...(hasPlan?{plan:planResult(next)}:{}),
+        attentionSaved, attempt: a, mistake:next.mistakes[ref.qid]||null,
         qtime:next.qtimes[ref.qid]||0,revision:next.revision,saved_at:next.saved_at });
     }
 

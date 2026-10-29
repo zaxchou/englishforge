@@ -1877,6 +1877,37 @@ body.vfull .cs-stage video.tfl{max-height:none}
 }
 @media(prefers-reduced-motion:reduce){.ep-bcard,.ep-progress{animation:none}}
 
+/* 按课有限复习：章、下一次日期和唯一推荐动作。 */
+.cp-dashboard{max-width:1000px;margin:0 auto;animation:cs-note-in .18s ease-out}
+.cp-heading,.cp-today,.cp-lesson{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.cp-heading h3,.cp-finish h3{margin:0;font-size:19px;font-weight:600}
+.cp-heading p,.cp-today p,.cp-lesson p,.cp-plan p,.cp-settings p,.cp-extra p{margin:6px 0 0;color:var(--t2);font-size:13px;line-height:1.65}
+.cp-total{white-space:nowrap;color:var(--acc);font-size:13px}
+.cp-today{padding:20px 0;margin-top:16px;border-block:1px solid var(--line)}
+.cp-today b{font-size:17px}
+.cp-lesson{padding:16px 0;border-bottom:1px solid var(--line)}
+.cp-lesson>div{min-width:0}.cp-lesson b{display:block;font-size:14px;line-height:1.6;overflow-wrap:anywhere}
+.cp-lesson button{flex:none}
+.cp-stamps{display:flex;align-items:center;flex-wrap:wrap;gap:7px;margin:10px 0;color:var(--t2);font-size:12px}
+.cp-stamps i{display:grid;place-items:center;width:25px;height:25px;border:1px dashed var(--line);border-radius:50%;font-size:14px;font-style:normal;color:var(--t3)}
+.cp-stamps i.filled{background:var(--accbg);border:1px solid var(--accln);color:var(--acc);animation:cs-note-in .22s ease-out}
+.cp-stamps.compact{gap:4px;margin:0}.cp-stamps.compact i{width:15px;height:15px;font-size:10px}.cp-stamps.compact>span{margin-left:3px;font-size:11px}
+.cp-nav-progress{display:flex;flex-direction:column;gap:5px;margin-top:6px;font-size:11px;font-weight:400;color:var(--t2);white-space:normal}
+.csnav .cli:has(.cp-nav-progress){align-items:start}.csnav .cli:has(.cp-nav-progress)>.lt{white-space:normal;min-width:0}
+.cp-plan{padding:0 0 18px;margin-bottom:18px;border-bottom:1px solid var(--line)}
+.cp-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}.cp-actions button{min-height:40px}
+.cp-history{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:12px;font-size:12px;color:var(--t2)}
+.cp-settings,.cp-all,.cp-extra{margin-top:18px;border-top:1px solid var(--line)}
+.cp-settings>summary,.cp-all>summary,.cp-extra>summary{cursor:pointer;padding:14px 0;font-size:14px;font-weight:500}
+.cp-settings form{display:flex;flex-wrap:wrap;align-items:end;gap:14px;max-width:760px;padding-bottom:16px}
+.cp-settings label{display:flex;align-items:center;flex-wrap:wrap;gap:8px;color:var(--t1);font-size:13px}
+.cp-settings select,.cp-settings input{min-height:40px;border:1px solid var(--line);border-radius:var(--rs,10px);background:var(--card,#fff);color:var(--t1);font:inherit;padding:8px 10px;max-width:100%}
+.cp-settings input{width:76px}.cp-settings p{flex-basis:100%}.cp-settings #cp-intervals{display:flex;flex-wrap:wrap;gap:12px;flex-basis:100%}
+.cp-extra button{margin:12px 8px 12px 0}
+.cp-plan button:focus-visible,.cp-dashboard button:focus-visible,.cp-dashboard summary:focus-visible,.cp-dashboard input:focus-visible,.cp-dashboard select:focus-visible{outline:2px solid var(--acc);outline-offset:3px}
+@media(max-width:600px){.cp-heading,.cp-today,.cp-lesson{align-items:flex-start;flex-wrap:wrap}.cp-heading{gap:8px}.cp-today>.pri{width:100%}.cp-actions>button{flex:1 1 auto}.cp-settings label{width:100%;justify-content:space-between}.cp-settings select{max-width:66%}.cp-settings #cp-intervals{width:100%}.cp-lesson button{margin-left:auto}}
+@media(prefers-reduced-motion:reduce){.cp-dashboard,.cp-stamps i.filled{animation:none}}
+
 /* A 布局收尾: 锁定态保对比度(截图检查 2.42:1 不达标), 精听正文限行长 */
 .ep-steps .es.lock{opacity:1}
 .ep-steps .es.lock i,.ep-steps .es.lock b{color:var(--t2)}
