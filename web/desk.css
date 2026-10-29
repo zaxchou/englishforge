@@ -1892,8 +1892,6 @@ body.vfull .cs-stage video.tfl{max-height:none}
 .cp-stamps i{display:grid;place-items:center;width:25px;height:25px;border:1px dashed var(--line);border-radius:50%;font-size:14px;font-style:normal;color:var(--t3)}
 .cp-stamps i.filled{background:var(--accbg);border:1px solid var(--accln);color:var(--acc);animation:cs-note-in .22s ease-out}
 .cp-stamps.compact{gap:4px;margin:0}.cp-stamps.compact i{width:15px;height:15px;font-size:10px}.cp-stamps.compact>span{margin-left:3px;font-size:11px}
-.cp-nav-progress{display:flex;flex-direction:column;gap:5px;margin-top:6px;font-size:11px;font-weight:400;color:var(--t2);white-space:normal}
-.csnav .cli:has(.cp-nav-progress){align-items:start}.csnav .cli:has(.cp-nav-progress)>.lt{white-space:normal;min-width:0}
 .cp-plan{padding:0 0 18px;margin-bottom:18px;border-bottom:1px solid var(--line)}
 .cp-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}.cp-actions button{min-height:40px}
 .cp-history{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:12px;font-size:12px;color:var(--t2)}
@@ -2301,3 +2299,50 @@ html.sb-min .nav-label{display:none!important}   /* 收缩侧栏只留图标 */
 }
 /* 页头行高度固定, EnglishPod(无页签)与视频课(有页签)完全等高 */
 @media(min-width:801px){.cs-headrow{min-height:50px;padding-top:0;padding-bottom:12px}}
+
+/* ============================================================
+   block 48 · 视频课目录 A(2026-10-29.r9, 用户选 A):
+   序号替代视频勾, 章点+日期压成第二行, 收紧左侧缩进与行高。
+   只作用于视频课 .vcli, EnglishPod 的 #ep-list .cli 不受影响。
+   ============================================================ */
+.csnav .cli.vcli{display:grid;grid-template-columns:18px minmax(0,1fr) auto;
+  column-gap:7px;row-gap:1px;align-items:start;min-height:0;
+  padding:7px 7px 7px 3px;margin:1px 0;border-left:2px solid transparent;border-radius:7px}
+.csnav .cli.vcli:hover{background:var(--hover)}
+.csnav .cli.vcli.on{border-left-color:var(--acc);background:#e7efdc}
+.csnav .cli.vcli .no{grid-column:1;grid-row:1 / span 2;font-size:11px;line-height:1.75;
+  color:var(--t3);text-align:right;font-variant-numeric:tabular-nums;padding-top:1px}
+.csnav .cli.vcli.done .no{color:#668171;font-weight:600}
+.csnav .cli.vcli .lt{grid-column:2;grid-row:1;font-size:13px;font-weight:400;color:var(--t1);
+  line-height:1.5;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;
+  -webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.csnav .cli.vcli:not(.done) .lt{font-weight:500}
+.csnav .cli.vcli.on .lt{font-weight:600}
+.csnav .cli.vcli .ld{grid-column:3;grid-row:1;font-size:11px;color:var(--t3);
+  padding-top:2px;font-variant-numeric:tabular-nums}
+.csnav .cli.vcli .cpn{grid-column:2 / 4;grid-row:2;display:flex;align-items:center;
+  gap:7px;min-width:0;padding-top:1px}
+.csnav .cli.vcli .cpd{display:inline-flex;align-items:center;gap:3px;flex:none}
+.csnav .cli.vcli .cpd i{width:6px;height:6px;border-radius:50%;
+  border:1px solid #a9b6a4;background:transparent}
+.csnav .cli.vcli .cpd i.on{background:var(--acc);border-color:var(--acc)}
+.csnav .cli.vcli .cpn-t{font-size:11px;line-height:1.4;color:var(--t3);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.csnav .cli.vcli .cpn-t.due{color:var(--acc);font-weight:600}
+.csnav .cli.vcli:not(:has(.cpn)){align-items:center}
+.csnav .cli.vcli:not(:has(.cpn)) .no{grid-row:1}
+.csi.vid-csi{padding:0 6px 10px}
+.csi.vid-csi .pg{width:100%}
+.csi.vid-csi .pn{font-size:11px}
+/* 目录左右各收 8px: 文字左缘从 ~38px 收到 ~28px; 右栏拿回被目录吃掉的宽度 */
+@media(min-width:801px){
+  body.course-fixed .wrap{padding:18px 22px 12px}
+  body.course-fixed .csplit{grid-template-columns:minmax(224px,272px) minmax(0,1fr)}
+  body.course-fixed .csnav{padding:0 4px 10px}
+  body.course-fixed .csnav .csi.flat{padding:8px 8px 10px}
+  body.course-fixed .cs-pick{margin-bottom:10px}
+}
+@media(max-width:800px){
+  body.course-fixed .csnav{padding:0 2px 6px}
+  .csnav .cli.vcli{padding:7px 6px 7px 2px}
+}

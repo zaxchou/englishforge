@@ -24,7 +24,19 @@ function cpStamps(p,compact=false){
   const target=p?.target||CP.data?.settings?.target||3,n=p?.stamps?.length||0;
   return '<span class="cp-stamps'+(compact?' compact':'')+'" aria-label="课后练 '+n+' / '+target+' 次">'+Array.from({length:Math.max(target,n)},(_,i)=>'<i class="'+(i<n?'filled':'')+'" aria-hidden="true">'+(i<n?'✓':'·')+'</i>').join('')+'<span>'+n+' / '+target+' 次</span></span>';
 }
-function cpNavHTML(lid){const p=cpPlan(lid);return '<span class="cp-nav-progress">'+cpStamps(p,true)+'<span>'+esc(cpCaption(p))+'</span></span>';}
+/* 列表只留一行: 章点 + 最短状态; 完整说法仍在详情与悬浮说明 */
+function cpNavMeta(lid){
+  const p=cpPlan(lid);if(!p)return null;
+  const target=p.target||CP.data?.settings?.target||3,n=p.stamps.length||0;
+  let text='',due=false;
+  if(p.complete)text='已盖满';
+  else if(p.active){const a=p.active;text=a.phase==='main'?('本遍 '+Object.keys(a.answers||{}).length+'/'+a.order.length):a.phase==='correction'?'纠正中':'待盖章';}
+  else if(p.pendingHistorical)text=p.due?('下次 '+cpDate(p.due)):'待安排';
+  else if(!n)text=(p.due&&p.due<=Date.now())?'可开始':(p.due?'下次 '+cpDate(p.due):'待开始');
+  else if(p.due&&p.due<=Date.now()){text='今天可复习';due=true;}
+  else text='下次 '+cpDate(p.due);
+  return {n,target,text,due};
+}
 function cpLessonName(lid){const f=courseFind(lid);return f?courseSeriesName(f.c.title)+' · '+f.c.lessons[f.ix].title:lid;}
 function cpOpenLesson(lid){CP.openLesson=lid;csCourseTab='learn';const f=courseFind(lid);if(f){videoSel={c:f.c.id,l:f.ix};csSel={...videoSel};csPick=f.c.id;}nav('course/'+encodeURIComponent(lid));}
 async function cpDashboard(){

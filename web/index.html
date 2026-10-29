@@ -8,7 +8,7 @@
 <link rel="icon" type="image/png" sizes="96x96" href="/assets/brand/t-dot-v1/t-dot-96.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/assets/brand/t-dot-v1/t-dot-180.png">
 <title>TOEFL Lab · 托福自学练习</title>
-<link rel="stylesheet" href="desk.css?v=20261029r8">
+<link rel="stylesheet" href="desk.css?v=20261029r9">
 <style>
 /* 应用层补充样式（视觉基线在 desk.css，不改它的既有规则） */
 /* 单词与字符格保持同一行；焦点、已填、判题状态沿用研读桌配色。 */
@@ -346,7 +346,7 @@ details.ai-tsec[open] summary{margin-bottom:8px}
 
 <script src="eplod-records.js?v=3"></script>
 <script src="course-plan-model.js?v=20261029r8"></script>
-<script src="course-plan-ui.js?v=20261029r8"></script>
+<script src="course-plan-ui.js?v=20261029r9"></script>
 <script>
 'use strict';
 /* ============================================================
@@ -3310,7 +3310,21 @@ function renderCourseNav(){
     csPick=(ns&&ns.courses&&ns.courses.find(x=>x.kind!=='eplod'))?ns.courses.find(x=>x.kind!=='eplod').id:(fb?fb.id:null);
   }
   const c=epMode?courseById('eplod-01'):courseById(csPick);
-  const checkSvg='<i class="v"><svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1.8 5.4 4 7.6 8.3 2.9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></i>';   // SVG 勾锁定笔画几何, 文本 ✓ 各行粗细不一
+/* 目录短名: 只去掉与课程/序号重复的前缀和冗词, 不改变含义; 完整原名在行 title */
+function shortLessonTitle(title){
+  let t=String(title||'').trim();
+  t=t.replace(/^第\s*\d+\s*课\s*[·.、]\s*/,'')
+     .replace(/^托福词汇\s*[-－—]\s*/,'')
+     .replace(/^总概\s*[-－—]\s*/,'')
+     .replace(/^(基础|核心|进阶)词汇\s*·\s*词根\s*/,'$1 · ')
+     .replace(/^学科词汇系列\s*[-－—]\s*/,'学科 · ')
+     .replace(/^前缀之\s*[“"]?([^”"]+)[”"]?系列$/,'前缀 · $1')
+     .replace(/^词汇[“"]三维度[”"]及记忆法$/,'词汇三维度与记忆法')
+     .replace(/^[“"]记[”"]几个词汇背诵的小提示$/,'背诵的几个小提示')
+     .replace(/^[“"]用[”"]突破托福写作语言大关$/,'用词汇突破写作')
+     .replace(/^[“"]考[”"]真题词汇[=＝]考点词汇？$/,'真题词汇＝考点词汇？');
+  return t.replace(/\s+/g,' ').trim()||String(title||'');
+}
   let h='';
   if(!epMode){
     h='<div class="cs-pick"><select id="cs-course" title="切换课程">';
@@ -3332,29 +3346,28 @@ function renderCourseNav(){
     const tot=c.lesson_count||0;
     /* 期数与页面标题同名时, 目录条只显示后半段, 避免与页头重复两次 "EnglishPod" */
     const cShow=c.kind==='eplod'&&c.title.startsWith('EnglishPod ')?c.title.slice('EnglishPod '.length):c.title;
-    h+='<div class="csi flat'+(c.kind==='eplod'?' ep-csi':'')+'" data-cid="'+esc(c.id)+'" title="'+esc(c.title)+'">'
-      +(c.no!=null?'<span class="no">'+esc(c.no)+'</span>':'')
-      +'<div class="t"><b>'+esc(cShow)+(c.unit?' · '+esc(c.unit):'')+'</b>'
-      +'<span class="course-meta">'+(c.teacher?'<span class="course-teacher">'+esc(c.teacher)+'</span>':'')+'<span class="course-total">'+tot+' 节</span></span></div>'
-      +'<div class="pg"><span class="pb"><i style="width:'+(tot?Math.round(cd/tot*100):0)+'%"></i></span>'
-      +'<span class="pn '+(cd===tot&&tot?'full':'')+'">'+cd+'/'+tot+'</span></div></div>';
+    /* 视频课已由上方选课器显示课程名, 这里只留一行进度, 不再重复一遍标题 */
+    const pgHTML='<div class="pg"><span class="pb"><i style="width:'+(tot?Math.round(cd/tot*100):0)+'%"></i></span>'
+      +'<span class="pn '+(cd===tot&&tot?'full':'')+'">'+(c.kind==='eplod'?cd+'/'+tot:cd+' / '+tot+' 节已看')+'</span></div>';
+    h+=c.kind==='eplod'
+      ? '<div class="csi flat ep-csi" data-cid="'+esc(c.id)+'" title="'+esc(c.title)+'">'
+        +(c.no!=null?'<span class="no">'+esc(c.no)+'</span>':'')
+        +'<div class="t"><b>'+esc(cShow)+(c.unit?' · '+esc(c.unit):'')+'</b>'
+        +'<span class="course-meta">'+(c.teacher?'<span class="course-teacher">'+esc(c.teacher)+'</span>':'')+'<span class="course-total">'+tot+' 节</span></span></div>'
+        +pgHTML+'</div>'
+      : '<div class="csi flat vid-csi" data-cid="'+esc(c.id)+'" title="'+esc(c.title)+'">'+pgHTML+'</div>';
     if(c.kind==='eplod'){
       /* 364 期量大: 搜索框只重建 #ep-list, 输入不丢焦点; 分组标题带已学计数 */
       h+='<div class="ep-q"><input id="ep-q" type="search" aria-label="搜索 EnglishPod 课程" placeholder="搜索：标题 / 期号 / 难度" autocomplete="off" value="'+esc(epNavQuery)+'"></div><div id="ep-list"></div>';
     }else c.lessons.forEach((l,li)=>{
       const done=REC.course[l.id]&&REC.course[l.id].done;
-      const qd=GEN_COURSES.has(c.id)&&cpPlan(l.id)?.complete;
       const on=(csSel.c===c.id&&csSel.l===li);
-      const st= done&&qd ? checkSvg+'<i class="q"></i>'
-              : done    ? checkSvg
-              : qd      ? '<i class="q"></i>'
-              :           '<i></i>';
-      const tip= done&&qd ? '视频已看完 · 课后练已完成'
-               : done    ? '视频已看完'
-               : qd      ? '课后练已完成' : '';
-      /* 练完=✓旁小绿点(r42): 文字徽章占宽被否, 小标记+悬浮说明 */
-      h+=`<div class="cli${done?' done':''}${on?' on':''}" data-cid="${esc(c.id)}" data-ix="${li}" title="${esc(l.title)}">
-        <span class="st"${tip?` title="${tip}"`:''}>${st}</span><span class="lt">${esc(l.title)}${GEN_COURSES.has(c.id)?cpNavHTML(l.id):''}</span><span class="ld">${l.duration_sec?fmtDur(l.duration_sec):'—'}</span></div>`;
+      const meta=GEN_COURSES.has(c.id)?cpNavMeta(l.id):null;
+      const dots=meta?'<span class="cpd" aria-hidden="true">'+Array.from({length:Math.max(meta.target,meta.n)},(_,i)=>'<i'+(i<meta.n?' class="on"':'')+'></i>').join('')+'</span>':'';
+      /* 短名进列表, 完整原名留在悬浮说明; 序号承担"第几节+是否看完" */
+      const tip=l.title+(done?' · 视频已看完':'')+(meta?' · 课后练 '+meta.n+'/'+meta.target+' 次 · '+meta.text:'');
+      h+=`<div class="cli vcli${done?' done':''}${on?' on':''}" data-cid="${esc(c.id)}" data-ix="${li}" title="${esc(tip)}">
+        <span class="no">${String(li+1).padStart(2,'0')}</span><span class="lt">${esc(shortLessonTitle(l.title))}</span><span class="ld">${l.duration_sec?fmtDur(l.duration_sec):'—'}</span>${meta?`<span class="cpn">${dots}<span class="cpn-t${meta.due?' due':''}">${esc(meta.text)}</span></span>`:''}</div>`;
     });
   }
   const el=$('cs-nav'); el.innerHTML=h;
