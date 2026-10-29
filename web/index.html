@@ -8,7 +8,7 @@
 <link rel="icon" type="image/png" sizes="96x96" href="/assets/brand/t-dot-v1/t-dot-96.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/assets/brand/t-dot-v1/t-dot-180.png">
 <title>TOEFL Lab · 托福自学练习</title>
-<link rel="stylesheet" href="desk.css?v=20261029r14">
+<link rel="stylesheet" href="desk.css?v=20261029r15">
 <style>
 /* 应用层补充样式（视觉基线在 desk.css，不改它的既有规则） */
 /* 单词与字符格保持同一行；焦点、已填、判题状态沿用研读桌配色。 */
@@ -346,7 +346,7 @@ details.ai-tsec[open] summary{margin-bottom:8px}
 
 <script src="eplod-records.js?v=3"></script>
 <script src="course-plan-model.js?v=20261029r8"></script>
-<script src="course-plan-ui.js?v=20261029r9"></script>
+<script src="course-plan-ui.js?v=20261029r15"></script>
 <script>
 'use strict';
 /* ============================================================
@@ -3310,21 +3310,6 @@ function renderCourseNav(){
     csPick=(ns&&ns.courses&&ns.courses.find(x=>x.kind!=='eplod'))?ns.courses.find(x=>x.kind!=='eplod').id:(fb?fb.id:null);
   }
   const c=epMode?courseById('eplod-01'):courseById(csPick);
-/* 目录短名: 只去掉与课程/序号重复的前缀和冗词, 不改变含义; 完整原名在行 title */
-function shortLessonTitle(title){
-  let t=String(title||'').trim();
-  t=t.replace(/^第\s*\d+\s*课\s*[·.、]\s*/,'')
-     .replace(/^托福词汇\s*[-－—]\s*/,'')
-     .replace(/^总概\s*[-－—]\s*/,'')
-     .replace(/^(基础|核心|进阶)词汇\s*·\s*词根\s*/,'$1 · ')
-     .replace(/^学科词汇系列\s*[-－—]\s*/,'学科 · ')
-     .replace(/^前缀之\s*[“"]?([^”"]+)[”"]?系列$/,'前缀 · $1')
-     .replace(/^词汇[“"]三维度[”"]及记忆法$/,'词汇三维度与记忆法')
-     .replace(/^[“"]记[”"]几个词汇背诵的小提示$/,'背诵的几个小提示')
-     .replace(/^[“"]用[”"]突破托福写作语言大关$/,'用词汇突破写作')
-     .replace(/^[“"]考[”"]真题词汇[=＝]考点词汇？$/,'真题词汇＝考点词汇？');
-  return t.replace(/\s+/g,' ').trim()||String(title||'');
-}
   let h='';
   if(!epMode){
     h='<div class="cs-pick"><select id="cs-course" title="切换课程">';
@@ -3334,8 +3319,10 @@ function shortLessonTitle(title){
       h+='<optgroup label="'+esc(courseSeriesName(s.name))+'">';
       for(const c2 of cs){
         const cd2=(c2.lessons||[]).filter(l=>REC.course[l.id]&&REC.course[l.id].done).length;
+        const name=courseSeriesName(c2.title);
+        const dupNo=c2.no!=null&&new RegExp('^0*'+c2.no+'(?:\\D|$)').test(name);   // 标题已带同号(如「01 托福词汇课」)不再重复「1.」
         h+='<option value="'+esc(c2.id)+'"'+(c2.id===csPick?' selected':'')+'>'
-          + esc((c2.no!=null?c2.no+'. ':'')+courseSeriesName(c2.title)+(c2.unit?' · '+c2.unit:'')+'（'+cd2+'/'+(c2.lesson_count||0)+'）')+'</option>';
+          + esc((c2.no!=null&&!dupNo?c2.no+'. ':'')+name+(c2.unit?' · '+c2.unit:'')+'（'+cd2+'/'+(c2.lesson_count||0)+'）')+'</option>';
       }
       h+='</optgroup>';
     }

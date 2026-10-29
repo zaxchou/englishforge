@@ -2371,6 +2371,14 @@ html.sb-min .nav-label{display:none!important}   /* 收缩侧栏只留图标 */
 #ep-list .cli.ecli.on .ep-round.complete svg path{fill:#e7f0ca;stroke:#e7f0ca}
 #ep-list .cli.ecli.on .ep-round.current svg path{fill:transparent;stroke:#e7f0ca}
 #ep-list .cli.ecli.on .ep-round.final svg path{fill:#e7f0ca;stroke:#e7f0ca}
+/* r15 细节: 手机目录展开能多看几行; EP 搜索框/分组头/课程头与行的左缘对齐 */
+@media(max-width:800px){
+  body.course-fixed .csnav{max-height:min(52dvh,460px)}
+  .csnav-col .csi.ep-csi{padding:10px 7px 8px}
+}
+.ep-q{padding:8px 7px 6px 5px}
+.ep-level>.cgrp{padding:8px 7px}
+@media(min-width:801px){.csnav-col .csi.ep-csi{padding:2px 7px 10px}}
 /* 目录与内容的滚动条: 4px, 静止近乎隐形, 指向该栏才显出一档 */
 @media(min-width:801px){
   body.course-fixed .csnav,body.course-fixed .csmain{scrollbar-width:thin;

@@ -1,5 +1,21 @@
 /* Course-sized review plans share the existing answer queue and course view. */
 const CP={data:null,error:'',loading:null,openLesson:null,operation:0};
+/* 目录短名: 只去掉与课程/序号重复的前缀和冗词, 不改变含义; 完整原名在行 title。
+   放在共享脚本顶层, 课程目录与复习卡片共用。 */
+function shortLessonTitle(title){
+  let t=String(title||'').trim();
+  t=t.replace(/^第\s*\d+\s*课\s*[·.、]\s*/,'')
+     .replace(/^托福词汇\s*[-－—]\s*/,'')
+     .replace(/^总概\s*[-－—]\s*/,'')
+     .replace(/^(基础|核心|进阶)词汇\s*·\s*词根\s*/,'$1 · ')
+     .replace(/^学科词汇系列\s*[-－—]\s*/,'学科 · ')
+     .replace(/^前缀之\s*[“"]?([^”"]+)[”"]?系列$/,'前缀 · $1')
+     .replace(/^词汇[“"]三维度[”"]及记忆法$/,'词汇三维度与记忆法')
+     .replace(/^[“"]记[”"]几个词汇背诵的小提示$/,'背诵的几个小提示')
+     .replace(/^[“"]用[”"]突破托福写作语言大关$/,'用词汇突破写作')
+     .replace(/^[“"]考[”"]真题词汇[=＝]考点词汇？$/,'真题词汇＝考点词汇？');
+  return t.replace(/\s+/g,' ').trim()||String(title||'');
+}
 async function cpRequest(path='',body){
   const r=await fetch('/api/course-plan'+path,{...(body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(15000)});
   const j=await r.json();if(!r.ok){const e=Error(j.error||'复习计划未保存，请重试');e.code=j.code;throw e;}return j;
@@ -37,7 +53,7 @@ function cpNavMeta(lid){
   else text='下次 '+cpDate(p.due);
   return {n,target,text,due};
 }
-function cpLessonName(lid){const f=courseFind(lid);return f?courseSeriesName(f.c.title)+' · '+f.c.lessons[f.ix].title:lid;}
+function cpLessonName(lid){const f=courseFind(lid);if(!f)return lid;return courseSeriesName(f.c.title)+' · '+shortLessonTitle(f.c.lessons[f.ix].title);}
 function cpOpenLesson(lid){CP.openLesson=lid;csCourseTab='learn';const f=courseFind(lid);if(f){videoSel={c:f.c.id,l:f.ix};csSel={...videoSel};csPick=f.c.id;}nav('course/'+encodeURIComponent(lid));}
 async function cpDashboard(){
   const host=$('course-memory-content');if(!host)return;

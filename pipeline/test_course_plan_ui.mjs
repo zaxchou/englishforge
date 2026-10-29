@@ -10,9 +10,9 @@ test('finish phase does not overwrite pending result state',()=>{const c=context
 test('persisted plan conflict updates snapshot without blocking normal answer queue',()=>{const c=context();c.run("CP.data={plans:{}};GQ_UI.planRound='round';cpAcceptAttempt({planRound:'round'},{plan:{lessonId:'ndf-01-01',active:null},planError:'内容已更新'})");assert.equal(c.state.planConflict,true);assert.equal(c.run("CP.data.plans['ndf-01-01'].active"),null);});
 test('late advance response cannot switch another lesson into previous round',async()=>{const c=context();let resolve;c.ctx.fetch=()=>new Promise(r=>resolve=r);c.state.planRound='round';const pending=c.run('cpAdvance()');c.state.lessonId='cfcm-01-01';c.state.planRound=null;resolve({ok:true,json:async()=>({plans:{'ndf-01-01':{active:{id:'round',phase:'finish'}}},settings:{}})});await pending;assert.equal(c.state.lessonId,'cfcm-01-01');assert.equal(c.state.phase,'ready');assert.equal(c.state.planRound,null);});
 test('catalog short names drop duplicated prefixes without inventing new meaning',()=>{
-  const html=fs.readFileSync(new URL('../web/index.html',import.meta.url),'utf8');
-  const m=html.match(/function shortLessonTitle\(title\)\{[\s\S]*?\n\}/);
-  assert.ok(m,'shortLessonTitle present');
+  const src=fs.readFileSync(new URL('../web/course-plan-ui.js',import.meta.url),'utf8');
+  const m=src.match(/function shortLessonTitle\(title\)\{[\s\S]*?\n\}/);
+  assert.ok(m,'shortLessonTitle present at shared top level');
   const ctx=vm.createContext({});vm.runInContext(m[0]+';this.short=shortLessonTitle;',ctx);
   const cases={
     '总概-托福词汇简介':'托福词汇简介',
