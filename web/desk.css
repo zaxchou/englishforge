@@ -34,14 +34,17 @@
   --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px; --s6:32px;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-/* 全站滚动条统一成课程面板那套「4px/静止近隐形」语言, 含窗口级:
+/* 全站滚动条统一成「4px/静止近隐形」语言, 含窗口级:
    ≤800px 窄窗与手机此前完全没进规则, 露浏览器默认灰条压在画布圆角上(出戏)。
-   双写标准属性与 webkit 伪元素: 新 Chromium 走前者(原生细条+我们的颜色),
-   旧 Chromium 走后者(自绘 4px), Firefox 只认标准属性。 */
-*{scrollbar-width:thin;scrollbar-color:rgba(32,39,37,.14) transparent}
-*::-webkit-scrollbar{width:4px;height:4px}
-*::-webkit-scrollbar-track,*::-webkit-scrollbar-corner{background:transparent}
-*::-webkit-scrollbar-thumb{background:rgba(32,39,37,.14);border-radius:4px}
+   Chromium/Safari 一律走 webkit 伪元素自绘 4px(标准属性 scrollbar-width 在
+   Windows 上的原生细条不受 alpha 控制, 用户实测仍是一根显眼灰条);
+   不认这些伪元素的 Firefox 走 @supports 里的标准属性, 同一档颜色。 */
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track,::-webkit-scrollbar-corner{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(32,39,37,.14);border-radius:4px}
+@supports not selector(::-webkit-scrollbar){
+  *{scrollbar-width:thin;scrollbar-color:rgba(32,39,37,.14) transparent}
+}
 body{
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",
     Arial,"PingFang SC","Microsoft YaHei",sans-serif;
@@ -2389,10 +2392,8 @@ html.sb-min .nav-label{display:none!important}   /* 收缩侧栏只留图标 */
 .ep-q{padding:8px 7px 6px 5px}
 .ep-level>.cgrp{padding:8px 7px}
 @media(min-width:801px){.csnav-col .csi.ep-csi{padding:2px 7px 10px}}
-/* 目录与内容的滚动条: 4px, 静止近乎隐形, 指向该栏才显出一档 */
+/* 目录与内容的滚动条: 全站基线已自绘 4px, 这里只保留「指向该栏加深一档」 */
 @media(min-width:801px){
-  body.course-fixed .csnav,body.course-fixed .csmain{scrollbar-width:thin;
-    scrollbar-color:rgba(32,39,37,.14) transparent}
   body.course-fixed .csnav::-webkit-scrollbar,
   body.course-fixed .csmain::-webkit-scrollbar{width:4px;height:4px}
   body.course-fixed .csnav::-webkit-scrollbar-track,
