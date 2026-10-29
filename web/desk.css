@@ -2354,6 +2354,33 @@ html.sb-min .nav-label{display:none!important}   /* 收缩侧栏只留图标 */
   body.course-fixed .csnav{padding:0 2px 6px}
   .csnav .cli.vcli{padding:7px 6px 7px 4px}
 }
+/* ============================================================
+   block 49 · EnglishPod 目录与视频课同构(r12):
+   期号独立成序号列, 覆盖进度与时长成第二行, 去掉勾选列;
+   选中同样整行深底白字, 星星在深底上重建"已得/待得"对比。
+   ============================================================ */
+#ep-list .cli.ecli{display:grid;grid-template-columns:24px minmax(0,1fr) auto;
+  column-gap:7px;row-gap:1px;align-items:start;padding:7px 7px 7px 5px;
+  margin:1px 0;border:0;border-radius:7px}
+#ep-list .cli.ecli:hover{background:var(--hover)}
+#ep-list .cli.ecli .no{grid-column:1;grid-row:1 / span 2;font-size:11px;line-height:1.6;
+  color:#6f7a6c;text-align:right;font-variant-numeric:tabular-nums;padding-top:2px}
+#ep-list .cli.ecli.done:not(.on) .no{color:#52796a;font-weight:600}
+#ep-list .cli.ecli.on .no{color:#cfdcc8;font-weight:500}
+#ep-list .cli.ecli .ep-nav-body{grid-column:2;grid-row:1 / span 2;gap:4px}
+#ep-list .cli.ecli .lt{font-size:13px;line-height:1.5;color:var(--t1);font-weight:400;
+  overflow-wrap:anywhere}
+#ep-list .cli.ecli:not(.done) .lt{font-weight:500}
+#ep-list .cli.ecli .ld{grid-column:3;grid-row:1;padding-top:2px;font-size:11px;color:var(--t3)}
+#ep-list .cli.ecli.on{background:#2f4438}
+#ep-list .cli.ecli.on .lt{color:#fff;font-weight:600}
+#ep-list .cli.ecli.on .ld{color:#c3cfc1}
+#ep-list .cli.ecli.on .ep-nav-cover{color:#d5e0d2}
+#ep-list .cli.ecli.on .ep-nav-caption{color:#d9e4d6}
+#ep-list .cli.ecli.on .ep-round svg path{fill:transparent;stroke:#a9bdae;stroke-width:1.5}
+#ep-list .cli.ecli.on .ep-round.complete svg path{fill:#e7f0ca;stroke:#e7f0ca}
+#ep-list .cli.ecli.on .ep-round.current svg path{fill:transparent;stroke:#e7f0ca}
+#ep-list .cli.ecli.on .ep-round.final svg path{fill:#e7f0ca;stroke:#e7f0ca}
 /* 目录与内容的滚动条: 4px, 静止近乎隐形, 指向该栏才显出一档 */
 @media(min-width:801px){
   body.course-fixed .csnav,body.course-fixed .csmain{scrollbar-width:thin;

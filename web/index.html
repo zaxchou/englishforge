@@ -8,7 +8,7 @@
 <link rel="icon" type="image/png" sizes="96x96" href="/assets/brand/t-dot-v1/t-dot-96.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/assets/brand/t-dot-v1/t-dot-180.png">
 <title>TOEFL Lab · 托福自学练习</title>
-<link rel="stylesheet" href="desk.css?v=20261029r11">
+<link rel="stylesheet" href="desk.css?v=20261029r12">
 <style>
 /* 应用层补充样式（视觉基线在 desk.css，不改它的既有规则） */
 /* 单词与字符格保持同一行；焦点、已填、判题状态沿用研读桌配色。 */
@@ -3246,7 +3246,6 @@ function renderCourse(){
 }
 function courseSeriesName(n){ return String(n||'').replace(/新D方/g,'新东方'); }
 const EP_LV=[[1,'初级','Elementary'],[2,'中级','Intermediate'],[3,'中高级','Upper Intermediate'],[4,'高级','Advance'],[5,'精通','Proficient']];
-const EP_CHECK='<i class="v"><svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M1.8 5.4 4 7.6 8.3 2.9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></i>';
 const EP_TICK='<svg width="12" height="12" viewBox="0 0 16 16" aria-hidden="true"><path d="m3 8 3 3 7-7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const EP_STAR='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>';
 function epCoverState(lesson,total){return EplodRecords.coverProgress(lesson?.drill,total,epDay());}
@@ -3291,9 +3290,11 @@ function epNavListHTML(c,q){
     h+='<details class="ep-level" data-rank="'+rk+'"'+(expanded?' open':'')+'><summary class="cgrp"><svg class="ep-chevron" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="m4 2 4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg><b>'+zh+'</b><span>'+en+'</span><i title="已学 / '+(q?'匹配':'总')+'课数">'+dn+'/'+items.length+'</i></summary>';
     for(const [l,li] of items){
       const done=doneOf(l),on=(csSel.c===c.id&&csSel.l===li);
-      h+='<div class="cli'+(done?' done':'')+(on?' on':'')+'" data-cid="'+esc(c.id)+'" data-ix="'+li+'" title="'+esc(l.title)+'">'
-        +'<span class="st" title="'+(done?'已标记学过':'尚未标记学过')+'">'+(done?EP_CHECK:'<i></i>')+'</span>'
-        +'<span class="ep-nav-body"><span class="lt">'+esc(l.title)+'</span>'+epNavCoverHTML(l)+'</span><span class="ld">'+(l.duration_sec?fmtDur(l.duration_sec):'\u2014')+'</span></div>';
+      /* 与视频课目录同构: 期号独立成序号列, 标题+覆盖进度两行, 不再另设勾选列 */
+      const epm=/^#(\d+)\s+(.*)$/.exec(l.title);
+      h+='<div class="cli ecli'+(done?' done':'')+(on?' on':'')+'" data-cid="'+esc(c.id)+'" data-ix="'+li+'" title="'+esc(l.title)+(done?' · 已学过':'')+'">'
+        +'<span class="no">'+(epm?epm[1].padStart(4,'0'):'')+'</span>'
+        +'<span class="ep-nav-body"><span class="lt">'+esc(epm?epm[2]:l.title)+'</span>'+epNavCoverHTML(l)+'</span><span class="ld">'+(l.duration_sec?fmtDur(l.duration_sec):'\u2014')+'</span></div>';
     }
     h+='</details>';
   }
