@@ -8,7 +8,7 @@
 <link rel="icon" type="image/png" sizes="96x96" href="/assets/brand/t-dot-v1/t-dot-96.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/assets/brand/t-dot-v1/t-dot-180.png">
 <title>TOEFL Lab · 托福自学练习</title>
-<link rel="stylesheet" href="desk.css?v=20261029r18">
+<link rel="stylesheet" href="desk.css?v=20261029r19">
 <style>
 /* 应用层补充样式（视觉基线在 desk.css，不改它的既有规则） */
 /* 单词与字符格保持同一行；焦点、已填、判题状态沿用研读桌配色。 */
@@ -4493,7 +4493,11 @@ ${!GEN_COURSES.has(c.id)&&!cur?.practice?'<div class="empty">本节尚无核验�
   csBookmarks(l);$('cs-note-save').onclick=()=>csSaveBookmark(l);
   const noteInput=$('cs-note');try{noteInput.value=localStorage.getItem('tfl-note-draft:'+l.id)||'';}catch{}
   noteInput.oninput=()=>{try{localStorage.setItem('tfl-note-draft:'+l.id,noteInput.value);}catch{}};
-  const requested=p.tab;if(['practice','notes'].includes(requested))csSelectTab(requested);
+  /* 页签恢复: 本节明确切过的页签优先; 首次打开默认落练习(练习比讲义高频),
+     无练习内容的课节回退讲义, 不落在空练习态 */
+  const requested=p.tab;
+  if(['handout','script','practice','notes'].includes(requested))csSelectTab(requested);
+  else csSelectTab((GEN_COURSES.has(c.id)||cur?.practice)?'practice':'handout');
   const speed=$('cs-speed');let savedRate=1;try{savedRate=Number(localStorage.getItem('tfl-video-rate'))||1;}catch{}
   if(![0.75,1,1.25,1.5,1.75,2,2.5].includes(savedRate))savedRate=1;
   speed.value=String(savedRate);v.playbackRate=savedRate;

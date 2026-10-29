@@ -2394,6 +2394,9 @@ html.sb-min .nav-label{display:none!important}   /* 收缩侧栏只留图标 */
 @media(min-width:801px){.csnav-col .csi.ep-csi{padding:2px 7px 10px}}
 /* 目录与内容的滚动条: 全站基线已自绘 4px, 这里只保留「指向该栏加深一档」 */
 @media(min-width:801px){
+  /* 画布圆角 16px: 滚动条上下各让出一段, 滑块从圆角下方开始, 不再压到曲线之外 */
+  body.course-fixed .csmain::-webkit-scrollbar-button:vertical:start:decrement,
+  body.course-fixed .csmain::-webkit-scrollbar-button:vertical:end:increment{display:block;height:16px;background:transparent}
   body.course-fixed .csnav::-webkit-scrollbar,
   body.course-fixed .csmain::-webkit-scrollbar{width:4px;height:4px}
   body.course-fixed .csnav::-webkit-scrollbar-track,
