@@ -34,6 +34,14 @@
   --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px; --s6:32px;
 }
 *{box-sizing:border-box;margin:0;padding:0}
+/* 全站滚动条统一成课程面板那套「4px/静止近隐形」语言, 含窗口级:
+   ≤800px 窄窗与手机此前完全没进规则, 露浏览器默认灰条压在画布圆角上(出戏)。
+   双写标准属性与 webkit 伪元素: 新 Chromium 走前者(原生细条+我们的颜色),
+   旧 Chromium 走后者(自绘 4px), Firefox 只认标准属性。 */
+*{scrollbar-width:thin;scrollbar-color:rgba(32,39,37,.14) transparent}
+*::-webkit-scrollbar{width:4px;height:4px}
+*::-webkit-scrollbar-track,*::-webkit-scrollbar-corner{background:transparent}
+*::-webkit-scrollbar-thumb{background:rgba(32,39,37,.14);border-radius:4px}
 body{
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",
     Arial,"PingFang SC","Microsoft YaHei",sans-serif;
@@ -325,8 +333,6 @@ textarea{width:100%;min-height:150px;padding:var(--s3) 13px;resize:vertical;line
 /* 左栏导航 */
 .csnav{position:sticky;top:64px;max-height:calc(100vh - 84px);overflow-y:auto;
   background:var(--card);border:1px solid var(--line);border-radius:var(--r)}
-.csnav::-webkit-scrollbar{width:8px}
-.csnav::-webkit-scrollbar-thumb{background:var(--line2);border-radius:4px}
 /* 系列分组头 */
 .csg{border-bottom:1px solid var(--line)}
 .csg:last-child{border-bottom:none}
@@ -1074,10 +1080,8 @@ body.vfull .cs-status button:hover{background:#28392d;border-color:#4d6350}
 /* 折叠态尺寸与字标淡出由固定图标轨统一控制。 */
 
 /* ==== 课稿/课后练评审抛光(oil-ui-pro 轮) ==== */
-/* 课稿长文: 收窄行宽+加大字号+暖色滚动条 */
+/* 课稿长文: 收窄行宽+加大字号 (滚动条走全站 4px 基线) */
 .md-body{max-width:720px;margin:0 auto;padding:20px 24px 26px;font-size:15.5px;line-height:1.85}
-.md-body::-webkit-scrollbar{width:10px}
-.md-body::-webkit-scrollbar-thumb{background:#d3d8c8;border-radius:5px;border:2px solid #fbfcf6}
 .md-body h5{font-size:15px;color:#244433;border-left:3px solid #66856a;padding-left:9px}
 /* tab 选中态加强: 白底描边+加粗, 与未选中拉开 */
 .htabs button.on{background:#fffef9;border:1px solid #b9c9ab;color:#244433;font-weight:600}
