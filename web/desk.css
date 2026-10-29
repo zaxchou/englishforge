@@ -2307,9 +2307,14 @@ html.sb-min .nav-label{display:none!important}   /* 收缩侧栏只留图标 */
    ============================================================ */
 .csnav .cli.vcli{display:grid;grid-template-columns:18px minmax(0,1fr) auto;
   column-gap:7px;row-gap:1px;align-items:start;min-height:0;
-  padding:7px 7px 7px 3px;margin:1px 0;border-left:2px solid transparent;border-radius:7px}
+  padding:7px 7px 7px 5px;margin:1px 0;border:0;border-radius:7px}
 .csnav .cli.vcli:hover{background:var(--hover)}
-.csnav .cli.vcli.on{border-left-color:var(--acc);background:#e7efdc}
+/* 选中=整行实底 + 序号反白, 不再用左侧竖条 */
+.csnav .cli.vcli.on{background:#cfe0bb;box-shadow:inset 0 0 0 1px #b9cda4}
+.csnav .cli.vcli.on .no{color:#fff;background:var(--acc);border-radius:4px;
+  height:16px;line-height:16px;font-size:10.5px;font-weight:600;padding:0 1px;margin-top:1px}
+.csnav .cli.vcli.on .lt{color:#173325}
+.csnav .cli.vcli.on .ld,.csnav .cli.vcli.on .cpn-t{color:#405846}
 .csnav .cli.vcli .no{grid-column:1;grid-row:1 / span 2;font-size:11px;line-height:1.75;
   color:var(--t3);text-align:right;font-variant-numeric:tabular-nums;padding-top:1px}
 .csnav .cli.vcli.done .no{color:#668171;font-weight:600}
@@ -2344,5 +2349,18 @@ html.sb-min .nav-label{display:none!important}   /* 收缩侧栏只留图标 */
 }
 @media(max-width:800px){
   body.course-fixed .csnav{padding:0 2px 6px}
-  .csnav .cli.vcli{padding:7px 6px 7px 2px}
+  .csnav .cli.vcli{padding:7px 6px 7px 4px}
+}
+/* 目录与内容的滚动条: 4px, 静止近乎隐形, 指向该栏才显出一档 */
+@media(min-width:801px){
+  body.course-fixed .csnav,body.course-fixed .csmain{scrollbar-width:thin;
+    scrollbar-color:rgba(32,39,37,.14) transparent}
+  body.course-fixed .csnav::-webkit-scrollbar,
+  body.course-fixed .csmain::-webkit-scrollbar{width:4px;height:4px}
+  body.course-fixed .csnav::-webkit-scrollbar-track,
+  body.course-fixed .csmain::-webkit-scrollbar-track{background:transparent}
+  body.course-fixed .csnav::-webkit-scrollbar-thumb,
+  body.course-fixed .csmain::-webkit-scrollbar-thumb{background:rgba(32,39,37,.13);border-radius:4px}
+  body.course-fixed .csnav:hover::-webkit-scrollbar-thumb,
+  body.course-fixed .csmain:hover::-webkit-scrollbar-thumb{background:rgba(32,39,37,.3)}
 }
