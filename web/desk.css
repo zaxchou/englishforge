@@ -2309,15 +2309,18 @@ html.sb-min .nav-label{display:none!important}   /* 收缩侧栏只留图标 */
   column-gap:7px;row-gap:1px;align-items:start;min-height:0;
   padding:7px 7px 7px 5px;margin:1px 0;border:0;border-radius:7px}
 .csnav .cli.vcli:hover{background:var(--hover)}
-/* 选中=整行实底 + 序号反白, 不再用左侧竖条 */
-.csnav .cli.vcli.on{background:#cfe0bb;box-shadow:inset 0 0 0 1px #b9cda4}
-.csnav .cli.vcli.on .no{color:#fff;background:var(--acc);border-radius:4px;
-  height:16px;line-height:16px;font-size:10.5px;font-weight:600;padding:0 1px;margin-top:1px}
-.csnav .cli.vcli.on .lt{color:#173325}
-.csnav .cli.vcli.on .ld,.csnav .cli.vcli.on .cpn-t{color:#405846}
-.csnav .cli.vcli .no{grid-column:1;grid-row:1 / span 2;font-size:11px;line-height:1.75;
-  color:var(--t3);text-align:right;font-variant-numeric:tabular-nums;padding-top:1px}
-.csnav .cli.vcli.done .no{color:#668171;font-weight:600}
+/* 选中=整行深底白字(序号只换颜色, 不做小方块), 不再用左侧竖条 */
+.csnav .cli.vcli.on{background:#2f4438;box-shadow:none}
+.csnav .cli.vcli.on .no{color:#cfdcc8;font-weight:500}
+.csnav .cli.vcli.on .lt{color:#fff;font-weight:600}
+.csnav .cli.vcli.on .ld{color:#c3cfc1}
+.csnav .cli.vcli.on .cpn-t{color:#d5e0d2}
+.csnav .cli.vcli.on .cpn-t.due{color:#e7f0ca}
+.csnav .cli.vcli.on .cpd i{border-color:#ffffff7a}
+.csnav .cli.vcli.on .cpd i.on{background:#e7f0ca;border-color:#e7f0ca}
+.csnav .cli.vcli .no{grid-column:1;grid-row:1 / span 2;font-size:12px;line-height:1.6;
+  color:#6f7a6c;text-align:right;font-variant-numeric:tabular-nums;padding-top:2px}
+.csnav .cli.vcli.done:not(.on) .no{color:#52796a;font-weight:600}
 .csnav .cli.vcli .lt{grid-column:2;grid-row:1;font-size:13px;font-weight:400;color:var(--t1);
   line-height:1.5;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;
   -webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
