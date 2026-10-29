@@ -28,4 +28,13 @@ test('catalog short names drop duplicated prefixes without inventing new meaning
   };
   for(const [input,expected] of Object.entries(cases))assert.equal(ctx.short(input),expected,input);
 });
+test('courses whose titles already carry section numbers hide the duplicate sequence column',()=>{
+  const html=fs.readFileSync(new URL('../web/index.html',import.meta.url),'utf8');
+  const css=fs.readFileSync(new URL('../web/desk.css',import.meta.url),'utf8');
+  assert.match(html,/const noSeq=seqN>=Math\.ceil\(c\.lessons\.length\*\.6\)/);
+  assert.match(html,/noSeq\?'':`<span class="no">/);
+  assert.match(css,/\.cli\.vcli\.nono\{grid-template-columns:minmax\(0,1fr\) auto\}/);
+  const numbered=['1.听力导学','2.1 认识学术讲座','1.1 写作导学'].every(t=>/^\d+(?:\.\d+)?[.、\s]/.test(t));
+  assert.ok(numbered);
+});
 test('managed mistakes stay outside automatic due batch and persisted conflict is acknowledged',()=>{const html=fs.readFileSync(new URL('../web/index.html',import.meta.url),'utf8');assert.match(html,/if\(!r.ok&&!j.attemptSaved\)throw/);const batch=html.slice(html.indexOf('async function startDueReview('),html.indexOf('function reviewEntries('));assert.match(batch,/!cpManaged\(k\)/);assert.match(html,/cpAcceptAttempt\(item,j\)/);});
