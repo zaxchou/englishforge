@@ -403,7 +403,8 @@ textarea{width:100%;min-height:150px;padding:var(--s3) 13px;resize:vertical;line
 .handout{background:var(--sunk);border-radius:var(--rs);padding:var(--s3) var(--s4)}
 .handout h5{font-size:var(--f4);font-weight:500;margin:0 0 var(--s2);
   display:flex;align-items:center;gap:var(--s2)}
-.handout h5 .tag-src{font-size:var(--f5);color:var(--t3);font-weight:400}
+/* 13px/--t2: 12px 触发可读性红线; --t3 在 sunk 底只有 ~4.1:1 不达标 */
+.handout h5 .tag-src{font-size:13px;color:var(--t2);font-weight:400}
 .handout p{font-size:var(--f3);color:var(--t2);line-height:1.75;margin-bottom:var(--s2)}
 .handout .kw{display:inline-block;font-size:var(--f5);padding:1px 7px;border-radius:6px;
   background:var(--card);border:1px solid var(--line);color:var(--t2);margin:0 var(--s1) var(--s1) 0}
@@ -1104,6 +1105,8 @@ body.vfull .cs-status button:hover{background:#28392d;border-color:#4d6350}
 .csi.flat>.no{display:none}
 .csi.flat .t b{display:block;white-space:normal;overflow:visible;text-overflow:clip;line-height:1.45;word-break:normal;overflow-wrap:break-word;text-wrap:pretty}
 .csi.flat .course-meta{display:flex;align-items:baseline;gap:4px 10px;flex-wrap:wrap;margin-top:4px;line-height:1.5}
+/* 课程头元信息在暖纸底上用 --t2: 继承的 --t3 对 #efeee7 只有 4.01:1, --t2 5.56:1 */
+.csi.flat .course-meta,.csi.flat .course-meta span{color:var(--t2)}
 .csi.flat .course-meta .course-teacher,.csi.flat .course-meta .course-total{white-space:nowrap}
 .csi.flat .pg{width:100%;gap:10px}
 .csi.flat .pg .pb{flex:1;width:auto;min-width:20px}
@@ -1443,6 +1446,9 @@ body.vfull .cs-stage video.tfl{max-height:none}
 #ep-lines .ep-line .spk{grid-column:1;grid-row:1;line-height:24px}
 #ep-lines .ep-line .tx{grid-column:2;grid-row:1;min-width:0;line-height:1.5}
 #ep-lines .ep-line .zh{grid-column:2;grid-row:2;width:auto;min-width:0;padding:0;line-height:1.45}
+/* 对话与讲解逐字稿共用 .ep-lines: 宽画布上英文句 ~97 字符/行太长,
+   70ch(≈600px) 封顶折行, 译文同宽; #ep-lines 的锚点按钮仍钉右缘 */
+.ep-lines .ep-line .tx,.ep-lines .ep-line .zh{max-width:70ch}
 #ep-lines .ep-line .mk{grid-column:3;grid-row:1 / span 2;align-self:center;display:flex;align-items:center;justify-content:center;width:28px;height:28px;min-height:28px;padding:0;line-height:1}
 .csmain .ep-listen #ep-lines{margin-top:6px}
 /* 遮罩盲听: 文本模糊, 点击/Z 揭示 */
