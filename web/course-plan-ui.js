@@ -125,18 +125,21 @@ function cpDuePromptShow(lid){
   mask.id='cp-due-mask';mask.className='cp-due-mask';
   const line=p&&p.active?'本遍还没盖完章，接着做完就能盖上。':p&&p.complete?'这门课已盖满章，可以自由回顾。':'第 '+(n+1)+' 遍（共 '+target+' 遍）到期了，今天做完就能盖上这一章。';
   mask.innerHTML='<div class="cp-due" role="dialog" aria-modal="true" aria-label="复习到期提醒"><p class="cp-due-kicker">复习到期</p><b>'+esc(cpLessonName(lid))+'</b><p>'+line+'</p><div class="cp-due-actions"><button class="pri" id="cp-due-now">马上学习</button><button id="cp-due-later">稍后学习</button></div></div>';
-  const close=()=>mask.remove();
+  const onKey=e=>{if(e.key==='Escape'){cpSnooze(lid);close();}};
+  const close=()=>{document.removeEventListener('keydown',onKey);mask.remove();};
   mask.addEventListener('click',e=>{if(e.target===mask){cpSnooze(lid);close();}});
-  mask.querySelector('#cp-due-now').onclick=()=>{close();cpOpenLesson(lid);};
+  mask.querySelector('#cp-due-now').onclick=()=>{cpSnooze(lid);close();cpOpenLesson(lid);};   /* 学了也记同日不再弹, 口径=每课每天至多一次 */
   mask.querySelector('#cp-due-later').onclick=()=>{cpSnooze(lid);close();};
+  document.addEventListener('keydown',onKey);
   document.body.append(mask);
+  const nowBtn=mask.querySelector('#cp-due-now');if(nowBtn&&nowBtn.focus)nowBtn.focus();
 }
 async function cpDueCheck(){try{await cpLoad();}catch(e){return;}
   cpBadgeUpdate();
   if(document.hidden||document.getElementById('cp-due-mask'))return;
   if(GQ_UI&&(GQ_UI.phase==='answer'||GQ_UI.phase==='prep'||GQ_UI.planRound))return;   /* 答题中不打断, 下一轮提醒再看 */
   if(location.hash.startsWith('#/course'))return;   /* 人已在课程/复习页, 不重复打扰(不依赖页面状态就位时序) */
-  const lid=cpDuePick(CP.data&&CP.data.recommendations,CP.snooze||cpSnoozeLoad(),cpTodayKey());
+  const lid=cpDuePick(CP.data&&CP.data.recommendations,cpSnoozeLoad(),cpTodayKey());   /* 每次实时回读, 多标签页共享同一天的稍后记录 */
   if(lid)cpDuePromptShow(lid);
 }
 function cpDueWatch(){

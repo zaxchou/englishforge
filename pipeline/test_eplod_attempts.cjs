@@ -147,6 +147,8 @@ function memoryChecks() {
   assert.equal(E.usSpelling('colour'), 'color');
   assert.equal(E.usSpelling('favourite'), 'favorite');
   assert.equal(E.usSpelling('neighbourhood'), 'neighborhood');
+  assert.equal(E.usSpelling('behaviour'), 'behavior');
+  assert.equal(E.usSpelling('behavioural'), 'behavioral');
   assert.equal(E.usSpelling('centre'), 'center');
   assert.equal(E.usSpelling('centred'), 'centered');
   assert.equal(E.usSpelling('practise'), 'practice');

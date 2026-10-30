@@ -2431,8 +2431,8 @@ html.sb-min .nav-label{display:none!important}   /* 收缩侧栏只留图标 */
 }
 .cp-bell:hover{background:#e0ead4}   /* 与导航 hover 同语言: 只变底色, 不动边框 */
 .cp-bell:active{transform:translateY(1px)}
-.cp-due-mask{position:fixed;inset:0;z-index:96;display:flex;align-items:center;justify-content:center;
-  padding:20px;background:rgba(32,39,37,.38)}
+.cp-due-mask{position:fixed;inset:0;z-index:999;display:flex;align-items:center;justify-content:center;
+  padding:20px;background:rgba(32,39,37,.38)}   /* 须高于收缩侧栏 .top 的 z-index:800, 弹窗才是真模态 */
 .cp-due{width:min(360px,100%);background:var(--card);border:1px solid var(--line);border-radius:14px;
   padding:20px 22px;box-shadow:0 24px 60px rgba(32,39,37,.25)}
 .cp-due-kicker{margin:0 0 6px;font-size:11px;letter-spacing:.14em;color:#7d8a7b}

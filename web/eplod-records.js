@@ -18,7 +18,7 @@
     [/^(cancel|travel|model|label|level|total|fuel|signal|marvel|dial|equal|rival|pedal|channel|counsel)l(ed|ing|ers?|ings?|ous)$/,'$1$2'],
     [/^(real|recogn|organ|apolog|character|standard|modern|special|social|minim|maxim|optim|summar|author|emphas|memor|categor|priorit|util|stabil|normal|formal|visual|custom|initial|final|hospital|familiar|central|critic)is(e|es|ed|ing|ation|ations)$/,'$1iz$2'],
     [/^analys(e|ed|ing)$/,'analyz$1'],
-    [/^(col|fav|behav|hon|neighb|hum|lab|arm|flav|rum|vap|harb)our(s|ed|ing|ite|ites|able|ful|ous|less|hood|hoods|ings)?$/,'$1or$2'],
+    [/^(col|fav|behavi|hon|neighb|hum|lab|arm|flav|rum|vap|harb)our(s|ed|ing|al|ite|ites|able|ful|ous|less|hood|hoods|ings)?$/,'$1or$2'],
     [/^(cent|met|theat|lit|fib|calib|lust|scept)red$/,'$1ered'],
     [/^(cent|met|theat|lit|fib|calib|lust|scept)re(s)?$/,'$1er$2']
   ];
