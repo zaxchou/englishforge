@@ -17,6 +17,19 @@ function learned(records, quiz, lid) {
     const a = records.attempts?.[Model.qid(quiz, q)]; return a && (a.n > 0 || a.history?.length > 0);
   });
 }
+/* 「开始过这门课」(r7 2026-10-30): 视频有记录, 或计划启用后才练过这门课的题。
+   启用前的旧练习(错题时代)不算——万词班官方题练过≠用户开始上这门课, 不该被推送。
+   无任何时间戳可证明是旧练习的条目从宽视为已开始(只排除能证明是旧的)。 */
+function engagement(records, root) {
+  const set = new Set(Object.keys(records.course || {}));
+  for (const [qid, a] of Object.entries(records.attempts || {})) {
+    const parsed = Model.parseQid(qid);
+    if (!parsed) continue;
+    const times = [Number(a.last), ...(a.history || []).map(h => Number(h.t))].filter(t => Number.isFinite(t) && t > 0);
+    if (!times.length || times.some(t => t >= root.activationAt)) set.add(parsed.lessonId);
+  }
+  return set;
+}
 function historicalCoverage(records, quiz, cutoff) {
   return Model.coreQuestions(quiz).every(q => (records.attempts?.[Model.qid(quiz, q)]?.history || []).some(h =>
     !h.coursePlanAutonomous && Number.isFinite(h.t) && h.t <= cutoff && h.t >= Math.max(q.revisionAt || 0, quiz.at || 0) &&
@@ -80,9 +93,14 @@ export function summary(records, quizzes, now) {
   const plans = Object.fromEntries(availableLessonIds.map(lid => [lid, publicPlan(root, lid, now)]));
   const completed = new Set(Object.entries(root.plans).filter(([, p]) => p.stamps.some(s => !s.historical && s.at >= Model.dayStart(now) && s.at < Model.dayStart(now) + Model.DAY)).map(([lid]) => lid));
   const todayCompleted = completed.size, remainingToday = Math.max(0, root.settings.daily - todayCompleted);
-  const eligible = availableLessonIds.filter(lid => !plans[lid].complete && learned(records, quizzes[lid], lid) &&
+  const engaged = engagement(records, root);
+  // 推送门槛(r7): 有章 / 已开始这门课 / 进行轮里已作答。误启动且零作答的轮不推送, 但保留在课页可续。
+  const begun = lid => Boolean(plans[lid].stamps.length > 0 || engaged.has(lid) ||
+    (plans[lid].active && (Object.keys(plans[lid].active.answers).length > 0 || Object.keys(plans[lid].active.corrections).length > 0)));
+  const eligible = availableLessonIds.filter(lid => !plans[lid].complete && begun(lid) &&
     (plans[lid].active || plans[lid].due <= now)).sort((a, b) =>
       Number(!!plans[b].active) - Number(!!plans[a].active) || plans[a].due - plans[b].due || a.localeCompare(b));
+  for (const lid of availableLessonIds) plans[lid].begun = begun(lid);
   // Resumable rounds remain visible even if another device used today's recommendation capacity.
   const active = eligible.filter(lid => plans[lid].active);
   const recommendations = [...active, ...eligible.filter(lid => !plans[lid].active && !completed.has(lid)).slice(0, Math.max(0, remainingToday - active.length))];

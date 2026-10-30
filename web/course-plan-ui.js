@@ -33,6 +33,7 @@ function cpCaption(p){
   if(p.complete)return '复习计划完成';
   if(p.active){const a=p.active,n=Object.keys(a.answers||{}).length;return a.phase==='main'?'本遍 '+n+' / '+a.order.length+' 题':a.phase==='correction'?'轮末纠正中':'本遍待盖章';}
   if(p.pendingHistorical)return '历史已练 · 逐步安排复习';
+  if(!p.stamps.length&&p.begun===false)return '未开始';
   if(!p.stamps.length)return p.due>Date.now()?'安排在 '+cpDate(p.due):'课后练 · 待开始';
   return p.due&&p.due>Date.now()?'下次 '+cpDate(p.due):'今天可复习';
 }
@@ -48,7 +49,7 @@ function cpNavMeta(lid){
   if(p.complete)text='已盖满';
   else if(p.active){const a=p.active;text=a.phase==='main'?('本遍 '+Object.keys(a.answers||{}).length+'/'+a.order.length):a.phase==='correction'?'纠正中':'待盖章';}
   else if(p.pendingHistorical)text=p.due?('下次 '+cpDate(p.due)):'待安排';
-  else if(!n)text=(p.due&&p.due<=Date.now())?'可开始':(p.due?'下次 '+cpDate(p.due):'待开始');
+  else if(!n)text=p.begun===false?'未开始':(p.due&&p.due<=Date.now())?'可开始':(p.due?'下次 '+cpDate(p.due):'待开始');
   else if(p.due&&p.due<=Date.now()){text='今天可复习';due=true;}
   else text='下次 '+cpDate(p.due);
   return {n,target,text,due};

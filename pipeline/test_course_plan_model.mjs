@@ -140,3 +140,39 @@ test('adaptive uses performance and rating, bounded intervals and finite complet
   answer(r, qs, id, 1, 'B'); answer(r, qs, id, 2, 'A'); answer(r, qs, id, 1, 'B', false, 'correction'); answer(r, qs, id, 2, 'A', false, 'correction');
   assert.ok(finishPlan(r, qs, { lessonId: 'ndf-01-01', roundId: id, rating: 'good' }, NOW).plan.due < runs[1]);
 });
+
+test('pre-activation practice alone never pushes a never-started course (r7)', () => {
+  const records = { attempts: {}, course: {} }, quizzes = {};
+  quizzes['cfcm-01-01'] = quiz('cfcm-01', 1);
+  quizzes['ndf-01-01'] = quiz('ndf-01', 1);
+  records.attempts['gen/cfcm-01/1/quiz/1'] = { n: 2, last: NOW - DAY * 5, history: [{ t: NOW - DAY * 5, answer: 'B', ok: true }] };
+  ensurePlans(records, quizzes, NOW);
+  let s = summary(records, quizzes, NOW);
+  assert.deepEqual(s.recommendations, [], 'old practice is not an endorsement');
+  assert.equal(s.plans['cfcm-01-01'].begun, false);
+  records.course['cfcm-01-01'] = { at: NOW - 1000, pos: 30 };
+  s = summary(records, quizzes, NOW);
+  assert.deepEqual(s.recommendations, ['cfcm-01-01'], 'watching the video starts the course');
+  assert.equal(s.plans['cfcm-01-01'].begun, true);
+});
+test('a stray zero-answer round on an unengaged lesson stops being pushed but stays resumable (r7)', () => {
+  const records = { attempts: {}, course: {} }, quizzes = {};
+  quizzes['cfcm-01-01'] = quiz('cfcm-01', 1);
+  ensurePlans(records, quizzes, NOW);
+  startPlan(records, quizzes, { lessonId: 'cfcm-01-01' }, NOW);
+  let s = summary(records, quizzes, NOW);
+  assert.deepEqual(s.recommendations, [], 'auto-started unwanted round is not pushed');
+  assert.ok(s.plans['cfcm-01-01'].active, 'round survives on the lesson page');
+  applyPlanAttempt(records, quizzes, { ref: { qid: 'gen/cfcm-01/1/quiz/1' }, planRound: s.plans['cfcm-01-01'].active.id, planPhase: 'main', answer: 'A' }, NOW + 1000);
+  s = summary(records, quizzes, NOW);
+  assert.deepEqual(s.recommendations, ['cfcm-01-01'], 'answered work becomes resumable and pushed');
+});
+test('post-activation practice counts as started (r7)', () => {
+  const records = { attempts: {}, course: {} }, quizzes = {};
+  quizzes['cfcm-01-01'] = quiz('cfcm-01', 1);
+  ensurePlans(records, quizzes, NOW);
+  records.attempts['gen/cfcm-01/1/quiz/1'] = { n: 1, last: NOW + DAY, history: [{ t: NOW + DAY, answer: 'A', ok: true }] };
+  const s = summary(records, quizzes, NOW);
+  assert.equal(s.plans['cfcm-01-01'].begun, true);
+  assert.deepEqual(s.recommendations, ['cfcm-01-01']);
+});

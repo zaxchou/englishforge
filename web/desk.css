@@ -2429,7 +2429,7 @@ html.sb-min .nav-label{display:none!important}   /* 收缩侧栏只留图标 */
   html.sb-min .cp-bell .cp-bell-t{display:none}
   html.sb-min .cp-bell #cp-bell-n{margin:0;font-size:12px}
 }
-.cp-bell:hover{border-color:#b8cfa4}
+.cp-bell:hover{background:#e0ead4}   /* 与导航 hover 同语言: 只变底色, 不动边框 */
 .cp-bell:active{transform:translateY(1px)}
 .cp-due-mask{position:fixed;inset:0;z-index:96;display:flex;align-items:center;justify-content:center;
   padding:20px;background:rgba(32,39,37,.38)}
