@@ -20,7 +20,7 @@ const qz = { v: 2, course: 'ndf-01', lessonNo: 1, at: now - 100000, bad: ['q4'],
 const quizzes = { 'ndf-01-01': qz, 'cfcm-01-01': { ...structuredClone(qz), course: 'cfcm-01', src: 'official' } };
 const quizFile = path.join(records, 'generated-quizzes.json');
 fs.writeFileSync(quizFile, JSON.stringify({ items: quizzes }));
-fs.writeFileSync(path.join(records, 'records.json'), JSON.stringify({ version: 1, attempts: {}, course: { 'ndf-01-01': { done: true } }, study: {}, qtimes: {}, mistakes: {}, families: {}, writing: {}, drafts: {}, feedback: [] }));
+fs.writeFileSync(path.join(records, 'records.json'), JSON.stringify({ version: 1, attempts: { 'gen/ndf-01/1/quiz/4': { n: 1, history: [] } }, course: { 'ndf-01-01': { done: true } }, study: {}, qtimes: {}, mistakes: {}, families: {}, writing: {}, drafts: {}, feedback: [] }));
 let server, base;
 async function start() {
   const probe = net.createServer(); probe.listen(0, '127.0.0.1'); await once(probe, 'listening');
