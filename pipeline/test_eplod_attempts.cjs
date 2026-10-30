@@ -135,6 +135,52 @@ function memoryChecks() {
   assert.equal(E.repairSpeedScores(records, () => [source, source, source, source]), 0, 'Repair is idempotent');
   assert.equal(typeof E.repairOkayScores, 'function');
   assert.equal(typeof E.repairNumberScores, 'function');
+
+  // r20 美英拼写互通: cancelled 归一到 canceled(两侧同变换), 白名单外的形近词不动。
+  assert.equal(E.usSpelling('cancelled'), 'canceled');
+  assert.equal(E.usSpelling('travelling'), 'traveling');
+  assert.equal(E.usSpelling('traveller'), 'traveler');
+  assert.equal(E.usSpelling('marvellous'), 'marvelous');
+  assert.equal(E.usSpelling('realised'), 'realized');
+  assert.equal(E.usSpelling('organisation'), 'organization');
+  assert.equal(E.usSpelling('analyse'), 'analyze');
+  assert.equal(E.usSpelling('colour'), 'color');
+  assert.equal(E.usSpelling('favourite'), 'favorite');
+  assert.equal(E.usSpelling('neighbourhood'), 'neighborhood');
+  assert.equal(E.usSpelling('centre'), 'center');
+  assert.equal(E.usSpelling('centred'), 'centered');
+  assert.equal(E.usSpelling('practise'), 'practice');
+  assert.equal(E.usSpelling('learnt'), 'learned');
+  assert.equal(E.usSpelling('judgement'), 'judgment');
+  assert.equal(E.usSpelling('programme'), 'program');
+  assert.equal(E.usSpelling('grey'), 'gray');
+  assert.equal(E.usSpelling('canceled'), 'canceled', 'US forms pass through unchanged');
+  for (const near of ['called', 'filled', 'wise', 'surprise', 'exercise', 'advise', 'hour', 'four', 'tour', 'your', 'flour', 'advertise', 'specialist', 'finalist', 'emphasis', 'dialogue', 'catalogue']) {
+    assert.equal(E.usSpelling(near), near, 'Near-shaped word is not a variant: ' + near);
+  }
+  const cancelledLine = 'Oh great! Does this mean that the reception is cancelled?';
+  assert.equal(E.lcsAcc('Oh great! Does this mean that the reception is canceled?', cancelledLine), 1);
+  assert.deepEqual(E.normTokens('The colour is grey'), E.normTokens('the color is gray'));
+  assert.notEqual(E.lcsAcc('wise choice', 'wize choice'), 1, 'Real typos still count as wrong');
+
+  const spellDialogue = [
+    {text: 'Oh great! Does this mean that the reception is canceled?'},
+    {text: source.text},
+    {text: source.text}
+  ];
+  const spellRecords = {course: {'eplod-0016': {drill: {
+    dd: {
+      0: {acc: .9, mode: 'dict', last: cancelledLine, at: 10},
+      1: {acc: .5, mode: 'dict', last: source.text, at: 11},
+      2: {acc: 1, mode: 'dict', last: source.text, at: 12}
+    }
+  }}}};
+  assert.equal(E.repairSpellingScores(spellRecords, () => spellDialogue), 1, 'Only the variant entry is corrected');
+  assert.equal(spellRecords.course['eplod-0016'].drill.dd[0].acc, 1);
+  assert.equal(spellRecords.course['eplod-0016'].drill.dd[1].acc, .5, 'Entries without variants stay untouched');
+  assert.equal(spellRecords.course['eplod-0016'].drill.dd[2].acc, 1, 'Already-best entry is not rewritten');
+  assert.equal(E.repairSpellingScores(spellRecords, () => spellDialogue), 0, 'Spelling repair is idempotent');
+  assert.equal(E.repairSpellingScores({course: {'eplod-0016': {drill: {dd: {0: {acc: .5, mode: 'dict', last: cancelledLine, at: 1}}}}}}, () => null), 0, 'Missing dialogue cannot invent a correction');
   console.log('Attempt identities, independent modes/audio, merge unions and speed evidence passed');
 }
 

@@ -12,12 +12,37 @@
     else if(v<1000){out.push(NUM1[Math.floor(v/100)],'hundred');if(v%100)expandNum(v%100,out);}
     else{out.push(NUM1[Math.floor(v/1000)],'thousand');if(v%1000)expandNum(v%1000,out);}
   }
+  /* 美英拼写互通(r20): 英式变体归一到美式, 与数字展开同一原则——两侧同变换, 只增匹配不改错配。
+     变体只走白名单词根, 形近词(called/wise/surprise/hour 等)不是变体, 不动。 */
+  const UKRULES=[
+    [/^(cancel|travel|model|label|level|total|fuel|signal|marvel|dial|equal|rival|pedal|channel|counsel)l(ed|ing|ers?|ings?|ous)$/,'$1$2'],
+    [/^(real|recogn|organ|apolog|character|standard|modern|special|social|minim|maxim|optim|summar|author|emphas|memor|categor|priorit|util|stabil|normal|formal|visual|custom|initial|final|hospital|familiar|central|critic)is(e|es|ed|ing|ation|ations)$/,'$1iz$2'],
+    [/^analys(e|ed|ing)$/,'analyz$1'],
+    [/^(col|fav|behav|hon|neighb|hum|lab|arm|flav|rum|vap|harb)our(s|ed|ing|ite|ites|able|ful|ous|less|hood|hoods|ings)?$/,'$1or$2'],
+    [/^(cent|met|theat|lit|fib|calib|lust|scept)red$/,'$1ered'],
+    [/^(cent|met|theat|lit|fib|calib|lust|scept)re(s)?$/,'$1er$2']
+  ];
+  const UKWORDS={learnt:'learned',burnt:'burned',spelt:'spelled',dreamt:'dreamed',leapt:'leaped',
+    spilt:'spilled',spoilt:'spoiled',smelt:'smelled',grey:'gray',greys:'grays',greyed:'grayed',greying:'graying',
+    judgement:'judgment',judgements:'judgments',acknowledgement:'acknowledgment',acknowledgements:'acknowledgments',
+    practise:'practice',practised:'practiced',practises:'practices',practising:'practicing',
+    licence:'license',licences:'licenses',defence:'defense',defences:'defenses',
+    offence:'offense',offences:'offenses',pretence:'pretense',pretences:'pretenses',
+    fulfil:'fulfill',fulfils:'fulfills',fulfilment:'fulfillment',fulfilments:'fulfillments',
+    enrol:'enroll',enrols:'enrolls',enrolment:'enrollment',enrolments:'enrollments',
+    instalment:'installment',instalments:'installments',skilful:'skillful',wilful:'willful',
+    programme:'program',programmes:'programs',tyre:'tire',tyres:'tires',kerb:'curb',kerbs:'curbs',
+    cheque:'check',cheques:'checks'};
+  function usSpelling(w){
+    for(let k=0;k<UKRULES.length;k++){const t=w.replace(UKRULES[k][0],UKRULES[k][1]);if(t!==w)return t;}
+    return UKWORDS[w]||w;
+  }
   function normTokens(s){
     const out=[];
     for(let w of (String(s).toLowerCase().match(/[a-z0-9']+/g)||[])){
       if(w==='okay'){out.push('ok');continue;}
       if(/^\d+$/.test(w)){expandNum(parseInt(w,10),out);continue;}
-      out.push(w==='oh'?'zero':w);
+      out.push(w==='oh'?'zero':usSpelling(w));
     }
     return out;
   }
@@ -228,7 +253,29 @@
     }
     return changed;
   }
-  const api={mergeDrill,mergeLesson,reconcile,saveAttempt,speedPassed,repairSpeedScores,repairOkayScores,repairNumberScores,lcsAcc,normTokens,coverProgress};
+  /* 英式拼写曾被当错词扣分(r20): 涉及变体的历史成绩用新归一重算, 与数字修复同款, 只升不降。 */
+  function repairSpellingScores(records,loadDialogue){
+    let changed=0;
+    const variant=s=>(String(s).toLowerCase().match(/[a-z0-9']+/g)||[]).some(w=>usSpelling(w)!==w);   /* 原始分词查变体, normTokens 的输出已归一 */
+    for(const [id,lesson] of Object.entries(records.course||{})){
+      if(!/^eplod-\d{4}$/.test(id))continue;
+      const drill=lesson.drill||{};
+      if(!drill.dd&&!drill.rd)continue;
+      const dialogue=loadDialogue(id);
+      if(!dialogue)continue;
+      for(const kind of ['dd','rd']){
+        for(const [i,r] of Object.entries(drill[kind]||{})){
+          const text=dialogue[+i]&&dialogue[+i].text;
+          if(!text||typeof r.last!=='string'||!r.last.trim()||!Number.isFinite(r.acc))continue;
+          if(!variant(text)&&!variant(r.last))continue;
+          const acc=lcsAcc(text,r.last);
+          if(acc>r.acc+1e-9){r.acc=acc;changed++;}
+        }
+      }
+    }
+    return changed;
+  }
+  const api={mergeDrill,mergeLesson,reconcile,saveAttempt,speedPassed,repairSpeedScores,repairOkayScores,repairNumberScores,repairSpellingScores,lcsAcc,normTokens,usSpelling,coverProgress};
   if(typeof module==='object'&&module.exports)module.exports=api;
   else root.EplodRecords=api;
 })(typeof globalThis==='object'?globalThis:this);
