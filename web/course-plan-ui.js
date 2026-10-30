@@ -22,7 +22,7 @@ async function cpRequest(path='',body){
 }
 async function cpLoad(){
   if(CP.loading)return CP.loading;
-  CP.loading=cpRequest().then(j=>{CP.data=j;CP.error='';return j;}).catch(e=>{CP.error=e.message;throw e;}).finally(()=>{CP.loading=null;});
+  CP.loading=cpRequest().then(j=>{CP.data=j;CP.error='';cpBadgeUpdate();return j;}).catch(e=>{CP.error=e.message;throw e;}).finally(()=>{CP.loading=null;});
   return CP.loading;
 }
 function cpPlan(lid){return CP.data?.plans?.[lid];}
@@ -107,3 +107,41 @@ async function cpAdvance(){const st=GQ_UI,lid=st.lessonId,roundId=st.planRound;i
 function cpFinishHTML(){const st=GQ_UI,p=cpPlan(st.lessonId),a=p?.active;return '<div class="gq-in cp-finish">'+cpStamps(p)+'<h3>本遍已完成，盖下这一章</h3><p>首次正确 '+Object.values(a?.answers||{}).filter(x=>x.ok).length+' / '+(a?.order.length||0)+' 题。错题已经纠正一遍。</p><p>这一遍感觉怎么样？</p><div class="cp-actions">'+[['hard','费劲'],['good','刚好'],['easy','轻松']].map(([v,t])=>'<button data-cp-rating="'+v+'"'+(st.planSaving?' disabled':'')+'>'+t+' · 盖章</button>').join('')+'</div><p role="status">'+esc(st.err||'盖章后会显示下一次日期；固定间隔不受感受影响。')+'</p></div>';}
 function cpWireFinish(body){body.querySelectorAll('[data-cp-rating]').forEach(b=>b.onclick=async()=>{const st=GQ_UI,lid=st.lessonId,roundId=st.planRound;if(st.planSaving)return;const operation=++CP.operation;st.planSaving=true;st.err='';renderGenQuiz();try{const j=await cpRequest('/finish',{lessonId:lid,roundId,rating:b.dataset.cpRating});CP.data.plans[lid]=j.plan;CP.data.settings=j.settings;await cpLoad().catch(()=>{});if(GQ_UI.lessonId!==lid||CP.operation!==operation)return;st.planRound=null;st.phase='ready';st.err='本遍已盖章。'+cpCaption(j.plan);st.planSaving=false;renderGenQuiz();gqRefreshList();}catch(e){if(GQ_UI.lessonId===lid&&CP.operation===operation){st.err=e.message;renderGenQuiz();}}finally{if(CP.operation!==operation)return;st.planSaving=false;if(GQ_UI.lessonId===lid&&st.phase==='plan-finish')renderGenQuiz();}});}
 function cpAcceptAttempt(item,j){if(j.plan&&CP.data)CP.data.plans[j.plan.lessonId]=j.plan;if(j.planError&&GQ_UI.planRound===item.planRound){GQ_UI.err=j.planError;GQ_UI.planConflict=true;}if(j.plan)gqRefreshList();}
+/* ---- 到期提醒(r5): 右上角徽标 + 到期弹窗(每课每天至多一次)。
+   到期判定完全来自服务端 summary 的 recommendations(已含每日推荐量与进行中的课),
+   本地只负责去打扰: 「稍后」的课当天记入 tfl-cp-snooze; 答题中/正开着该课页不弹。 ---- */
+function cpTodayKey(){return new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Shanghai'});}
+function cpDuePick(recs,snooze,day){return (Array.isArray(recs)?recs:[]).find(lid=>snooze[lid]!==day)||null;}
+function cpSnoozeLoad(){try{return JSON.parse(localStorage.getItem('tfl-cp-snooze')||'{}')||{};}catch(e){return {};}}
+function cpSnooze(lid){const day=cpTodayKey();CP.snooze=CP.snooze||cpSnoozeLoad();for(const k of Object.keys(CP.snooze))if(CP.snooze[k]!==day)delete CP.snooze[k];CP.snooze[lid]=day;try{localStorage.setItem('tfl-cp-snooze',JSON.stringify(CP.snooze));}catch(e){}}
+function cpBadgeUpdate(){const b=$('cp-bell');if(!b)return;const n=CP.data&&Array.isArray(CP.data.recommendations)?CP.data.recommendations.length:0;b.hidden=!n;if(n)b.title='有 '+n+' 课复习到期，点击开始';const t=b.querySelector('#cp-bell-n');if(t)t.textContent=n>9?'9+':String(n||'');}
+function cpBadgeGo(){const d=CP.data;if(!d)return;const recs=d.recommendations||[];
+  if(recs.length){cpOpenLesson(recs[0]);return;}
+  if(Object.keys(d.plans||{}).length){csCourseGo('review');history.replaceState(null,'','#/course/review');}}
+function cpDuePromptShow(lid){
+  const old=document.getElementById('cp-due-mask');if(old)old.remove();
+  const p=cpPlan(lid),target=p?.target||CP.data?.settings?.target||3,n=p?.stamps?.length||0,mask=document.createElement('div');
+  mask.id='cp-due-mask';mask.className='cp-due-mask';
+  const line=p&&p.active?'本遍还没盖完章，接着做完就能盖上。':p&&p.complete?'这门课已盖满章，可以自由回顾。':'第 '+(n+1)+' 遍（共 '+target+' 遍）到期了，今天做完就能盖上这一章。';
+  mask.innerHTML='<div class="cp-due" role="dialog" aria-modal="true" aria-label="复习到期提醒"><p class="cp-due-kicker">复习到期</p><b>'+esc(cpLessonName(lid))+'</b><p>'+line+'</p><div class="cp-due-actions"><button class="pri" id="cp-due-now">马上学习</button><button id="cp-due-later">稍后学习</button></div></div>';
+  const close=()=>mask.remove();
+  mask.addEventListener('click',e=>{if(e.target===mask){cpSnooze(lid);close();}});
+  mask.querySelector('#cp-due-now').onclick=()=>{close();cpOpenLesson(lid);};
+  mask.querySelector('#cp-due-later').onclick=()=>{cpSnooze(lid);close();};
+  document.body.append(mask);
+}
+async function cpDueCheck(){try{await cpLoad();}catch(e){return;}
+  cpBadgeUpdate();
+  if(document.hidden||document.getElementById('cp-due-mask'))return;
+  if(GQ_UI&&(GQ_UI.phase==='answer'||GQ_UI.phase==='prep'||GQ_UI.planRound))return;   /* 答题中不打断, 下一轮提醒再看 */
+  if(location.hash.startsWith('#/course'))return;   /* 人已在课程/复习页, 不重复打扰(不依赖页面状态就位时序) */
+  const lid=cpDuePick(CP.data&&CP.data.recommendations,CP.snooze||cpSnoozeLoad(),cpTodayKey());
+  if(lid)cpDuePromptShow(lid);
+}
+function cpDueWatch(){
+  if(!CP.snooze)CP.snooze=cpSnoozeLoad();
+  cpDueCheck();
+  if(CP.timer)return;
+  CP.timer=setInterval(()=>{if(!document.hidden)cpDueCheck();},240000);
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)cpDueCheck();});
+}

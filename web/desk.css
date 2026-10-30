@@ -2000,7 +2000,7 @@ body.vfull .cs-stage video.tfl{max-height:none}
   .topin{display:flex;flex-direction:row;align-items:center;gap:10px;height:auto;padding:8px 14px}
   .brand{font-size:19px}
   .brand-caption{display:none}
-  .nav-cur{display:block;margin-left:auto;font-size:12px;color:var(--t2);white-space:nowrap}
+  .nav-cur{display:block;margin-left:0;font-size:12px;color:var(--t2);white-space:nowrap}   /* 右推让位给 .cp-bell 的 margin-left:auto */
   .nav{display:none;position:absolute;top:100%;left:0;right:0;z-index:70;flex-direction:column;gap:2px;margin:0;padding:8px 10px 12px;overflow:visible;white-space:normal;background:var(--card);border-bottom:1px solid var(--line);box-shadow:0 18px 38px rgba(32,39,37,.18)}
   .top.nav-open .nav{display:flex}
   .nav button{display:flex;width:100%;align-items:center;gap:10px;min-height:46px;padding:10px 12px;font-size:14px;border-radius:8px}
@@ -2404,4 +2404,38 @@ html.sb-min .nav-label{display:none!important}   /* 收缩侧栏只留图标 */
   body.course-fixed .csmain::-webkit-scrollbar-thumb{background:rgba(32,39,37,.13);border-radius:4px}
   body.course-fixed .csnav:hover::-webkit-scrollbar-thumb,
   body.course-fixed .csmain:hover::-webkit-scrollbar-thumb{background:rgba(32,39,37,.3)}
+}
+
+/* ============================================================
+   block 50 · 课后练到期提醒(2026-10-30.r5):
+   右上角到期徽标(margin-left:auto 顶到最右, 手机上 nav-cur 让位)
+   + 每课每天至多一次的到期弹窗(马上学习/稍后学习)。
+   注意 .cp-bell[hidden] 必须显式, 否则 display:flex 会顶掉 hidden。
+   ============================================================ */
+.cp-bell{display:inline-flex;align-items:center;gap:6px;margin-left:auto;flex:none;min-height:34px;
+  padding:0 12px 0 10px;border:1px solid var(--accln);border-radius:18px;background:var(--accbg);
+  color:#305540;font-size:12.5px;font-weight:600;cursor:pointer}
+.cp-bell .cp-bell-t{display:none}
+.cp-bell[hidden]{display:none}
+/* 桌面: .top 即侧栏头部, 徽标铺成与导航同构的一行 */
+@media(min-width:701px){
+  .cp-bell{display:flex;align-self:stretch;margin:4px 12px 0;justify-content:flex-start;
+    border-radius:10px;padding:0 12px;min-height:42px;font-size:13.5px}
+  .cp-bell .cp-bell-t{display:inline}
+  .cp-bell #cp-bell-n{margin-left:auto}
+}
+.cp-bell:hover{border-color:#b8cfa4}
+.cp-bell:active{transform:translateY(1px)}
+.cp-due-mask{position:fixed;inset:0;z-index:96;display:flex;align-items:center;justify-content:center;
+  padding:20px;background:rgba(32,39,37,.38)}
+.cp-due{width:min(360px,100%);background:var(--card);border:1px solid var(--line);border-radius:14px;
+  padding:20px 22px;box-shadow:0 24px 60px rgba(32,39,37,.25)}
+.cp-due-kicker{margin:0 0 6px;font-size:11px;letter-spacing:.14em;color:#7d8a7b}
+.cp-due b{display:block;font-size:16px;color:var(--t1);line-height:1.45}
+.cp-due p{margin:8px 0 0;font-size:13px;color:var(--t2);line-height:1.6}
+.cp-due-actions{display:flex;gap:10px;margin-top:16px}
+.cp-due-actions .pri{flex:1}
+.cp-due-actions button{min-height:38px}
+@media(max-width:700px){
+  .cp-due{padding:18px}
 }

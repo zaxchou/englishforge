@@ -8,7 +8,7 @@
 <link rel="icon" type="image/png" sizes="96x96" href="/assets/brand/t-dot-v1/t-dot-96.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/assets/brand/t-dot-v1/t-dot-180.png">
 <title>TOEFL Lab · 托福自学练习</title>
-<link rel="stylesheet" href="desk.css?v=20261030r3">
+<link rel="stylesheet" href="desk.css?v=20261030r5">
 <style>
 /* 应用层补充样式（视觉基线在 desk.css，不改它的既有规则） */
 /* 单词与字符格保持同一行；焦点、已填、判题状态沿用研读桌配色。 */
@@ -131,6 +131,7 @@ details.ai-tsec[open] summary{margin-bottom:8px}
       <div class="nav-label second">工具</div>
       <button data-v="stats" title="数据分析"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 20h16"/><path d="M7.5 16.5v-5"/><path d="M12 16.5V7"/><path d="M16.5 16.5v-8"/></svg><span class="nv-t">数据分析</span></button>
     </div>
+    <button class="cp-bell" id="cp-bell" hidden aria-label="有课程复习到期，点击开始"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 8-3 8h18s-3-1-3-8"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg><span class="cp-bell-t">复习到期</span><span id="cp-bell-n"></span></button>
     <span class="nav-cur" id="nav-cur" aria-hidden="true">首页</span>
   </div>
 </div>
@@ -346,7 +347,7 @@ details.ai-tsec[open] summary{margin-bottom:8px}
 
 <script src="eplod-records.js?v=4"></script>
 <script src="course-plan-model.js?v=20261029r8"></script>
-<script src="course-plan-ui.js?v=20261029r15"></script>
+<script src="course-plan-ui.js?v=20261030r5b"></script>
 <script>
 'use strict';
 /* ============================================================
@@ -5204,6 +5205,9 @@ async function boot(){
     await cpLoad().catch(()=>{});
     renderHome();
     route();
+    /* watch 放在 route 之后: 课程页刷新先让页面就位, 避免就位前弹窗 */
+    cpDueWatch();
+    const cpBell=$('cp-bell');if(cpBell)cpBell.onclick=()=>cpBadgeGo();
     document.querySelectorAll('.seg').forEach(moveThumb);
   }catch(e){
     document.body.insertAdjacentHTML('beforeend',
