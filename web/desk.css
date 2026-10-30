@@ -2423,6 +2423,11 @@ html.sb-min .nav-label{display:none!important}   /* 收缩侧栏只留图标 */
     border-radius:10px;padding:0 12px;min-height:42px;font-size:13.5px}
   .cp-bell .cp-bell-t{display:inline}
   .cp-bell #cp-bell-n{margin-left:auto}
+  /* 收缩侧栏(64px 列): 只留图标+计数的紧凑方钮, 文字绝不换行 */
+  html.sb-min .cp-bell{margin:0 auto;width:44px;min-height:44px;justify-content:center;gap:4px;
+    padding:0;border-radius:12px;white-space:nowrap}
+  html.sb-min .cp-bell .cp-bell-t{display:none}
+  html.sb-min .cp-bell #cp-bell-n{margin:0;font-size:12px}
 }
 .cp-bell:hover{border-color:#b8cfa4}
 .cp-bell:active{transform:translateY(1px)}
