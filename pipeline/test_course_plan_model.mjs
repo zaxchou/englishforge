@@ -81,11 +81,12 @@ test('historical schedules follow changed intervals and daily capacity without i
   assert.equal(M.dayStart(ps[2].due)-M.dayStart(ps[0].due),DAY);
   assert.ok(ps.every(p=>p.stamps.length===1&&p.stamps[0].at===null));
 });
-test('new course recommendations require done video or exercise evidence, practice never counts toward a round', () => {
+test('new course recommendations require exercise evidence, practice never counts toward a round', () => {
   const { records: r, quizzes: qs } = fixture(3); ensurePlans(r, qs, NOW);
   assert.deepEqual(summary(r, qs, NOW).recommendations, []);
-  r.course['ndf-01-01'] = { done: true };
-  r.attempts['gen/ndf-01/2/quiz/3'] = { n: 1 };
+  r.course['ndf-01-01'] = { done: true, pos: 600 };
+  r.attempts['gen/ndf-01/1/quiz/1'] = { n: 1, last: NOW, history: [{ t: NOW, ok: true }] };
+  r.attempts['gen/ndf-01/2/quiz/3'] = { n: 1, last: NOW, history: [{ t: NOW, ok: true }] };
   assert.deepEqual(summary(r, qs, NOW).recommendations, ['ndf-01-01']);
   const before = clone(r.coursePlan); applyPlanAttempt(r, qs, { ref: { qid: 'gen/ndf-01/1/quiz/1' }, answer: 'A' }, NOW); assert.deepEqual(r.coursePlan, before);
   const p = finishRound(r, qs, NOW).plan; assert.equal(summary(r, qs, NOW).todayCompleted, 1); assert.equal(summary(r, qs, NOW).remainingToday, 0);
@@ -146,13 +147,14 @@ test('pre-activation practice alone never pushes a never-started course (r7)', (
   quizzes['cfcm-01-01'] = quiz('cfcm-01', 1);
   quizzes['ndf-01-01'] = quiz('ndf-01', 1);
   records.attempts['gen/cfcm-01/1/quiz/1'] = { n: 2, last: NOW - DAY * 5, history: [{ t: NOW - DAY * 5, answer: 'B', ok: true }] };
+  records.course['cfcm-01-01'] = { at: NOW - DAY * 6, pos: 543 };
   ensurePlans(records, quizzes, NOW);
   let s = summary(records, quizzes, NOW);
-  assert.deepEqual(s.recommendations, [], 'old practice is not an endorsement');
+  assert.deepEqual(s.recommendations, [], 'pre-activation practice and sampling watch are not an endorsement');
   assert.equal(s.plans['cfcm-01-01'].begun, false);
-  records.course['cfcm-01-01'] = { at: NOW - 1000, pos: 30 };
+  records.attempts['gen/cfcm-01/1/quiz/2'] = { n: 1, last: NOW + 1000, history: [{ t: NOW + 1000, answer: 'A', ok: true }] };
   s = summary(records, quizzes, NOW);
-  assert.deepEqual(s.recommendations, ['cfcm-01-01'], 'watching the video starts the course');
+  assert.deepEqual(s.recommendations, ['cfcm-01-01'], 'post-activation practice starts the course');
   assert.equal(s.plans['cfcm-01-01'].begun, true);
 });
 test('a stray zero-answer round on an unengaged lesson stops being pushed but stays resumable (r7)', () => {

@@ -17,11 +17,11 @@ function learned(records, quiz, lid) {
     const a = records.attempts?.[Model.qid(quiz, q)]; return a && (a.n > 0 || a.history?.length > 0);
   });
 }
-/* 「开始过这门课」(r7 2026-10-30): 视频有记录, 或计划启用后才练过这门课的题。
-   启用前的旧练习(错题时代)不算——万词班官方题练过≠用户开始上这门课, 不该被推送。
+/* 「开始过这门课的课后练」(r7/r8 2026-10-30): 计划启用后才练过这门课的题。
+   看视频不算——启用前的采样观看/旧练习(错题时代)都不该触发推送;
    无任何时间戳可证明是旧练习的条目从宽视为已开始(只排除能证明是旧的)。 */
 function engagement(records, root) {
-  const set = new Set(Object.keys(records.course || {}));
+  const set = new Set();
   for (const [qid, a] of Object.entries(records.attempts || {})) {
     const parsed = Model.parseQid(qid);
     if (!parsed) continue;
