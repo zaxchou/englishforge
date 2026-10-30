@@ -632,7 +632,7 @@ body,button,input,textarea,.brand,.brand span,.lead h1,.pt,.part strong,.part em
 /* ==== style block 12: 首页驾驶舱 ====
    首页=个人进度仪表：继续上次(窄卡) → 四科进度表(主角) → 错题/课程待办 → 数据摘要。
    沿用书桌视觉变量（card/phead/衬线数字/绿系），不新造设计系统。 */
-.controw{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px}
+.controw{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;margin-bottom:18px}
 .controw:empty{display:none}
 .cont{display:flex;align-items:center;gap:14px;background:var(--card);
   border:1px solid var(--line);border-radius:var(--r);padding:14px 18px}
@@ -646,7 +646,7 @@ body,button,input,textarea,.brand,.brand span,.lead h1,.pt,.part strong,.part em
 .cont button:hover{color:#1f402b;background:none}
 .cont.empty2{color:var(--t3);font-size:13px;justify-content:center;padding:18px}
 .hprog{margin-bottom:16px}
-.srow2{display:grid;grid-template-columns:34px 1fr auto;align-items:center;gap:18px;
+.srow2{display:grid;grid-template-columns:34px 1fr auto auto;align-items:center;gap:18px;
   padding:18px 24px;border-top:1px solid var(--line);cursor:pointer;transition:background .12s}
 .srow2:first-child{border-top:0}
 .srow2:hover{background:var(--hover)}
@@ -660,7 +660,7 @@ body,button,input,textarea,.brand,.brand span,.lead h1,.pt,.part strong,.part em
 .srow2 button{border:1px solid #d7dfcf;border-radius:4px;background:#f9fbf4;color:#305540;
   font-size:13px;min-height:38px;padding:0 16px;white-space:nowrap}
 .srow2 button:hover{background:#e8efdf;border-color:#b9c9ab}
-.hm-cols{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+.hm-cols{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;margin-bottom:16px}
 .hm-mini{padding:18px 24px 20px}
 .mini{display:flex;align-items:center;gap:16px}
 .mini .mv{font-family:Georgia,serif;font-size:32px;color:var(--t1);line-height:1;min-width:44px}
@@ -682,7 +682,7 @@ body,button,input,textarea,.brand,.brand span,.lead h1,.pt,.part strong,.part em
   font-size:12px;color:#52674a;padding:0;cursor:pointer}
 .hm-more:hover{text-decoration:underline;text-underline-offset:4px;color:#21492f}
 @media(max-width:820px){
-  .controw,.hm-cols{grid-template-columns:1fr}
+  .controw,.hm-cols{grid-template-columns:minmax(0,1fr)}   /* 1fr 的 auto 最小宽会被 nowrap 标题撑爆画布(r3 2026-10-30) */
   .hm-statgrid{grid-template-columns:1fr}
   .hm-nums{gap:20px}
   .srow2{grid-template-columns:26px 1fr;padding:16px 16px}
@@ -694,7 +694,6 @@ body,button,input,textarea,.brand,.brand span,.lead h1,.pt,.part strong,.part em
 .srow2 .acc2{text-align:right;min-width:64px}
 .srow2 .acc2 b{display:block;font-family:Georgia,serif;font-size:22px;font-weight:400;color:var(--t1);line-height:1.1;font-variant-numeric:tabular-nums}
 .srow2 .acc2 span{font-size:11px;color:var(--t3)}
-.srow2{grid-template-columns:34px 1fr auto auto}
 .hm-legend{display:flex;gap:14px;margin-bottom:6px}
 .hm-legend span{display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--t3)}
 .hm-legend i{width:9px;height:9px;border-radius:2px;display:inline-block}
@@ -1995,7 +1994,7 @@ body.vfull .cs-stage video.tfl{max-height:none}
 .nav-cur{display:none}
 .hm-cols{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
 @media(max-width:700px){
-  .hm-cols{grid-template-columns:1fr}
+  .hm-cols{grid-template-columns:minmax(0,1fr)}
   .nav-burger{display:inline-flex;align-items:center;justify-content:center;flex:none;width:42px;height:42px;min-height:42px;padding:0;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--t1);cursor:pointer}
   .nav-burger:active{transform:translateY(1px)}
   .topin{display:flex;flex-direction:row;align-items:center;gap:10px;height:auto;padding:8px 14px}
