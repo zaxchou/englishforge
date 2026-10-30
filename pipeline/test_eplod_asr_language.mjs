@@ -27,10 +27,12 @@ test('a stray foreign character inside English is tolerated', () => {
   assert.equal(ctx.foreign('OK make a left here then stop'), false);
 });
 
-test('EnglishPod ASR asks for English and falls back when the hint is rejected', () => {
+test('EnglishPod ASR asks for English, biases with the official line, and falls back when rejected', () => {
   assert.match(server, /asr_options: \{ enable_itn: false, \.\.\.extra \}/);
   assert.match(server, /let rr = await ask\(\{ language: 'en' \}\)/);
-  assert.match(server, /if \(rr\.status === 400\) rr = await ask\(\{\}\)/);
+  assert.match(server, /role: 'system', content: ctx/, 'official sentence rides as system context');
+  assert.match(server, /if \(rr\.status === 400 && ctx\) rr = await ask\(\{ language: 'en' \}, false\)/);
+  assert.match(server, /if \(rr\.status === 400\) rr = await ask\(\{\}, false\)/);
   assert.match(server, /asr_not_english/);
 });
 

@@ -4218,7 +4218,7 @@ async function epProcessTake(st,take){
   take.processing=true;take.status='processing';take.error='';
   epRefreshSentence(st,take.i);
   try{
-    const j=await api('/api/eplod/asr',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({audio:take.audio}),signal:AbortSignal.timeout(130000)});
+    const j=await api('/api/eplod/asr',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({audio:take.audio,ep:String(st.l.ep).padStart(4,'0'),i:take.i}),signal:AbortSignal.timeout(130000)});
     if(!j.ok)throw Error(j.error||'转写失败');
     const text=String(j.text||'').trim();
     if(!text)throw Error('没有识别到内容，请回听录音后重试识别或重新朗读');

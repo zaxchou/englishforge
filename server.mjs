@@ -1478,20 +1478,34 @@ const handler = async (req, res) => {
       if (!/^data:audio\/[\w.+-]+(?:;[\w.=+-]+)?;base64,[A-Za-z0-9+/=]+$/.test(audio)) return sendJSON(res, 400, { error: 'audio 须为 data:audio/*;base64' });
       if (audio.length > 11 * 1024 * 1024) return sendJSON(res, 413, { error: '录音过大' });
       try {
-        /* 先带英语语言提示; 端点若不接受该参数(400), 去掉提示重试一次, 不影响可用性 */
-        const ask = extra => fetch(ASR_CFG.url, {
+        /* 上下文偏置(r4 2026-10-30): 专有名/连读(如 Arthur 被听成 "Ah, sir")靠官方原句拉回。
+           兼容模式下上下文唯一入口=messages 首位的 system 消息(仅作参考文本, 非提示词);
+           ep/i 缺失或非法就静默不带, 不影响识别; 端点拒绝(400)则逐级去掉上下文/语言提示重试。 */
+        let ctx = '';
+        if (/^\d{4}$/.test(String(inc.ep || '')) && Number.isInteger(inc.i) && inc.i >= 0 && inc.i < 100) {
+          try {
+            const d = JSON.parse(fs.readFileSync(path.join(BUILD_DIR, 'eplod', String(inc.ep) + '.json'), 'utf8'));
+            const line = d && d.dialogue && d.dialogue[inc.i] && d.dialogue[inc.i].text;
+            if (typeof line === 'string' && line.trim() && line.length <= 300) ctx = '"' + line.trim() + '"';
+          } catch {}
+        }
+        const ask = (extra, useCtx = true) => fetch(ASR_CFG.url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + ASR_CFG.key },
           body: JSON.stringify({
             model: ASR_CFG.model,
-            messages: [{ role: 'user', content: [{ type: 'input_audio', input_audio: { data: audio } }] }],
+            messages: [
+              ...(useCtx && ctx ? [{ role: 'system', content: ctx }] : []),
+              { role: 'user', content: [{ type: 'input_audio', input_audio: { data: audio } }] },
+            ],
             stream: false,
             asr_options: { enable_itn: false, ...extra },
           }),
           signal: AbortSignal.timeout(120000),
         });
         let rr = await ask({ language: 'en' });
-        if (rr.status === 400) rr = await ask({});
+        if (rr.status === 400 && ctx) rr = await ask({ language: 'en' }, false);
+        if (rr.status === 400) rr = await ask({}, false);
         if (!rr.ok) return sendJSON(res, 502, { error: 'ASR 接口 ' + rr.status });
         const j = await rr.json();
         const c = j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content;
