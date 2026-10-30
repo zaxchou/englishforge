@@ -181,6 +181,14 @@ function memoryChecks() {
   assert.equal(spellRecords.course['eplod-0016'].drill.dd[2].acc, 1, 'Already-best entry is not rewritten');
   assert.equal(E.repairSpellingScores(spellRecords, () => spellDialogue), 0, 'Spelling repair is idempotent');
   assert.equal(E.repairSpellingScores({course: {'eplod-0016': {drill: {dd: {0: {acc: .5, mode: 'dict', last: cancelledLine, at: 1}}}}}}, () => null), 0, 'Missing dialogue cannot invent a correction');
+
+  // r2(2026-10-30) NUM1 补 20: 官方 "20/20" 须展开成 twenty twenty 才配得上用户读法。
+  assert.deepEqual(E.normTokens('20/20'), ['twenty', 'twenty']);
+  assert.deepEqual(E.normTokens('2020'), ['two', 'thousand', 'twenty']);
+  assert.deepEqual(E.normTokens('5:58'), ['five', 'fifty', 'eight'], 'r19 time reading unchanged');
+  const docOfficial = 'Hey doc. Well, I think I might need glasses. I\'m getting headaches, and I really struggle to see things that are far away. But I have always had 20/20 vision.';
+  const docTyped = 'Hey doc, well I think I might need glasses. I\'m getting headache, and I really struggle to see things that are far away, but I have always had twenty twenty vision.';
+  assert.equal(E.lcsAcc(docOfficial, docTyped).toFixed(3), '0.968', '20/20 matches; only the genuine plural difference remains');
   console.log('Attempt identities, independent modes/audio, merge unions and speed evidence passed');
 }
 
