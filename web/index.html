@@ -3541,7 +3541,9 @@ function epWire(){
     a.addEventListener('loadedmetadata',go);a.addEventListener('canplay',go);
     timer=setTimeout(()=>{
       cleanup();if(started||seq!==st.seekSeq||EP.st!==st)return;
-      st.seekPending=false;const n=$('ep-note');if(n){n.style.display='';n.textContent='音频加载超时，请重试播放。';}
+      st.seekPending=false;
+      if(epBlobFix('加载超时'))return;   /* 走 blob 兜底, 成功后 epStartPlayback 会自动续播 */
+      const n=$('ep-note');if(n){n.style.display='';n.textContent='音频加载超时，请重试播放。';}
     },15000);
     if(a.networkState===0||a.networkState===3)a.load();
   };
@@ -3550,7 +3552,29 @@ function epWire(){
     if(!st._iSeek){st.cancelSeek?.();st.seekSeq++;st.playSession=null;st.playTarget=null;st.range=null;st.stopAtEnd=false;st.loop=false;$('ep-loop').classList.remove('on');}
   });
   a.addEventListener('seeked',()=>{st.seekPending=false;});
-  a.addEventListener('playing',()=>{const n=$('ep-note');if(n&&/音频加载中|播放未能|定位/.test(n.textContent))n.style.display='none';});
+  a.addEventListener('playing',()=>{const n=$('ep-note');if(n&&/音频加载中|播放未能|定位|备用/.test(n.textContent))n.style.display='none';});
+  /* r9 2026-10-31: 手机媒体加载器兜底——页面/API/ASR 都正常但 <audio> 播不出时,
+     常见根因是自签证书的证书例外不被部分手机浏览器的媒体加载器继承。
+     失败时改用 fetch(常规网络栈, 例外生效)拉同一 URL 转 blob 再播, 并自动续上刚才的播放意图;
+     fetch 也失败则把真实错误摆到 ep-note, 便于回报定位。error 事件与 15s 加载超时都走这里。 */
+  const epBlobFix=reason=>{
+    if(a.dataset.epFix||!a.src)return false;
+    a.dataset.epFix='1';
+    const src=a.currentSrc||a.src;
+    epNote('音频直连播放失败('+reason+')，正在尝试备用加载…',st);
+    fetch(src,{cache:'no-cache'}).then(r=>{if(!r.ok)throw Error('HTTP '+r.status);return r.blob();}).then(b=>{
+      a.src=URL.createObjectURL(b);a.load();
+      if(EP.st===st&&st.playTarget)epStartPlayback(st.playTarget);
+      else epNote('音频已改用备用方式加载，请再点一次播放。',st);
+    }).catch(e=>{
+      epNote('音频加载失败：'+reason+' · 备用加载也失败('+e.message+')。请截图告诉我这个提示。',st);
+    });
+    return true;
+  };
+  a.addEventListener('error',()=>{
+    if(!a.error||!a.error.code)return;
+    epBlobFix(['','加载被中断','网络加载失败','音频解码失败','格式不受支持'][a.error.code]||('错误码 '+a.error.code));
+  });
   const mc=$('cs-main').querySelector('.ep-mc');
   epHighlight(-1);
   /* 行点击: 跳播+循环区间; 遮罩态点句=揭示 */
@@ -3826,7 +3850,12 @@ async function epReplay(i){
   const take=epTake(st,i),src=take?.url||'/media/rec/'+encodeURIComponent(st.p.drill.rd[i].rec);
   const a=new Audio(src);EP.replay=a;EP.replayKey=epTakeKey(st,i);
   const finish=()=>{if(EP.replay===a)epStopReplay();};
-  a.onended=finish;a.onerror=()=>{if(EP.replay===a){finish();epNote('录音暂时无法回放，请重试；可以重新朗读保存一份。',st);}};
+  a.onended=finish;a.onerror=async()=>{if(EP.replay!==a)return;
+    /* r9: 与主音频同款 blob 兜底(手机媒体加载器证书例外问题) */
+    if(!a.dataset.epFix&&!src.startsWith('blob:')){a.dataset.epFix='1';
+      try{const r=await fetch(src);if(!r.ok)throw Error('HTTP '+r.status);a.src=URL.createObjectURL(await r.blob());await a.play();return;}catch(e){}
+    }
+    finish();epNote('录音暂时无法回放，请重试；可以重新朗读保存一份。',st);};
   document.querySelectorAll('.elisten-me,.elisten-row').forEach(b=>b.classList.toggle('playing',+b.dataset.i===i));
   try{await a.play();}catch(e){if(EP.replay===a){finish();epNote('回听未能开始，请再点一次回听。',st);}}
 }
