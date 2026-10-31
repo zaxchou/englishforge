@@ -207,6 +207,26 @@ function memoryChecks() {
   assert.equal(nameRecords.course['eplod-0016'].drill.rd[1].acc, .6, 'typed entries stay exact');
   assert.equal(E.repairVoiceFuzzyScores(nameRecords, () => [{ text: nameOfficial }, { text: nameOfficial }]), 0, 'fuzzy repair is idempotent');
 
+  // r7(2026-10-31) 口语缩略归一: gonna/wanna/gotta 展开成全写, 'bout='about, 'em='them 等; 裸 cause 保留(名词/动词义)。
+  const slangOfficial = 'Oh, actually, Tuesday\'s no good. Sorry \'bout that.';
+  const slangTyped = 'Oh, actually, Tuesday\'s no good. Sorry about that.';
+  assert.equal(E.lcsAcc(slangOfficial, slangTyped), 1, 'reported case: \'bout matches about');
+  assert.deepEqual([...E.normTokens('I\'m gonna call')], ['i\'m', 'going', 'to', 'call']);
+  assert.deepEqual([...E.normTokens('wanna go')], ['want', 'to', 'go']);
+  assert.deepEqual([...E.normTokens("gotta run")], ['got', 'to', 'run']);
+  assert.deepEqual([...E.normTokens("c'mon")], ['come', 'on']);
+  assert.deepEqual([...E.normTokens("let 'em know")], ['let', 'them', 'know']);
+  assert.deepEqual([...E.normTokens("'cause")], ['because']);
+  assert.deepEqual([...E.normTokens('a good cause')], ['a', 'good', 'cause'], 'bare cause keeps its noun/verb sense');
+  const slangRecords = { course: { 'eplod-0016': { drill: {
+    dd: { 0: { acc: .9, mode: 'dict', last: slangTyped, at: 10 } },
+    rd: { 1: { acc: .75, mode: 'voice', last: slangTyped, at: 11 } }
+  }}}};
+  assert.equal(E.repairSlangScores(slangRecords, () => [{ text: slangOfficial }, { text: slangOfficial }]), 2, 'both dict and voice entries raise');
+  assert.equal(slangRecords.course['eplod-0016'].drill.dd[0].acc, 1);
+  assert.equal(slangRecords.course['eplod-0016'].drill.rd[1].acc, 1);
+  assert.equal(E.repairSlangScores(slangRecords, () => [{ text: slangOfficial }, { text: slangOfficial }]), 0, 'slang repair is idempotent');
+
   // r2(2026-10-30) NUM1 补 20: 官方 "20/20" 须展开成 twenty twenty 才配得上用户读法。
   assert.deepEqual(E.normTokens('20/20'), ['twenty', 'twenty']);
   assert.deepEqual(E.normTokens('2020'), ['two', 'thousand', 'twenty']);

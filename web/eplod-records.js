@@ -41,11 +41,20 @@
      'hmm', 两侧同变换只增匹配。白名单按整词匹配, 真词(ham/hum/mum/her)不受影响;
      oh 仍归 zero(数字读法), 不入本家族。语料实测 16 种变体全部覆盖。 */
   const FILLER=/^(h+mm*|m+hmm*|mm+|um+|uh+|uhm+|erm?|eh+|huh+|aha|ugh|ah+)$/;
+  /* 口语缩略归一(r7 2026-10-31): gonna/wanna/gotta 等与全写同义, 'bout='about 等
+     撇号缩写唯一指向; 都展开成全写 token, 两侧同变换只增匹配。
+     裸 cause 有名词/动词义(语料实测混用), 不归一——语音路径由走音赦免覆盖。 */
+  const SLANG={gonna:['going','to'],wanna:['want','to'],gotta:['got','to'],kinda:['kind','of'],sorta:['sort','of'],
+    lemme:['let','me'],gimme:['give','me'],outta:['out','of'],lotta:['lot','of'],"c'mon":['come','on'],
+    "'bout":['about'],"'em":['them'],"'cause":['because'],"'til":['till'],"'till":['till'],"'tis":['it','is']};
   function normTokens(s){
     const out=[];
     for(let w of (String(s).toLowerCase().match(/[a-z0-9']+/g)||[])){
       if(w==='okay'){out.push('ok');continue;}
       if(/^\d+$/.test(w)){expandNum(parseInt(w,10),out);continue;}
+      const sl=SLANG[w];
+      if(sl){out.push(...sl);continue;}
+      if(w[0]==="'")w=w.slice(1);   /* 文本伪影('ve/'m/'excuse): 去游离撇号, 不再当独立怪词 */
       if(FILLER.test(w)){out.push('hmm');continue;}
       /* 同音称呼归一(r6): Ms./Miss 同音, Mrs./Misses 同音; 两侧同变换, 动词 miss 不受影响 */
       if(w==='miss')w='ms';else if(w==='misses')w='mrs';
@@ -378,7 +387,29 @@
     }
     return changed;
   }
-  const api={mergeDrill,mergeLesson,reconcile,saveAttempt,speedPassed,repairSpeedScores,repairOkayScores,repairNumberScores,repairSpellingScores,repairFillerScores,repairVoiceFuzzyScores,lcsAcc,lcsAccFuzzy,fuzzyEqual,normTokens,usSpelling,coverProgress};
+  /* 缩略词曾被当错词扣分(r7): 涉及 gonna/'bout 等的历史成绩重算, 只升不降, 与数字修复同款。 */
+  function repairSlangScores(records,loadDialogue){
+    let changed=0;
+    const hasSlang=s=>(String(s).toLowerCase().match(/[a-z0-9']+/g)||[]).some(w=>SLANG[w]||w[0]==="'");
+    for(const [id,lesson] of Object.entries(records.course||{})){
+      if(!/^eplod-\d{4}$/.test(id))continue;
+      const drill=lesson.drill||{};
+      if(!drill.dd&&!drill.rd)continue;
+      const dialogue=loadDialogue(id);
+      if(!dialogue)continue;
+      for(const kind of ['dd','rd']){
+        for(const [i,r] of Object.entries(drill[kind]||{})){
+          const text=dialogue[+i]&&dialogue[+i].text;
+          if(!text||typeof r.last!=='string'||!r.last.trim()||!Number.isFinite(r.acc))continue;
+          if(!hasSlang(text)&&!hasSlang(r.last))continue;
+          const acc=lcsAcc(text,r.last);
+          if(acc>r.acc+1e-9){r.acc=acc;changed++;}
+        }
+      }
+    }
+    return changed;
+  }
+  const api={mergeDrill,mergeLesson,reconcile,saveAttempt,speedPassed,repairSpeedScores,repairOkayScores,repairNumberScores,repairSpellingScores,repairFillerScores,repairVoiceFuzzyScores,repairSlangScores,lcsAcc,lcsAccFuzzy,fuzzyEqual,normTokens,usSpelling,coverProgress};
   if(typeof module==='object'&&module.exports)module.exports=api;
   else root.EplodRecords=api;
 })(typeof globalThis==='object'?globalThis:this);
