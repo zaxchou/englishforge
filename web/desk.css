@@ -2184,17 +2184,14 @@ html.sb-min .nav-label{display:none!important}   /* 收缩侧栏只留图标 */
 .ep-bcard .bh .elisten-me{border:0;background:var(--accbg);color:var(--acc);padding:0 9px;border-radius:var(--rs);font-size:13px;cursor:pointer;flex:none;font-weight:600}
 .ep-bcard .bh .elisten-me:hover{background:var(--acc);color:var(--card)}
 
-/* 训练结果留在本句，顺序与列表一致。 */
-.ep-sentence-nav{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:16px;padding-top:12px;border-top:1px solid var(--line)}
-.ep-sentence-nav button{min-height:36px;padding:6px 10px;background:var(--card);border:1px solid var(--line);border-radius:var(--rs);color:var(--t1);white-space:nowrap;flex:none;font-size:13px}
-.ep-sentence-nav button:last-child{background:var(--accbg);color:var(--acc)}
-.ep-sentence-nav span{font-size:12px;color:var(--t2);white-space:nowrap;flex:none}
-.ep-sentence-nav button:disabled,.ep-bcard button:disabled{opacity:.45;cursor:default}
-@media(max-width:700px){.ep-sentence-nav button{min-height:42px}}
+/* 训练结果留在本句, 顺序与列表一致。上一句/下一句已上移到「听这句」右侧(r4 2026-10-31),
+   底部导航行删除——卡更矮, 拇指行程更短; 「今日待练」随历史徽章同行。 */
+.ep-bcard button:disabled{opacity:.45;cursor:default}
+.ep-card-audio .ep-sentence-prev,.ep-card-audio .ep-sentence-next{width:32px;min-width:32px;padding:0;font-size:15px}
 .elisten-me.playing,.elisten-row.playing{outline:2px solid var(--acc);outline-offset:2px}
 .ep-retry-asr{border:1px solid var(--line);border-radius:var(--rs);background:var(--card);color:var(--acc);padding:6px 10px}
 .ep-bcard{scroll-margin-top:80px;scroll-margin-bottom:160px}
-.ep-sentence-nav,.ep-sentence-nav button,.ep-bcard .dt{scroll-margin-bottom:150px}
+.ep-bcard .dt{scroll-margin-bottom:150px}
 
 /* 视频课外壳细节对齐 EnglishPod: 页签成白卡胶囊 / 视频区去套卡 /
    目录条去重课程副行(胶囊已含) / 课后复习页签同享白画布 */

@@ -8,7 +8,7 @@
 <link rel="icon" type="image/png" sizes="96x96" href="/assets/brand/t-dot-v1/t-dot-96.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/assets/brand/t-dot-v1/t-dot-180.png">
 <title>TOEFL Lab · 托福自学练习</title>
-<link rel="stylesheet" href="desk.css?v=20261031r2">
+<link rel="stylesheet" href="desk.css?v=20261031r4">
 <style>
 /* 应用层补充样式（视觉基线在 desk.css，不改它的既有规则） */
 /* 单词与字符格保持同一行；焦点、已填、判题状态沿用研读桌配色。 */
@@ -3923,13 +3923,16 @@ function epBlockCard(i){
   const seg=[['dict','听写'],['voice','朗读'],['type','默写']].map(m=>'<button data-m="'+m[0]+'" aria-pressed="'+(mode===m[0])+'"'+(mode===m[0]?' class="on"':'')+'>'+m[1]+'</button>').join('');
   let h='<div class="ep-bcard" data-i="'+i+'" data-mode="'+mode+'">'
     +'<div class="bh"><div class="ep-card-title"><span class="no">当前句 '+(i+1)+' / '+st.d.dialogue.length+'</span><span class="bmode" role="group" aria-label="练习方式">'+seg+'</span></div>'
-    +'<div class="ep-card-tools"><span class="ep-card-audio"><button class="bp" title="听这句（只播当前句）" aria-label="听这句"'+(epAnchored(i)?'':' disabled')+'><span class="bp-ico" aria-hidden="true">▶</span><span class="bp-tx">听这句</span></button><button class="bl" title="单句循环" aria-label="单句循环"'+(epAnchored(i)?'':' disabled')+'>↻</button>'
+    +'<div class="ep-card-tools"><span class="ep-card-audio"><button class="bp" title="听这句（只播当前句）" aria-label="听这句"'+(epAnchored(i)?'':' disabled')+'><span class="bp-ico" aria-hidden="true">▶</span><span class="bp-tx">听这句</span></button>'
+    +'<button class="ep-sentence-prev" title="上一句" aria-label="上一句"'+(i===0?' disabled':'')+'>‹</button><button class="ep-sentence-next" title="下一句" aria-label="下一句"'+(i===st.d.dialogue.length-1?' disabled':'')+'>›</button>'
+    +'<button class="bl" title="单句循环" aria-label="单句循环"'+(epAnchored(i)?'':' disabled')+'>↻</button>'
     +(epHasReplay(st,i)?'<button class="elisten-me" data-i="'+i+'" title="回听我的录音">▶ 回听</button>':'')
     +(drill.mode==='exam'?'<span class="dc">'+(3-Math.min(3,plays))+' 次可听</span>':'')+'</span>'
     +'<span class="ep-card-history" aria-label="历史最好成绩">'
     +(acc!=null?'<span class="mini'+(acc>=0.9?' ok':'')+'" data-k="d">听写历史最好 '+Math.round(acc*100)+'%</span>':'')
     +(rec?'<span class="mini'+(rec.acc>=0.9?' ok':'')+'" data-k="r">背诵历史最好 '+Math.round(rec.acc*100)+'%</span>':'')
     +(sd?'<span class="mini ok" data-k="s">同速 ✓</span>':'')
+    +'<span class="mini'+(epCoveredToday(st,i)?' ok':'')+'" data-k="c">'+epCoverageLabel(st,i)+'</span>'
     +'</span></div></div>'
     +(!epAnchored(i)?'<p class="ep-note">本句尚无音频定位，可用默写完成；同速暂不评定。</p>':'')
     +'<div class="rclue" style="display:'+(mode==='dict'?'none':'')+'">'+esc(clue)+'</div>'
@@ -3946,7 +3949,6 @@ function epBlockCard(i){
       +'<div class="dr">'+epResultHTML(u.text,epSavedResult(drill.rd[i],'type'))+'</div></div>'
     +'<div class="rhints" style="display:'+(mode==='dict'?'none':'')+'">'+(senseHtml?'<button class="h1">意群提示</button>':'')+'<button class="h2">查看原文</button></div>'
     +'<div class="rsense" style="display:none">'+senseHtml+'</div><div class="rorig" style="display:none">'+orig+'</div>'
-    +'<div class="ep-sentence-nav"><button class="ep-sentence-prev"'+(i===0?' disabled':'')+'>上一句</button><span class="ep-card-coverage">'+epCoverageLabel(st,i)+'</span><button class="ep-sentence-next"'+(i===st.d.dialogue.length-1?' disabled':'')+'>下一句 →</button></div>'
     +'</div>';
   return h;
 }
@@ -4347,7 +4349,7 @@ function epCoverUpdate(){
     +'<div class="ep-cover-track">'+stamps+'</div><p class="ep-cover-hint">'+msg+'</p>';
   epSyncProgressToggle();
   epNavCoverUpdate();
-  const card=$('ep-blist')?.querySelector('.ep-bcard'),label=card?.querySelector('.ep-card-coverage');if(label)label.textContent=epCoverageLabel(st,+card.dataset.i);
+  const card=$('ep-blist')?.querySelector('.ep-bcard'),label=card?.querySelector('.ep-card-history [data-k="c"]');if(label)label.textContent=epCoverageLabel(st,+card.dataset.i);
 }
 function epSyncProgressToggle(){
   const b=$('ep-progress-toggle'),panel=$('ep-progress');
