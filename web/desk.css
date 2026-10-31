@@ -1608,10 +1608,6 @@ body.vfull .cs-stage video.tfl{max-height:none}
 .ep-bcard .rsense .su i{font-style:normal;font-size:var(--f5);color:var(--t3)}
 .ep-bcard .rorig{margin-top:8px;font-size:var(--f3);line-height:1.8;color:var(--t2)}
 .ep-bcard .rorig .spk{font-style:normal;color:var(--acc);font-weight:600;margin-right:4px}
-.ep-bcard .rhints{margin-top:8px;display:flex;gap:8px;align-items:center}
-.ep-bcard .rhints button{border:0;background:transparent;font-size:var(--f4);color:var(--t3);cursor:pointer;text-decoration:underline}
-.ep-bcard .rhints .rr{border:1px solid var(--line)!important;border-radius:6px;text-decoration:none!important;color:var(--t2)!important;padding:3px 10px}
-.ep-bcard .rhints .rr:hover{border-color:var(--okln)!important;color:var(--ok)!important}
 /* 粘底 dock: 悬浮胶囊, 画布语言 */
 @keyframes ep-pulse{0%,100%{box-shadow:0 0 0 0 rgba(49,90,71,.35)}50%{box-shadow:0 0 0 6px rgba(49,90,71,0)}}
 
@@ -1717,8 +1713,6 @@ body.vfull .cs-stage video.tfl{max-height:none}
 
 .ep-bcard .bp:hover,.ep-bcard .bl:hover{border-color:var(--acc);color:var(--acc);background:var(--card)}
 .ep-bcard .rclue{color:var(--t1);background:none;border-radius:0}
-.ep-bcard .rhints button{border:0;background:transparent;text-decoration:none;color:var(--t2);font-size:13px;padding:0;min-height:32px}
-.ep-bcard .rhints button:hover{color:var(--acc)}
 
 /* block 45 · 录音音量条(用户: 词准 0% 实为全程静音): 说话可见, 静音可见 */
 .ep-rec .lv{display:inline-block;width:46px;height:6px;background:rgba(246,248,241,.25);border-radius:3px;overflow:hidden;vertical-align:middle;margin-left:10px}
@@ -1821,7 +1815,6 @@ body.vfull .cs-stage video.tfl{max-height:none}
 .ep-bcard{border:0;border-bottom:1px solid var(--line);border-radius:0;padding:12px 0 24px;margin-bottom:12px;animation:cs-note-in .18s ease-out}
 .ep-bcard .rclue{font-size:19px;line-height:1.65;padding:0;margin:0 0 18px;border:0}
 .ep-bcard .vrow{gap:12px;margin-bottom:16px}
-.ep-bcard .rhints{padding:0;margin-top:10px;border:0;gap:20px;flex-wrap:wrap}
 .ep-brow{display:grid;grid-template-columns:28px minmax(0,1fr) auto auto;column-gap:10px;row-gap:4px;border:0;border-bottom:1px solid var(--line);border-radius:0;padding:12px 0;min-height:48px;background:transparent}
 .ep-brow.done{background:transparent;border-color:var(--line)}
 .ep-brow .btxt{grid-column:2;white-space:normal;line-height:1.6;min-width:0;font-size:14px;overflow-wrap:anywhere}
@@ -1870,8 +1863,6 @@ body.vfull .cs-stage video.tfl{max-height:none}
   .ep-brow{grid-template-columns:24px minmax(0,1fr) auto;column-gap:8px;row-gap:4px}
   .ep-row-progress{grid-column:2;grid-row:2;justify-content:flex-start;max-width:none;gap:4px 10px}
   .ep-row-actions{grid-column:3;grid-row:1 / span 2;align-self:center;gap:4px}
-  .ep-bcard .rhints{gap:20px}
-  .ep-bcard .rhints button{min-height:40px}
 }
 @media(prefers-reduced-motion:reduce){.ep-bcard,.ep-progress{animation:none}}
 
@@ -2188,6 +2179,8 @@ html.sb-min .nav-label{display:none!important}   /* 收缩侧栏只留图标 */
    底部导航行删除——卡更矮, 拇指行程更短; 「今日待练」随历史徽章同行。 */
 .ep-bcard button:disabled{opacity:.45;cursor:default}
 .ep-card-audio .ep-sentence-prev,.ep-card-audio .ep-sentence-next{width:32px;min-width:32px;padding:0;font-size:15px}
+.ep-card-hints{display:inline-flex;gap:6px}
+.ep-card-hints button.on{border-color:var(--acc);color:var(--acc);background:var(--accbg)}
 .elisten-me.playing,.elisten-row.playing{outline:2px solid var(--acc);outline-offset:2px}
 .ep-retry-asr{border:1px solid var(--line);border-radius:var(--rs);background:var(--card);color:var(--acc);padding:6px 10px}
 .ep-bcard{scroll-margin-top:80px;scroll-margin-bottom:160px}

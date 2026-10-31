@@ -8,7 +8,7 @@
 <link rel="icon" type="image/png" sizes="96x96" href="/assets/brand/t-dot-v1/t-dot-96.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/assets/brand/t-dot-v1/t-dot-180.png">
 <title>TOEFL Lab · 托福自学练习</title>
-<link rel="stylesheet" href="desk.css?v=20261031r4">
+<link rel="stylesheet" href="desk.css?v=20261031r5">
 <style>
 /* 应用层补充样式（视觉基线在 desk.css，不改它的既有规则） */
 /* 单词与字符格保持同一行；焦点、已填、判题状态沿用研读桌配色。 */
@@ -3927,6 +3927,9 @@ function epBlockCard(i){
     +'<button class="ep-sentence-prev" title="上一句" aria-label="上一句"'+(i===0?' disabled':'')+'>‹</button><button class="ep-sentence-next" title="下一句" aria-label="下一句"'+(i===st.d.dialogue.length-1?' disabled':'')+'>›</button>'
     +'<button class="bl" title="单句循环" aria-label="单句循环"'+(epAnchored(i)?'':' disabled')+'>↻</button>'
     +(epHasReplay(st,i)?'<button class="elisten-me" data-i="'+i+'" title="回听我的录音">▶ 回听</button>':'')
+    +'<span class="ep-card-hints" style="display:'+(mode==='dict'?'none':'')+'">'
+    +(senseHtml?'<button class="h1" title="意群提示" aria-expanded="false">意群</button>':'')
+    +'<button class="h2" title="查看原文" aria-expanded="false">原文</button></span>'
     +(drill.mode==='exam'?'<span class="dc">'+(3-Math.min(3,plays))+' 次可听</span>':'')+'</span>'
     +'<span class="ep-card-history" aria-label="历史最好成绩">'
     +(acc!=null?'<span class="mini'+(acc>=0.9?' ok':'')+'" data-k="d">听写历史最好 '+Math.round(acc*100)+'%</span>':'')
@@ -3947,7 +3950,6 @@ function epBlockCard(i){
     +'<div class="bbody btype" style="display:'+(mode==='type'?'':'none')+'">'
       +'<textarea class="dt" rows="2" placeholder="看中文线索，默写完整句子（Enter 提交）">'+esc(drill.rd[i]?.draft??epSavedResult(drill.rd[i],'type')?.text??'')+'</textarea>'
       +'<div class="dr">'+epResultHTML(u.text,epSavedResult(drill.rd[i],'type'))+'</div></div>'
-    +'<div class="rhints" style="display:'+(mode==='dict'?'none':'')+'">'+(senseHtml?'<button class="h1">意群提示</button>':'')+'<button class="h2">查看原文</button></div>'
     +'<div class="rsense" style="display:none">'+senseHtml+'</div><div class="rorig" style="display:none">'+orig+'</div>'
     +'</div>';
   return h;
@@ -4070,7 +4072,7 @@ function epWireCard(card){
     card.querySelector('.bvoice').style.display=b.dataset.m==='voice'?'':'none';
     card.querySelector('.btype').style.display=b.dataset.m==='type'?'':'none';
     card.querySelector('.rclue').style.display=b.dataset.m==='dict'?'none':'';
-    card.querySelector('.rhints').style.display=b.dataset.m==='dict'?'none':'';
+    card.querySelector('.ep-card-hints').style.display=b.dataset.m==='dict'?'none':'';
     card.querySelectorAll('.dt').forEach(epFitInput);
     const target=card.querySelector('.bbody:not([style*="none"]) .dt')||card.querySelector('.ep-rec');
     if(target){
@@ -4140,10 +4142,10 @@ function epWireCard(card){
     mkBtn.onclick=submit;
     const cw=document.createElement('div');cw.className='ep-compose';ta.before(cw);cw.append(ta,mkBtn);
   }
-  /* 提示阶梯: 意群积木/原文(点击揭示) */
+  /* 提示阶梯: 意群积木/原文(点击揭示, 按钮带开启态) */
   const h1=card.querySelector('.h1'),h2=card.querySelector('.h2');
-  if(h1)h1.onclick=()=>{const s=card.querySelector('.rsense');s.style.display=s.style.display==='none'?'':'none';};
-  if(h2)h2.onclick=()=>{const s=card.querySelector('.rorig');s.style.display=s.style.display==='none'?'':'none';};
+  if(h1)h1.onclick=()=>{const s=card.querySelector('.rsense'),on=s.style.display==='none';s.style.display=on?'':'none';h1.classList.toggle('on',on);h1.setAttribute('aria-expanded',String(on));};
+  if(h2)h2.onclick=()=>{const s=card.querySelector('.rorig'),on=s.style.display==='none';s.style.display=on?'':'none';h2.classList.toggle('on',on);h2.setAttribute('aria-expanded',String(on));};
 }
 
 /* ---- 覆盖式背诵(三章法): 一遍=当天过完全部句子, 三个不同日期各一遍即三星 ---- */
