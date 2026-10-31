@@ -2444,3 +2444,32 @@ html.sb-min .nav-label{display:none!important}   /* 收缩侧栏只留图标 */
 @media(max-width:700px){
   .cp-due{padding:18px}
 }
+
+/* ============================================================
+   block 51 · 整篇背诵(2026-10-31.r2, 用户定案):
+   最后一遍=脱稿整篇语音背诵, 总词准 90% 通过并盖当日章。
+   入口卡/录音态/结果卡同用暖纸卡语言; 逐句徽章绿=稳/黄=弱。
+   ============================================================ */
+.ep-whole{margin:0 0 12px;border:1px solid var(--line);border-radius:10px;background:var(--sunk);padding:12px 14px}
+.wp-head{display:flex;align-items:center;gap:14px}
+.wp-head>div{flex:1;min-width:0}
+.wp-head b{display:block;font-size:14px;color:var(--t1)}
+.wp-head span{display:block;margin-top:2px;font-size:12px;color:var(--t2);line-height:1.5}
+.wp-head button{flex:none}
+.wp-live{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.wp-live b{font-size:14px;color:var(--bad)}
+.wp-live b.ing{color:var(--acc)}
+.wp-live .rt{font-variant-numeric:tabular-nums;font-size:13px;color:var(--t1)}
+.wp-live p{flex-basis:100%;margin:0;font-size:12px;color:var(--t3)}
+.wp-live .lv{flex:none;width:90px;height:6px;border-radius:3px;background:var(--line);overflow:hidden}
+.wp-live .lv i{display:block;height:100%;width:0;background:var(--acc)}
+.wp-result .wp-hero b{display:block;font-size:16px;color:var(--t1)}
+.wp-result.pass .wp-hero b{color:var(--acc)}
+.wp-hero span{font-size:12px;color:var(--t3)}
+.wp-per{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.wp-per span{font-size:11.5px;padding:2px 8px;border-radius:10px;font-variant-numeric:tabular-nums}
+.wp-per .ok{background:var(--accbg);color:#305540}
+.wp-per .weak{background:#f6e8d8;color:#8a5a1e}
+.wp-advise{margin-top:8px}
+.wp-advise p{margin:4px 0 0;font-size:12.5px;color:var(--t2);line-height:1.6}
+.wp-actions{display:flex;gap:10px;margin-top:12px}

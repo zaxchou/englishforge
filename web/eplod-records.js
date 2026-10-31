@@ -168,6 +168,20 @@
     }
     return out;
   }
+  /* 整篇背诵(r11 2026-10-31): drill.wp={latest,best}。latest=较新一次整篇 take;
+     best=历史最好(按 acc)。多端合并各取各的赢家, 不能被 ...copy(b) 整块覆盖。 */
+  function mergeWhole(current,incoming){
+    const a=object(current)?current:{},b=object(incoming)?incoming:{};
+    const la=object(a.latest)?a.latest:null,lb=object(b.latest)?b.latest:null;
+    const latest=newest(la,lb);
+    // best 候选必须含两侧显式 best, 否则反向合并会让历史最好回退成最新一的成绩
+    const best=[a.best,b.best,la,lb].filter(x=>object(x)&&Number.isFinite(x.acc))
+      .reduce((w,x)=>!w||x.acc>w.acc||(x.acc===w.acc&&compareResult(x,w)>0)?x:w,null);
+    const out={};
+    if(latest)out.latest=latest;
+    if(best)out.best=copy(best);
+    return Object.keys(out).length?out:undefined;
+  }
   function mergeDrill(current,incoming){
     const a=object(current)?current:{},b=object(incoming)?incoming:{};
     const out={...copy(a),...copy(b)};
@@ -191,6 +205,8 @@
       out.recoveredCover={...recovered[0],sentences:[...new Set(recovered.flatMap(x=>x.sentences||[]))].sort((x,y)=>x-y)};
       out.recoveredCover.recognizedAt=Math.min(...recovered.map(x=>Number(x.recognizedAt)||Date.now()));
     }
+    const wp=mergeWhole(a.wp,b.wp);
+    if(wp)out.wp=wp;else delete out.wp;
     return out;
   }
   function coverProgress(drill,total,today){
