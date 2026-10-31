@@ -96,8 +96,8 @@ test('index.html 接线: 入口卡/取消钩子/刷新点/版本号在位', () =
   assert.match(html, /epWholeUpdate\(\);\s*\/\/ 逐句背诵通过数变化/);
   assert.match(html, /st\.wpPending\){st\.wpPending\.cancelled=true/);
   assert.match(html, /整篇过=当天这一遍盖满/);
-  assert.match(html, /eplod-records\.js\?v=7/);
-  assert.match(html, /desk\.css\?v=20261031r2/);
+  assert.match(html, /eplod-records\.js\?v=\d+/);
+  assert.match(html, /desk\.css\?v=\d{8}r\d+/);   /* 只断言缓存击穿在位, 不钉具体版本号(升级不必改测试) */
   // ASR 请求不带 ep/i(终考无偏置)
   const proc = html.slice(html.indexOf('async function epWholeProcess('), html.indexOf('function epStamp('));
   assert.doesNotMatch(proc, /ep:String|ep: st\.l\.ep/);
