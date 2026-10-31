@@ -345,7 +345,7 @@ details.ai-tsec[open] summary{margin-bottom:8px}
 
 </div>
 
-<script src="eplod-records.js?v=9"></script>
+<script src="eplod-records.js?v=10"></script>
 <script src="course-plan-model.js?v=20261029r8"></script>
 <script src="course-plan-ui.js?v=20261030r10"></script>
 <script>
@@ -3906,7 +3906,7 @@ function epRowHtml(i){
   const st=EP.st,drill=st.p.drill,u=epItems()[i];
   const acc=drill.dd[i]&&drill.dd[i].acc,rec=drill.rd[i]&&drill.rd[i].acc!=null?drill.rd[i]:null;
   const zh0=(epZhOf(u)[0]||'');
-  return '<div class="ep-brow'+(st.doneOf(i)?' done':'')+(i===st.ai?' act':'')+'" data-i="'+i+'" role="button" tabindex="0" title="展开这一句">'
+  return '<div class="ep-brow'+((st.doneOf(i)||epCoveredToday(st,i))?' done':'')+(i===st.ai?' act':'')+'" data-i="'+i+'" role="button" tabindex="0" title="展开这一句">'
     +'<span class="no">#'+(i+1)+'</span>'
     +'<span class="bt">'+(u.t0!=null?fmtDur(u.t0):'—')+'</span>'
     +'<span class="btxt">'+esc(zh0.length>42?zh0.slice(0,42)+'…':(zh0||'（无线索）'))+'</span>'
@@ -4292,7 +4292,7 @@ async function epWholeToggle(){
     const blob=new Blob(chunks,{type:r.mime});
     if(!blob.size){epWholeUpdate();return;}
     if(analyser&&peak<8){epWholeUpdate();epNote('麦克风没有收到声音，请检查输入设备后重新背诵。',st);return;}
-    if(blob.size>9*1024*1024){epWholeUpdate();epNote('录音过大，无法上传，请缩短后重试。',st);return;}
+    if(blob.size>8*1024*1024){epWholeUpdate();epNote('录音过大，无法上传，请缩短后重试。',st);return;}   /* 8MB 对齐服务端有效上限(11MB base64 门 ≈8.25MB 二进制) */
     st.wpTake={phase:'processing'};epWholeUpdate();
     const audio=await new Promise(res=>{const fr=new FileReader();fr.onload=()=>res(String(fr.result));fr.readAsDataURL(blob);});
     await epWholeProcess(st,{id,at,dur:Math.max(.01,(Date.now()-r.t0)/1000),audio});

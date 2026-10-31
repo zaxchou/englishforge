@@ -54,7 +54,8 @@
       if(/^\d+$/.test(w)){expandNum(parseInt(w,10),out);continue;}
       const sl=SLANG[w];
       if(sl){out.push(...sl);continue;}
-      if(w[0]==="'")w=w.slice(1);   /* 文本伪影('ve/'m/'excuse): 去游离撇号, 不再当独立怪词 */
+      w=w.replace(/^'+|'+$/g,'');   /* 游离撇号: 词首伪影('ve/'m)+词尾所有格 customers'(r8 2026-10-31) */
+      if(!w)continue;
       if(FILLER.test(w)){out.push('hmm');continue;}
       /* 同音称呼归一(r6): Ms./Miss 同音, Mrs./Misses 同音; 两侧同变换, 动词 miss 不受影响 */
       if(w==='miss')w='ms';else if(w==='misses')w='mrs';
@@ -390,7 +391,7 @@
   /* 缩略词曾被当错词扣分(r7): 涉及 gonna/'bout 等的历史成绩重算, 只升不降, 与数字修复同款。 */
   function repairSlangScores(records,loadDialogue){
     let changed=0;
-    const hasSlang=s=>(String(s).toLowerCase().match(/[a-z0-9']+/g)||[]).some(w=>SLANG[w]||w[0]==="'");
+    const hasSlang=s=>(String(s).toLowerCase().match(/[a-z0-9']+/g)||[]).some(w=>SLANG[w]||w[0]==="'"||w.slice(-1)==="'");
     for(const [id,lesson] of Object.entries(records.course||{})){
       if(!/^eplod-\d{4}$/.test(id))continue;
       const drill=lesson.drill||{};
