@@ -47,9 +47,69 @@
       if(w==='okay'){out.push('ok');continue;}
       if(/^\d+$/.test(w)){expandNum(parseInt(w,10),out);continue;}
       if(FILLER.test(w)){out.push('hmm');continue;}
+      /* 同音称呼归一(r6): Ms./Miss 同音, Mrs./Misses 同音; 两侧同变换, 动词 miss 不受影响 */
+      if(w==='miss')w='ms';else if(w==='misses')w='mrs';
       out.push(w==='oh'?'zero':usSpelling(w));
     }
     return out;
+  }
+  /* 人名走音赦免(r6): ASR 对人名几乎必然输出常见拼法(Julianne→Julian, McNealy→McLean),
+     语音判分路径对「同前两字母+小编辑距离」的词对视为同一词; 默写(打字)保持精确。 */
+  function lev(a,b){
+    if(Math.abs(a.length-b.length)>3)return 4;
+    const dp=new Array(b.length+1);
+    for(let j=0;j<=b.length;j++)dp[j]=j;
+    for(let i=1;i<=a.length;i++){let prev=dp[0];dp[0]=i;
+      for(let j=1;j<=b.length;j++){const t=dp[j];dp[j]=Math.min(dp[j]+1,dp[j-1]+1,prev+(a[i-1]===b[j-1]?0:1));prev=t;}}
+    return dp[b.length];
+  }
+  function fuzzyEqual(a,b){
+    if(a===b||a.length<5||b.length<5)return false;
+    if(a.slice(0,2)!==b.slice(0,2))return false;   /* 词首不同不赦免: 真实口误/近音混淆仍判错 */
+    const d=lev(a,b);
+    return d>0&&d<=(Math.max(a.length,b.length)>=7?3:1);
+  }
+  /* 带赦免的整句准确率(历史 rd-voice 修复用); epDiff 的展示对齐走自己的回溯+same fuzzyEqual */
+  function lcsAccFuzzy(official,mine){
+    const a=normTokens(official),b=normTokens(mine);
+    const n=a.length;if(!n)return 0;
+    const dp=Array.from({length:n+1},()=>new Array(b.length+1).fill(0));
+    for(let i=1;i<=n;i++)for(let j=1;j<=b.length;j++)dp[i][j]=a[i-1]===b[j-1]?dp[i-1][j-1]+1:Math.max(dp[i-1][j],dp[i][j-1]);
+    let hit=dp[n][b.length];
+    const ou=[],bu=[];let i=n,j=b.length;
+    while(i>0&&j>0){
+      if(a[i-1]===b[j-1]){i--;j--;}
+      else if(dp[i-1][j]>=dp[i][j-1]){ou.push(i-1);i--;}
+      else{bu.push(j-1);j--;}
+    }
+    while(i>0)ou.push(i-1),i--;
+    while(j>0)bu.push(j-1),j--;
+    ou.reverse();bu.reverse();
+    let k=0;
+    for(const oi of ou){
+      for(let t=k;t<Math.min(bu.length,k+4);t++){
+        if(fuzzyEqual(a[oi],b[bu[t]])){hit++;bu.splice(t,1);k=t;break;}
+      }
+    }
+    return hit/n;
+  }
+  /* 旧语音成绩被人名走音压低(r6): rd 且 mode=voice 的条目用赦免规则重算, 只升不降。 */
+  function repairVoiceFuzzyScores(records,loadDialogue){
+    let changed=0;
+    for(const [id,lesson] of Object.entries(records.course||{})){
+      if(!/^eplod-\d{4}$/.test(id))continue;
+      const drill=lesson.drill||{};
+      if(!drill.rd)continue;
+      const dialogue=loadDialogue(id);
+      if(!dialogue)continue;
+      for(const [i,r] of Object.entries(drill.rd||{})){
+        const text=dialogue[+i]&&dialogue[+i].text;
+        if(!text||typeof r.last!=='string'||!r.last.trim()||!Number.isFinite(r.acc)||r.mode!=='voice')continue;
+        const acc=lcsAccFuzzy(text,r.last);
+        if(acc>r.acc+1e-9){r.acc=acc;changed++;}
+      }
+    }
+    return changed;
   }
   function lcsAcc(official,mine){
     const a=normTokens(official),b=normTokens(mine);
@@ -318,7 +378,7 @@
     }
     return changed;
   }
-  const api={mergeDrill,mergeLesson,reconcile,saveAttempt,speedPassed,repairSpeedScores,repairOkayScores,repairNumberScores,repairSpellingScores,repairFillerScores,lcsAcc,normTokens,usSpelling,coverProgress};
+  const api={mergeDrill,mergeLesson,reconcile,saveAttempt,speedPassed,repairSpeedScores,repairOkayScores,repairNumberScores,repairSpellingScores,repairFillerScores,repairVoiceFuzzyScores,lcsAcc,lcsAccFuzzy,fuzzyEqual,normTokens,usSpelling,coverProgress};
   if(typeof module==='object'&&module.exports)module.exports=api;
   else root.EplodRecords=api;
 })(typeof globalThis==='object'?globalThis:this);

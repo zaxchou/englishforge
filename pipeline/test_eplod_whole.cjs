@@ -102,4 +102,10 @@ test('index.html 接线: 入口卡/取消钩子/刷新点/版本号在位', () =
   const proc = html.slice(html.indexOf('async function epWholeProcess('), html.indexOf('function epStamp('));
   assert.doesNotMatch(proc, /ep:String|ep: st\.l\.ep/);
   assert.match(proc, /JSON\.stringify\(\{audio:take\.audio\}\)/);
+  // 人名走音赦免只挂在语音判分路径; 听写/默写提交保持精确
+  assert.match(html, /epDiff\(u\.text,text,true\)/, 'per-sentence voice diff uses fuzzy');
+  assert.match(html, /epDiff\(d\.map\(x=>x\.text\)\.join\(' '\),text,true\)/, 'whole-passage diff uses fuzzy');
+  assert.match(html, /epDiff\(text,result\.text\|\|'',result&&result\.mode==='voice'\)/, 'display fuzziness follows the stored mode');
+  const dictSubmit = html.slice(html.indexOf("placeholder=\"写出你听到的内容"), html.indexOf('placeholder="看中文线索'));
+  assert.doesNotMatch(dictSubmit, /epDiff\([^)]*true\)/, 'dictation submit stays exact');
 });

@@ -345,7 +345,7 @@ details.ai-tsec[open] summary{margin-bottom:8px}
 
 </div>
 
-<script src="eplod-records.js?v=7"></script>
+<script src="eplod-records.js?v=8"></script>
 <script src="course-plan-model.js?v=20261029r8"></script>
 <script src="course-plan-ui.js?v=20261030r10"></script>
 <script>
@@ -3728,7 +3728,7 @@ function epStepsUpdate(){
 }
 
 /* ---- 听写 diff: 词级 LCS, 返回逐词对错与多写词 ---- */
-function epDiff(official,mine){
+function epDiff(official,mine,fuzzy){
   const T=s=>EplodRecords.normTokens(s);
   const o=T(official),m=T(mine);
   const n=o.length,mm=m.length;
@@ -3741,7 +3741,19 @@ function epDiff(official,mine){
     else if(dp[i-1][j]>=dp[i][j-1])i--;
     else j--;
   }
-  const hit=dp[n][mm];
+  let hit=dp[n][mm];
+  if(fuzzy){
+    /* 语音路径(r6): 未匹配词对里「人名走音级」近似(Julianne/Julian, McNealy/McLean)算对 */
+    const ou=[],bu=[];
+    for(let k=0;k<n;k++)if(!marks[k])ou.push(k);
+    for(let k=0;k<mm;k++)if(!extra[k])bu.push(k);
+    let k=0;
+    for(const oi of ou){
+      for(let t=k;t<Math.min(bu.length,k+4);t++){
+        if(EplodRecords.fuzzyEqual(o[oi],m[bu[t]])){marks[oi]=true;extra[bu[t]]=true;hit++;bu.splice(t,1);k=t;break;}
+      }
+    }
+  }
   const extras=[];
   for(let k=0;k<mm;k++)if(!extra[k])extras.push(m[k]);
   return {acc:n?hit/n:0,marks,extras:extras.slice(0,12)};
@@ -3820,7 +3832,7 @@ async function epReplay(i){
 }
 function epResultHTML(text,result){
   if(!result)return '';
-  const r=epDiff(text,result.text||'');
+  const r=epDiff(text,result.text||'',result&&result.mode==='voice');   /* 语音结果展示走赦免, 默写保持精确 */
   let at=0;
   const marked=text.split(/([A-Za-z0-9']+)/).map(p=>{
     if(!/^[A-Za-z0-9']+$/.test(p))return esc(p);
@@ -4165,7 +4177,7 @@ function epRdPassed(st){
   return st.d.dialogue.every((_,i)=>st.p.drill.rd?.[i]?.acc>=.9);
 }
 function epWholeScore(st,text){
-  const d=st.d.dialogue,r=epDiff(d.map(x=>x.text).join(' '),text);
+  const d=st.d.dialogue,r=epDiff(d.map(x=>x.text).join(' '),text,true);
   const per=[];let off=0;
   for(const line of d){
     const len=EplodRecords.normTokens(line.text).length;
@@ -4391,7 +4403,7 @@ async function epProcessTake(st,take){
     if(!j.ok)throw Error(j.error||'转写失败');
     const text=String(j.text||'').trim();
     if(!text)throw Error('没有识别到内容，请回听录音后重试识别或重新朗读');
-    const u=st.d.dialogue[take.i],r=epDiff(u.text,text),sourceDur=u.t1-u.t0;
+    const u=st.d.dialogue[take.i],r=epDiff(u.text,text,true),sourceDur=u.t1-u.t0;
     const speed=r.acc>=.9&&u.t0!=null&&Number.isFinite(sourceDur)&&sourceDur>0&&take.dur>0&&take.dur<=sourceDur*1.15+.5;
     const result={id:take.id,at:take.at,mode:'voice',text,acc:r.acc,dur:take.dur,speed};
     st.p.drill.rd[take.i]=EplodRecords.saveAttempt(st.p.drill.rd[take.i],result);

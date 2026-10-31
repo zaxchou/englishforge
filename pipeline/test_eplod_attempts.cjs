@@ -184,6 +184,29 @@ function memoryChecks() {
   assert.equal(E.repairSpellingScores(spellRecords, () => spellDialogue), 0, 'Spelling repair is idempotent');
   assert.equal(E.repairSpellingScores({course: {'eplod-0016': {drill: {dd: {0: {acc: .5, mode: 'dict', last: cancelledLine, at: 1}}}}}}, () => null), 0, 'Missing dialogue cannot invent a correction');
 
+  // r6(2026-10-31) 人名走音赦免: 语音路径对同前两字母+小编辑距离的词对视为同一词; 默写保持精确。
+  assert.equal(E.fuzzyEqual('julianne', 'julian'), true, 'reported case: Julianne read as Julian');
+  assert.equal(E.fuzzyEqual('mcnealy', 'mclean'), true, 'reported case: McNealy heard as McLean');
+  for (const [a, b] of [['morning', 'warning'], ['seven', 'eleven'], ['thinking', 'drinking'], ['letter', 'better'], ['quick', 'quit'], ['called', 'call']]) {
+    assert.equal(E.fuzzyEqual(a, b), false, 'near-miss stays wrong: ' + a + '/' + b);
+  }
+  assert.deepEqual([...E.normTokens('Miss McNealy')], ['ms', 'mcnealy'], 'Miss/Ms homophone titles unify');
+  assert.deepEqual([...E.normTokens('I miss you')], ['i', 'ms', 'you'], 'verb miss transforms identically on both sides');
+  const nameOfficial = 'Yes, this is Julianne Horton, and I\'m calling to arrange an appointment with Ms. McNealy.';
+  const nameTyped = 'Yes, this is Julian Horton, and I\'m calling to arrange an appointment with Miss McLean.';
+  assert.ok(E.lcsAcc(nameOfficial, nameTyped) < 0.9, 'exact scoring still punishes the slur');
+  assert.equal(E.lcsAccFuzzy(nameOfficial, nameTyped), 1, 'fuzzy scoring forgives the ASR name slur');
+  const nameRecords = { course: { 'eplod-0016': { drill: {
+    rd: {
+      0: { acc: .867, mode: 'voice', last: nameTyped, at: 10 },
+      1: { acc: .6, mode: 'type', last: nameTyped, at: 11 }
+    }
+  }}}};
+  assert.equal(E.repairVoiceFuzzyScores(nameRecords, () => [{ text: nameOfficial }, { text: nameOfficial }]), 1, 'only the voice entry is raised');
+  assert.equal(nameRecords.course['eplod-0016'].drill.rd[0].acc, 1);
+  assert.equal(nameRecords.course['eplod-0016'].drill.rd[1].acc, .6, 'typed entries stay exact');
+  assert.equal(E.repairVoiceFuzzyScores(nameRecords, () => [{ text: nameOfficial }, { text: nameOfficial }]), 0, 'fuzzy repair is idempotent');
+
   // r2(2026-10-30) NUM1 补 20: 官方 "20/20" 须展开成 twenty twenty 才配得上用户读法。
   assert.deepEqual(E.normTokens('20/20'), ['twenty', 'twenty']);
   assert.deepEqual(E.normTokens('2020'), ['two', 'thousand', 'twenty']);
