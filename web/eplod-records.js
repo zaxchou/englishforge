@@ -37,11 +37,16 @@
     for(let k=0;k<UKRULES.length;k++){const t=w.replace(UKRULES[k][0],UKRULES[k][1]);if(t!==w)return t;}
     return UKWORDS[w]||w;
   }
+  /* 语气词互通(r3 2026-10-31): Mmm/Hmm/Um/Uh… ASR 几乎无法稳定区分, 全家族归一到
+     'hmm', 两侧同变换只增匹配。白名单按整词匹配, 真词(ham/hum/mum/her)不受影响;
+     oh 仍归 zero(数字读法), 不入本家族。语料实测 16 种变体全部覆盖。 */
+  const FILLER=/^(h+mm*|m+hmm*|mm+|um+|uh+|uhm+|erm?|eh+|huh+|aha|ugh|ah+)$/;
   function normTokens(s){
     const out=[];
     for(let w of (String(s).toLowerCase().match(/[a-z0-9']+/g)||[])){
       if(w==='okay'){out.push('ok');continue;}
       if(/^\d+$/.test(w)){expandNum(parseInt(w,10),out);continue;}
+      if(FILLER.test(w)){out.push('hmm');continue;}
       out.push(w==='oh'?'zero':usSpelling(w));
     }
     return out;
@@ -291,7 +296,29 @@
     }
     return changed;
   }
-  const api={mergeDrill,mergeLesson,reconcile,saveAttempt,speedPassed,repairSpeedScores,repairOkayScores,repairNumberScores,repairSpellingScores,lcsAcc,normTokens,usSpelling,coverProgress};
+  /* 语气词曾被当错词扣分(r3): 涉及变体的历史成绩用新归一重算, 只升不降, 与数字修复同款。 */
+  function repairFillerScores(records,loadDialogue){
+    let changed=0;
+    const hasFiller=s=>(String(s).toLowerCase().match(/[a-z0-9']+/g)||[]).some(w=>FILLER.test(w));
+    for(const [id,lesson] of Object.entries(records.course||{})){
+      if(!/^eplod-\d{4}$/.test(id))continue;
+      const drill=lesson.drill||{};
+      if(!drill.dd&&!drill.rd)continue;
+      const dialogue=loadDialogue(id);
+      if(!dialogue)continue;
+      for(const kind of ['dd','rd']){
+        for(const [i,r] of Object.entries(drill[kind]||{})){
+          const text=dialogue[+i]&&dialogue[+i].text;
+          if(!text||typeof r.last!=='string'||!r.last.trim()||!Number.isFinite(r.acc))continue;
+          if(!hasFiller(text)&&!hasFiller(r.last))continue;
+          const acc=lcsAcc(text,r.last);
+          if(acc>r.acc+1e-9){r.acc=acc;changed++;}
+        }
+      }
+    }
+    return changed;
+  }
+  const api={mergeDrill,mergeLesson,reconcile,saveAttempt,speedPassed,repairSpeedScores,repairOkayScores,repairNumberScores,repairSpellingScores,repairFillerScores,lcsAcc,normTokens,usSpelling,coverProgress};
   if(typeof module==='object'&&module.exports)module.exports=api;
   else root.EplodRecords=api;
 })(typeof globalThis==='object'?globalThis:this);

@@ -191,6 +191,30 @@ function memoryChecks() {
   const docOfficial = 'Hey doc. Well, I think I might need glasses. I\'m getting headaches, and I really struggle to see things that are far away. But I have always had 20/20 vision.';
   const docTyped = 'Hey doc, well I think I might need glasses. I\'m getting headache, and I really struggle to see things that are far away, but I have always had twenty twenty vision.';
   assert.equal(E.lcsAcc(docOfficial, docTyped).toFixed(3), '0.968', '20/20 matches; only the genuine plural difference remains');
+
+  // r3(2026-10-31) 语气词互通: Mmm/Hmm/Um/Uh… 全家族归一为 'hmm', 真词不受影响。
+  for (const filler of ['hmm', 'hmmm', 'hm', 'mmm', 'mm', 'um', 'umm', 'uh', 'uhh', 'uhm', 'er', 'erm', 'eh', 'huh', 'aha', 'ugh', 'ah', 'mhm', 'mhmm', 'mmhmm']) {
+    assert.deepEqual([...E.normTokens(filler)], ['hmm'], 'filler -> hmm: ' + filler);
+  }
+  assert.deepEqual([...E.normTokens('Mmm. . .')], ['hmm'], '官方 Mmm 与转写 Hmm 互通');
+  assert.deepEqual([...E.normTokens('ham'), ...E.normTokens('hum'), ...E.normTokens('mum'), ...E.normTokens('her')].join(' '), 'ham hum mum her', 'real words stay untouched');
+  assert.equal(E.normTokens('oh').join(' '), 'zero', 'oh remains the digit-zero reading');
+  const mmmOfficial = 'Mmm. . . X, E, R, 3, a question mark, and I can\'t quite make out the other symbol but I think it\'s the peace sign.';
+  const hmmTyped = 'Hmm. X e r three a question mark and I can\'t quite make out the other symbol, but I think it\'s the peace sign.';
+  assert.equal(E.lcsAcc(mmmOfficial, hmmTyped), 1, 'reported case scores full once fillers unify');
+  assert.equal(typeof E.repairFillerScores, 'function');
+  const fillerDialogue = [{ text: mmmOfficial }, { text: source.text }];
+  const fillerRecords = { course: { 'eplod-0016': { drill: {
+    dd: {
+      0: { acc: .93, mode: 'dict', last: hmmTyped, at: 10 },
+      1: { acc: .6, mode: 'dict', last: 'no fillers in this one at all', at: 11 }
+    }
+  }}}};
+  assert.equal(E.repairFillerScores(fillerRecords, () => fillerDialogue), 1, 'only the filler entry is corrected');
+  assert.equal(fillerRecords.course['eplod-0016'].drill.dd[0].acc, 1);
+  assert.equal(fillerRecords.course['eplod-0016'].drill.dd[1].acc, .6, 'entries without fillers stay untouched');
+  assert.equal(E.repairFillerScores(fillerRecords, () => fillerDialogue), 0, 'filler repair is idempotent');
+  assert.equal(E.repairFillerScores({ course: { 'eplod-0016': { drill: { dd: { 0: { acc: .5, mode: 'dict', last: hmmTyped, at: 1 } } } } } }, () => null), 0, 'missing dialogue cannot invent a correction');
   console.log('Attempt identities, independent modes/audio, merge unions and speed evidence passed');
 }
 

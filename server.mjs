@@ -1371,6 +1371,14 @@ if(repairedSpell){
   recordsSave(repaired);RECORDS=repaired;
   console.log('[eplod] corrected UK-spelling scores:',repairedSpell);
 }
+const repairedFiller=EplodRecords.repairFillerScores(RECORDS,id=>{
+  try{return JSON.parse(fs.readFileSync(path.join(BUILD_DIR,'eplod',id.slice(6)+'.json'),'utf8')).dialogue;}catch{return null;}
+});
+if(repairedFiller){
+  const repaired={...RECORDS,revision:(RECORDS.revision||0)+1,saved_at:new Date().toISOString()};
+  recordsSave(repaired);RECORDS=repaired;
+  console.log('[eplod] corrected filler-token scores:',repairedFiller);
+}
 const repairedSpeed=EplodRecords.repairSpeedScores(RECORDS,id=>{
   try{return JSON.parse(fs.readFileSync(path.join(BUILD_DIR,'eplod',id.slice(6)+'.json'),'utf8')).dialogue;}catch{return null;}
 });
