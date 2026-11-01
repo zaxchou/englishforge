@@ -227,6 +227,22 @@ function memoryChecks() {
   assert.equal(slangRecords.course['eplod-0016'].drill.rd[1].acc, 1);
   assert.equal(E.repairSlangScores(slangRecords, () => [{ text: slangOfficial }, { text: slangOfficial }]), 0, 'slang repair is idempotent');
 
+  // r2(2026-11-01) 变音符折叠: décor/fiancé 与 decor/fiance 同词; 预制与分解式 Unicode 都要吃到。
+  assert.deepEqual([...E.normTokens('décor')], ['decor'], 'precomposed é folds');
+  assert.deepEqual([...E.normTokens('de\u0301cor')], ['decor'], 'decomposed e+U+0301 folds too');
+  assert.deepEqual([...E.normTokens('café fiancé cliché')], ['cafe', 'fiance', 'cliche']);
+  const accOfficial = 'and the décor is beautiful';
+  const accTyped = 'and the decor is beautiful';
+  assert.equal(E.lcsAcc(accOfficial, accTyped), 1, 'reported case: décor matches decor');
+  const accRecords = { course: { 'eplod-0016': { drill: {
+    dd: { 0: { acc: .91, mode: 'dict', last: accTyped, at: 10 } },
+    rd: { 1: { acc: .91, mode: 'voice', last: accTyped, at: 11 } }
+  }}}};
+  assert.equal(E.repairSlangScores(accRecords, () => [{ text: accOfficial }, { text: accOfficial }]), 2, 'accented lines gate dd+rd into repair');
+  assert.equal(accRecords.course['eplod-0016'].drill.dd[0].acc, 1);
+  assert.equal(accRecords.course['eplod-0016'].drill.rd[1].acc, 1);
+  assert.equal(E.repairSlangScores(accRecords, () => [{ text: accOfficial }, { text: accOfficial }]), 0, 'accent repair is idempotent');
+
   // r2(2026-10-30) NUM1 补 20: 官方 "20/20" 须展开成 twenty twenty 才配得上用户读法。
   assert.deepEqual(E.normTokens('20/20'), ['twenty', 'twenty']);
   assert.deepEqual(E.normTokens('2020'), ['two', 'thousand', 'twenty']);

@@ -49,7 +49,9 @@
     "'bout":['about'],"'em":['them'],"'cause":['because'],"'til":['till'],"'till":['till'],"'tis":['it','is']};
   function normTokens(s){
     const out=[];
-    for(let w of (String(s).toLowerCase().match(/[a-z0-9']+/g)||[])){
+    /* 变音符折叠(r2 2026-11-01): décor/fiancé/cliché 的 é 若不折叠会被 [a-z] 正则劈成
+       d+cor 两个碎片; 语料里预制(é U+00E9)与分解(e+U+0301)两种形态都出现过, NFD 通吃。 */
+    for(let w of (String(s).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').match(/[a-z0-9']+/g)||[])){
       if(w==='okay'){out.push('ok');continue;}
       if(/^\d+$/.test(w)){expandNum(parseInt(w,10),out);continue;}
       const sl=SLANG[w];
@@ -391,7 +393,7 @@
   /* 缩略词曾被当错词扣分(r7): 涉及 gonna/'bout 等的历史成绩重算, 只升不降, 与数字修复同款。 */
   function repairSlangScores(records,loadDialogue){
     let changed=0;
-    const hasSlang=s=>(String(s).toLowerCase().match(/[a-z0-9']+/g)||[]).some(w=>SLANG[w]||w[0]==="'"||w.slice(-1)==="'");
+    const hasSlang=s=>/[^\x00-\x7F]/.test(s)||(String(s).toLowerCase().match(/[a-z0-9']+/g)||[]).some(w=>SLANG[w]||w[0]==="'"||w.slice(-1)==="'");
     for(const [id,lesson] of Object.entries(records.course||{})){
       if(!/^eplod-\d{4}$/.test(id))continue;
       const drill=lesson.drill||{};

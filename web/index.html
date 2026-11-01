@@ -345,7 +345,7 @@ details.ai-tsec[open] summary{margin-bottom:8px}
 
 </div>
 
-<script src="eplod-records.js?v=10"></script>
+<script src="eplod-records.js?v=11"></script>
 <script src="course-plan-model.js?v=20261029r8"></script>
 <script src="course-plan-ui.js?v=20261030r10"></script>
 <script>
@@ -3863,8 +3863,8 @@ function epResultHTML(text,result){
   if(!result)return '';
   const r=epDiff(text,result.text||'',result&&result.mode==='voice');   /* 语音结果展示走赦免, 默写保持精确 */
   let at=0;
-  const marked=text.split(/([A-Za-z0-9']+)/).map(p=>{
-    if(!/^[A-Za-z0-9']+$/.test(p))return esc(p);
+  const marked=text.split(/([A-Za-z0-9'\u00C0-\u024F\u0300-\u036f]+)/).map(p=>{
+    if(!/^[A-Za-z0-9'\u00C0-\u024F\u0300-\u036f]+$/.test(p))return esc(p);
     const n=EplodRecords.normTokens(p).length;
     const ok=r.marks.slice(at,at+n).every(Boolean);at+=n;
     return '<span class="'+(ok?'ok':'miss')+'">'+esc(p)+'</span>';
