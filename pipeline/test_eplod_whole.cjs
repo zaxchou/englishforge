@@ -98,6 +98,12 @@ test('index.html 接线: 入口卡/取消钩子/刷新点/版本号在位', () =
   assert.match(html, /整篇过=当天这一遍盖满/);
   assert.match(html, /eplod-records\.js\?v=\d+/);
   assert.match(html, /desk\.css\?v=\d{8}r\d+/);   /* 只断言缓存击穿在位, 不钉具体版本号(升级不必改测试) */
+  // r11: 整篇录音对象必须是本体(浅拷贝包装曾让音量计守卫恒真 → 每次都报「没收到声音」)
+  assert.match(html, /st\.wpTake=r;/, 'levelTimer/stop/cancel share one identity');
+  assert.doesNotMatch(html, /st\.wpTake=\{phase:'rec'/, 'no wrapper object');
+  const toggle = html.slice(html.indexOf('async function epWholeToggle('), html.indexOf('async function epWholeProcess('));
+  assert.doesNotMatch(toggle, /t\.cancelled=true/, 'stop means submit, not cancel');
+  assert.match(toggle, /clearTimeout\(t\.startTimer\)/, 'stop during the 250ms settle window kills the start timer');
   // ASR 请求不带 ep/i(终考无偏置)
   const proc = html.slice(html.indexOf('async function epWholeProcess('), html.indexOf('function epStamp('));
   assert.doesNotMatch(proc, /ep:String|ep: st\.l\.ep/);

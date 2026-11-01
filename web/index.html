@@ -4282,9 +4282,10 @@ async function epWholeToggle(){
   const st=EP.st;
   if(!st||!st.active||st.tab!=='train')return;
   const t=st.wpTake;
-  if(t&&t.phase==='rec'){   // 再点一次=停止
-    t.cancelled=true;st.wpTake=null;
-    try{t.rec.stop();}catch(e){}
+  if(t&&t.phase==='rec'){   // 停止=结束录音并送转写(取消走 epCancelRecording)
+    st.wpTake=null;clearTimeout(t.startTimer);
+    try{t.rec.stop();}catch(e){}   // 250ms 静默期内停止: 尚未开录, 启动定时器已清
+    t.stream?.getTracks().forEach(x=>x.stop());
     epWholeUpdate();return;
   }
   if(st.wpTake||st.wpPending||st.recording||st.recPending)return;
@@ -4305,8 +4306,8 @@ async function epWholeToggle(){
   let rec;
   try{rec=new MediaRecorder(stream,mime?{mimeType:mime}:{});}
   catch(e){stream.getTracks().forEach(x=>x.stop());epNote('录音启动失败：'+e.message,st);return;}
-  const chunks=[],r={rec,stream,id,at,t0:at,mime:rec.mimeType||'audio/webm'};
-  st.wpTake={phase:'rec',...r};epWholeUpdate();
+  const chunks=[],r={rec,stream,id,at,t0:at,mime:rec.mimeType||'audio/webm',phase:'rec'};
+  st.wpTake=r;epWholeUpdate();   /* 必须是本体: 音量计/停止/取消都以 st.wpTake===r 判定(r11 2026-11-01) */
   let analyser=null,buf=null,peak=0;
   try{
     const ac=epSharedAC();
@@ -4337,6 +4338,7 @@ async function epWholeToggle(){
     await epWholeProcess(st,{id,at,dur:Math.max(.01,(Date.now()-r.t0)/1000),audio});
   };
   r.startTimer=setTimeout(()=>{
+    if(st.wpTake!==r){try{rec.stop();}catch(e){}stream.getTracks().forEach(x=>x.stop());return;}   /* 静默期内已被取消 */
     try{rec.start();}
     catch(e){st.wpTake=null;clearInterval(r.levelTimer);clearTimeout(r.limitTimer);stream.getTracks().forEach(x=>x.stop());epNote('录音启动失败：'+e.message,st);epWholeUpdate();}
   },250);
