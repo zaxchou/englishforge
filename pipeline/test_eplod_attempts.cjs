@@ -231,6 +231,12 @@ function memoryChecks() {
   assert.deepEqual([...E.normTokens('décor')], ['decor'], 'precomposed é folds');
   assert.deepEqual([...E.normTokens('de\u0301cor')], ['decor'], 'decomposed e+U+0301 folds too');
   assert.deepEqual([...E.normTokens('café fiancé cliché')], ['cafe', 'fiance', 'cliche']);
+  // r3(2026-11-01) 空格+游离组合符伪影: 0024 "d ́ecor"/0353 "clich ́e"——组合符错位成空格+组合符
+  assert.deepEqual([...E.normTokens('d \u0301ecor')], ['decor'], 'space+combining artifact merges into the word');
+  assert.deepEqual([...E.normTokens('clich \u0301e')], ['cliche']);
+  const artOfficial = 'The food is fantastic, and the d \u0301ecor is beautiful.';
+  const artTyped = 'The food is fantastic, and the decor is beautiful.';
+  assert.equal(E.lcsAcc(artOfficial, artTyped), 1, 'reported 0024 artifact scores 1');
   const accOfficial = 'and the décor is beautiful';
   const accTyped = 'and the decor is beautiful';
   assert.equal(E.lcsAcc(accOfficial, accTyped), 1, 'reported case: décor matches decor');
