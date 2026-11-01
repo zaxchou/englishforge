@@ -3806,6 +3806,15 @@ function epNote(text,st=EP.st){
   const n=$('ep-note');if(n){n.style.display=text?'':'none';n.textContent=text;}
 }
 function epTakeKey(st,i){return st.l.id+'/'+i;}
+/* r10 2026-11-01: 录音开头「咚」= 每条新建 AudioContext 触发设备重配的瞬态被录进首帧
+   (实测 4 条 take 全部在 0-40ms 有能量尖峰)。共享页级 AudioContext + 开录前 250ms
+   静默期, 让「咚」发生在捕获开始之前; 句卡与整篇背诵共用。 */
+let EP_AC=null;
+function epSharedAC(){
+  EP_AC=EP_AC||new (window.AudioContext||window.webkitAudioContext)();
+  if(EP_AC.state==='suspended')EP_AC.resume?.();
+  return EP_AC;
+}
 function epTake(st,i){return EP.takes?.[epTakeKey(st,i)];}
 function epHasReplay(st,i){return !!(epTake(st,i)?.url||st.p.drill.rd[i]?.rec);}
 function epStopReplay(){
@@ -3824,16 +3833,18 @@ function epCancelRecording(st=EP.st){
   const r=st.recording;
   if(r){
     r.cancelled=true;st.recording=null;
-    clearInterval(r.levelTimer);clearTimeout(r.limitTimer);
+    clearTimeout(r.startTimer);clearInterval(r.levelTimer);clearTimeout(r.limitTimer);
     try{if(r.rec.state!=='inactive')r.rec.stop();}catch(e){}
+    r.srcNode?.disconnect?.();
     r.stream?.getTracks().forEach(t=>t.stop());
   }
   if(st.wpPending){st.wpPending.cancelled=true;st.wpPending=null;}
   const w=st.wpTake;
   if(w&&w.rec){
     w.cancelled=true;st.wpTake=null;
-    clearInterval(w.levelTimer);clearTimeout(w.limitTimer);
+    clearTimeout(w.startTimer);clearInterval(w.levelTimer);clearTimeout(w.limitTimer);
     try{if(w.rec.state!=='inactive')w.rec.stop();}catch(e){}
+    w.srcNode?.disconnect?.();
     w.stream?.getTracks().forEach(t=>t.stop());
   }
   if(EP.st===st)epRecButton();
@@ -4298,10 +4309,9 @@ async function epWholeToggle(){
   st.wpTake={phase:'rec',...r};epWholeUpdate();
   let analyser=null,buf=null,peak=0;
   try{
-    const AC=window.AudioContext||window.webkitAudioContext;
-    const ac=new AC();r.actx=ac;ac.resume?.();
+    const ac=epSharedAC();
     analyser=ac.createAnalyser();analyser.fftSize=512;
-    ac.createMediaStreamSource(stream).connect(analyser);buf=new Uint8Array(analyser.frequencyBinCount);
+    r.srcNode=ac.createMediaStreamSource(stream);r.srcNode.connect(analyser);buf=new Uint8Array(analyser.frequencyBinCount);
     r.levelTimer=setInterval(()=>{
       if(st.wpTake!==r)return;
       analyser.getByteTimeDomainData(buf);
@@ -4314,8 +4324,8 @@ async function epWholeToggle(){
   r.limitTimer=setTimeout(()=>{if(rec.state==='recording'){if(st.wpTake===r)st.wpTake=null;rec.stop();}},240000);
   rec.ondataavailable=e=>{if(e.data?.size)chunks.push(e.data);};
   rec.onstop=async()=>{
-    stream.getTracks().forEach(x=>x.stop());r.actx?.close().catch(()=>{});
-    clearInterval(r.levelTimer);clearTimeout(r.limitTimer);
+    stream.getTracks().forEach(x=>x.stop());r.srcNode?.disconnect?.();
+    clearInterval(r.levelTimer);clearTimeout(r.limitTimer);clearTimeout(r.startTimer);
     if(st.wpTake===r)st.wpTake=null;
     if(r.cancelled){epWholeUpdate();return;}
     const blob=new Blob(chunks,{type:r.mime});
@@ -4326,8 +4336,10 @@ async function epWholeToggle(){
     const audio=await new Promise(res=>{const fr=new FileReader();fr.onload=()=>res(String(fr.result));fr.readAsDataURL(blob);});
     await epWholeProcess(st,{id,at,dur:Math.max(.01,(Date.now()-r.t0)/1000),audio});
   };
-  try{rec.start();}
-  catch(e){st.wpTake=null;clearInterval(r.levelTimer);clearTimeout(r.limitTimer);stream.getTracks().forEach(x=>x.stop());epNote('录音启动失败：'+e.message,st);epWholeUpdate();}
+  r.startTimer=setTimeout(()=>{
+    try{rec.start();}
+    catch(e){st.wpTake=null;clearInterval(r.levelTimer);clearTimeout(r.limitTimer);stream.getTracks().forEach(x=>x.stop());epNote('录音启动失败：'+e.message,st);epWholeUpdate();}
+  },250);
 }
 async function epWholeProcess(st,take){
   try{
@@ -4480,10 +4492,9 @@ async function epRecToggle(i,card){
   st.recording=r;epRecButton();
   let analyser=null,buf=null,peak=0;
   try{
-    const AC=window.AudioContext||window.webkitAudioContext;
-    const ac=new AC();r.actx=ac;ac.resume?.();
+    const ac=epSharedAC();
     analyser=ac.createAnalyser();analyser.fftSize=512;
-    ac.createMediaStreamSource(stream).connect(analyser);buf=new Uint8Array(analyser.frequencyBinCount);
+    r.srcNode=ac.createMediaStreamSource(stream);r.srcNode.connect(analyser);buf=new Uint8Array(analyser.frequencyBinCount);
     r.levelTimer=setInterval(()=>{
       if(st.recording!==r)return;
       analyser.getByteTimeDomainData(buf);
@@ -4496,8 +4507,8 @@ async function epRecToggle(i,card){
   r.limitTimer=setTimeout(()=>{if(rec.state==='recording'){if(st.recording===r)st.recording=null;rec.stop();}},90000);
   rec.ondataavailable=e=>{if(e.data?.size)chunks.push(e.data);};
   rec.onstop=async()=>{
-    stream.getTracks().forEach(t=>t.stop());r.actx?.close().catch(()=>{});
-    clearInterval(r.levelTimer);clearTimeout(r.limitTimer);
+    stream.getTracks().forEach(t=>t.stop());r.srcNode?.disconnect?.();
+    clearInterval(r.levelTimer);clearTimeout(r.limitTimer);clearTimeout(r.startTimer);
     if(st.recording===r)st.recording=null;
     epRecButton();
     const blob=new Blob(chunks,{type:r.mime});
@@ -4526,8 +4537,10 @@ async function epRecToggle(i,card){
     if(!r.cancelled)await epProcessTake(st,take);
     await archive;
   };
-  try{rec.start();}
-  catch(e){st.recording=null;clearInterval(r.levelTimer);clearTimeout(r.limitTimer);stream.getTracks().forEach(t=>t.stop());r.actx?.close().catch(()=>{});epRecButton();epNote('录音启动失败：'+e.message,st);}
+  r.startTimer=setTimeout(()=>{   /* 250ms 静默期: 设备重配的「咚」落在开录之前 */
+    try{rec.start();}
+    catch(e){st.recording=null;clearInterval(r.levelTimer);clearTimeout(r.limitTimer);stream.getTracks().forEach(t=>t.stop());epRecButton();epNote('录音启动失败：'+e.message,st);}
+  },250);
 }
 function epRecLabel(){
   return '<svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><rect x="7" y="2" width="6" height="10" rx="3"/><path d="M4 9v1a6 6 0 0 0 12 0V9M10 16v2M7 18h6"/></svg><span>朗读这句</span>';
