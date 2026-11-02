@@ -3256,11 +3256,9 @@ function epCoverMarks(state,gold){
 }
 function epNavCoverHTML(l){
   const state=epCoverState(REC.course[l.id],l.dialogue_count??EP.cache[l.ep]?.dialogue.length??0);
-  const wbest=REC.course[l.id]?.drill?.wp?.best;
-  const ngold=!!(wbest&&Number.isFinite(wbest.acc)&&wbest.acc>=.9);
-  const label=state.completed===3?(ngold?'覆盖背诵三遍完成 · 含整篇背诵':'覆盖背诵三遍完成'):state.completed?'覆盖背诵待第 '+(state.completed+1)+' 遍':'覆盖背诵尚未开始';
+  const label=state.completed===3?'覆盖背诵三遍完成':state.completed?'覆盖背诵待第 '+(state.completed+1)+' 遍':'覆盖背诵尚未开始';
   const caption=state.completed===3?'三遍完成':state.completed?'待第'+(state.completed+1)+'遍':'背诵';
-  return '<span class="ep-nav-cover'+(state.completed===3?' full':'')+'" title="'+label+'" aria-label="'+label+'"><span class="ep-nav-caption">'+caption+'</span>'+epCoverMarks(state,ngold)+'</span>';
+  return '<span class="ep-nav-cover'+(state.completed===3?' full':'')+'" title="'+label+'" aria-label="'+label+'"><span class="ep-nav-caption">'+caption+'</span>'+epCoverMarks(state)+'</span>';
 }
 function epNavCoverUpdate(){
   const c=courseById(csPick);if(c?.kind!=='eplod')return;

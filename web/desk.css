@@ -1688,7 +1688,7 @@ body.vfull .cs-stage video.tfl{max-height:none}
 .ep-round.gold.final{background:linear-gradient(135deg,#ecc873,#c99b2e);border-color:#c99b2e;color:#5c4408}
 .ep-cover-stars.gold .ep-round{border-color:#d9b45c;color:#a8842a}
 .ep-cover-stars.gold .ep-round.complete{background:#f5df9e;color:#7a5c0e}
-.ep-nav-cover.gold .ep-round{color:#c79a35}
+
 .ep-cover-label{display:flex;flex-direction:column;gap:3px;min-width:0}
 .ep-cover-label b{font-size:13px;font-weight:600;white-space:nowrap;color:var(--t1)}
 .ep-cover-label small{display:flex;flex-wrap:wrap;gap:0 5px;font-size:13px;line-height:1.4;color:var(--t2)}

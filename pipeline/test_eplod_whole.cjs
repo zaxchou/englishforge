@@ -116,7 +116,7 @@ test('index.html 接线: 入口卡/取消钩子/刷新点/版本号在位', () =
   assert.doesNotMatch(dictSubmit, /epDiff\([^)]*true\)/, 'dictation submit stays exact');
   // r7(2026-11-02): 整篇背诵达成 → 三颗星升金(用户定案: 不占新位置); 覆盖区与导航列表同源
   assert.match(html, /epCoverMarks\(state,gold\)/, 'coverage stars take the gold flag');
-  assert.match(html, /epCoverMarks\(state,ngold\)/, 'nav cover stars take the gold flag');
+  assert.doesNotMatch(html, /epCoverMarks\(state,ngold\)/, 'EP list keeps plain stars (9px gold is illegible, reverted)');
   assert.match(html, /drill\.wp&&Number\.isFinite\(drill\.wp\.best\?\.acc\)&&drill\.wp\.best\.acc>=\.9/, 'gold gated on a passing whole take');
   const cssSrc = fs.readFileSync(path.join(__dirname, '..', 'web', 'desk.css'), 'utf8');
   assert.match(cssSrc, /\.ep-round\.gold\.complete/, 'gold star styles present');
