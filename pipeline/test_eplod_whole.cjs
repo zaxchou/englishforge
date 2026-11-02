@@ -91,6 +91,27 @@ test('epRdPassed: 逐句 rd 全过才解锁', () => {
   assert.equal(epRdPassed(st), true);
 });
 
+test('目录金星: 整篇通过门槛与覆盖次数分别保留', () => {
+  sandbox.REC = { course: {} };
+  sandbox.EP = { cache: {} };
+  sandbox.epDay = () => '2026-11-02';
+  vm.runInContext(html.slice(html.indexOf('const EP_STAR='), html.indexOf('function epNavCoverUpdate(')) + ';this.__navCover=epNavCoverHTML;', sandbox);
+  const lesson = { id: 'eplod-0023', ep: '0023', dialogue_count: 3 };
+  for (const [acc, gold] of [[undefined, false], [.899, false], [.9, true], [.98, true], [NaN, false], [Infinity, false], ['0.98', false]]) {
+    for (let rounds = 0; rounds <= 3; rounds++) {
+      const stampDays = Object.fromEntries(Array.from({ length: rounds }, (_, i) => ['2026-10-' + (28 + i), [0, 1, 2]]));
+      sandbox.REC.course[lesson.id] = { drill: { stampDays, wp: { best: { acc }, latest: { acc: .4 } } } };
+      const output = sandbox.__navCover(lesson);
+      assert.equal((output.match(/class="ep-round gold/g) || []).length, gold ? 3 : 0, '通过后的三颗星原位变金，不受后来失败成绩影响');
+      assert.equal((output.match(/class="ep-round(?: gold)? complete/g) || []).length, rounds, '换色不补填未完成的复背日期');
+      assert.equal(output.includes('整篇背诵已通过'), gold, '悬浮与无障碍说明对应真实整篇状态');
+      assert.equal((output.match(/role="img"/g) || []).length, 3, '仍只占原来三颗星的位置');
+    }
+  }
+  delete sandbox.REC.course[lesson.id];
+  assert.doesNotMatch(sandbox.__navCover(lesson), /ep-round gold/, '没有学习记录时不出现整篇成就');
+});
+
 test('index.html 接线: 入口卡/取消钩子/刷新点/版本号在位', () => {
   assert.match(html, /id="ep-whole"/);
   assert.match(html, /epWholeUpdate\(\);\s*\/\/ 逐句背诵通过数变化/);
@@ -114,10 +135,4 @@ test('index.html 接线: 入口卡/取消钩子/刷新点/版本号在位', () =
   assert.match(html, /epDiff\(text,result\.text\|\|'',result&&result\.mode==='voice'\)/, 'display fuzziness follows the stored mode');
   const dictSubmit = html.slice(html.indexOf("placeholder=\"写出你听到的内容"), html.indexOf('placeholder="看中文线索'));
   assert.doesNotMatch(dictSubmit, /epDiff\([^)]*true\)/, 'dictation submit stays exact');
-  // r7(2026-11-02): 整篇背诵达成 → 三颗星升金(用户定案: 不占新位置); 覆盖区与导航列表同源
-  assert.match(html, /epCoverMarks\(state,gold\)/, 'coverage stars take the gold flag');
-  assert.doesNotMatch(html, /epCoverMarks\(state,ngold\)/, 'EP list keeps plain stars (9px gold is illegible, reverted)');
-  assert.match(html, /drill\.wp&&Number\.isFinite\(drill\.wp\.best\?\.acc\)&&drill\.wp\.best\.acc>=\.9/, 'gold gated on a passing whole take');
-  const cssSrc = fs.readFileSync(path.join(__dirname, '..', 'web', 'desk.css'), 'utf8');
-  assert.match(cssSrc, /\.ep-round\.gold\.complete/, 'gold star styles present');
 });

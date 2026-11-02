@@ -1681,14 +1681,6 @@ body.vfull .cs-stage video.tfl{max-height:none}
 .ep-round.complete{border-color:var(--okln);background:var(--okbg);color:var(--ok);min-width:32px;border-radius:999px}
 .ep-round.current{border-color:var(--accln);color:var(--acc)}
 .ep-round.final{background:var(--acc);border-color:var(--acc);color:var(--card)}
-/* 整篇背诵金星(2026-11-02.r7): 达成整篇脱稿背诵后三颗星升金, 完成=金底, 未完成=金描边 */
-.ep-round.gold{border-color:#d9b45c;color:#a8842a}
-.ep-round.gold.complete{background:#f5df9e;border-color:#caa53d;color:#7a5c0e}
-.ep-round.gold.current{border-color:#caa53d;color:#a8842a}
-.ep-round.gold.final{background:linear-gradient(135deg,#ecc873,#c99b2e);border-color:#c99b2e;color:#5c4408}
-.ep-cover-stars.gold .ep-round{border-color:#d9b45c;color:#a8842a}
-.ep-cover-stars.gold .ep-round.complete{background:#f5df9e;color:#7a5c0e}
-
 .ep-cover-label{display:flex;flex-direction:column;gap:3px;min-width:0}
 .ep-cover-label b{font-size:13px;font-weight:600;white-space:nowrap;color:var(--t1)}
 .ep-cover-label small{display:flex;flex-wrap:wrap;gap:0 5px;font-size:13px;line-height:1.4;color:var(--t2)}
@@ -1701,9 +1693,6 @@ body.vfull .cs-stage video.tfl{max-height:none}
 #ep-list .cli .lt{flex:none;display:block;overflow:visible;-webkit-line-clamp:unset;line-height:1.45}
 .ep-nav-cover{display:flex;align-items:center;flex-wrap:wrap;gap:4px;color:var(--t2);font-size:12px;line-height:1.4}
 .ep-nav-caption{margin-right:2px}
-.ep-nav-cover .ep-round{min-width:19px;height:19px;font-size:11px}
-.ep-nav-cover .ep-round.complete{min-width:26px}
-.ep-nav-cover .ep-round svg{width:9px;height:9px}
 @media(max-width:700px){
   .ep-cov{padding:10px 0}
   .ep-cover-track{gap:5px}
@@ -2133,20 +2122,21 @@ html.sb-min .nav-label{display:none!important}   /* 收缩侧栏只留图标 */
   border:0;background:transparent;min-width:0;width:26px;height:26px;border-radius:0;padding:0}
 .ep-round svg{width:26px;height:26px;display:block}
 /* 未得=柔和实心幽灵星(用户: 灰描边丑且与进行中分不清); 进行中=浅绿填充+绿描边呼吸; 已得=绿实心 */
-.ep-round svg path{fill:#d9dfd2;stroke:none}
-.ep-round.complete svg path{fill:var(--acc);stroke:var(--acc)}
-.ep-round.current svg path{fill:transparent;stroke:var(--acc);stroke-width:1.7;stroke-linejoin:round}
+.ep-round svg path{fill:var(--ep-star-empty,#d9dfd2);stroke:var(--ep-star-empty-stroke,none);stroke-linejoin:round}
+.ep-round.complete svg path{fill:var(--ep-star-color,var(--acc));stroke:var(--ep-star-color,var(--acc))}
+.ep-round.current svg path{fill:transparent;stroke:var(--ep-star-color,var(--acc));stroke-width:1.7}
+/* 整篇通过只改变星形颜色, 外层始终透明; 覆盖次数仍决定实心/空心。 */
+.ep-round.gold{--ep-star-color:#ad7613;--ep-star-empty:transparent;--ep-star-empty-stroke:var(--ep-star-color)}
+.ep-round.gold.final svg{filter:none}
 .ep-round.current svg{animation:ep-star-breathe 1.8s ease-in-out infinite;transform-origin:center;transform-box:fill-box}
 @keyframes ep-star-breathe{0%,100%{transform:scale(1)}50%{transform:scale(1.14)}}
 .ep-round.final svg{filter:drop-shadow(0 0 5px rgba(73,105,87,.4))}
-.ep-nav-cover .ep-round{width:15px;height:15px}
+.ep-nav-cover .ep-round{min-width:0;width:15px;height:15px}
 .ep-nav-cover .ep-round svg{width:15px;height:15px}
 .ep-cover-stars{display:inline-flex;gap:1px;flex:none}
 .ep-cover-stars .ep-round{width:13px;height:13px}
 .ep-cover-stars .ep-round svg{width:13px;height:13px}
 .ep-cover-stars .ep-round.current svg{animation:none}
-/* 目录行星等宽(旧 min-width:26px 只作用于已得星, 三颗宽度不齐) */
-.ep-nav-cover .ep-round.complete{min-width:0}
 
 /* ============================================================
    r15 · 首页每日打卡条(用户拍板: 每日打卡/连续天数/今日目标时间):
@@ -2377,10 +2367,9 @@ html.sb-min .nav-label{display:none!important}   /* 收缩侧栏只留图标 */
 #ep-list .cli.ecli.on .ld{color:#c3cfc1}
 #ep-list .cli.ecli.on .ep-nav-cover{color:#d5e0d2}
 #ep-list .cli.ecli.on .ep-nav-caption{color:#d9e4d6}
-#ep-list .cli.ecli.on .ep-round svg path{fill:transparent;stroke:#a9bdae;stroke-width:1.5}
-#ep-list .cli.ecli.on .ep-round.complete svg path{fill:#e7f0ca;stroke:#e7f0ca}
-#ep-list .cli.ecli.on .ep-round.current svg path{fill:transparent;stroke:#e7f0ca}
-#ep-list .cli.ecli.on .ep-round.final svg path{fill:#e7f0ca;stroke:#e7f0ca}
+#ep-list .cli.ecli.on .ep-round{--ep-star-color:#e7f0ca;--ep-star-empty:transparent;--ep-star-empty-stroke:#a9bdae}
+#ep-list .cli.ecli.on .ep-round svg path{stroke-width:1.5}
+#ep-list .cli.ecli.on .ep-round.gold{--ep-star-color:#f2c35d;--ep-star-empty-stroke:var(--ep-star-color)}
 /* r15 细节: 手机目录展开能多看几行; EP 搜索框/分组头/课程头与行的左缘对齐 */
 @media(max-width:800px){
   body.course-fixed .csnav{max-height:min(52dvh,460px)}
