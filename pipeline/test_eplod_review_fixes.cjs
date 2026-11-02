@@ -191,7 +191,7 @@ async function main() {
     assert.equal(h.calls.filter(c => c.route).length, 0);
   });
   await run('C1 whole normal stop sends exactly one unbiased synthetic ASR and stamps the day', async () => {
-    const h = harness(); await h.ctx.epWholeToggle(); await h.advance(1200); await h.ctx.epWholeToggle(); await h.advance(0);
+    const h = harness(); await h.ctx.epWholeToggle(); await h.advance(4900); await h.ctx.epWholeToggle(); await h.advance(0);
     const routes = h.calls.filter(c => c.route);
     assert.equal(routes.length, 1); assert.equal(routes[0].route, '/api/eplod/asr');
     assert.deepEqual(Object.keys(routes[0].body), ['audio']);
@@ -201,6 +201,22 @@ async function main() {
     const stamps = h.calls.filter(c => c.stamp);
     assert.equal(stamps.length, h.st.d.dialogue.length);
     assert.ok(stamps.every(c => c.stamp === h.st.l.id));
+  });
+  await run('R10 whole take clearly shorter than the source fails fast without ASR; near-source length still scores', async () => {
+    const h = harness(); await h.ctx.epWholeToggle(); await h.advance(1200); await h.ctx.epWholeToggle(); await h.advance(0);
+    assert.equal(h.calls.filter(c => c.route).length, 0, 'short take never reaches ASR');
+    assert.equal(h.st.p.drill.wp, undefined, 'short take writes no score');
+    assert.equal(h.st.wpTake.phase, 'error');
+    assert.match(h.st.wpTake.error, /短太多/);
+    assert.match(h.st.wpTake.error, /录音 1，比原文 5 短太多/);   // 测试桩 fmtDur 原样输出秒数, 应用里渲染为 0:01/0:05
+    assert.equal(h.recorders[0].state, 'inactive');
+    assert.equal(h.streams[0].track.stopped, true);
+    assert.equal(h.intervals(), 0);
+    const h2 = harness();
+    h2.st.d.dialogue = [{text: 'Short line.', t0: 0, t1: 0.6}, {text: 'Another one.', t0: 1, t1: 1.2}];
+    await h2.ctx.epWholeToggle(); await h2.advance(1200); await h2.ctx.epWholeToggle(); await h2.advance(0);
+    assert.equal(h2.calls.filter(c => c.route === '/api/eplod/asr').length, 1, 'near-source take still goes to scoring');
+    assert.equal(h2.st.wpTake.phase, 'result');
   });
   await run('C2 pending permission and active whole cancel both release resources without ASR', async () => {
     for (const kind of ['whole', 'sentence']) {

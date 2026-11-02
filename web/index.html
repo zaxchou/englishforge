@@ -4378,10 +4378,18 @@ async function epWholeToggle(){
     if(!blob.size){epWholeUpdate();return;}
     if(analyser&&peak<8){epWholeUpdate();epNote('麦克风没有收到声音，请检查输入设备后重新背诵。',st);return;}
     if(blob.size>8*1024*1024){epWholeUpdate();epNote('录音过大，无法上传，请缩短后重试。',st);return;}   /* 8MB 对齐服务端有效上限(11MB base64 门 ≈8.25MB 二进制) */
+    const taken=Math.max(.01,(Date.now()-r.t0)/1000);
+    /* 用户定案(2026-11-02): 背诵只会比原音慢, 录音明显短于原文=肯定没背完, 不送检测直接判失败重录 */
+    const anchored=st.d.dialogue.every(x=>Number.isFinite(x.t0)&&Number.isFinite(x.t1)&&x.t1>x.t0);
+    const srcDur=anchored?st.d.dialogue.reduce((s,x)=>s+(x.t1-x.t0),0):0;
+    if(anchored&&taken<srcDur*.9){
+      st.wpTake={phase:'error',error:'这次录音 '+fmtDur(Math.round(taken))+'，比原文 '+fmtDur(Math.round(srcDur))+' 短太多——整篇还没背完，本次不送检测，请重新背诵。'};
+      epWholeUpdate();return;
+    }
     st.wpTake={phase:'processing'};epWholeUpdate();
     try{
       const audio=await new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(String(fr.result));fr.onerror=()=>rej(Error('录音读取失败，请重新背诵。'));fr.readAsDataURL(blob);});
-      await epWholeProcess(st,{id,at,dur:Math.max(.01,(Date.now()-r.t0)/1000),audio});
+      await epWholeProcess(st,{id,at,dur:taken,audio});
     }catch(e){st.wpTake={phase:'error',error:e.message};epWholeUpdate();}
   };
   r.startTimer=setTimeout(()=>{
