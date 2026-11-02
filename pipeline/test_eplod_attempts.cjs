@@ -2,6 +2,7 @@
 
 // Dedicated recording/attempt regressions. All writes and HTTP traffic stay in an OS temp directory.
 // Run with: node pipeline/test_eplod_attempts.cjs
+// Use --memory-only for pure fixtures without starting server.mjs or loading its local environment file.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -184,7 +185,7 @@ function memoryChecks() {
   assert.equal(E.repairSpellingScores(spellRecords, () => spellDialogue), 0, 'Spelling repair is idempotent');
   assert.equal(E.repairSpellingScores({course: {'eplod-0016': {drill: {dd: {0: {acc: .5, mode: 'dict', last: cancelledLine, at: 1}}}}}}, () => null), 0, 'Missing dialogue cannot invent a correction');
 
-  // r6(2026-10-31) 人名走音赦免: 语音路径对同前两字母+小编辑距离的词对视为同一词; 默写保持精确。
+  // R6: 语音赦免仅接受已确认的人名变体; 普通形近词和数词保持精确。
   assert.equal(E.fuzzyEqual('julianne', 'julian'), true, 'reported case: Julianne read as Julian');
   assert.equal(E.fuzzyEqual('mcnealy', 'mclean'), true, 'reported case: McNealy heard as McLean');
   for (const [a, b] of [['morning', 'warning'], ['seven', 'eleven'], ['thinking', 'drinking'], ['letter', 'better'], ['quick', 'quit'], ['called', 'call']]) {
@@ -202,8 +203,10 @@ function memoryChecks() {
       1: { acc: .6, mode: 'type', last: nameTyped, at: 11 }
     }
   }}}};
-  assert.equal(E.repairVoiceFuzzyScores(nameRecords, () => [{ text: nameOfficial }, { text: nameOfficial }]), 1, 'only the voice entry is raised');
-  assert.equal(nameRecords.course['eplod-0016'].drill.rd[0].acc, 1);
+  assert.equal(E.repairVoiceFuzzyScores(nameRecords, () => [{ text: nameOfficial }, { text: nameOfficial }]), 2, 'only the evidenced latest voice score and its version are written');
+  assert.equal(nameRecords.course['eplod-0016'].drill.rd[0].acc, .867, 'Unknown historical best is preserved');
+  assert.equal(nameRecords.course['eplod-0016'].drill.rd[0].lastAcc, 1);
+  assert.equal(nameRecords.course['eplod-0016'].drill.rd[0].lastScoringVersion, E.SCORING_VERSION);
   assert.equal(nameRecords.course['eplod-0016'].drill.rd[1].acc, .6, 'typed entries stay exact');
   assert.equal(E.repairVoiceFuzzyScores(nameRecords, () => [{ text: nameOfficial }, { text: nameOfficial }]), 0, 'fuzzy repair is idempotent');
 
@@ -392,7 +395,12 @@ async function endpointChecks() {
     const records = (await json('/api/records')).body;
     assert.equal(E.speedPassed(records.course['eplod-0016'].drill.sd[0]), true, 'Server boot persists valid legacy evidence');
     assert.equal(E.speedPassed(records.course['eplod-0016'].drill.sd[1]), false);
-    assert.deepEqual(records.course['eplod-0016'].drill.rd, seed.course['eplod-0016'].drill.rd);
+    const correctedRd = clone(seed.course['eplod-0016'].drill.rd);
+    for (const value of Object.values(correctedRd)) {
+      value.lastAcc = E.lcsAccFuzzy(source.text, value.last);
+      value.lastScoringVersion = E.SCORING_VERSION;
+    }
+    assert.deepEqual(records.course['eplod-0016'].drill.rd, correctedRd, 'Boot corrects evidenced latest scores while preserving historical aggregates');
     assert.deepEqual(records.course['eplod-0016'].drill.stampDays, {old: [0, 1]});
     const persisted = JSON.parse(fs.readFileSync(path.join(dirs.records, 'records.json'), 'utf8'));
     assert.equal(persisted.course['eplod-0016'].drill.sd[0].verified, true);
@@ -403,4 +411,6 @@ async function endpointChecks() {
   }
 }
 memoryChecks();
-endpointChecks().catch(error => { console.error(error); process.exitCode = 1; });
+if (!process.argv.includes('--memory-only')) {
+  endpointChecks().catch(error => { console.error(error); process.exitCode = 1; });
+}

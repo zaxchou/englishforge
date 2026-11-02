@@ -85,7 +85,8 @@ try {
    默认 DeepSeek deepseek-chat：非思考模式、即点即出，符合「关闭思考、速度优先」。 */
 try {
   const envLocal = path.join(__dirname, '.env.local');
-  if (fs.existsSync(envLocal)) {
+  if (process.env.TFL_SKIP_ENV_LOCAL === '1') console.log('[server] TFL_SKIP_ENV_LOCAL=1: skip .env.local (test isolation)');
+  else if (fs.existsSync(envLocal)) {
     for (const line of fs.readFileSync(envLocal, 'utf8').split(/\r?\n/)) {
       const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*?)\s*$/);
       if (m && process.env[m[1]] === undefined) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '');
@@ -1379,14 +1380,6 @@ if(repairedFiller){
   recordsSave(repaired);RECORDS=repaired;
   console.log('[eplod] corrected filler-token scores:',repairedFiller);
 }
-const repairedFuzzy=EplodRecords.repairVoiceFuzzyScores(RECORDS,id=>{
-  try{return JSON.parse(fs.readFileSync(path.join(BUILD_DIR,'eplod',id.slice(6)+'.json'),'utf8')).dialogue;}catch{return null;}
-});
-if(repairedFuzzy){
-  const repaired={...RECORDS,revision:(RECORDS.revision||0)+1,saved_at:new Date().toISOString()};
-  recordsSave(repaired);RECORDS=repaired;
-  console.log('[eplod] corrected name-slur voice scores:',repairedFuzzy);
-}
 const repairedSlang=EplodRecords.repairSlangScores(RECORDS,id=>{
   try{return JSON.parse(fs.readFileSync(path.join(BUILD_DIR,'eplod',id.slice(6)+'.json'),'utf8')).dialogue;}catch{return null;}
 });
@@ -1394,6 +1387,37 @@ if(repairedSlang){
   const repaired={...RECORDS,revision:(RECORDS.revision||0)+1,saved_at:new Date().toISOString()};
   recordsSave(repaired);RECORDS=repaired;
   console.log('[eplod] corrected slang-contraction scores:',repairedSlang);
+}
+/* 严格语音评分校正(R6 2026-11-02): 在全部归一修复之后执行, 只按各自原始转写重算有证据的
+   voice/latest/wp 结果; 聚合 rd.acc 等无证据字段保留。变更写入私有审计文件。 */
+const eplodDialogue=id=>{
+  try{return JSON.parse(fs.readFileSync(path.join(BUILD_DIR,'eplod',id.slice(6)+'.json'),'utf8')).dialogue;}catch{return null;}
+};
+function auditScoreRepairs(result,tag){
+  if(!result?.changes?.length)return;
+  try{
+    const file=path.join(RECORDS_DIR,'score-repairs-audit.json');
+    let log={version:1,entries:[]};
+    try{const old=JSON.parse(fs.readFileSync(file,'utf8'));if(old&&Array.isArray(old.entries))log=old;}catch{}
+    log.entries.push(...result.changes.map(c=>({at:new Date().toISOString(),tag,...c})));
+    if(log.entries.length>800)log.entries=log.entries.slice(-800);
+    const tmp=file+'.tmp',fd=fs.openSync(tmp,'w');
+    try{fs.writeFileSync(fd,JSON.stringify(log));fs.fsyncSync(fd);}finally{fs.closeSync(fd);}
+    fs.renameSync(tmp,file);
+  }catch(e){console.warn('[eplod] score audit write failed:',e.message);}
+}
+function correctVoiceScores(target,tag){
+  let result;
+  try{result=EplodRecords.repairVoiceScores(target,eplodDialogue);}
+  catch(e){console.warn('[eplod] voice score correction failed ('+tag+'):',e.message);return 0;}
+  auditScoreRepairs(result,tag);
+  return result.changed||0;
+}
+const correctedVoice=correctVoiceScores(RECORDS,'boot');
+if(correctedVoice){
+  const repaired={...RECORDS,revision:(RECORDS.revision||0)+1,saved_at:new Date().toISOString()};
+  recordsSave(repaired);RECORDS=repaired;
+  console.log('[eplod] corrected voice scores against strict scoring:',correctedVoice);
 }
 const repairedSpeed=EplodRecords.repairSpeedScores(RECORDS,id=>{
   try{return JSON.parse(fs.readFileSync(path.join(BUILD_DIR,'eplod',id.slice(6)+'.json'),'utf8')).dialogue;}catch{return null;}
@@ -1630,9 +1654,11 @@ const handler = async (req, res) => {
         if (inc?.revision !== (RECORDS.revision || 0)) return sendJSON(res, 409, {error:'records conflict', revision:RECORDS.revision || 0});
         let next;
         try { next = nextRecords(inc); if(inc.snapshotId){if(typeof inc.snapshotId!=='string'||!/^[\w-]{8,100}$/.test(inc.snapshotId))throw Error('invalid snapshot id');next.snapshotEvents={...(RECORDS.snapshotEvents||{}),[inc.snapshotId]:true};} } catch (e) { return sendJSON(res, 400, {error:e.message}); }
+        /* 旧客户端可能回传宽赦评分(R6): 合并后按严格口径再校正一次, 与启动修复同一套审计 */
+        const inboundFixed=correctVoiceScores(next,'snapshot');
         try { recordsSave(next); } catch (e) { console.error('[records]',e.message); return sendJSON(res, 503, {error:'records not persisted'}); }
         RECORDS = next;
-        return sendJSON(res, 200, { ok: true, revision:RECORDS.revision, saved_at: RECORDS.saved_at });
+        return sendJSON(res, 200, { ok: true, revision:RECORDS.revision, saved_at: RECORDS.saved_at, corrected: inboundFixed || undefined });
       }
       return sendJSON(res, 405, { error: 'method' });
     }

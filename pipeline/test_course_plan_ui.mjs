@@ -39,7 +39,7 @@ test('courses whose titles already carry section numbers hide the duplicate sequ
 });
 test('managed mistakes stay outside automatic due batch and persisted conflict is acknowledged',()=>{const html=fs.readFileSync(new URL('../web/index.html',import.meta.url),'utf8');assert.match(html,/if\(!r.ok&&!j.attemptSaved\)throw/);const batch=html.slice(html.indexOf('async function startDueReview('),html.indexOf('function reviewEntries('));assert.match(batch,/!cpManaged\(k\)/);assert.match(html,/cpAcceptAttempt\(item,j\)/);});
 test('due prompt picks the first unsnoozed lesson and snooze is one day with pruning',()=>{const c=context();
-  c.ctx.localStorage={store:{},getItem(k){return this.store[k]??null;},setItem(k,v){this.store[k]=v;}};
+  c.ctx.localStorage={store:{},getItem(k){return this.store[k]??null;},setItem(k,v){this.store[k]=String(v);},removeItem(k){delete this.store[k];},get length(){return Object.keys(this.store).length;},key(i){return Object.keys(this.store)[i]??null;}};
   assert.equal(c.run("cpDuePick(['a','b'],{},'2026-10-31')"),'a');
   assert.equal(c.run("cpDuePick(['a','b'],{a:'2026-10-31'},'2026-10-31')"),'b','snoozed lesson is skipped for the day');
   assert.equal(c.run("cpDuePick(['a'],{a:'2026-10-31'},'2026-11-01')"),'a','snooze expires the next day');

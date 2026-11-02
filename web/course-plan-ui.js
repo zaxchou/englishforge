@@ -113,20 +113,36 @@ function cpAcceptAttempt(item,j){if(j.plan&&CP.data)CP.data.plans[j.plan.lessonI
    本地只负责去打扰: 「稍后」的课当天记入 tfl-cp-snooze; 答题中/正开着该课页不弹。 ---- */
 function cpTodayKey(){return new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Shanghai'});}
 function cpDuePick(recs,snooze,day){return (Array.isArray(recs)?recs:[]).find(lid=>snooze[lid]!==day)||null;}
-function cpSnoozeLoad(){try{return JSON.parse(localStorage.getItem('tfl-cp-snooze')||'{}')||{};}catch(e){return {};}}
-function cpSnooze(lid){const day=cpTodayKey();CP.snooze=CP.snooze||cpSnoozeLoad();for(const k of Object.keys(CP.snooze))if(CP.snooze[k]!==day)delete CP.snooze[k];CP.snooze[lid]=day;try{localStorage.setItem('tfl-cp-snooze',JSON.stringify(CP.snooze));}catch(e){}}
+function cpSnoozeLoad(){
+  let out={};try{const old=JSON.parse(localStorage.getItem('tfl-cp-snooze')||'{}');if(old&&typeof old==='object'&&!Array.isArray(old))out={...old};}catch(e){}
+  const day=cpTodayKey(),prefix='tfl-cp-snooze/'+day+'/';
+  try{for(let i=0;i<localStorage.length;i++){const key=localStorage.key(i);if(key?.startsWith(prefix)&&localStorage.getItem(key)===day)out[decodeURIComponent(key.slice(prefix.length))]=day;}}catch(e){}
+  return out;
+}
+function cpSnooze(lid){
+  const day=cpTodayKey(),prefix='tfl-cp-snooze/'+day+'/';
+  CP.snooze={...CP.snooze,...cpSnoozeLoad()};
+  for(const key of Object.keys(CP.snooze))if(CP.snooze[key]!==day)delete CP.snooze[key];
+  CP.snooze[lid]=day;
+  /* 每课独立键防止并发覆盖; 旧聚合键继续兼容已有页面。 */
+  try{localStorage.setItem(prefix+encodeURIComponent(lid),day);localStorage.setItem('tfl-cp-snooze',JSON.stringify(CP.snooze));
+    for(let i=localStorage.length-1;i>=0;i--){const key=localStorage.key(i);if(key?.startsWith('tfl-cp-snooze/')&&!key.startsWith(prefix))localStorage.removeItem(key);}
+  }catch(e){}
+}
 function cpBadgeUpdate(){const b=$('cp-bell');if(!b)return;const n=CP.data&&Array.isArray(CP.data.recommendations)?CP.data.recommendations.length:0;b.hidden=!n;if(n)b.title='有 '+n+' 课复习到期，点击开始';const t=b.querySelector('#cp-bell-n');if(t)t.textContent=n>9?'9+':String(n||'');}
 function cpBadgeGo(){const d=CP.data;if(!d)return;const recs=d.recommendations||[];
   if(recs.length){cpOpenLesson(recs[0]);return;}
   if(Object.keys(d.plans||{}).length){csCourseGo('review');history.replaceState(null,'','#/course/review');}}
 function cpDuePromptShow(lid){
+  CP.closePrompt?.();
   const old=document.getElementById('cp-due-mask');if(old)old.remove();
   const p=cpPlan(lid),target=p?.target||CP.data?.settings?.target||3,n=p?.stamps?.length||0,mask=document.createElement('div');
-  mask.id='cp-due-mask';mask.className='cp-due-mask';
+  mask.id='cp-due-mask';mask.className='cp-due-mask';mask.dataset.lesson=lid;
   const line=p&&p.active?'本遍还没盖完章，接着做完就能盖上。':p&&p.complete?'这门课已盖满章，可以自由回顾。':'第 '+(n+1)+' 遍（共 '+target+' 遍）到期了，今天做完就能盖上这一章。';
   mask.innerHTML='<div class="cp-due" role="dialog" aria-modal="true" aria-label="复习到期提醒"><p class="cp-due-kicker">复习到期</p><b>'+esc(cpLessonName(lid))+'</b><p>'+line+'</p><div class="cp-due-actions"><button class="pri" id="cp-due-now">马上学习</button><button id="cp-due-later">稍后学习</button></div></div>';
   const onKey=e=>{if(e.key==='Escape'){cpSnooze(lid);close();}};
-  const close=()=>{document.removeEventListener('keydown',onKey);mask.remove();};
+  const close=()=>{document.removeEventListener('keydown',onKey);mask.remove();if(CP.closePrompt===close)CP.closePrompt=null;};
+  CP.closePrompt=close;
   mask.addEventListener('click',e=>{if(e.target===mask){cpSnooze(lid);close();}});
   mask.querySelector('#cp-due-now').onclick=()=>{cpSnooze(lid);close();cpOpenLesson(lid);};   /* 学了也记同日不再弹, 口径=每课每天至多一次 */
   mask.querySelector('#cp-due-later').onclick=()=>{cpSnooze(lid);close();};
@@ -137,6 +153,7 @@ function cpDuePromptShow(lid){
 async function cpDueCheck(){try{await cpLoad();}catch(e){return;}
   cpBadgeUpdate();
   if(document.hidden||document.getElementById('cp-due-mask'))return;
+  if(typeof epWholeLocked==='function'&&epWholeLocked())return;
   if(GQ_UI&&(GQ_UI.phase==='answer'||GQ_UI.phase==='prep'||GQ_UI.planRound))return;   /* 答题中不打断, 下一轮提醒再看 */
   if(location.hash.startsWith('#/course'))return;   /* 人已在课程/复习页, 不重复打扰(不依赖页面状态就位时序) */
   const lid=cpDuePick(CP.data&&CP.data.recommendations,cpSnoozeLoad(),cpTodayKey());   /* 每次实时回读, 多标签页共享同一天的稍后记录 */
@@ -148,4 +165,10 @@ function cpDueWatch(){
   if(CP.timer)return;
   CP.timer=setInterval(()=>{if(!document.hidden)cpDueCheck();},240000);
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)cpDueCheck();});
+  window.addEventListener('storage',e=>{
+    if(e.key!=='tfl-cp-snooze'&&!e.key?.startsWith('tfl-cp-snooze/'))return;
+    CP.snooze=cpSnoozeLoad();
+    const mask=document.getElementById('cp-due-mask');
+    if(mask&&CP.snooze[mask.dataset.lesson]===cpTodayKey())CP.closePrompt?.();
+  });
 }

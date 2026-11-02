@@ -8,7 +8,7 @@
 <link rel="icon" type="image/png" sizes="96x96" href="/assets/brand/t-dot-v1/t-dot-96.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/assets/brand/t-dot-v1/t-dot-180.png">
 <title>TOEFL Lab · 托福自学练习</title>
-<link rel="stylesheet" href="desk.css?v=20261102r8">
+<link rel="stylesheet" href="desk.css?v=20261102r9">
 <style>
 /* 应用层补充样式（视觉基线在 desk.css，不改它的既有规则） */
 /* 单词与字符格保持同一行；焦点、已填、判题状态沿用研读桌配色。 */
@@ -345,9 +345,9 @@ details.ai-tsec[open] summary{margin-bottom:8px}
 
 </div>
 
-<script src="eplod-records.js?v=12"></script>
+<script src="eplod-records.js?v=13"></script>
 <script src="course-plan-model.js?v=20261029r8"></script>
-<script src="course-plan-ui.js?v=20261030r10"></script>
+<script src="course-plan-ui.js?v=20261102r11"></script>
 <script>
 'use strict';
 /* ============================================================
@@ -3554,22 +3554,26 @@ function epWire(){
   });
   a.addEventListener('seeked',()=>{st.seekPending=false;});
   a.addEventListener('playing',()=>{const n=$('ep-note');if(n&&/音频加载中|播放未能|定位|备用/.test(n.textContent))n.style.display='none';});
-  /* r9 2026-10-31: 手机媒体加载器兜底——页面/API/ASR 都正常但 <audio> 播不出时,
-     常见根因是自签证书的证书例外不被部分手机浏览器的媒体加载器继承。
-     失败时改用 fetch(常规网络栈, 例外生效)拉同一 URL 转 blob 再播, 并自动续上刚才的播放意图;
-     fetch 也失败则把真实错误摆到 ep-note, 便于回报定位。error 事件与 15s 加载超时都走这里。 */
+  /* 直连失败时改用 fetch + blob。请求只属于当前音源；停止、录音、切课会使它失效。 */
+  st.audioSource=st.d.audio[st.seg]||a.src;
   const epBlobFix=reason=>{
-    if(a.dataset.epFix||!a.src)return false;
-    a.dataset.epFix='1';
-    const src=a.currentSrc||a.src;
+    if(st.blobTried||!st.audioSource||EP.st!==st||!st.active||epWholeLocked(st))return false;
+    const src=st.audioSource,controller=typeof AbortController==='function'?new AbortController():null;
+    const request={source:src,controller};st.blobRequest=request;st.blobTried=true;a.dataset.epFix='1';
+    const current=()=>EP.st===st&&st.active&&st.blobRequest===request&&st.audioSource===src&&$('ep-audio')===a&&!epWholeLocked(st)&&!st.recording&&!st.recPending;
     epNote('音频直连播放失败('+reason+')，正在尝试备用加载…',st);
-    fetch(src,{cache:'no-cache'}).then(r=>{if(!r.ok)throw Error('HTTP '+r.status);return r.blob();}).then(b=>{
-      a.src=URL.createObjectURL(b);a.load();
-      if(EP.st===st&&st.playTarget)epStartPlayback(st.playTarget);
-      else epNote('音频已改用备用方式加载，请再点一次播放。',st);
+    fetch(src,{cache:'no-cache',...(controller?{signal:controller.signal}:{})}).then(async r=>{
+      if(!current())return;if(!r.ok)throw Error('HTTP '+r.status);
+      const blob=await r.blob();if(!current())return;
+      const target=st.playTarget,resume=target&&!st.playSession?.completed;
+      if(resume)st.cancelSeek?.();
+      if(st.blobURL)URL.revokeObjectURL(st.blobURL);
+      st.blobURL=URL.createObjectURL(blob);a.src=st.blobURL;a.load();
+      if(resume)st.seekTo(target.t0);   /* 续播不重新计考试次数, 也不取消新录音 */
+      else if(!target)epNote('音频已改用备用方式加载，请再点一次播放。',st);
     }).catch(e=>{
-      epNote('音频加载失败：'+reason+' · 备用加载也失败('+e.message+')。请截图告诉我这个提示。',st);
-    });
+      if(current())epNote('音频加载失败：'+reason+' · 备用加载也失败('+e.message+')。请截图告诉我这个提示。',st);
+    }).finally(()=>{if(st.blobRequest===request)st.blobRequest=null;});
     return true;
   };
   a.addEventListener('error',()=>{
@@ -3682,7 +3686,7 @@ function epWire(){
   /* 键盘: 空格播放/暂停 · Z 重听 · X 循环 · C 揭示 */
   if(EP.keyHandler)document.removeEventListener('keydown',EP.keyHandler);
   EP.keyHandler=e=>{
-    if(!EP.st||!document.querySelector('#v-course.on'))return;
+    if(!EP.st||epWholeLocked(EP.st)||!document.querySelector('#v-course.on'))return;
     if(e.target&&/^(INPUT|SELECT|TEXTAREA|AUDIO|BUTTON|SUMMARY)$/.test(e.target.tagName))return;
     if(e.target&&e.target.isContentEditable)return;
     const a2=$('ep-audio');if(!a2)return;
@@ -3711,7 +3715,7 @@ function epWire(){
 }
 
 function epTab(m){
-  const tabs=$('ep-tabs');if(!tabs)return;
+  const tabs=$('ep-tabs');if(!tabs||epWholeLocked())return;
   if(!['listen','train','chunks'].includes(m))m='listen';
   if(EP.st.tab!==m){epCancelRecording();epStopOriginal();epStopReplay();}
   EP.st.tab=m;
@@ -3816,70 +3820,105 @@ function epSharedAC(){
   if(EP_AC.state==='suspended')EP_AC.resume?.();
   return EP_AC;
 }
+function epReleaseCapture(r){
+  if(!r||r.released)return;
+  r.released=true;
+  clearTimeout(r.startTimer);clearInterval(r.levelTimer);clearTimeout(r.limitTimer);
+  r.srcNode?.disconnect?.();
+  r.stream?.getTracks().forEach(t=>t.stop());
+}
+function epStopCapture(st,r,whole=false){
+  clearTimeout(r.startTimer);
+  const started=r.rec.state!=='inactive';
+  if(whole&&st.wpTake===r)st.wpTake=started&&!r.cancelled?{phase:'processing'}:null;
+  if(!whole&&st.recording===r)st.recording=null;
+  if(!started)r.cancelled=true;
+  try{if(started)r.rec.stop();}catch(e){r.cancelled=true;if(whole)st.wpTake=null;}
+  epReleaseCapture(r);
+}
+function epWholeLocked(st=EP.st){return !!(st&&(st.wpPending||st.wpTake&&['rec','processing'].includes(st.wpTake.phase)));}
+function epWholeIsolation(st,locked=epWholeLocked(st)){
+  if(EP.st!==st)return;
+  if(locked&&!st.wpHidden){
+    const targets=['ep-blist','ep-tabs','ep-materials','ep-cov','ep-progress'].map(id=>$(id));
+    targets.push(document.querySelector('.ep-stage'),document.querySelector('#ep-train>.phead'));
+    st.wpHidden=targets.filter(Boolean).map(el=>({el,hidden:el.hidden,inert:el.inert}));
+    for(const x of st.wpHidden){x.el.hidden=true;x.el.inert=true;x.el.classList.add('ep-whole-hidden');}
+  }else if(!locked&&st.wpHidden){
+    for(const x of st.wpHidden){x.el.classList.remove('ep-whole-hidden');x.el.hidden=x.hidden;x.el.inert=x.inert;}
+    st.wpHidden=null;
+  }
+}
+function epInvalidatePlayback(st,release=false){
+  if(!st)return;
+  st.playIntent=(st.playIntent||0)+1;
+  if(st.blobRequest){st.blobRequest.controller?.abort();st.blobRequest=null;st.blobTried=false;}
+  if(release){if(st.blobURL)URL.revokeObjectURL(st.blobURL);st.blobURL=null;st.blobTried=false;}
+  if(!st.blobTried&&EP.st===st){const a=$('ep-audio');if(a)delete a.dataset.epFix;}
+}
 function epTake(st,i){return EP.takes?.[epTakeKey(st,i)];}
 function epHasReplay(st,i){return !!(epTake(st,i)?.url||st.p.drill.rd[i]?.rec);}
 function epStopReplay(){
   const replay=EP.replay;if(!replay)return;
-  replay.pause();EP.replay=null;
+  EP.replay=null;EP.replayKey=null;
+  replay._epCancelled=true;replay._epAbort?.abort();replay.onended=null;replay.onerror=null;replay.pause();
+  if(replay._epBlobURL){URL.revokeObjectURL(replay._epBlobURL);replay._epBlobURL=null;}
   document.querySelectorAll('.elisten-me,.elisten-row').forEach(b=>b.classList.remove('playing'));
 }
 function epStopOriginal(st=EP.st){
-  st?.cancelSeek?.();
-  if(st)st.seekSeq=(st.seekSeq||0)+1;
+  st?.cancelSeek?.();epInvalidatePlayback(st);
+  if(st){st.seekSeq=(st.seekSeq||0)+1;st.playTarget=null;st.playSession=null;st.range=null;}
   $('ep-audio')?.pause();
 }
 function epCancelRecording(st=EP.st){
   if(!st)return;
   if(st.recPending){st.recPending.cancelled=true;st.recPending=null;}
   const r=st.recording;
-  if(r){
-    r.cancelled=true;st.recording=null;
-    clearTimeout(r.startTimer);clearInterval(r.levelTimer);clearTimeout(r.limitTimer);
-    try{if(r.rec.state!=='inactive')r.rec.stop();}catch(e){}
-    r.srcNode?.disconnect?.();
-    r.stream?.getTracks().forEach(t=>t.stop());
-  }
+  if(r){r.cancelled=true;epStopCapture(st,r);}
   if(st.wpPending){st.wpPending.cancelled=true;st.wpPending=null;}
   const w=st.wpTake;
-  if(w&&w.rec){
-    w.cancelled=true;st.wpTake=null;
-    clearTimeout(w.startTimer);clearInterval(w.levelTimer);clearTimeout(w.limitTimer);
-    try{if(w.rec.state!=='inactive')w.rec.stop();}catch(e){}
-    w.srcNode?.disconnect?.();
-    w.stream?.getTracks().forEach(t=>t.stop());
-  }
-  if(EP.st===st)epRecButton();
+  if(w&&w.rec){w.cancelled=true;epStopCapture(st,w,true);}
+  if(EP.st===st){epRecButton();epWholeIsolation(st);}
 }
 function epLeave(){
   const st=EP.st;if(!st)return;
-  epCancelRecording(st);epStopOriginal(st);epStopReplay();
+  epCancelRecording(st);epStopOriginal(st);epStopReplay();epInvalidatePlayback(st,true);epWholeIsolation(st,false);
   st.active=false;
 }
 async function epReplay(i){
-  const st=EP.st;if(!st||!epHasReplay(st,i))return;
+  const st=EP.st;if(!st||!st.active||epWholeLocked(st)||!epHasReplay(st,i))return;
   if(EP.replay&&EP.replayKey===epTakeKey(st,i)){epStopReplay();return;}
   epCancelRecording(st);epStopOriginal(st);epStopReplay();
   const take=epTake(st,i),src=take?.url||'/media/rec/'+encodeURIComponent(st.p.drill.rd[i].rec);
   const a=new Audio(src);EP.replay=a;EP.replayKey=epTakeKey(st,i);
+  const current=()=>EP.replay===a&&EP.st===st&&st.active&&!a._epCancelled&&!epWholeLocked(st);
   const finish=()=>{if(EP.replay===a)epStopReplay();};
-  a.onended=finish;a.onerror=async()=>{if(EP.replay!==a)return;
-    /* r9: 与主音频同款 blob 兜底(手机媒体加载器证书例外问题) */
-    if(!a.dataset.epFix&&!src.startsWith('blob:')){a.dataset.epFix='1';
-      try{const r=await fetch(src);if(!r.ok)throw Error('HTTP '+r.status);a.src=URL.createObjectURL(await r.blob());await a.play();return;}catch(e){}
-    }
-    finish();epNote('录音暂时无法回放，请重试；可以重新朗读保存一份。',st);};
+  const recover=async()=>{
+    if(!current()||a._epFixing)return;
+    if(a.dataset.epFix||src.startsWith('blob:')){finish();epNote('录音暂时无法回放，请重试；可以重新朗读保存一份。',st);return;}
+    a.dataset.epFix='1';a._epFixing=true;
+    a._epAbort=typeof AbortController==='function'?new AbortController():null;
+    try{
+      const r=await fetch(src,a._epAbort?{signal:a._epAbort.signal}:{});if(!current())return;if(!r.ok)throw Error('HTTP '+r.status);
+      const blob=await r.blob();if(!current())return;
+      a._epBlobURL=URL.createObjectURL(blob);a.src=a._epBlobURL;
+      await a.play();if(!current()){a.pause();if(a._epBlobURL){URL.revokeObjectURL(a._epBlobURL);a._epBlobURL=null;}}
+    }catch(e){if(current()){finish();epNote('录音暂时无法回放，请重试；可以重新朗读保存一份。',st);}}
+    finally{a._epFixing=false;}
+  };
+  a.onended=finish;a.onerror=recover;
   document.querySelectorAll('.elisten-me,.elisten-row').forEach(b=>b.classList.toggle('playing',+b.dataset.i===i));
-  try{await a.play();}catch(e){if(EP.replay===a){finish();epNote('回听未能开始，请再点一次回听。',st);}}
+  try{await a.play();}catch(e){if(current())await recover();}
 }
 function epResultHTML(text,result){
   if(!result)return '';
   const r=epDiff(text,result.text||'',result&&result.mode==='voice');   /* 语音结果展示走赦免, 默写保持精确 */
+  /* R7: 显示与判分共用 tokenSegments 的词段切分, 避免「d ́ecor」类伪影词被拆片后索引错位 */
   let at=0;
-  const marked=text.split(/([A-Za-z0-9'\u00C0-\u024F\u0300-\u036f]+)/).map(p=>{
-    if(!/^[A-Za-z0-9'\u00C0-\u024F\u0300-\u036f]+$/.test(p))return esc(p);
-    const n=EplodRecords.normTokens(p).length;
-    const ok=r.marks.slice(at,at+n).every(Boolean);at+=n;
-    return '<span class="'+(ok?'ok':'miss')+'">'+esc(p)+'</span>';
+  const marked=EplodRecords.tokenSegments(text).map(seg=>{
+    if(!seg.tokens.length)return esc(seg.text);
+    const ok=r.marks.slice(at,at+seg.tokens.length).every(Boolean);at+=seg.tokens.length;
+    return '<span class="'+(ok?'ok':'miss')+'">'+esc(seg.text)+'</span>';
   }).join('');
   const passed=r.acc>=.9;
   return '<div class="ep-result'+(passed?' pass':'')+'"><div class="ep-result-head"><b>'+(passed?'✓ 本次通过':'本次词准 '+Math.round(r.acc*100)+'%')+'</b><span>'+(passed?'词准 '+Math.round(r.acc*100)+'%':'通过线 90%')+'</span></div>'
@@ -4024,7 +4063,7 @@ function epRenderList(){
 }
 
 function epGo(i,play){
-  const st=EP.st;if(!st)return;
+  const st=EP.st;if(!st||epWholeLocked(st))return;
   const n=st.d.dialogue.length;
   i=Math.max(0,Math.min(n-1,i));
   if(st.ai!==i){epCancelRecording(st);epStopReplay();}
@@ -4066,7 +4105,9 @@ function epPlaybackCountUpdate(){
   }
 }
 function epStartPlayback(target,{resume=false,loop=false,continuous=false,startAt=null}={}){
-  const st=EP.st,a=$('ep-audio');if(!st||!a)return false;
+  const st=EP.st,a=$('ep-audio');if(!st||!a||!st.active||epWholeLocked(st))return false;
+  st.playIntent=(st.playIntent||0)+1;
+  if(!st.blobURL&&!st.blobRequest){st.blobTried=false;delete a.dataset.epFix;}
   if(!target||!Number.isFinite(target.t0)){
     if(st.seg==='dg'&&st.tab==='train'&&!epAnchored(st.ai))epNote('本句尚无音频定位，播放类操作不可用；可用默写完成。',st);
     return false;
@@ -4093,8 +4134,8 @@ function epStartPlayback(target,{resume=false,loop=false,continuous=false,startA
   st.seekTo(position);return true;
 }
 function epTogglePlayback(){
-  const st=EP.st,a=$('ep-audio');if(!st||!a)return;
-  if(!a.paused){a.pause();return;}
+  const st=EP.st,a=$('ep-audio');if(!st||!a||epWholeLocked(st))return;
+  if(!a.paused||(st.blobRequest&&st.playTarget)){epInvalidatePlayback(st);st.cancelSeek?.();st.seekSeq=(st.seekSeq||0)+1;a.pause();return;}
   const target=epPlaybackTarget();
   if(target&&a.currentTime>=target.t0&&(target.t1==null||a.currentTime<target.t1-.03)&&!st.playSession){
     epStartPlayback(target,{startAt:a.currentTime,continuous:st.tab!=='train'});
@@ -4245,6 +4286,11 @@ function epWholeAdvice(st,score,dur){
 }
 function epWholeUpdate(){
   const st=EP.st,host=$('ep-whole');if(!host||!st||!st.d)return;
+  epWholeIsolation(st);
+  if(st.wpPending){
+    host.hidden=false;host.innerHTML='<div class="wp-live"><b>正在准备麦克风…</b><button id="ep-whole-cancel">取消</button></div>';
+    host.querySelector('#ep-whole-cancel').onclick=()=>{epCancelRecording(st);epWholeUpdate();};return;
+  }
   if(st.wpTake)return epWholeLive(host,st);
   const drill=st.p.drill,ready=epRdPassed(st),best=drill.wp?.best,passed=Number(best?.acc)>=.9;
   const rdN=st.d.dialogue.filter((_,i)=>drill.rd?.[i]?.acc>=.9).length;
@@ -4259,8 +4305,10 @@ function epWholeUpdate(){
 function epWholeLive(host,st){
   const t=st.wpTake;host.hidden=false;
   if(t.phase==='rec'){
-    host.innerHTML='<div class="wp-live"><b class="ing">● 背诵中</b><span class="rt">0:00</span><span class="lv"><i></i></span><button id="ep-whole-stop">停止</button><p>脱稿背完整课对话，原文已隐藏。</p></div>';
+    host.innerHTML='<div class="wp-live"><b class="ing">● 背诵中</b><span class="rt">0:00</span><span class="lv"><i></i></span><button class="pri" id="ep-whole-stop">停止并检测</button><button id="ep-whole-cancel">取消</button><p>脱稿背完整课对话，停止后检测整篇。</p></div>';
     host.querySelector('#ep-whole-stop').onclick=()=>epWholeToggle();
+    host.querySelector('#ep-whole-cancel').onclick=()=>{epCancelRecording(st);epWholeUpdate();};
+    host.querySelector('#ep-whole-stop').focus?.();
     return;
   }
   if(t.phase==='processing'){
@@ -4283,30 +4331,27 @@ async function epWholeToggle(){
   const st=EP.st;
   if(!st||!st.active||st.tab!=='train')return;
   const t=st.wpTake;
-  if(t&&t.phase==='rec'){   // 停止=结束录音并送转写(取消走 epCancelRecording)
-    st.wpTake=null;clearTimeout(t.startTimer);
-    try{t.rec.stop();}catch(e){}   // 250ms 静默期内停止: 尚未开录, 启动定时器已清
-    t.stream?.getTracks().forEach(x=>x.stop());
-    epWholeUpdate();return;
+  if(t&&t.phase==='rec'){   // 开录后停止才送转写; 缓冲期内停止直接释放资源
+    epStopCapture(st,t,true);epWholeUpdate();return;
   }
   if(st.wpTake||st.wpPending||st.recording||st.recPending)return;
   if(!epRdPassed(st))return;
   epCancelRecording(st);epStopOriginal(st);epStopReplay();
-  const pending={whole:true};st.wpPending=pending;
+  const pending={whole:true,cancelled:false};st.wpPending=pending;epWholeUpdate();
   let stream;
   try{stream=await navigator.mediaDevices.getUserMedia({audio:true});}
   catch(e){
     if(st.wpPending===pending){st.wpPending=null;epWholeUpdate();epNote('麦克风不可用：'+e.message,st);}
     return;
   }
-  if(st.wpPending!==pending||!st.active||EP.st!==st){stream.getTracks().forEach(x=>x.stop());return;}
+  if(st.wpPending!==pending||pending.cancelled||!st.active||EP.st!==st||st.tab!=='train'){stream.getTracks().forEach(x=>x.stop());return;}
   st.wpPending=null;
   const at=EP.lastAttemptAt=Math.max(Date.now(),(EP.lastAttemptAt||0)+1),id=at.toString(36)+'-'+Math.random().toString(36).slice(2,12);
   let mime='';
   for(const m of ['audio/webm;codecs=opus','audio/webm','audio/mp4'])if(window.MediaRecorder&&MediaRecorder.isTypeSupported(m)){mime=m;break;}
   let rec;
   try{rec=new MediaRecorder(stream,mime?{mimeType:mime}:{});}
-  catch(e){stream.getTracks().forEach(x=>x.stop());epNote('录音启动失败：'+e.message,st);return;}
+  catch(e){stream.getTracks().forEach(x=>x.stop());epWholeUpdate();epNote('录音启动失败：'+e.message,st);return;}
   const chunks=[],r={rec,stream,id,at,t0:at,mime:rec.mimeType||'audio/webm',phase:'rec'};
   st.wpTake=r;epWholeUpdate();   /* 必须是本体: 音量计/停止/取消都以 st.wpTake===r 判定(r11 2026-11-01) */
   let analyser=null,buf=null,peak=0;
@@ -4323,11 +4368,10 @@ async function epWholeToggle(){
       const rt=box?.querySelector('.rt');if(rt)rt.textContent=fmtDur(Math.floor((Date.now()-r.t0)/1000));
     },150);
   }catch(e){}
-  r.limitTimer=setTimeout(()=>{if(rec.state==='recording'){if(st.wpTake===r)st.wpTake=null;rec.stop();}},240000);
+  r.limitTimer=setTimeout(()=>{if(st.wpTake===r){epStopCapture(st,r,true);epWholeUpdate();}},240000);
   rec.ondataavailable=e=>{if(e.data?.size)chunks.push(e.data);};
   rec.onstop=async()=>{
-    stream.getTracks().forEach(x=>x.stop());r.srcNode?.disconnect?.();
-    clearInterval(r.levelTimer);clearTimeout(r.limitTimer);clearTimeout(r.startTimer);
+    epReleaseCapture(r);
     if(st.wpTake===r)st.wpTake=null;
     if(r.cancelled){epWholeUpdate();return;}
     const blob=new Blob(chunks,{type:r.mime});
@@ -4335,13 +4379,17 @@ async function epWholeToggle(){
     if(analyser&&peak<8){epWholeUpdate();epNote('麦克风没有收到声音，请检查输入设备后重新背诵。',st);return;}
     if(blob.size>8*1024*1024){epWholeUpdate();epNote('录音过大，无法上传，请缩短后重试。',st);return;}   /* 8MB 对齐服务端有效上限(11MB base64 门 ≈8.25MB 二进制) */
     st.wpTake={phase:'processing'};epWholeUpdate();
-    const audio=await new Promise(res=>{const fr=new FileReader();fr.onload=()=>res(String(fr.result));fr.readAsDataURL(blob);});
-    await epWholeProcess(st,{id,at,dur:Math.max(.01,(Date.now()-r.t0)/1000),audio});
+    try{
+      const audio=await new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(String(fr.result));fr.onerror=()=>rej(Error('录音读取失败，请重新背诵。'));fr.readAsDataURL(blob);});
+      await epWholeProcess(st,{id,at,dur:Math.max(.01,(Date.now()-r.t0)/1000),audio});
+    }catch(e){st.wpTake={phase:'error',error:e.message};epWholeUpdate();}
   };
   r.startTimer=setTimeout(()=>{
-    if(st.wpTake!==r){try{rec.stop();}catch(e){}stream.getTracks().forEach(x=>x.stop());return;}   /* 静默期内已被取消 */
-    try{rec.start();}
-    catch(e){st.wpTake=null;clearInterval(r.levelTimer);clearTimeout(r.limitTimer);stream.getTracks().forEach(x=>x.stop());epNote('录音启动失败：'+e.message,st);epWholeUpdate();}
+    if(st.wpTake!==r||r.cancelled||!st.active||EP.st!==st||st.tab!=='train'){
+      r.cancelled=true;epReleaseCapture(r);if(st.wpTake===r)st.wpTake=null;epWholeUpdate();return;
+    }
+    try{r.t0=Date.now();rec.start();}
+    catch(e){st.wpTake=null;epReleaseCapture(r);epNote('录音启动失败：'+e.message,st);epWholeUpdate();}
   },250);
 }
 async function epWholeProcess(st,take){
@@ -4351,7 +4399,7 @@ async function epWholeProcess(st,take){
     const text=String(j.text||'').trim();
     if(!text)throw Error('没有识别到内容，请回听检查后重新背诵');
     const score=epWholeScore(st,text);
-    const result={id:take.id,at:take.at,mode:'whole',text,acc:score.acc,dur:take.dur,per:score.per,extra:score.extra};
+    const result={id:take.id,at:take.at,mode:'whole',text,acc:score.acc,dur:take.dur,per:score.per,extra:score.extra,scoringVersion:EplodRecords.SCORING_VERSION};
     const drill=st.p.drill;
     drill.wp=EplodRecords.mergeDrill({wp:drill.wp},{wp:{latest:result,best:result}}).wp;
     if(score.acc>=.9){
@@ -4450,7 +4498,7 @@ async function epProcessTake(st,take){
     if(!text)throw Error('没有识别到内容，请回听录音后重试识别或重新朗读');
     const u=st.d.dialogue[take.i],r=epDiff(u.text,text,true),sourceDur=u.t1-u.t0;
     const speed=r.acc>=.9&&u.t0!=null&&Number.isFinite(sourceDur)&&sourceDur>0&&take.dur>0&&take.dur<=sourceDur*1.15+.5;
-    const result={id:take.id,at:take.at,mode:'voice',text,acc:r.acc,dur:take.dur,speed};
+    const result={id:take.id,at:take.at,mode:'voice',text,acc:r.acc,dur:take.dur,speed,scoringVersion:EplodRecords.SCORING_VERSION};
     st.p.drill.rd[take.i]=EplodRecords.saveAttempt(st.p.drill.rd[take.i],result);
     if(speed){
       const old=st.p.drill.sd?.[take.i];
@@ -4467,11 +4515,9 @@ async function epProcessTake(st,take){
 }
 async function epRecToggle(i,card){
   const st=EP.st;
-  if(!st||!st.active||st.tab!=='train'||st.ai!==i||!card?.isConnected)return;
+  if(!st||!st.active||st.tab!=='train'||st.ai!==i||!card?.isConnected||epWholeLocked(st))return;
   if(st.recording&&st.recording.i===i){
-    const r=st.recording;st.recording=null;
-    try{r.rec.stop();}catch(e){}
-    epRecButton();return;
+    epStopCapture(st,st.recording);epRecButton();return;
   }
   if(st.recPending)return;
   epCancelRecording(st);epStopOriginal(st);epStopReplay();
@@ -4508,11 +4554,10 @@ async function epRecToggle(i,card){
       const rt=card.querySelector('.ep-rec .rt');if(rt)rt.textContent=fmtDur(Math.floor((Date.now()-r.t0)/1000));
     },150);
   }catch(e){}
-  r.limitTimer=setTimeout(()=>{if(rec.state==='recording'){if(st.recording===r)st.recording=null;rec.stop();}},90000);
+  r.limitTimer=setTimeout(()=>{if(st.recording===r){epStopCapture(st,r);epRecButton();}},90000);
   rec.ondataavailable=e=>{if(e.data?.size)chunks.push(e.data);};
   rec.onstop=async()=>{
-    stream.getTracks().forEach(t=>t.stop());r.srcNode?.disconnect?.();
-    clearInterval(r.levelTimer);clearTimeout(r.limitTimer);clearTimeout(r.startTimer);
+    epReleaseCapture(r);
     if(st.recording===r)st.recording=null;
     epRecButton();
     const blob=new Blob(chunks,{type:r.mime});
@@ -4541,9 +4586,12 @@ async function epRecToggle(i,card){
     if(!r.cancelled)await epProcessTake(st,take);
     await archive;
   };
-  r.startTimer=setTimeout(()=>{   /* 250ms 静默期: 设备重配的「咚」落在开录之前 */
-    try{rec.start();}
-    catch(e){st.recording=null;clearInterval(r.levelTimer);clearTimeout(r.limitTimer);stream.getTracks().forEach(t=>t.stop());epRecButton();epNote('录音启动失败：'+e.message,st);}
+  r.startTimer=setTimeout(()=>{
+    if(st.recording!==r||r.cancelled||!st.active||EP.st!==st||st.ai!==i||st.tab!=='train'){
+      r.cancelled=true;epReleaseCapture(r);if(st.recording===r)st.recording=null;epRecButton();return;
+    }
+    try{r.t0=Date.now();rec.start();}
+    catch(e){st.recording=null;epReleaseCapture(r);epRecButton();epNote('录音启动失败：'+e.message,st);}
   },250);
 }
 function epRecLabel(){
@@ -4593,15 +4641,16 @@ function epDockNo(){
 }
 
 function epSeg(seg){
-  const st=EP.st;if(!st)return;
-  epCancelRecording(st);epStopReplay();
+  const st=EP.st;if(!st||epWholeLocked(st)||!st.d.audio[seg])return;
+  epCancelRecording(st);epStopReplay();epInvalidatePlayback(st,true);
   st.cancelSeek?.();st.seekSeq=(st.seekSeq||0)+1;
   clearTimeout(st._iSeekT);st._iSeek=false;st.seekPending=false;
   const previous=$('ep-audio');if(previous){epSavePos();previous.pause();}st.playSession=null;st.playTarget=null;
   st.seg=seg;st.range=null;st.i=-1;st.loop=false;st.stopAtEnd=false;
   $('ep-loop').classList.remove('on');
   st.restorePosition=true;st.p.audioSeg=seg;recSave();
-  const a=$('ep-audio');if(a){a.src=st.d.audio[seg];}
+  st.audioSource=st.d.audio[seg];
+  const a=$('ep-audio');if(a){a.src=st.audioSource;a.load();}
   $('cs-main').querySelectorAll('.ep-segs button').forEach(b=>b.classList.toggle('on',b.dataset.seg===seg));
   epHighlight(-1);
   if(seg==='pb'){const materials=$('ep-materials'),det=$('ep-expl');if(materials)materials.open=true;if(det)det.open=true;}

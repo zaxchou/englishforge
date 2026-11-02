@@ -2438,6 +2438,7 @@ html.sb-min .nav-label{display:none!important}   /* 收缩侧栏只留图标 */
    入口卡/录音态/结果卡同用暖纸卡语言; 逐句徽章绿=稳/黄=弱。
    ============================================================ */
 .ep-whole{margin:0 0 12px;border:1px solid var(--line);border-radius:10px;background:var(--sunk);padding:12px 14px}
+.ep-whole-hidden{display:none!important}
 .wp-head{display:flex;align-items:center;gap:14px}
 .wp-head>div{flex:1;min-width:0}
 .wp-head b{display:block;font-size:14px;color:var(--t1)}

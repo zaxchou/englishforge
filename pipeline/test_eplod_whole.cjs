@@ -124,7 +124,7 @@ test('index.html 接线: 入口卡/取消钩子/刷新点/版本号在位', () =
   assert.doesNotMatch(html, /st\.wpTake=\{phase:'rec'/, 'no wrapper object');
   const toggle = html.slice(html.indexOf('async function epWholeToggle('), html.indexOf('async function epWholeProcess('));
   assert.doesNotMatch(toggle, /t\.cancelled=true/, 'stop means submit, not cancel');
-  assert.match(toggle, /clearTimeout\(t\.startTimer\)/, 'stop during the 250ms settle window kills the start timer');
+  assert.match(toggle, /epStopCapture\(st,t,true\)/, 'settle-window stop releases capture through the shared cleanup');
   // ASR 请求不带 ep/i(终考无偏置)
   const proc = html.slice(html.indexOf('async function epWholeProcess('), html.indexOf('function epStamp('));
   assert.doesNotMatch(proc, /ep:String|ep: st\.l\.ep/);
@@ -135,4 +135,10 @@ test('index.html 接线: 入口卡/取消钩子/刷新点/版本号在位', () =
   assert.match(html, /epDiff\(text,result\.text\|\|'',result&&result\.mode==='voice'\)/, 'display fuzziness follows the stored mode');
   const dictSubmit = html.slice(html.indexOf("placeholder=\"写出你听到的内容"), html.indexOf('placeholder="看中文线索'));
   assert.doesNotMatch(dictSubmit, /epDiff\([^)]*true\)/, 'dictation submit stays exact');
+  // R3/R6/R7(2026-11-02): 整篇背诵隔离提示; 严格评分版本随结果落盘; 显示共用 tokenSegments
+  assert.match(html, /function epWholeIsolation\(st,locked=epWholeLocked\(st\)\)/, 'whole take hides hint surfaces');
+  assert.match(html, /const marked=EplodRecords\.tokenSegments\(text\)\.map/, 'word display shares the scorer tokenization');
+  assert.ok((html.match(/scoringVersion:EplodRecords\.SCORING_VERSION/g) || []).length >= 2, 'voice and whole results carry the scoring version');
+  const cssSrc = fs.readFileSync(path.join(__dirname, '..', 'web', 'desk.css'), 'utf8');
+  assert.match(cssSrc, /\.ep-whole-hidden\{display:none!important\}/, 'isolation class is plain display:none');
 });

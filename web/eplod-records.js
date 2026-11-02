@@ -2,6 +2,7 @@
   'use strict';
   const copy=x=>x===undefined?undefined:JSON.parse(JSON.stringify(x));
   const object=x=>x&&typeof x==='object'&&!Array.isArray(x);
+  const SCORING_VERSION=1;
   /* 判分归一分词(r19): 官方文本的 "5:58" 分词成 [5,58], ASR/用户输入是 [five,fifty,eight],
      形状不同会白扣分——数字 token 统一展开成读法单词; oh 与 zero 互通(两侧同变换, 只增匹配不改错配)。 */
   const NUM1={0:'zero',1:'one',2:'two',3:'three',4:'four',5:'five',6:'six',7:'seven',8:'eight',9:'nine',10:'ten',11:'eleven',12:'twelve',13:'thirteen',14:'fourteen',15:'fifteen',16:'sixteen',17:'seventeen',18:'eighteen',19:'nineteen',20:'twenty'};   /* 20 曾缺表, expandNum 兜底成 "20" 配不上 twenty(r2 2026-10-30) */
@@ -35,95 +36,175 @@
     cheque:'check',cheques:'checks'};
   function usSpelling(w){
     for(let k=0;k<UKRULES.length;k++){const t=w.replace(UKRULES[k][0],UKRULES[k][1]);if(t!==w)return t;}
-    return UKWORDS[w]||w;
+    return Object.hasOwn(UKWORDS,w)?UKWORDS[w]:w;
   }
   /* 语气词互通(r3 2026-10-31): Mmm/Hmm/Um/Uh… ASR 几乎无法稳定区分, 全家族归一到
      'hmm', 两侧同变换只增匹配。白名单按整词匹配, 真词(ham/hum/mum/her)不受影响;
      oh 仍归 zero(数字读法), 不入本家族。语料实测 16 种变体全部覆盖。 */
   const FILLER=/^(h+mm*|m+hmm*|mm+|um+|uh+|uhm+|erm?|eh+|huh+|aha|ugh|ah+)$/;
-  /* 口语缩略归一(r7 2026-10-31): gonna/wanna/gotta 等与全写同义, 'bout='about 等
-     撇号缩写唯一指向; 都展开成全写 token, 两侧同变换只增匹配。
-     裸 cause 有名词/动词义(语料实测混用), 不归一——语音路径由走音赦免覆盖。 */
+  /* 口语缩略归一: 只有明确同义的缩写展开; 裸 cause 保留其名词/动词义。 */
   const SLANG={gonna:['going','to'],wanna:['want','to'],gotta:['got','to'],kinda:['kind','of'],sorta:['sort','of'],
     lemme:['let','me'],gimme:['give','me'],outta:['out','of'],lotta:['lot','of'],"c'mon":['come','on'],
     "'bout":['about'],"'em":['them'],"'cause":['because'],"'til":['till'],"'till":['till'],"'tis":['it','is']};
-  function normTokens(s){
+  const COMBINING=/[\u0300-\u036f]/;
+  function wordTokens(w){
     const out=[];
-    /* 变音符折叠(r2/r3 2026-11-01): décor/fiancé/cliché 的 é 若不折叠会被 [a-z] 正则劈成
-       碎片; 语料里除预制(é)与分解(e+U+0301)外还有「空格+游离组合符」伪影(0024 "d ́ecor"、
-       0353 "clich ́e"——原始转写把重音符错位成空格+组合符), 组合符必须贴字母, 这种空格
-       连同组合符一起删除。 */
-    for(let w of (String(s).toLowerCase().normalize('NFD').replace(/ +[\u0300-\u036f]+/g,'').replace(/[\u0300-\u036f]/g,'').match(/[a-z0-9']+/g)||[])){
-      if(w==='okay'){out.push('ok');continue;}
-      if(/^\d+$/.test(w)){expandNum(parseInt(w,10),out);continue;}
-      const sl=SLANG[w];
-      if(sl){out.push(...sl);continue;}
-      w=w.replace(/^'+|'+$/g,'');   /* 游离撇号: 词首伪影('ve/'m)+词尾所有格 customers'(r8 2026-10-31) */
-      if(!w)continue;
-      if(FILLER.test(w)){out.push('hmm');continue;}
-      /* 同音称呼归一(r6): Ms./Miss 同音, Mrs./Misses 同音; 两侧同变换, 动词 miss 不受影响 */
-      if(w==='miss')w='ms';else if(w==='misses')w='mrs';
-      out.push(w==='oh'?'zero':usSpelling(w));
+    if(w==='okay')return ['ok'];
+    if(/^\d+$/.test(w)){
+      expandNum(parseInt(w,10),out);
+      return out.every(token=>typeof token==='string')?out:[w];
     }
-    return out;
+    if(Object.hasOwn(SLANG,w))return SLANG[w].slice();
+    w=w.replace(/^'+|'+$/g,'');   /* 游离撇号和词尾所有格 customers' */
+    if(!w)return out;
+    if(FILLER.test(w))return ['hmm'];
+    /* 同音称呼两侧同变换, 不按大写猜测姓名。 */
+    if(w==='miss')w='ms';else if(w==='misses')w='mrs';
+    return [w==='oh'?'zero':usSpelling(w)];
   }
-  /* 人名走音赦免(r6): ASR 对人名几乎必然输出常见拼法(Julianne→Julian, McNealy→McLean),
-     语音判分路径对「同前两字母+小编辑距离」的词对视为同一词; 默写(打字)保持精确。 */
-  function lev(a,b){
-    if(Math.abs(a.length-b.length)>3)return 4;
-    const dp=new Array(b.length+1);
-    for(let j=0;j<=b.length;j++)dp[j]=j;
-    for(let i=1;i<=a.length;i++){let prev=dp[0];dp[0]=i;
-      for(let j=1;j<=b.length;j++){const t=dp[j];dp[j]=Math.min(dp[j]+1,dp[j-1]+1,prev+(a[i-1]===b[j-1]?0:1));prev=t;}}
-    return dp[b.length];
+  /* 评分与显示共享的原文词段。折叠时保留每个字符的原文范围, 因而 d + 空格 + U+0301
+     + ecor 是同一段, 不能按空格拆开后分别归一。分隔符不消耗 marks; 数字/缩写可消耗多个。 */
+  function tokenSegments(value){
+    const text=String(value),chars=[],starts=[],ends=[];
+    let offset=0;
+    for(const raw of text){
+      const start=offset;offset+=raw.length;
+      const folded=raw.toLowerCase().normalize('NFD').replace(/[\u2018\u2019\u02bc\uff07]/g,"'");
+      for(let i=0;i<folded.length;i++){
+        const ch=folded[i];
+        if(COMBINING.test(ch)){
+          // The old whole-text normalizer removes spaces immediately before a floating accent.
+          while(chars[chars.length-1]===' '){chars.pop();starts.pop();ends.pop();}
+          if(ends.length)ends[ends.length-1]=offset;
+          continue;
+        }
+        chars.push(ch);starts.push(start);ends.push(offset);
+      }
+    }
+    const segments=[],folded=chars.join('');
+    let cursor=0;
+    for(const match of folded.matchAll(/[a-z0-9']+/g)){
+      const start=starts[match.index],end=ends[match.index+match[0].length-1];
+      if(start>cursor)segments.push({text:text.slice(cursor,start),tokens:[]});
+      segments.push({text:text.slice(start,end),tokens:wordTokens(match[0])});
+      cursor=end;
+    }
+    if(cursor<text.length)segments.push({text:text.slice(cursor),tokens:[]});
+    return segments;
   }
+  function normTokens(s){return tokenSegments(s).flatMap(part=>part.tokens);}
+  /* 语音赦免仅限逐项确认的姓名变体。普通数词、内容词、星期名称不走编辑距离或大写猜测。 */
+  const NAME_ALIASES=[['julianne','julian'],['mcnealy','mclean']];
   function fuzzyEqual(a,b){
-    if(a===b||a.length<5||b.length<5)return false;
-    if(a.slice(0,2)!==b.slice(0,2))return false;   /* 词首不同不赦免: 真实口误/近音混淆仍判错 */
-    const d=lev(a,b);
-    return d>0&&d<=(Math.max(a.length,b.length)>=7?3:1);
+    return a!==b&&NAME_ALIASES.some(group=>group.includes(a)&&group.includes(b));
   }
-  /* 带赦免的整句准确率(历史 rd-voice 修复用); epDiff 的展示对齐走自己的回溯+same fuzzyEqual */
-  function lcsAccFuzzy(official,mine){
-    const a=normTokens(official),b=normTokens(mine);
-    const n=a.length;if(!n)return 0;
+  function scoreTokens(official,mine,fuzzy=false){
+    const a=normTokens(official),b=normTokens(mine),n=a.length;
     const dp=Array.from({length:n+1},()=>new Array(b.length+1).fill(0));
     for(let i=1;i<=n;i++)for(let j=1;j<=b.length;j++)dp[i][j]=a[i-1]===b[j-1]?dp[i-1][j-1]+1:Math.max(dp[i-1][j],dp[i][j-1]);
-    let hit=dp[n][b.length];
-    const ou=[],bu=[];let i=n,j=b.length;
+    const marks=new Array(n).fill(false),matched=new Array(b.length).fill(false);
+    let hit=dp[n][b.length],i=n,j=b.length;
     while(i>0&&j>0){
-      if(a[i-1]===b[j-1]){i--;j--;}
-      else if(dp[i-1][j]>=dp[i][j-1]){ou.push(i-1);i--;}
-      else{bu.push(j-1);j--;}
+      if(a[i-1]===b[j-1]){marks[i-1]=true;matched[j-1]=true;i--;j--;}
+      else if(dp[i-1][j]>=dp[i][j-1])i--;
+      else j--;
     }
-    while(i>0)ou.push(i-1),i--;
-    while(j>0)bu.push(j-1),j--;
-    ou.reverse();bu.reverse();
-    let k=0;
-    for(const oi of ou){
-      for(let t=k;t<Math.min(bu.length,k+4);t++){
-        if(fuzzyEqual(a[oi],b[bu[t]])){hit++;bu.splice(t,1);k=t;break;}
+    if(fuzzy){
+      const ou=[],bu=[];
+      for(let k=0;k<n;k++)if(!marks[k])ou.push(k);
+      for(let k=0;k<b.length;k++)if(!matched[k])bu.push(k);
+      let k=0;
+      for(const oi of ou){
+        for(let t=k;t<Math.min(bu.length,k+4);t++){
+          if(fuzzyEqual(a[oi],b[bu[t]])){marks[oi]=true;matched[bu[t]]=true;hit++;bu.splice(t,1);k=t;break;}
+        }
       }
     }
-    return hit/n;
+    return {acc:n?hit/n:0,marks,extras:b.filter((_,k)=>!matched[k]).slice(0,12)};
   }
-  /* 旧语音成绩被人名走音压低(r6): rd 且 mode=voice 的条目用赦免规则重算, 只升不降。 */
-  function repairVoiceFuzzyScores(records,loadDialogue){
-    let changed=0;
-    for(const [id,lesson] of Object.entries(records.course||{})){
-      if(!/^eplod-\d{4}$/.test(id))continue;
-      const drill=lesson.drill||{};
-      if(!drill.rd)continue;
-      const dialogue=loadDialogue(id);
-      if(!dialogue)continue;
-      for(const [i,r] of Object.entries(drill.rd||{})){
-        const text=dialogue[+i]&&dialogue[+i].text;
-        if(!text||typeof r.last!=='string'||!r.last.trim()||!Number.isFinite(r.acc)||r.mode!=='voice')continue;
-        const acc=lcsAccFuzzy(text,r.last);
-        if(acc>r.acc+1e-9){r.acc=acc;changed++;}
+  function lcsAccFuzzy(official,mine){return scoreTokens(official,mine,true).acc;}
+  /* 兼容旧调用方的计数返回值; 新调用方可用 repairVoiceScores 获取逐字段审计。 */
+  function repairVoiceFuzzyScores(records,loadDialogue){return repairVoiceScores(records,loadDialogue).changed;}
+  /* 只重算有本次原始转写的显式结果。rd.acc 是没有 best 转写的历史聚合, 不能从 latest
+     反推或降低。wp 的 best/latest 各用自己的 text, 双方均核实后才重选 best 并完整审计。 */
+  function repairVoiceScores(records,loadDialogue){
+    const changes=[],skipped=[];
+    const skip=(path,reason)=>skipped.push({path,reason});
+    const write=(target,key,value,path,reason)=>{
+      if(JSON.stringify(target[key])===JSON.stringify(value))return;
+      changes.push({path:[...path,key],before:copy(target[key]),after:copy(value),reason});
+      target[key]=copy(value);
+    };
+    const hasText=value=>typeof value==='string'&&!!value.trim();
+    for(const [id,lesson] of Object.entries(records?.course||{})){
+      if(!/^eplod-\d{4}$/.test(id)||!object(lesson?.drill))continue;
+      const drill=lesson.drill,base=['course',id,'drill'];
+      if(!object(drill.rd)&&!object(drill.wp))continue;
+      let dialogue;
+      try{dialogue=loadDialogue(id);}catch{}
+      if(!Array.isArray(dialogue)){skip(base,'dialogue-unavailable');continue;}
+      for(const [i,row] of Object.entries(drill.rd||{})){
+        if(!object(row))continue;
+        const path=[...base,'rd',i],official=dialogue[i]?.text;
+        if(Number.isFinite(row.acc))skip([...path,'acc'],'unverifiable-historical-best');
+        if(!hasText(official)||!normTokens(official).length){skip(path,'official-text-unavailable');continue;}
+        const rescore=(result,resultPath)=>{
+          if(!hasText(result.text)){skip(resultPath,'transcript-unavailable');return;}
+          if(scoringVersion(result)>SCORING_VERSION){skip(resultPath,'newer-scoring-version');return;}
+          write(result,'acc',lcsAccFuzzy(official,result.text),resultPath,'confirmed-name-aliases');
+          write(result,'scoringVersion',SCORING_VERSION,resultPath,'verified-voice-scoring-version');
+        };
+        if(object(row.voice)){
+          if(row.voice.mode==null||row.voice.mode==='voice')rescore(row.voice,[...path,'voice']);
+          else skip([...path,'voice'],'conflicting-result-mode');
+        }
+        if(object(row.latest)&&row.latest.mode==='voice')rescore(row.latest,[...path,'latest']);
+        if(row.mode==='voice'&&hasText(row.last)){
+          // Modern mirrors must agree with latest's own text, mode and attempt time.
+          if(object(row.latest)&&(row.latest.mode!=='voice'||row.latest.text!==row.last||time(row.latest.at)!==time(row.at))){
+            skip([...path,'lastAcc'],'conflicting-latest-mirror');
+          }else if(scoringVersion(row.latest)>SCORING_VERSION||Number(row.lastScoringVersion)>SCORING_VERSION){
+            skip([...path,'lastAcc'],'newer-scoring-version');
+          }else{
+            write(row,'lastAcc',lcsAccFuzzy(official,row.last),path,'voice-transcript-mirror');
+            write(row,'lastScoringVersion',SCORING_VERSION,path,'verified-voice-mirror-version');
+          }
+        }
+      }
+      if(!object(drill.wp))continue;
+      const sourceValid=dialogue.length&&dialogue.every(line=>object(line)&&typeof line.text==='string');
+      const official=sourceValid?dialogue.map(line=>line.text).join(' '):'';
+      const lengths=sourceValid?dialogue.map(line=>normTokens(line.text).length):[];
+      const total=lengths.reduce((sum,n)=>sum+n,0),verified=new Set();
+      for(const key of ['latest','best']){
+        const result=drill.wp[key],path=[...base,'wp',key];
+        if(!object(result))continue;
+        if(!sourceValid||!total){skip(path,'official-text-unavailable');continue;}
+        if(result.mode!=null&&result.mode!=='whole'){skip(path,'conflicting-result-mode');continue;}
+        if(!hasText(result.text)){skip(path,'transcript-unavailable');continue;}
+        if(scoringVersion(result)>SCORING_VERSION){skip(path,'newer-scoring-version');continue;}
+        const score=scoreTokens(official,result.text,true);
+        if(score.marks.length!==total){skip(path,'ambiguous-sentence-boundaries');continue;}
+        let offset=0;
+        const per=lengths.map((len,i)=>{
+          const hit=score.marks.slice(offset,offset+len).filter(Boolean).length;
+          offset+=len;
+          return {i,acc:len?hit/len:1};
+        });
+        write(result,'acc',score.acc,path,'whole-transcript-confirmed-name-aliases');
+        write(result,'per',per,path,'whole-transcript-sentence-marks');
+        write(result,'extra',score.extras,path,'whole-transcript-extra-tokens');
+        write(result,'scoringVersion',SCORING_VERSION,path,'verified-whole-scoring-version');
+        verified.add(key);
+      }
+      if(verified.has('best')&&verified.has('latest')){
+        const {best,latest}=drill.wp;
+        if(latest.acc>best.acc||(latest.acc===best.acc&&compareResult(latest,best)>0)){
+          write(drill.wp,'best',latest,[...base,'wp'],'verified-whole-best-order');
+        }
       }
     }
-    return changed;
+    return {changed:changes.length,changes,skipped};
   }
   function lcsAcc(official,mine){
     const a=normTokens(official),b=normTokens(mine);
@@ -141,17 +222,31 @@
     const x=identity(a?.id),y=identity(b?.id);
     return x===y?0:x>y?1:-1;
   }
+  function scoringVersion(result){
+    const version=result?.scoringVersion;
+    return Number.isSafeInteger(version)&&version>0&&Number.isFinite(result.acc)&&typeof result.text==='string'&&result.text.trim()?version:0;
+  }
+  function sameScoredAttempt(a,b){
+    return compareResult(a,b)===0&&(!!identity(a?.id)||
+      (time(a?.at)>0&&a?.mode===b?.mode&&typeof a?.text==='string'&&a.text===b?.text));
+  }
   function newest(a,b){
     if(!a)return b?copy(b):null;
     if(!b)return copy(a);
     const order=compareResult(a,b);
-    return order===0?{...copy(a),...copy(b)}:copy(order>0?a:b);
+    if(order!==0)return copy(order>0?a:b);
+    if(sameScoredAttempt(a,b)&&scoringVersion(a)!==scoringVersion(b)){
+      const [older,newer]=scoringVersion(a)>scoringVersion(b)?[b,a]:[a,b];
+      return {...copy(older),...copy(newer)};
+    }
+    return {...copy(a),...copy(b)};
   }
   function latestResult(value){
     if(object(value.latest))return copy(value.latest);
     if(typeof value.last!=='string')return null;
     const result={id:identity(value.id),at:time(value.at),mode:value.mode||'type',text:value.last,
       acc:Number.isFinite(value.lastAcc)?value.lastAcc:value.mode==='voice'?undefined:value.acc};
+    if(Object.hasOwn(value,'lastScoringVersion'))result.scoringVersion=value.lastScoringVersion;
     for(const key of ['dur','speed'])if(Object.hasOwn(value,key))result[key]=copy(value[key]);
     return result;
   }
@@ -174,6 +269,8 @@
     if(latest){
       out.latest=latest;
       out.at=latest.at;out.last=latest.text;out.mode=latest.mode;out.lastAcc=latest.acc;
+      if(Object.hasOwn(latest,'scoringVersion'))out.lastScoringVersion=latest.scoringVersion;
+      else delete out.lastScoringVersion;
       // Do not display a previous voice attempt's duration on a newer typed attempt.
       for(const key of ['dur','speed']){
         if(Object.hasOwn(latest,key))out[key]=copy(latest[key]);
@@ -194,7 +291,7 @@
     if(!object(attempt))return mergeAttempt(prev,{});
     const result={id:identity(attempt.id),at:time(attempt.at),mode:attempt.mode||'type',
       text:String(attempt.text??''),acc:attempt.acc};
-    for(const key of ['dur','speed'])if(Object.hasOwn(attempt,key))result[key]=copy(attempt[key]);
+    for(const key of ['dur','speed','scoringVersion'])if(Object.hasOwn(attempt,key))result[key]=copy(attempt[key]);
     return mergeAttempt(prev,{acc:result.acc,latest:result});
   }
   function legacySpeedEvidence(value,reading,source){
@@ -254,7 +351,9 @@
     const la=object(a.latest)?a.latest:null,lb=object(b.latest)?b.latest:null;
     const latest=newest(la,lb);
     // best 候选必须含两侧显式 best, 否则反向合并会让历史最好回退成最新一的成绩
-    const best=[a.best,b.best,la,lb].filter(x=>object(x)&&Number.isFinite(x.acc))
+    const candidates=[a.best,b.best,la,lb].filter(x=>object(x)&&Number.isFinite(x.acc));
+    // Correct the same take's stale score before comparing it with other takes' best scores.
+    const best=candidates.filter(x=>!candidates.some(y=>sameScoredAttempt(x,y)&&scoringVersion(y)>scoringVersion(x)))
       .reduce((w,x)=>!w||x.acc>w.acc||(x.acc===w.acc&&compareResult(x,w)>0)?x:w,null);
     const out={};
     if(latest)out.latest=latest;
@@ -414,7 +513,7 @@
     }
     return changed;
   }
-  const api={mergeDrill,mergeLesson,reconcile,saveAttempt,speedPassed,repairSpeedScores,repairOkayScores,repairNumberScores,repairSpellingScores,repairFillerScores,repairVoiceFuzzyScores,repairSlangScores,lcsAcc,lcsAccFuzzy,fuzzyEqual,normTokens,usSpelling,coverProgress};
+  const api={SCORING_VERSION,mergeDrill,mergeLesson,reconcile,saveAttempt,speedPassed,repairSpeedScores,repairOkayScores,repairNumberScores,repairSpellingScores,repairFillerScores,repairVoiceScores,repairVoiceFuzzyScores,repairSlangScores,scoreTokens,lcsAcc,lcsAccFuzzy,fuzzyEqual,tokenSegments,normTokens,usSpelling,coverProgress};
   if(typeof module==='object'&&module.exports)module.exports=api;
   else root.EplodRecords=api;
 })(typeof globalThis==='object'?globalThis:this);

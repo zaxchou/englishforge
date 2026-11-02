@@ -20,7 +20,7 @@ function sourceBetween(start, end) {
 }
 const production = [
   sourceBetween('function recApply(next)', 'function recBackup('),
-  sourceBetween('function epDiff(official,mine)', '/* ---- 四步训练'),
+  sourceBetween('function epDiff(', '/* ---- 四步训练'),
   sourceBetween('function epDay()', 'function epRecoverCover('),
   sourceBetween('function epStamp(i,st=EP.st)', 'function epCoverUpdate('),
   sourceBetween('function epTakeKey(st,i)', 'function epHasReplay('),
@@ -122,8 +122,8 @@ function makeHarness({delayMedia = false} = {}) {
     setInterval: fn => { const id = ++timerId; intervals.set(id, fn); return id; },
     clearInterval: id => intervals.delete(id),
     setTimeout: (fn, ms) => {
-      assert.equal(ms, 90000, 'Only the recorder safety limit may schedule a timeout');
-      const id = ++timerId;timeouts.set(id, fn);return id;
+      assert.ok(ms === 90000 || ms === 250, `Only the recorder safety limit or the 250ms settle window may schedule a timeout, got ${ms}`);
+      const id = ++timerId;timeouts.set(id, {fn, at: now + ms});return id;
     },
     clearTimeout: id => timeouts.delete(id),
     fetch: () => { throw Error('Real fetch is forbidden'); },
@@ -165,7 +165,14 @@ function makeHarness({delayMedia = false} = {}) {
   return {
     box, REC, EP, A, B, card, response, tracks, recorders, requests, saves, uiCalls,
     media, asr, archive, asrRequested, archiveRequested, asrSettled, intervals, timeouts, localUrls, revokedUrls, run,
-    advance: ms => { now += ms; }, mediaCalls: () => mediaCalls, closed: () => closed,
+    advance: ms => {
+      now += ms;
+      for (const [id, timer] of [...timeouts.entries()].sort((a, b) => a[1].at - b[1].at)) {
+        if (!timeouts.has(id) || timer.at > now) continue;
+        timeouts.delete(id); timer.fn();
+      }
+    },
+    mediaCalls: () => mediaCalls, closed: () => closed,
     switchToB() { run('epCancelRecording(EP.st)');A.active = false;EP.st = B;card.isConnected = false; },
     sync(remote) { box.remote = remote; run('recApply(remote)'); }
   };
@@ -183,13 +190,14 @@ async function delayedRecording() {
   assert.equal(h.recorders.length, 1);
   assert.equal(h.mediaCalls(), 1);
   assert.equal(A.recording.rec, h.recorders[0]);
-  h.advance(2000);
+  h.advance(250);   // settle window elapses → capture actually starts, t0 refreshed
+  h.advance(2000);  // two seconds of reading time
   for (const tick of h.intervals.values()) tick(); // A non-silent level sample.
   await h.run('epRecToggle(1, card)');
   await Promise.all([h.asrRequested.promise, h.archiveRequested.promise]);
   assert.equal(A.recording, null);
   assert.ok(h.tracks.every(track => track.stops === 1), 'Recording released every track');
-  assert.equal(h.closed(), 1);
+  assert.equal(h.closed(), 0, 'Shared page AudioContext intentionally persists across takes');
   assert.equal(h.intervals.size, 0);
   assert.equal(h.timeouts.size, 0);
   assert.equal(h.requests.length, 2, 'ASR and archive start independently before either resolves');
@@ -228,6 +236,8 @@ async function delayedRecording() {
   assert.equal(recordingRequest.body.takeId, take.id);
   assert.equal(A.p.drill.rd[1].latest.id, take.id);
   assert.equal(A.p.drill.rd[1].voice.id, take.id);
+  assert.equal(A.p.drill.rd[1].voice.scoringVersion, EplodRecords.SCORING_VERSION, 'voice result carries the strict scoring version');
+  assert.equal(A.p.drill.rd[1].lastScoringVersion, EplodRecords.SCORING_VERSION, 'latest mirror records the scoring version');
   assert.equal(A.p.drill.sd[1].id, take.id);
   assert.equal(A.p.drill.sd[1].verified, true);
   assert.equal(A.p.drill.sd[1].acc, 1);
@@ -287,6 +297,7 @@ function keyboardTabs() {
   const box = {
     EP: {st}, st, document: {querySelector: () => ({})},
     $: id => { assert.equal(id, 'ep-audio'); return {}; },
+    epWholeLocked: () => false,
     epGo: (...args) => calls.push(args)
   };
   vm.createContext(box);
