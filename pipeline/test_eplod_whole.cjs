@@ -114,4 +114,7 @@ test('index.html 接线: 入口卡/取消钩子/刷新点/版本号在位', () =
   assert.match(html, /epDiff\(text,result\.text\|\|'',result&&result\.mode==='voice'\)/, 'display fuzziness follows the stored mode');
   const dictSubmit = html.slice(html.indexOf("placeholder=\"写出你听到的内容"), html.indexOf('placeholder="看中文线索'));
   assert.doesNotMatch(dictSubmit, /epDiff\([^)]*true\)/, 'dictation submit stays exact');
+  // r11(2026-11-02): 整篇背诵荣誉徽章挂在覆盖背诵标题行
+  assert.match(html, /wp-medal/, 'medal markup present in epCoverUpdate');
+  assert.match(html, /drill\.wp&&Number\.isFinite\(drill\.wp\.best\?\.acc\)/, 'medal gated on a passing whole take');
 });
