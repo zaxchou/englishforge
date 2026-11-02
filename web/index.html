@@ -8,7 +8,7 @@
 <link rel="icon" type="image/png" sizes="96x96" href="/assets/brand/t-dot-v1/t-dot-96.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/assets/brand/t-dot-v1/t-dot-180.png">
 <title>TOEFL Lab · 托福自学练习</title>
-<link rel="stylesheet" href="desk.css?v=20261031r5">
+<link rel="stylesheet" href="desk.css?v=20261102r6">
 <style>
 /* 应用层补充样式（视觉基线在 desk.css，不改它的既有规则） */
 /* 单词与字符格保持同一行；焦点、已填、判题状态沿用研读桌配色。 */
@@ -4401,7 +4401,9 @@ function epCoverUpdate(){
   }
   const msg=n>=3?'三遍复背已完成':todayStamped?'本遍已完成，隔天继续第 '+(n+1)+' 遍'
     :'朗读或默写 '+need+' 句，完成第 '+(n+1)+' 遍';
+  const wpBest=drill.wp&&Number.isFinite(drill.wp.best?.acc)?drill.wp.best:null;   /* 整篇背诵通过(2026-11-02): 比逐句更难, 独立荣誉徽章 */
   el.innerHTML='<div class="ep-cover-heading"><h4>覆盖背诵</h4><span class="ep-cover-stars" aria-hidden="true">'+epCoverMarks(state)+'</span><span class="ep-cover-summary'+(n===3?' complete':'')+'">'+n+'/3 遍</span>'
+    +(wpBest?'<span class="wp-medal" title="整篇背诵通过 · 词准 '+Math.round(wpBest.acc*100)+'%'+(Number.isFinite(wpBest.at)?' · '+new Date(wpBest.at).toLocaleDateString('zh-CN',{month:'numeric',day:'numeric',timeZone:'Asia/Shanghai'}):'')+'">整篇背诵 ✓</span>':'')
     +'<button class="ep-text-button" id="ep-progress-toggle" aria-expanded="false" aria-controls="ep-progress"><svg width="16" height="16" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 15V9m6 6V4m6 11v-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>学习明细</span><svg class="ep-progress-chevron" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="m3 4 3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>'
     +'<div class="ep-cover-track">'+stamps+'</div><p class="ep-cover-hint">'+msg+'</p>';
   epSyncProgressToggle();

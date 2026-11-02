@@ -2463,3 +2463,7 @@ html.sb-min .nav-label{display:none!important}   /* 收缩侧栏只留图标 */
 .wp-advise{margin-top:8px}
 .wp-advise p{margin:4px 0 0;font-size:12.5px;color:var(--t2);line-height:1.6}
 .wp-actions{display:flex;gap:10px;margin-top:12px}
+
+/* 整篇背诵荣誉徽章(r11 2026-11-02): 覆盖背诵标题行, 达成过整篇脱稿背诵(词准≥90%)即常亮 */
+.wp-medal{flex:none;font-size:12px;font-weight:600;color:var(--acc);background:var(--accbg);
+  border:1px solid var(--accln);border-radius:999px;padding:3px 10px;white-space:nowrap}
