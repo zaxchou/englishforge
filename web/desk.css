@@ -1681,6 +1681,14 @@ body.vfull .cs-stage video.tfl{max-height:none}
 .ep-round.complete{border-color:var(--okln);background:var(--okbg);color:var(--ok);min-width:32px;border-radius:999px}
 .ep-round.current{border-color:var(--accln);color:var(--acc)}
 .ep-round.final{background:var(--acc);border-color:var(--acc);color:var(--card)}
+/* 整篇背诵金星(2026-11-02.r7): 达成整篇脱稿背诵后三颗星升金, 完成=金底, 未完成=金描边 */
+.ep-round.gold{border-color:#d9b45c;color:#a8842a}
+.ep-round.gold.complete{background:#f5df9e;border-color:#caa53d;color:#7a5c0e}
+.ep-round.gold.current{border-color:#caa53d;color:#a8842a}
+.ep-round.gold.final{background:linear-gradient(135deg,#ecc873,#c99b2e);border-color:#c99b2e;color:#5c4408}
+.ep-cover-stars.gold .ep-round{border-color:#d9b45c;color:#a8842a}
+.ep-cover-stars.gold .ep-round.complete{background:#f5df9e;color:#7a5c0e}
+.ep-nav-cover.gold .ep-round{color:#c79a35}
 .ep-cover-label{display:flex;flex-direction:column;gap:3px;min-width:0}
 .ep-cover-label b{font-size:13px;font-weight:600;white-space:nowrap;color:var(--t1)}
 .ep-cover-label small{display:flex;flex-wrap:wrap;gap:0 5px;font-size:13px;line-height:1.4;color:var(--t2)}
@@ -2464,6 +2472,3 @@ html.sb-min .nav-label{display:none!important}   /* 收缩侧栏只留图标 */
 .wp-advise p{margin:4px 0 0;font-size:12.5px;color:var(--t2);line-height:1.6}
 .wp-actions{display:flex;gap:10px;margin-top:12px}
 
-/* 整篇背诵荣誉徽章(r11 2026-11-02): 覆盖背诵标题行, 达成过整篇脱稿背诵(词准≥90%)即常亮 */
-.wp-medal{flex:none;font-size:12px;font-weight:600;color:var(--acc);background:var(--accbg);
-  border:1px solid var(--accln);border-radius:999px;padding:3px 10px;white-space:nowrap}
