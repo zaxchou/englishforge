@@ -8,7 +8,7 @@
 <link rel="icon" type="image/png" sizes="96x96" href="/assets/brand/t-dot-v1/t-dot-96.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/assets/brand/t-dot-v1/t-dot-180.png">
 <title>TOEFL Lab · 托福自学练习</title>
-<link rel="stylesheet" href="desk.css?v=20261102r9">
+<link rel="stylesheet" href="desk.css?v=20261102r10">
 <style>
 /* 应用层补充样式（视觉基线在 desk.css，不改它的既有规则） */
 /* 单词与字符格保持同一行；焦点、已填、判题状态沿用研读桌配色。 */
@@ -3219,7 +3219,7 @@ function renderCourse(){
   const epMode=courseMode==='eplod';
   const tt=$('cs-title'),sub=$('cs-sub');
   if(tt)tt.textContent=epMode?'EnglishPod':'视频课';
-  if(sub)sub.textContent=epMode?'听后深化：逐句精听 · 四步训练 · 三遍覆盖背诵':'选择课节，配合讲义学习，再练对应题';
+  if(sub){sub.textContent=epMode?'':'选择课节，配合讲义学习，再练对应题';sub.style.display=epMode?'none':'';}   /* 审计③: 说明行逐字重复旁边三个页签, EP 模式整行去掉(桌面本就没有) */
   if(epMode){
     if(csSel.c!=='eplod-01'||csSel.l==null)epDefaultSel();   // EP 入口只认 EP 课节, 上次听到哪期就回哪期
   }else if(csSel.c==null||courseById(csSel.c)?.kind==='eplod'){
@@ -4297,7 +4297,7 @@ function epWholeUpdate(){
   const rdN=st.d.dialogue.filter((_,i)=>drill.rd?.[i]?.acc>=.9).length;
   host.hidden=false;
   host.innerHTML='<div class="wp-head"><div><b>整篇背诵 · 最后一遍</b><span>'
-    +(passed?'已通过 · 历史最好 '+Math.round(best.acc*100)+'%'+(Number.isFinite(best.dur)?' · 用时 '+fmtDur(Math.round(best.dur)):'')
+    +(passed?'<i>已通过 · 历史最好 '+Math.round(best.acc*100)+'%</i>'+(Number.isFinite(best.dur)?' · <i>用时 '+fmtDur(Math.round(best.dur))+'</i>':'')
       :ready?'前两遍已完成。脱稿整篇背一次（全程无提示），总词准 90% 通过并盖当日章。'
       :'逐句背诵 '+rdN+'/'+st.d.dialogue.length+' 通过后解锁。')+'</span></div>'
     +'<button class="pri" id="ep-whole-go"'+(ready&&!st.wpPending?'':' disabled')+'>整篇背诵 →</button></div>';
@@ -4306,7 +4306,7 @@ function epWholeUpdate(){
 function epWholeLive(host,st){
   const t=st.wpTake;host.hidden=false;
   if(t.phase==='rec'){
-    host.innerHTML='<div class="wp-live"><b class="ing">● 背诵中</b><span class="rt">0:00</span><span class="lv"><i></i></span><button class="pri" id="ep-whole-stop">停止并检测</button><button id="ep-whole-cancel">取消</button><p>脱稿背完整课对话，停止后检测整篇。</p></div>';
+    host.innerHTML='<div class="wp-live"><b class="ing"><span class="wp-dot"></span>背诵中</b><span class="rt">0:00</span><span class="lv"><i></i></span><button class="pri" id="ep-whole-stop">停止并检测</button><button id="ep-whole-cancel">取消</button><p>脱稿背完整课对话，停止后检测整篇。</p></div>';
     host.querySelector('#ep-whole-stop').onclick=()=>epWholeToggle();
     host.querySelector('#ep-whole-cancel').onclick=()=>{epCancelRecording(st);epWholeUpdate();};
     host.querySelector('#ep-whole-stop').focus?.();
@@ -5299,7 +5299,8 @@ function renderStats(){
   const msAll=scopedEntries(REC.mistakes).filter(([,m])=>!m.cleared);
   $('st-ct').textContent='已练 '+attempted+' 组 · 题库共 '+grand+' 题';
   /* hero */
-  $('st-acc-v').innerHTML=judged?acc+'<small>%</small>':'—';
+  $('st-acc-v').innerHTML=judged?acc+'<small>%</small>':'—';   /* 审计⑤: 无值破折号转灰, 不再像图表残段 */
+  $('st-acc-v').classList.toggle('mute',!judged);
   $('st-acc-split').innerHTML=judged
     ?`<i class="ok" style="width:${(right/judged*100).toFixed(1)}%"></i><i class="bad" style="width:${(wrong/judged*100).toFixed(1)}%"></i>`:'';
   $('st-acc-d').textContent=judged?`对 ${right} 次 · 错 ${wrong} 次 · 共判分 ${judged} 次`:'暂无已判分的作答';
@@ -5309,7 +5310,7 @@ function renderStats(){
   $('st-total').textContent=(st.total||0)>=3600?((st.total||0)/3600).toFixed(1)+'h':fmt(st.total||0);
   /* 视频观看秒数: r20 起按播放实秒累计(course[].wt); 存量课以已看进度为下限种子 */
   const vwt=Object.values(REC.course||{}).reduce((a,c)=>a+(c.wt!=null?c.wt:Math.floor(c.pos||0)),0);
-  $('st-vwt').textContent=vwt>=3600?(vwt/3600).toFixed(1)+'h':(vwt>=60?Math.round(vwt/60)+'m':'0m');
+  $('st-vwt').textContent=fmt(vwt);   /* 审计: 与"今日学习/累计学习"统一为 00:00 族格式 */
   $('st-streak').textContent=String(st.days||0);
   const dueN=msAll.filter(([,m])=>(m.due||0)<=Date.now()).length;
   $('st-mist').textContent=String(msAll.length);
@@ -5341,11 +5342,10 @@ function renderStats(){
   const qtRows=Object.keys(SUG).map(s=>({s,v:(bySub[s]||[]).slice().sort((a,b)=>a-b)}));
   const qtAll=qtRows.reduce((a,r)=>a+r.v.length,0);
   $('st-qt-ct').textContent=qtAll?(qtAll+' 条有效计时'):'';
-  $('st-qtime').innerHTML=qtRows.map(r=>{
-    if(r.v.length<3){   // 样本不足也占一行, 诚实标注而不是藏掉
+  $('st-qtime').innerHTML=qtAll?qtRows.map(r=>{
+    if(r.v.length<3){   // 样本不足也占一行, 诚实标注而不是藏掉; 无数据行不再画空轨道
       return `<div class="qrow mute"><div class="r"><span class="s">${SUBN[r.s]} <i>${r.v.length?('有效 '+r.v.length+' 次'):'无计时'}</i></span>
-        <span class="v">样本不足</span></div>
-        <div class="b"><i class="zero" style="width:0"></i></div></div>`;
+        <span class="v">样本不足</span></div></div>`;
     }
     const med=Math.round(r.v[Math.floor((r.v.length-1)/2)]);
     const sug=SUG[r.s], over=med>sug;
@@ -5353,7 +5353,8 @@ function renderStats(){
     return `<div class="qrow" title="中位 ${med}s，参考 ${sug}s"><div class="r"><span class="s">${SUBN[r.s]} <i>有效 ${r.v.length} 次</i></span>
       <span class="v${over?' over':''}">中位 ${med}s / 参考 ${sug}s</span></div>
       <div class="b"><i class="${over?'bad':'ok'}" style="width:${Math.max(2,med/mx*100).toFixed(0)}%"></i><em style="left:${(sug/mx*100).toFixed(0)}%"></em></div></div>`;
-  }).join('')+'<p class="note">有效计时 = 记录到的大于 0 的单题用时；重做的快速作答会让数值偏快。</p>';
+  }).join('')+'<p class="note">有效计时 = 记录到的大于 0 的单题用时；重做的快速作答会让数值偏快。</p>'
+    :'<div class="empty">还没有有效计时；做题时记录到单题用时后会在这里按科汇总。</div>';   /* 审计④: 全空时不再四行重复同一事实 */
   /* 每日题量: 真实日期轴 */
   const days=new Array(14).fill(0), daysBad=new Array(14).fill(0);
   const today=new Date(); today.setHours(0,0,0,0);
@@ -5365,7 +5366,8 @@ function renderStats(){
   const mxD=Math.max(...days,1);
   const n14=days.reduce((a,b)=>a+b,0);
   $('st-daily-ct').textContent='近 14 天 · '+n14+' 次作答'+(n14?(' · 单日峰值 '+mxD):'');
-  $('st-daily').innerHTML=`<div class="hm-legend"><span><i class="lg-ok"></i>作答</span><span><i class="lg-bad"></i>错题</span></div>
+  /* 审计④: 空态=一行居中说明, 不再只留孤图例; 有数据才画图例+柱+日期轴 */
+  $('st-daily').innerHTML=n14?`<div class="hm-legend"><span><i class="lg-ok"></i>作答</span><span><i class="lg-bad"></i>错题</span></div>
     <div class="daily">${days.map((nn,i)=>{
       const dt=new Date(today.getTime()-(13-i)*864e5);
       const z=nn===0,h=nn/mxD*100;
@@ -5376,7 +5378,8 @@ function renderStats(){
     <div class="dlab">${days.map((_,i)=>{
       const dt=new Date(today.getTime()-(13-i)*864e5);
       return `<span class="${i===13?'today':''}">${i%2===1?(dt.getMonth()+1)+'.'+dt.getDate():''}</span>`;
-    }).join('')}</div>`;
+    }).join('')}</div>`
+    :'<div class="empty">近 14 天还没有作答；完成一组练习后这里会出现每日柱。</div>';
   /* 科目进度: 行可点 → 专项。行尾=该科判分正确率, 不与错题在册(题)混用口径 */
   const subjTot={};
   CATALOK().forEach(s=>{ for(const [k,vv] of Object.entries(s.subjects||{})) subjTot[k]=(subjTot[k]||0)+vv.q; });

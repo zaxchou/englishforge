@@ -2462,3 +2462,27 @@ html.sb-min .nav-label{display:none!important}   /* 收缩侧栏只留图标 */
 .wp-advise p{margin:4px 0 0;font-size:12.5px;color:var(--t2);line-height:1.6}
 .wp-actions{display:flex;gap:10px;margin-top:12px}
 
+/* ============================================================
+   r10 · 视觉审计落地(2026-11-03, oil-ui-pro 独立审计 + 用户点单):
+   ① EP 悬浮播放条避让: 滚到底最后的内容(模式切换/主按钮/整行文字)完整露出, 不被条截半
+   ② 到期弹窗相对主画布居中(遮罩 r8 已有, 这里补画布偏移)
+   ③ 首页周条与水滴对比度提一档, 今日描边改品牌绿
+   ④ 背诵态状态点改品牌绿脉动(替代暗色●), 禁用‹可见度提一档
+   ⑤ 数据空态: 无值的大破折号转灰; 整篇卡状态行"用时"不与数值拆行
+   ============================================================ */
+.cs-stick.ep{padding-bottom:96px}   /* 单行播放条(桌面); 注意 .ep 与 .cs-stick 是同一个根元素 */
+@media(max-width:800px){.cs-stick.ep{padding-bottom:172px}}   /* 双行播放条 */
+@media(max-width:360px){.cs-stick.ep{padding-bottom:182px}}
+@media(min-width:701px){.cp-due-mask{padding-left:252px}}   /* 232px 侧栏 + 20px, 弹窗对准画布 */
+@media(min-width:701px) and (max-width:800px){.cp-due-mask{padding-left:200px}}
+html.sb-min .cp-due-mask{padding-left:84px}
+.ck-dot{color:var(--t2)}
+.ck-dot.today{box-shadow:0 0 0 2px var(--acc)}
+.ck-streak.off svg{fill:var(--t3)}
+.ep-bcard button:disabled{opacity:.6}
+.wp-dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--acc);margin-right:7px;vertical-align:1px;animation:wp-dot-pulse 1.6s ease-in-out infinite}
+@keyframes wp-dot-pulse{0%,100%{opacity:1}50%{opacity:.3}}
+@media(prefers-reduced-motion:reduce){.wp-dot{animation:none}}
+.wp-head span i{font-style:normal;white-space:nowrap}
+#st-acc-v.mute{color:var(--t3)}
+
