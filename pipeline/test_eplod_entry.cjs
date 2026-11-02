@@ -18,7 +18,8 @@ try{
   assert.equal(await p.locator('#cs-title').textContent(),'EnglishPod');
   assert.equal(await p.locator('.cs-pick select').count(),0,'EP mode has no course dropdown');
   assert.match(await p.locator('#cs-ct').textContent(),/ \/ 364 节$/);
-  assert.match(await p.locator('#cs-nav .csi .t b').textContent(),/EnglishPod/);
+  assert.match(await p.locator('#cs-nav .csi .t b').textContent(),/精听深学/);   /* r12 用户定案: 目录行只留「精听深学 · 教师」, EnglishPod 只在页头 */
+  assert.doesNotMatch(await p.locator('#cs-nav .csi .t b').textContent(),/EnglishPod/);
   // 视频课模式: 标题/计数排除 EP
   await p.locator('.nav button[data-v=course]').click();await p.locator('.cs-pick select').waitFor();
   assert.equal(await p.locator('#cs-title').textContent(),'视频课');
@@ -28,7 +29,7 @@ try{
   assert.match(await p.locator('#cs-ct').textContent(),/ \/ \d+ 节$/);
   // 记忆: 回 EP 应回到之前那期
   await p.locator('.nav button[data-v=eplod]').click();await p.locator('#ep-tabs').waitFor();
-  await p.locator('#ep-list .cli').filter({hasText:'#0014'}).click();await p.waitForFunction(()=>EP.st.l.ep===14);
+  await p.locator('#ep-list .cli').filter({hasText:'0014'}).click();await p.waitForFunction(()=>EP.st.l.ep===14);
   await p.locator('.nav button[data-v=course]').click();await p.locator('.cs-pick select').waitFor();
   await p.locator('.nav button[data-v=eplod]').click();await p.waitForFunction(()=>EP.st?.l?.ep===14&&location.hash==='#/eplod/eplod-0014');
   assert.equal(await p.evaluate(()=>location.hash),'#/eplod/eplod-0014');

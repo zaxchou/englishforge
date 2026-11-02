@@ -62,11 +62,10 @@ try{
   assert.equal(lessons.length,364);assert.ok(lessons.every(l=>Number.isInteger(l.n)&&l.n>0));assert.equal(lessons.find(l=>l.id==='eplod-0002').n,9);
   const short=lessons.find(l=>l.n<6);if(short){await p.evaluate(id=>{const f=courseFind(id);REC.course[id]={drill:{stampDays:{'2020-01-01':Array.from({length:f.c.lessons[f.ix].dialogue_count},(_,i)=>i)}}};renderCourseNav();},short.id);const n=await p.evaluate(id=>{const f=courseFind(id);return epCoverState(REC.course[id],f.c.lessons[f.ix].dialogue_count).completed;},short.id);assert.equal(n,1);}
  });
- await test('phone header is compressed and player groups into deliberate rows',async p=>{
+ await test('phone player groups into deliberate rows with reachable tools',async p=>{
   await p.setViewportSize({width:320,height:844});
+  /* 2026-10-27 导航重组后 #v-course>.sub 已不存在; A 单栏(用户定案)手机页头本就含 EnglishPod, 旧断言作废 */
   const m=await p.evaluate(()=>({
-   sub:getComputedStyle(document.querySelector('#v-course>.sub')).display,
-   src:document.querySelector('.ep .csp-meta .src').innerText.trim(),
    rows:new Set([...document.querySelectorAll('.ep-status button,.ep-status label,.ep-status summary')].filter(e=>e.checkVisibility()).map(e=>Math.round(e.getBoundingClientRect().top))).size,
    stageH:Math.round(document.querySelector('.ep-stage').getBoundingClientRect().height),
    segs:Math.round(document.querySelector('.ep-segs').getBoundingClientRect().top),
@@ -74,13 +73,13 @@ try{
    dock:Math.round(document.querySelector('.ep-dock').getBoundingClientRect().top),
    playW:document.querySelector('#ep-dock-play').getBoundingClientRect().height,
    toggle:!!document.querySelector('#ep-more>summary').getClientRects().length,
-   speaker:!!document.querySelector('#ep-speed').getClientRects().length
+   speaker:!!document.querySelector('#ep-speed').getClientRects().length,
+   overflow:document.documentElement.scrollWidth-innerWidth
   }));
-  assert.equal(m.sub,'none');assert.ok(!/EnglishPod/.test(m.src),m.src);assert.equal(m.rows,2,JSON.stringify(m));
+  assert.equal(m.overflow,0,JSON.stringify(m));
+  assert.equal(m.rows,2,JSON.stringify(m));
   assert.ok(m.stageH<=110,JSON.stringify(m));assert.ok(m.dock<m.segs&&Math.abs(m.segs-m.status)<8,JSON.stringify(m));
   assert.ok(m.toggle&&m.speaker);assert.ok(m.playW>=30,JSON.stringify(m));
-  await p.setViewportSize({width:390,height:844});assert.equal(await p.evaluate(()=>getComputedStyle(document.querySelector('#v-course>.sub')).display),'none');
-  await p.setViewportSize({width:1440,height:960});assert.notEqual(await p.evaluate(()=>getComputedStyle(document.querySelector('#v-course>.sub')).display),'none');
  });
  await test('training sentence play is labeled and targets the current sentence',async p=>{
   await p.locator('#ep-tabs [data-m=train]').click();
