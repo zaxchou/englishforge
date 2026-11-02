@@ -1406,18 +1406,17 @@ function auditScoreRepairs(result,tag){
     fs.renameSync(tmp,file);
   }catch(e){console.warn('[eplod] score audit write failed:',e.message);}
 }
-function correctVoiceScores(target,tag){
-  let result;
-  try{result=EplodRecords.repairVoiceScores(target,eplodDialogue);}
-  catch(e){console.warn('[eplod] voice score correction failed ('+tag+'):',e.message);return 0;}
-  auditScoreRepairs(result,tag);
-  return result.changed||0;
+function correctVoiceScores(target){
+  try{return EplodRecords.repairVoiceScores(target,eplodDialogue);}
+  catch(e){console.warn('[eplod] voice score correction failed:',e.message);return {changed:0,changes:[]};}
 }
-const correctedVoice=correctVoiceScores(RECORDS,'boot');
-if(correctedVoice){
+/* 审计只在记录真正落盘后写入: 保存失败不留"从未生效"的审计项 */
+const voiceFix=correctVoiceScores(RECORDS);
+if(voiceFix.changed){
   const repaired={...RECORDS,revision:(RECORDS.revision||0)+1,saved_at:new Date().toISOString()};
   recordsSave(repaired);RECORDS=repaired;
-  console.log('[eplod] corrected voice scores against strict scoring:',correctedVoice);
+  auditScoreRepairs(voiceFix,'boot');
+  console.log('[eplod] corrected voice scores against strict scoring:',voiceFix.changed);
 }
 const repairedSpeed=EplodRecords.repairSpeedScores(RECORDS,id=>{
   try{return JSON.parse(fs.readFileSync(path.join(BUILD_DIR,'eplod',id.slice(6)+'.json'),'utf8')).dialogue;}catch{return null;}
@@ -1654,11 +1653,12 @@ const handler = async (req, res) => {
         if (inc?.revision !== (RECORDS.revision || 0)) return sendJSON(res, 409, {error:'records conflict', revision:RECORDS.revision || 0});
         let next;
         try { next = nextRecords(inc); if(inc.snapshotId){if(typeof inc.snapshotId!=='string'||!/^[\w-]{8,100}$/.test(inc.snapshotId))throw Error('invalid snapshot id');next.snapshotEvents={...(RECORDS.snapshotEvents||{}),[inc.snapshotId]:true};} } catch (e) { return sendJSON(res, 400, {error:e.message}); }
-        /* 旧客户端可能回传宽赦评分(R6): 合并后按严格口径再校正一次, 与启动修复同一套审计 */
-        const inboundFixed=correctVoiceScores(next,'snapshot');
+        /* 旧客户端可能回传宽赦评分(R6): 合并后按严格口径再校正一次, 审计在落盘成功后写 */
+        const inboundFix=correctVoiceScores(next);
         try { recordsSave(next); } catch (e) { console.error('[records]',e.message); return sendJSON(res, 503, {error:'records not persisted'}); }
+        auditScoreRepairs(inboundFix,'snapshot');
         RECORDS = next;
-        return sendJSON(res, 200, { ok: true, revision:RECORDS.revision, saved_at: RECORDS.saved_at, corrected: inboundFixed || undefined });
+        return sendJSON(res, 200, { ok: true, revision:RECORDS.revision, saved_at: RECORDS.saved_at, corrected: inboundFix.changed || undefined });
       }
       return sendJSON(res, 405, { error: 'method' });
     }

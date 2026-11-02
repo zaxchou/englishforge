@@ -402,9 +402,30 @@ async function endpointChecks() {
     }
     assert.deepEqual(records.course['eplod-0016'].drill.rd, correctedRd, 'Boot corrects evidenced latest scores while preserving historical aggregates');
     assert.deepEqual(records.course['eplod-0016'].drill.stampDays, {old: [0, 1]});
+    // R6 入站再校正(端到端): 旧客户端回传宽赦语音分, 快照合并后按严格口径纠正并审计
+    const fifteen = {text: 'I have fifteen dollars.', t0: 0, t1: 2};
+    fs.writeFileSync(path.join(dirs.build, 'eplod', '0001.json'), JSON.stringify({dialogue: [fifteen]}));
+    const staleWide = {acc: .5, mode: 'voice', last: 'i have fifty dollars', at: 20, dur: 2,
+      voice: {id: 'legacy-take', at: 20, mode: 'voice', text: 'i have fifty dollars', acc: 1, dur: 2},
+      latest: {id: 'legacy-take', at: 20, mode: 'voice', text: 'i have fifty dollars', acc: 1, dur: 2}};
+    const snapshot = {...records, writing: records.writing || {}, drafts: records.drafts || {}, revision: records.revision,
+      course: {...records.course, 'eplod-0001': {drill: {dd: {}, rd: {0: staleWide}, sd: {}, playsS: {}, stampDays: {}}}}, feedback: []};
+    const saved = await json('/api/records', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({...snapshot, attemptProtocol: 2})});
+    assert.equal(saved.status, 200);
+    assert.equal(saved.body.corrected, 6, 'voice/latest acc + scoringVersion + lastAcc/lastScoringVersion mirrors');
+    const afterPost = (await json('/api/records')).body;
+    const fixed = afterPost.course['eplod-0001'].drill.rd[0];
+    const expectedAcc = E.scoreTokens(fifteen.text, 'i have fifty dollars', true).acc;
+    assert.ok(expectedAcc < 1, 'fifteen/fifty stays a miss under strict scoring');
+    assert.equal(fixed.voice.acc, expectedAcc, 'inbound voice score corrected');
+    assert.equal(fixed.latest.acc, expectedAcc, 'inbound latest score corrected');
+    assert.equal(fixed.voice.scoringVersion, E.SCORING_VERSION);
+    assert.equal(fixed.acc, .5, 'unevidenced aggregate is preserved verbatim');
+    const auditLog = JSON.parse(fs.readFileSync(path.join(dirs.records, 'score-repairs-audit.json'), 'utf8'));
+    assert.ok(auditLog.entries.some(e => e.tag === 'snapshot' && e.path.join('.').includes('eplod-0001')), 'inbound correction is audited');
     const persisted = JSON.parse(fs.readFileSync(path.join(dirs.records, 'records.json'), 'utf8'));
     assert.equal(persisted.course['eplod-0016'].drill.sd[0].verified, true);
-    console.log('Isolated server take archives, idempotency, legacy routes, path guards and boot repair passed');
+    console.log('Isolated server take archives, idempotency, legacy routes, path guards, boot and inbound repair passed');
   } finally {
     if (child) await stopServer(child);
     fs.rmSync(temp, {recursive: true, force: true});
