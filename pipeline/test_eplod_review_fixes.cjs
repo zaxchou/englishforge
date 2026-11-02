@@ -57,7 +57,7 @@ function lesson(id = 'eplod-9998') {
     p: {marks: {}, collected: {}, drill: {mode: 'free', dd: {}, rd: {0: {acc: 1}, 1: {acc: 1}}, sd: {}, playsS: {}}},
     doneOf: () => true};
 }
-function harness(st = lesson()) {
+function harness(st = lesson(), opts = {}) {
   const clock = {now: 0, next: 1, jobs: new Map()};
   const schedule = (fn, delay, period = 0) => {
     const id = clock.next++; clock.jobs.set(id, {fn, at: clock.now + delay, period}); return id;
@@ -87,7 +87,7 @@ function harness(st = lesson()) {
   }
   class AC {
     constructor() {this.state = 'running';}
-    createAnalyser() {return {frequencyBinCount: 256, getByteTimeDomainData(a) {a.fill(145);}};}
+    createAnalyser() {return {frequencyBinCount: 256, getByteTimeDomainData(a) {a.fill(opts.silent ? 128 : 145);}};}
     createMediaStreamSource(stream) {
       const graph = {stream, connected: false, connect() {this.connected = true;}, disconnect() {this.connected = false;}};
       graphs.push(graph); return graph;
@@ -217,6 +217,16 @@ async function main() {
     await h2.ctx.epWholeToggle(); await h2.advance(1200); await h2.ctx.epWholeToggle(); await h2.advance(0);
     assert.equal(h2.calls.filter(c => c.route === '/api/eplod/asr').length, 1, 'near-source take still goes to scoring');
     assert.equal(h2.st.wpTake.phase, 'result');
+  });
+  await run('R11 silent whole take returns to the entry card instead of hanging at 正在转写', async () => {
+    const h = harness(undefined, {silent: true});
+    await h.ctx.epWholeToggle(); await h.advance(1200); await h.ctx.epWholeToggle(); await h.advance(0);
+    assert.equal(h.st.wpTake, null, 'panel state handed back after the silence guard');
+    assert.match(h.node('ep-whole').innerHTML, /整篇背诵 · 最后一遍|重新背诵/, 'entry card is back');
+    assert.equal(h.calls.filter(c => c.route).length, 0, 'silent take never reaches ASR');
+    assert.equal(h.recorders[0].state, 'inactive');
+    assert.equal(h.streams[0].track.stopped, true);
+    assert.equal(h.intervals(), 0);
   });
   await run('C2 pending permission and active whole cancel both release resources without ASR', async () => {
     for (const kind of ['whole', 'sentence']) {

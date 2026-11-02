@@ -3830,7 +3830,8 @@ function epReleaseCapture(r){
 function epStopCapture(st,r,whole=false){
   clearTimeout(r.startTimer);
   const started=r.rec.state!=='inactive';
-  if(whole&&st.wpTake===r)st.wpTake=started&&!r.cancelled?{phase:'processing'}:null;
+  /* from=r: 停止瞬间面板先切成「转写中」, onstop 靠它认领并归还界面(卡死修复 2026-11-03) */
+  if(whole&&st.wpTake===r)st.wpTake=started&&!r.cancelled?{phase:'processing',from:r}:null;
   if(!whole&&st.recording===r)st.recording=null;
   if(!started)r.cancelled=true;
   try{if(started)r.rec.stop();}catch(e){r.cancelled=true;if(whole)st.wpTake=null;}
@@ -4372,7 +4373,8 @@ async function epWholeToggle(){
   rec.ondataavailable=e=>{if(e.data?.size)chunks.push(e.data);};
   rec.onstop=async()=>{
     epReleaseCapture(r);
-    if(st.wpTake===r)st.wpTake=null;
+    /* 停止按钮可能已把 wpTake 换成 from=r 的「转写中」占位: 一律先归还, 保护分支才能回入口卡 */
+    if(st.wpTake&&(st.wpTake===r||st.wpTake.from===r))st.wpTake=null;
     if(r.cancelled){epWholeUpdate();return;}
     const blob=new Blob(chunks,{type:r.mime});
     if(!blob.size){epWholeUpdate();return;}
@@ -4386,7 +4388,7 @@ async function epWholeToggle(){
       st.wpTake={phase:'error',error:'这次录音 '+fmtDur(Math.round(taken))+'，比原文 '+fmtDur(Math.round(srcDur))+' 短太多——整篇还没背完，本次不送检测，请重新背诵。'};
       epWholeUpdate();return;
     }
-    st.wpTake={phase:'processing'};epWholeUpdate();
+    st.wpTake={phase:'processing',from:r};epWholeUpdate();
     try{
       const audio=await new Promise((res,rej)=>{const fr=new FileReader();fr.onload=()=>res(String(fr.result));fr.onerror=()=>rej(Error('录音读取失败，请重新背诵。'));fr.readAsDataURL(blob);});
       await epWholeProcess(st,{id,at,dur:taken,audio});
