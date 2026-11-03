@@ -2,7 +2,7 @@
   'use strict';
   const copy=x=>x===undefined?undefined:JSON.parse(JSON.stringify(x));
   const object=x=>x&&typeof x==='object'&&!Array.isArray(x);
-  const SCORING_VERSION=2;
+  const SCORING_VERSION=3;
   /* 判分归一分词(r19): 官方文本的 "5:58" 分词成 [5,58], ASR/用户输入是 [five,fifty,eight],
      形状不同会白扣分——数字 token 统一展开成读法单词; oh 与 zero 互通(两侧同变换, 只增匹配不改错配)。 */
   const NUM1={0:'zero',1:'one',2:'two',3:'three',4:'four',5:'five',6:'six',7:'seven',8:'eight',9:'nine',10:'ten',11:'eleven',12:'twelve',13:'thirteen',14:'fourteen',15:'fifteen',16:'sixteen',17:'seventeen',18:'eighteen',19:'nineteen',20:'twenty'};   /* 20 曾缺表, expandNum 兜底成 "20" 配不上 twenty(r2 2026-10-30) */
@@ -67,6 +67,9 @@
     if(Object.hasOwn(SLANG,w))return SLANG[w].slice();
     w=w.replace(/^'+|'+$/g,'');   /* 游离撇号和词尾所有格 customers' */
     if(Object.hasOwn(CONTRACTIONS,w))return CONTRACTIONS[w].slice();
+    /* 已确认的视力复合词与连字符/分写形式同分词; 不普遍拼接(如 re-sign/resign)。 */
+    const sighted=w.match(/^(far|near|short|long)(sighted(?:ness)?)$/);
+    if(sighted)return [sighted[1],sighted[2]];
     if(!w)return out;
     if(FILLER.test(w))return ['hmm'];
     /* 同音称呼两侧同变换, 不按大写猜测姓名。 */

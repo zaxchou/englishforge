@@ -122,6 +122,51 @@ test('contraction rescoring repairs evidenced voice/whole takes and blocks versi
   assert.equal(E.repairVoiceScores(records, () => [{text: "I see... so you're calling in sick?"}]).changed, 0);
 });
 
+test('confirmed sighted compounds match hyphenated forms and preserve original feedback text', () => {
+  const official = 'Sounds like you may be far-sighted. OK, then, cover your left eye and read the chart in front of you.';
+  const mine = 'Sounds like you may be farsighted. Okay, then cover your left eye and read the chart in front of you';
+  for (const [a, b] of [[official, mine], [mine, official]]) {
+    const score = E.scoreTokens(a, b, true);
+    assert.equal(score.acc, 1, 'user sentence matches completely');
+    assert.deepEqual(score.extras, []);
+    assert.ok(score.marks.every(Boolean));
+    assert.ok(score.matched.every(Boolean));
+    assert.equal(E.tokenSegments(a).map(s => s.text).join(''), a);
+  }
+  for (const prefix of ['far', 'near', 'short', 'long']) {
+    for (const suffix of ['sighted', 'sightedness']) {
+      const joined = prefix + suffix;
+      for (const separator of ['-', ' ', '\u2010', '\u2011', '\u2013']) {
+        const split = prefix + separator + suffix;
+        assert.deepEqual(E.normTokens(joined), E.normTokens(split));
+        assert.equal(E.scoreTokens(joined, split, true).acc, 1);
+        assert.equal(E.scoreTokens(split, joined, true).acc, 1);
+      }
+    }
+  }
+  assert.deepEqual(E.tokenSegments('Farsighted')[0], {text: 'Farsighted', tokens: ['far', 'sighted']});
+  for (const [a, b] of [['far-sighted', 'nearsighted'], ['short-sighted', 'longsighted'], ['re-sign', 'resign'], ['re-cover', 'recover'], ['far-sighted', 'far']]) {
+    assert.ok(E.scoreTokens(a, b, true).acc < 1, a + '/' + b + ' must stay distinct');
+  }
+});
+
+test('compound rescoring upgrades version-2 evidence without changing stamps and stays idempotent', () => {
+  const old = whole('compound-whole', 15, 'You may be farsighted.', .6,
+    {scoringVersion: 2, per: [{i: 0, acc: .6}], extra: ['farsighted']});
+  const records = {course: {'eplod-0020': {drill: {wp: {latest: clone(old), best: clone(old)}, stampDays: {'2026-11-03': [0]}}}}};
+  const source = () => [{text: 'You may be far-sighted.'}];
+  const audit = E.repairVoiceScores(records, source);
+  const drill = records.course['eplod-0020'].drill;
+  assert.ok(audit.changed > 0);
+  assert.equal(drill.wp.latest.acc, 1);
+  assert.deepEqual(drill.wp.latest.per, [{i: 0, acc: 1}]);
+  assert.deepEqual(drill.wp.latest.extra, []);
+  assert.equal(drill.wp.latest.scoringVersion, E.SCORING_VERSION);
+  assert.deepEqual(drill.stampDays, {'2026-11-03': [0]});
+  for (const merged of [E.mergeDrill({wp: {latest: old, best: old}}, drill), E.mergeDrill(drill, {wp: {latest: old, best: old}})]) assert.equal(merged.wp.latest.acc, 1);
+  assert.equal(E.repairVoiceScores(records, source).changed, 0);
+});
+
 test('normalization whitelist lookups return string tokens even for dictionary property names and oversized numbers', () => {
   assert.deepEqual(E.normTokens('constructor prototype tostring'), ['constructor', 'prototype', 'tostring']);
   assert.equal(E.lcsAccFuzzy('The constructor calls.', 'The construction calls.'), 2 / 3);

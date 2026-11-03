@@ -512,6 +512,19 @@ async function main() {
     assert.match(panel, /#7 100%/);
     assert.doesNotMatch(panel, /wp-sent|class="miss"|class="extra"/, 'equivalent contraction creates no false error row');
   });
+  await run('R14 far-sighted/farsighted and OK/Okay render clean whole feedback', async () => {
+    const h = harness();
+    h.st.d.dialogue = [{text: 'Sounds like you may be far-sighted. OK, then, cover your left eye and read the chart in front of you.'}];
+    const text = 'Sounds like you may be farsighted. Okay, then cover your left eye and read the chart in front of you';
+    const score = h.ctx.epWholeScore(h.st, text);
+    assert.equal(score.acc, 1);
+    assert.equal(h.ctx.epWholeDetail(h.st, {text}).clean, true);
+    h.st.wpTake = {phase: 'result', result: {id: 'compound', at: 1, mode: 'whole', text, ...score}};
+    h.ctx.epWholeUpdate();
+    const panel = h.node('ep-whole').innerHTML;
+    assert.match(panel, /#1 100%/);
+    assert.doesNotMatch(panel, /wp-sent|class="miss"|class="extra"/);
+  });
   console.log('DONE review-fix regressions: all scenarios assert the fixed behavior.');
 }
 main().catch(error => {console.error(error); process.exitCode = 1;});
