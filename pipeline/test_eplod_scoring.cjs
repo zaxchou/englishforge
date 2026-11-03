@@ -62,9 +62,64 @@ test('normalization retains spelling, number readings, fillers, slang, accents a
     assert.equal(E.lcsAcc(a, b), 1);
   }
   assert.deepEqual(E.scoreTokens("I'm gonna call.", "I'm gonna to call.", true), {
-    acc: 1, marks: [true, true, true, true], extras: ['to'],
-    matched: [true, true, false, true, true], pairs: [[0, 0], [1, 1], [2, 3], [3, 4]]
+    acc: 1, marks: [true, true, true, true, true], extras: ['to'],
+    matched: [true, true, true, false, true, true], pairs: [[0, 0], [1, 1], [2, 2], [3, 4], [4, 5]]
   }, 'The extra to remains visible after slang expansion');
+});
+
+test('common contractions equal their full forms without erasing grammar or content errors', () => {
+  for (const [short, full] of [
+    ["I see... so you're calling in sick?", 'I see. So you are calling in sick?'],
+    ["I'm ready and we've booked it.", 'I am ready and we have booked it.'],
+    ["'You're calling in sick?'", 'You are calling in sick?'],
+    ["They're here; we'll wait.", 'They are here; we will wait.'],
+    ["I’ve called; you’ll hear from me.", 'I have called; you will hear from me.'],
+    ["Don't call; she isn't ready.", 'Do not call; she is not ready.'],
+    ["He doesn't know and they didn't ask.", 'He does not know and they did not ask.'],
+    ["I can't go; he won't come.", 'I cannot go; he will not come.'],
+    ["Let's go. You shouldn't wait.", 'Let us go. You should not wait.']
+  ]) {
+    for (const [a, b] of [[short, full], [full, short]]) {
+      assert.deepEqual(E.normTokens(a), E.normTokens(b), a);
+      assert.equal(E.scoreTokens(a, b, true).acc, 1);
+      assert.deepEqual(E.scoreTokens(a, b, true).extras, []);
+      const parts = E.tokenSegments(a);
+      assert.equal(parts.map(p => p.text).join(''), a, 'display keeps the actual contraction');
+      assert.equal(parts.flatMap(p => p.tokens).length, E.scoreTokens(a, b, true).marks.length);
+    }
+  }
+  for (const [a, b] of [
+    ["You aren't calling in sick.", 'You are calling in sick.'],
+    ["You're calling in sick.", 'You were calling in sick.'],
+    ["I've called.", 'I called.'],
+    ["I'll call.", 'I would call.'],
+    ["He's called.", 'He is called.'],
+    ["He's called.", 'He has called.'],
+    ["I'd called.", 'I had called.'],
+    ["I'd call.", 'I would call.'],
+    ["The customer's calling.", 'The customer is calling.']
+  ]) assert.ok(E.scoreTokens(a, b, true).acc < 1, a + ' retains a distinct or ambiguous form');
+});
+
+test('contraction rescoring repairs evidenced voice/whole takes and blocks version-1 snapshots', () => {
+  const text = 'I see. So you are calling in sick?', old = whole('contracted-whole', 12, text, 6 / 7,
+    {scoringVersion: 1, per: [{i: 0, acc: 6 / 7}], extra: ['you', 'are']});
+  const spoken = row(voice('contracted-voice', 10, text, 6 / 7, {scoringVersion: 1}));
+  const records = {course: {'eplod-0002': {drill: {rd: {0: spoken}, wp: {best: clone(old), latest: clone(old)}, stampDays: {'2026-11-03': [0]}}}}};
+  const audit = E.repairVoiceScores(records, () => [{text: "I see... so you're calling in sick?"}]);
+  const drill = records.course['eplod-0002'].drill;
+  assert.equal(drill.rd[0].voice.acc, 1);
+  assert.equal(drill.wp.latest.acc, 1);
+  assert.deepEqual(drill.wp.latest.per, [{i: 0, acc: 1}]);
+  assert.deepEqual(drill.wp.latest.extra, []);
+  assert.equal(drill.wp.latest.scoringVersion, E.SCORING_VERSION);
+  assert.deepEqual(drill.stampDays, {'2026-11-03': [0]});
+  assert.ok(audit.changes.some(c => c.reason === 'normalized-whole-transcript'));
+  for (const merged of [E.mergeDrill({wp: {latest: old, best: old}}, drill), E.mergeDrill(drill, {wp: {latest: old, best: old}})]) {
+    assert.equal(merged.wp.latest.acc, 1);
+    assert.equal(merged.wp.best.acc, 1);
+  }
+  assert.equal(E.repairVoiceScores(records, () => [{text: "I see... so you're calling in sick?"}]).changed, 0);
 });
 
 test('normalization whitelist lookups return string tokens even for dictionary property names and oversized numbers', () => {

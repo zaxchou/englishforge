@@ -474,6 +474,8 @@ async function main() {
       {lines: ['Julianne waits.'], text: 'waits Julian.', clean: true},
       {lines: ["I'm gonna book 24 seats.", 'The décor is nice.'], text: "I'm going to book twenty four seats. The decor is nice.", clean: true},
       {lines: ['The d \u0301ecor is nice.', 'Okay, go!'], text: 'The decor is nice. OK, go!', clean: true},
+      {lines: ["I see... so you're calling in sick?"], text: 'I see. So you are calling in sick?', clean: true},
+      {lines: ["You're calling in sick."], text: 'You calling in sick.', misses: [1]},
       {lines: ['Book 24 seats.'], text: 'Book twenty seats.', misses: [1]},
       {lines: ['We are going to leave.'], text: 'We are gonna to leave.', extras: ['to']},
       {lines: ['Go.', 'To work.'], text: 'gonna work.'},
@@ -496,6 +498,19 @@ async function main() {
       if (c.extras) assert.deepEqual(Array.from(det.sents.flatMap(s => s.extras)), c.extras, c.text);
       if (c.clean !== undefined) assert.equal(det.clean, c.clean, c.text);
     }
+  });
+  await run('R13 expanded you are renders a clean 100% seventh sentence', async () => {
+    const h = harness();
+    h.st.d.dialogue = Array.from({length: 6}, (_, i) => ({text: 'Synthetic line number ' + (i + 1) + '.'}));
+    h.st.d.dialogue.push({text: "I see... so you're calling in sick?"});
+    const text = h.st.d.dialogue.map(x => x.text).join(' ').replace("you're", 'you are');
+    const score = h.ctx.epWholeScore(h.st, text);
+    assert.equal(score.per[6].acc, 1);
+    h.st.wpTake = {phase: 'result', result: {id: 'contraction', at: 1, mode: 'whole', text, ...score}};
+    h.ctx.epWholeUpdate();
+    const panel = h.node('ep-whole').innerHTML;
+    assert.match(panel, /#7 100%/);
+    assert.doesNotMatch(panel, /wp-sent|class="miss"|class="extra"/, 'equivalent contraction creates no false error row');
   });
   console.log('DONE review-fix regressions: all scenarios assert the fixed behavior.');
 }

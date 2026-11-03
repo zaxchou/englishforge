@@ -2,7 +2,7 @@
   'use strict';
   const copy=x=>x===undefined?undefined:JSON.parse(JSON.stringify(x));
   const object=x=>x&&typeof x==='object'&&!Array.isArray(x);
-  const SCORING_VERSION=1;
+  const SCORING_VERSION=2;
   /* 判分归一分词(r19): 官方文本的 "5:58" 分词成 [5,58], ASR/用户输入是 [five,fifty,eight],
      形状不同会白扣分——数字 token 统一展开成读法单词; oh 与 zero 互通(两侧同变换, 只增匹配不改错配)。 */
   const NUM1={0:'zero',1:'one',2:'two',3:'three',4:'four',5:'five',6:'six',7:'seven',8:'eight',9:'nine',10:'ten',11:'eleven',12:'twelve',13:'thirteen',14:'fourteen',15:'fifteen',16:'sixteen',17:'seventeen',18:'eighteen',19:'nineteen',20:'twenty'};   /* 20 曾缺表, expandNum 兜底成 "20" 配不上 twenty(r2 2026-10-30) */
@@ -46,6 +46,16 @@
   const SLANG={gonna:['going','to'],wanna:['want','to'],gotta:['got','to'],kinda:['kind','of'],sorta:['sort','of'],
     lemme:['let','me'],gimme:['give','me'],outta:['out','of'],lotta:['lot','of'],"c'mon":['come','on'],
     "'bout":['about'],"'em":['them'],"'cause":['because'],"'til":['till'],"'till":['till'],"'tis":['it','is']};
+  /* 明确同义的常见缩写两侧展开。's(is/has/所有格)、'd(had/would)有歧义, 不盲目替换。 */
+  const CONTRACTIONS={"i'm":['i','am'],"you're":['you','are'],"we're":['we','are'],"they're":['they','are'],
+    "i've":['i','have'],"you've":['you','have'],"we've":['we','have'],"they've":['they','have'],
+    "i'll":['i','will'],"you'll":['you','will'],"he'll":['he','will'],"she'll":['she','will'],
+    "it'll":['it','will'],"we'll":['we','will'],"they'll":['they','will'],"let's":['let','us'],
+    "don't":['do','not'],"doesn't":['does','not'],"didn't":['did','not'],"isn't":['is','not'],
+    "aren't":['are','not'],"wasn't":['was','not'],"weren't":['were','not'],"haven't":['have','not'],
+    "hasn't":['has','not'],"hadn't":['had','not'],"won't":['will','not'],"wouldn't":['would','not'],
+    "can't":['can','not'],cannot:['can','not'],"couldn't":['could','not'],"shouldn't":['should','not'],
+    "mustn't":['must','not'],"needn't":['need','not'],"mightn't":['might','not']};
   const COMBINING=/[\u0300-\u036f]/;
   function wordTokens(w){
     const out=[];
@@ -56,6 +66,7 @@
     }
     if(Object.hasOwn(SLANG,w))return SLANG[w].slice();
     w=w.replace(/^'+|'+$/g,'');   /* 游离撇号和词尾所有格 customers' */
+    if(Object.hasOwn(CONTRACTIONS,w))return CONTRACTIONS[w].slice();
     if(!w)return out;
     if(FILLER.test(w))return ['hmm'];
     /* 同音称呼两侧同变换, 不按大写猜测姓名。 */
@@ -152,7 +163,7 @@
         const rescore=(result,resultPath)=>{
           if(!hasText(result.text)){skip(resultPath,'transcript-unavailable');return;}
           if(scoringVersion(result)>SCORING_VERSION){skip(resultPath,'newer-scoring-version');return;}
-          write(result,'acc',lcsAccFuzzy(official,result.text),resultPath,'confirmed-name-aliases');
+          write(result,'acc',lcsAccFuzzy(official,result.text),resultPath,'normalized-voice-transcript');
           write(result,'scoringVersion',SCORING_VERSION,resultPath,'verified-voice-scoring-version');
         };
         if(object(row.voice)){
@@ -192,7 +203,7 @@
           offset+=len;
           return {i,acc:len?hit/len:1};
         });
-        write(result,'acc',score.acc,path,'whole-transcript-confirmed-name-aliases');
+        write(result,'acc',score.acc,path,'normalized-whole-transcript');
         write(result,'per',per,path,'whole-transcript-sentence-marks');
         write(result,'extra',score.extras,path,'whole-transcript-extra-tokens');
         write(result,'scoringVersion',SCORING_VERSION,path,'verified-whole-scoring-version');
