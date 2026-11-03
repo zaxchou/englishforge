@@ -102,13 +102,14 @@
     const a=normTokens(official),b=normTokens(mine),n=a.length;
     const dp=Array.from({length:n+1},()=>new Array(b.length+1).fill(0));
     for(let i=1;i<=n;i++)for(let j=1;j<=b.length;j++)dp[i][j]=a[i-1]===b[j-1]?dp[i-1][j-1]+1:Math.max(dp[i-1][j],dp[i][j-1]);
-    const marks=new Array(n).fill(false),matched=new Array(b.length).fill(false);
+    const marks=new Array(n).fill(false),matched=new Array(b.length).fill(false),pairs=[];
     let hit=dp[n][b.length],i=n,j=b.length;
     while(i>0&&j>0){
-      if(a[i-1]===b[j-1]){marks[i-1]=true;matched[j-1]=true;i--;j--;}
+      if(a[i-1]===b[j-1]){marks[i-1]=true;matched[j-1]=true;pairs.push([i-1,j-1]);i--;j--;}
       else if(dp[i-1][j]>=dp[i][j-1])i--;
       else j--;
     }
+    pairs.reverse();
     if(fuzzy){
       const ou=[],bu=[];
       for(let k=0;k<n;k++)if(!marks[k])ou.push(k);
@@ -116,11 +117,11 @@
       let k=0;
       for(const oi of ou){
         for(let t=k;t<Math.min(bu.length,k+4);t++){
-          if(fuzzyEqual(a[oi],b[bu[t]])){marks[oi]=true;matched[bu[t]]=true;hit++;bu.splice(t,1);k=t;break;}
+          if(fuzzyEqual(a[oi],b[bu[t]])){marks[oi]=true;matched[bu[t]]=true;pairs.push([oi,bu[t]]);hit++;bu.splice(t,1);k=t;break;}
         }
       }
     }
-    return {acc:n?hit/n:0,marks,extras:b.filter((_,k)=>!matched[k]).slice(0,12)};
+    return {acc:n?hit/n:0,marks,matched,pairs,extras:b.filter((_,k)=>!matched[k]).slice(0,12)};
   }
   function lcsAccFuzzy(official,mine){return scoreTokens(official,mine,true).acc;}
   /* 兼容旧调用方的计数返回值; 新调用方可用 repairVoiceScores 获取逐字段审计。 */

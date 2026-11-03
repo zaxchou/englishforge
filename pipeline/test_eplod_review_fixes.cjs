@@ -409,6 +409,94 @@ async function main() {
     assert.equal(dry.status, 2);
     assert.equal(JSON.parse(fs.readFileSync(file, 'utf8')).dialogue[1].t0, 3, 'dry run never writes');
   });
+  await run('R12 whole feedback attributes misses/extras to sentences word-by-word', async () => {
+    const h = harness();
+    h.st.d.dialogue = [
+      {text: 'Please book me a flight.', t0: 0, t1: 2},
+      {text: 'Window seat please.', t0: 3, t1: 4},
+      {text: 'Thank you so much.', t0: 5, t1: 6},
+    ];
+    const transcript = 'Please book me flight. Window seat please. Thank you so much buddy.';
+    const score = E.scoreTokens(h.st.d.dialogue.map(x => x.text).join(' '), transcript, true);
+    assert.ok(Array.isArray(score.matched) && Array.isArray(score.pairs), 'scoreTokens exposes match flags and pairs');
+    const scored = h.ctx.epWholeScore(h.st, transcript);
+    const det = h.ctx.epWholeDetail(h.st, {text: transcript, ...scored});
+    assert.equal(det.clean, false);
+    assert.equal(det.sents.length, 3);
+    const s0 = det.sents[0];
+    assert.ok(s0.wordsHtml === undefined, 'detail exposes data, rendering stays in the UI layer');
+    assert.deepEqual(Array.from(s0.words.filter(w => !w.ok), w => w.t), ['a'], 'the dropped word is flagged on sentence 1');
+    assert.equal(s0.miss, 1);
+    assert.deepEqual(Array.from(s0.extras), [], 'sentence 1 has no extra words');
+    const s1 = det.sents[1];
+    assert.equal(s1.words.some(w => !w.ok), false);
+    assert.deepEqual(Array.from(s1.extras), [], 'sentence 2 stays clean');
+    const s2 = det.sents[2];
+    assert.deepEqual(Array.from(s2.extras), ['buddy'], 'the spoken extra lands on sentence 3');
+    assert.equal(s2.acc, 1, 'extra words do not change the existing scoring rule');
+  });
+  await run('R12b clean whole pass renders no detail blocks; imperfect pass renders word rows', async () => {
+    const h = harness();
+    h.st.d.dialogue = [
+      {text: 'Please book me a flight.', t0: 0, t1: 2},
+      {text: 'Window seat please.', t0: 3, t1: 4},
+      {text: 'Thank you so much.', t0: 5, t1: 6},
+    ];
+    const full = h.st.d.dialogue.map(x => x.text).join(' ');
+    h.st.wpTake = {phase: 'result', result: {id: 'clean', at: 1, mode: 'whole', text: full, acc: 1, dur: 9, per: [{i: 0, acc: 1}, {i: 1, acc: 1}, {i: 2, acc: 1}]}};
+    h.ctx.epWholeUpdate();
+    let panel = h.node('ep-whole').innerHTML;
+    assert.match(panel, /✓ 整篇通过/);
+    assert.doesNotMatch(panel, /wp-sent/, 'clean pass stays a single quiet line');
+    const transcript = 'Please book me flight. Window seat please. Thank you so much buddy.';
+    h.st.wpTake = {phase: 'result', result: {id: 'rough', at: 2, mode: 'whole', text: transcript, dur: 9, ...h.ctx.epWholeScore(h.st, transcript)}};
+    h.ctx.epWholeUpdate();
+    panel = h.node('ep-whole').innerHTML;
+    assert.match(panel, /这几句没完全对上/);
+    assert.match(panel, /class="wp-sent/);
+    assert.match(panel, /class="miss">a</, 'the missing word is flagged in the rendered row');
+    assert.match(panel, /class="extra">buddy</, 'the extra word is flagged under 我说');
+    assert.match(panel, /第 3 句/);
+    assert.match(panel, /Please<\/span> <span class="ok">book/, 'raw word spacing and case remain readable');
+    assert.match(panel, /归属按相邻命中位置估算/);
+  });
+  await run('R12c detail preserves every raw segment across omissions, replacements, aliases and expansions', async () => {
+    const cases = [
+      {lines: ['Alpha beta.', 'Gamma delta.', 'Epsilon zeta.'], text: 'Alpha beta. Epsilon zeta.', misses: [0, 2, 0]},
+      {lines: ['Please book me a flight.', 'Window seat please.'], text: 'Please book me a train. Window seat please.', misses: [1, 0], extras: ['train']},
+      {lines: ['Alpha beta.', 'Gamma delta.'], text: 'Hey Alpha really beta. Gamma delta buddy.', extras: ['hey', 'really', 'buddy']},
+      {lines: ['Alpha beta.', 'Gamma delta.'], text: 'Alpha beta umm Gamma delta.', extras: ['hmm']},
+      {lines: ['Alpha beta.', 'Gamma delta.'], text: 'Nothing matches here.', misses: [2, 2]},
+      {lines: ['Alpha beta.', 'Gamma delta.'], text: '', misses: [2, 2]},
+      {lines: ['Yes yes.', 'Yes again.'], text: 'Yes. Yes again.', misses: [1, 0]},
+      {lines: ['Julianne is here.', 'McNealy says hello.'], text: 'Julian is here. Mclean says hello.', clean: true},
+      {lines: ['Julianne says hello.', 'McNealy waits.'], text: 'Mclean says hello. Julian waits.', clean: false},
+      {lines: ['Julianne waits.'], text: 'waits Julian.', clean: true},
+      {lines: ["I'm gonna book 24 seats.", 'The décor is nice.'], text: "I'm going to book twenty four seats. The decor is nice.", clean: true},
+      {lines: ['The d \u0301ecor is nice.', 'Okay, go!'], text: 'The decor is nice. OK, go!', clean: true},
+      {lines: ['Book 24 seats.'], text: 'Book twenty seats.', misses: [1]},
+      {lines: ['We are going to leave.'], text: 'We are gonna to leave.', extras: ['to']},
+      {lines: ['Go.', 'To work.'], text: 'gonna work.'},
+    ];
+    for (const c of cases) {
+      const h = harness();
+      h.st.d.dialogue = c.lines.map(text => ({text}));
+      const before = JSON.stringify(h.st);
+      const det = h.ctx.epWholeDetail(h.st, {text: c.text});
+      assert.equal(JSON.stringify(h.st), before, 'feedback never mutates progress');
+      assert.equal(det.sents.map(s => s.words.map(w => w.t).join('')).join('|'), c.lines.join('|'), 'official text is lossless');
+      assert.equal(det.sents.map(s => s.mine.map(w => w.t).join('')).join(''), c.text, 'transcript is lossless, including punctuation and trailing extras');
+      const score = h.ctx.epWholeScore(h.st, c.text);
+      assert.deepEqual(Array.from(det.sents, s => s.acc), Array.from(score.per, p => p.acc), 'display and existing per-sentence scores agree');
+      const flat = E.scoreTokens(c.lines.join(' '), c.text, true);
+      assert.equal(flat.pairs.length, flat.marks.filter(Boolean).length, 'alias hits have pairs too');
+      assert.equal(new Set(flat.pairs.map(p => p[1])).size, flat.pairs.length, 'transcript tokens are matched at most once');
+      assert.equal(det.sents.reduce((n, s) => n + s.extras.length, 0), flat.matched.filter(v => !v).length, 'no extra word is lost');
+      if (c.misses) assert.deepEqual(Array.from(det.sents, s => s.miss), c.misses, c.text);
+      if (c.extras) assert.deepEqual(Array.from(det.sents.flatMap(s => s.extras)), c.extras, c.text);
+      if (c.clean !== undefined) assert.equal(det.clean, c.clean, c.text);
+    }
+  });
   console.log('DONE review-fix regressions: all scenarios assert the fixed behavior.');
 }
 main().catch(error => {console.error(error); process.exitCode = 1;});

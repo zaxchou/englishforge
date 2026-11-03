@@ -8,7 +8,7 @@
 <link rel="icon" type="image/png" sizes="96x96" href="/assets/brand/t-dot-v1/t-dot-96.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/assets/brand/t-dot-v1/t-dot-180.png">
 <title>TOEFL Lab · 托福自学练习</title>
-<link rel="stylesheet" href="desk.css?v=20261102r10">
+<link rel="stylesheet" href="desk.css?v=20261103r2">
 <style>
 /* 应用层补充样式（视觉基线在 desk.css，不改它的既有规则） */
 /* 单词与字符格保持同一行；焦点、已填、判题状态沿用研读桌配色。 */
@@ -345,7 +345,7 @@ details.ai-tsec[open] summary{margin-bottom:8px}
 
 </div>
 
-<script src="eplod-records.js?v=13"></script>
+<script src="eplod-records.js?v=14"></script>
 <script src="course-plan-model.js?v=20261029r8"></script>
 <script src="course-plan-ui.js?v=20261102r11"></script>
 <script>
@@ -4285,6 +4285,48 @@ function epWholeAdvice(st,score,dur){
   if(score.extra&&score.extra.length)out.push('多出的词：'+score.extra.join(' · ')+'。');
   return out;
 }
+/* 逐句反馈只读重算, 沿用整篇判分的 marks。未命中的转写按相邻命中位置估算归属;
+   姓名赦免可能交叉, 只用单调配对划边界。原文词段完整保留, 数字/缩写不重复展开显示。 */
+function epWholeDetail(st,result){
+  const lines=st.d.dialogue,segs=lines.map(x=>EplodRecords.tokenSegments(x.text));
+  const whole=EplodRecords.scoreTokens(lines.map(x=>x.text).join(' '),result.text||'',true);
+  const mine=EplodRecords.tokenSegments(result.text||''),bToks=mine.flatMap(s=>s.tokens);
+  const sentOfTok=[],sents=[];
+  for(let i=0;i<lines.length;i++){
+    const s={i,acc:1,miss:0,words:[],mine:[],extras:[]};let count=0;
+    for(const seg of segs[i]){
+      const flags=seg.tokens.map(()=>{const k=sentOfTok.length;sentOfTok.push(i);count++;return !!whole.marks[k];});
+      s.miss+=flags.filter(ok=>!ok).length;
+      s.words.push({t:seg.text,ok:flags.every(Boolean),word:!!flags.length});
+    }
+    s.acc=count?(count-s.miss)/count:1;sents.push(s);
+  }
+  const anchors=[[-1,-1]];
+  for(const pair of [...whole.pairs].sort((a,b)=>a[1]-b[1])){
+    if(pair[0]>anchors[anchors.length-1][0])anchors.push(pair);
+  }
+  anchors.push([sentOfTok.length,bToks.length]);
+  const owners=new Array(bToks.length);
+  for(let k=1;k<anchors.length;k++){
+    const [pa,pb]=anchors[k-1],[na,nb]=anchors[k],gap=nb-pb-1,missing=na-pa-1;
+    for(let j=pb+1;j<nb;j++){
+      const ai=missing>0?pa+1+Math.floor((j-pb-1)*missing/gap):(pa>=0?pa:na);
+      owners[j]=sentOfTok[Math.max(0,Math.min(sentOfTok.length-1,ai))]??0;
+    }
+    if(nb<bToks.length)owners[nb]=sentOfTok[na];
+  }
+  let bi=0,lastOwner=0;
+  for(const seg of mine){
+    const owner=seg.tokens.length?(owners[bi]??lastOwner):lastOwner;lastOwner=owner;
+    const flags=seg.tokens.map((_,k)=>!!whole.matched[bi+k]);
+    if(sents[owner]){
+      sents[owner].mine.push({t:seg.text,ok:flags.every(Boolean),word:!!flags.length});
+      seg.tokens.forEach((t,k)=>{if(!flags[k])sents[owner].extras.push(t);});
+    }
+    bi+=seg.tokens.length;
+  }
+  return {clean:whole.marks.every(Boolean)&&whole.matched.every(Boolean),sents};
+}
 function epWholeUpdate(){
   const st=EP.st,host=$('ep-whole');if(!host||!st||!st.d)return;
   epWholeIsolation(st);
@@ -4321,8 +4363,19 @@ function epWholeLive(host,st){
     return;
   }
   const r=t.result;
+  const det=epWholeDetail(st,r);
+  const sentBlocks=det.clean?'':det.sents.filter(s=>s.miss||s.extras.length).map(s=>{
+    const words=s.words.map(w=>w.word?'<span class="'+(w.ok?'ok':'miss')+'">'+esc(w.t)+'</span>':esc(w.t)).join('');
+    const mine=s.mine.some(m=>m.word)?s.mine.map(m=>m.word?'<span class="'+(m.ok?'ok':'extra')+'">'+esc(m.t)+'</span>':esc(m.t)).join('')
+      :'<span class="none">未识别到能对应这句的内容</span>';
+    const note=[s.miss?'原文 '+s.miss+' 词未对上':'',s.extras.length?'识别多出 '+s.extras.length+' 词':''].filter(Boolean).join(' · ');
+    return '<div class="wp-sent'+(s.acc>=.9?'':' weak')+'"><h5><span class="n">第 '+(s.i+1)+' 句</span><span class="pct">词准 '+Math.round(s.acc*100)+'%</span><span class="diff-count">'+note+'</span></h5>'
+      +'<div class="wline"><b>原文</b>'+words+'</div>'
+      +'<div class="mine"><b>识别</b>'+mine+'</div></div>';
+  }).join('');
   host.innerHTML='<div class="wp-result'+(r.acc>=.9?' pass':'')+'"><div class="wp-hero"><b>'+(r.acc>=.9?'✓ 整篇通过':'整篇词准 '+Math.round(r.acc*100)+'%')+'</b><span>通过线 90%'+(Number.isFinite(r.dur)?' · 用时 '+fmtDur(Math.round(r.dur)):'')+'</span></div>'
     +'<div class="wp-per">'+r.per.map(p=>'<span class="'+(p.acc>=.9?'ok':'weak')+'" title="'+esc(st.d.dialogue[p.i].text)+'">#'+(p.i+1)+' '+Math.round(p.acc*100)+'%</span>').join('')+'</div>'
+    +(sentBlocks?'<p class="wp-detail-note">这几句没完全对上：原文红波浪为未匹配词，识别红波浪为多出或替换的词。<span>逐句归属按相邻命中位置估算；识别也可能有偏差，请结合录音核对。多出词沿用原规则，不另扣分。</span></p>'+sentBlocks:'')
     +'<div class="wp-advise">'+epWholeAdvice(st,r,r.dur).map(x=>'<p>'+esc(x)+'</p>').join('')+'</div>'
     +'<div class="wp-actions"><button class="pri" id="ep-whole-again">重背一次</button><button id="ep-whole-close">收起</button></div></div>';
   host.querySelector('#ep-whole-again').onclick=()=>{st.wpTake=null;epWholeToggle();};

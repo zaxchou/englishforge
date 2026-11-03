@@ -29,7 +29,8 @@ test('R6: ordinary number/content/day words require an exact normalized match', 
     ['I have 15 dollars.', 'I have 50 dollars.']
   ]) {
     assert.deepEqual(E.scoreTokens(official, mine, true), {
-      acc: .75, marks: [true, true, false, true], extras: ['fifty']
+      acc: .75, marks: [true, true, false, true], extras: ['fifty'],
+      matched: [true, true, false, true], pairs: [[0, 0], [1, 1], [3, 3]]
     });
   }
   assert.equal(E.fuzzyEqual('because', 'cause'), false, 'Bare cause keeps its separate meaning');
@@ -61,7 +62,8 @@ test('normalization retains spelling, number readings, fillers, slang, accents a
     assert.equal(E.lcsAcc(a, b), 1);
   }
   assert.deepEqual(E.scoreTokens("I'm gonna call.", "I'm gonna to call.", true), {
-    acc: 1, marks: [true, true, true, true], extras: ['to']
+    acc: 1, marks: [true, true, true, true], extras: ['to'],
+    matched: [true, true, false, true, true], pairs: [[0, 0], [1, 1], [2, 3], [3, 4]]
   }, 'The extra to remains visible after slang expansion');
 });
 
