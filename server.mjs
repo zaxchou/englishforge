@@ -301,6 +301,96 @@ function gqSave() {
   } catch (e) { console.error('[gq-store]', e.message); }
 }
 const AI_QV = 2;                 // v2 = 逐字稿源+覆盖闭环+选项级解析(note)
+/* ---------- 期末考试（2026-11-04）: 卷面随 build/exams 下发, 作答/成绩在 records/exam-runs.json ----------
+   考试草稿体量小且每题都会保存, 单独放一个小文件, 避免每题重写整份 records.json;
+   交卷时才把作答并入 attempts/mistakes, 错题进入常规 1/3/7/14 复习调度。考中只回“已保存”。 */
+const EXAM_DIR = path.join(BUILD_DIR, 'exams');
+const EXAM_RUNS_FILE = path.join(RECORDS_DIR, 'exam-runs.json');
+const EXAM_CACHE = new Map();
+let EXAM_RUNS = {version: 1, exams: {}};
+try {
+  const j = JSON.parse(fs.readFileSync(EXAM_RUNS_FILE, 'utf8'));
+  if (j && typeof j === 'object' && !Array.isArray(j)) EXAM_RUNS = {version: 1, exams: j.exams || {}};
+} catch (e) {}
+function examRunsSave(next) {
+  fs.mkdirSync(RECORDS_DIR, {recursive: true});
+  const tmp = EXAM_RUNS_FILE + '.tmp';
+  const fd = fs.openSync(tmp, 'w');
+  try { fs.writeFileSync(fd, JSON.stringify(next)); fs.fsyncSync(fd); }
+  finally { fs.closeSync(fd); }
+  fs.renameSync(tmp, EXAM_RUNS_FILE);
+}
+function examPaper(id) {
+  if (!/^[a-z0-9-]{3,40}$/.test(String(id || ''))) return null;
+  const file = path.join(EXAM_DIR, id + '.json');
+  let stat;
+  try { stat = fs.statSync(file); } catch { return null; }
+  const hit = EXAM_CACHE.get(id);
+  if (hit && hit.mtime === stat.mtimeMs) return hit.paper;
+  const paper = JSON.parse(fs.readFileSync(file, 'utf8'));
+  EXAM_CACHE.set(id, {mtime: stat.mtimeMs, paper});
+  return paper;
+}
+function examMeta(paper) {
+  return {
+    id: paper.id, title: paper.title, course: paper.course, courseTitle: paper.courseTitle,
+    version: paper.version, total: (paper.questions || []).length,
+    types: paper.rules?.types || {}, untimed: paper.rules?.untimed !== false, generatedAt: paper.generatedAt,
+  };
+}
+function examUnlock(paper) {
+  const ids = (paper.lessons || []).map(l => l.id).filter(Boolean);
+  const need = Number(paper.unlock?.lessons) || ids.length;
+  const done = ids.filter(id => RECORDS.course?.[id]?.done).length;
+  return {done, need, ready: done >= need};
+}
+function examState(store, id) {
+  store.exams = store.exams || {};
+  const s = store.exams[id] = store.exams[id] || {runs: [], active: null};
+  if (!Array.isArray(s.runs)) s.runs = [];
+  return s;
+}
+function examRunSummary(run) {
+  return {
+    id: run.id, startedAt: run.startedAt, submittedAt: run.submittedAt, score: run.score,
+    correct: run.correct, total: run.total, perType: run.perType, perLesson: run.perLesson,
+  };
+}
+function examPersist(mutate) {
+  const next = JSON.parse(JSON.stringify(EXAM_RUNS));
+  const out = mutate(next);
+  next.version = 1;
+  examRunsSave(next);
+  EXAM_RUNS = next;
+  return out;
+}
+function examDetail(paper, run) {
+  const items = (run.items || []).map(item => {
+    const q = paper.questions.find(x => x.id === item.qid);
+    if (!q) return {...item, missing: true};
+    return {
+      qid: q.id, number: q.number, lessonNo: q.lessonNo, lessonId: q.lessonId, lessonTitle: q.lessonTitle, type: q.type,
+      stem: q.stem, options: q.options, answer: q.answer, explain: q.explain,
+      letter: item.letter || null, ok: !!item.ok,
+    };
+  });
+  return {...examRunSummary(run), items};
+}
+function examRouteBody(req, res, readBody, sendJSON) {
+  const origin = req.headers.origin;
+  if (origin && origin !== `http://${req.headers.host}` && origin !== `https://${req.headers.host}`) {
+    sendJSON(res, 403, {error: 'cross-origin write rejected'}); return false;
+  }
+  if (!(req.headers['content-type'] || '').toLowerCase().startsWith('application/json')) {
+    sendJSON(res, 415, {error: 'application/json required'}); return false;
+  }
+  return true;
+}
+async function readJsonBody(req, readBody) {
+  const body = await readBody(req, 32768);
+  return JSON.parse(body.toString('utf8') || '{}');
+}
+
 const GQ_COURSE = 'ndf-01';      // MVP 只开词汇课
 /* 原素材只读；优先提供本地文字复核派生稿，状态不等于逐句听音认证。 */
 const SCRIPT_DIRS = { 'ndf-01': path.join(SIB, '新D方', '新D方新托福全套', '01 托福词汇课 孙曦', '逐字稿') };
@@ -1713,6 +1803,154 @@ const handler = async (req, res) => {
       return sendJSON(res, planError?409:200, { ok: !planError, attemptSaved:true,...(planError||{}),...(hasPlan?{plan:planResult(next)}:{}),
         attentionSaved, attempt: a, mistake:next.mistakes[ref.qid]||null,
         qtime:next.qtimes[ref.qid]||0,revision:next.revision,saved_at:next.saved_at });
+    }
+
+    /* ---- API: 期末考试(2026-11-04) ---- */
+    if (p === '/api/exams') {
+      if (req.method !== 'GET') return sendJSON(res, 405, {error: 'method'});
+      let files = [];
+      try { files = fs.readdirSync(EXAM_DIR).filter(f => f.endsWith('.json') && !f.startsWith('_')); } catch (e) {}
+      const exams = [];
+      for (const f of files.sort()) {
+        const paper = examPaper(f.slice(0, -5));
+        if (!paper) continue;
+        const st = EXAM_RUNS.exams?.[paper.id], last = st?.runs?.at(-1);
+        exams.push({...examMeta(paper), unlock: examUnlock(paper),
+          active: st?.active ? {id: st.active.id, answered: Object.keys(st.active.answers || {}).length, startedAt: st.active.startedAt} : null,
+          last: last ? examRunSummary(last) : null});
+      }
+      return sendJSON(res, 200, {ok: true, exams});
+    }
+    const mExamRuns = p.match(/^\/api\/exams\/([a-z0-9-]{3,40})\/runs\/([\w-]{3,60})$/);
+    if (mExamRuns && req.method === 'GET') {
+      const paper = examPaper(mExamRuns[1]);
+      if (!paper) return sendJSON(res, 404, {error: 'exam not found'});
+      const run = EXAM_RUNS.exams?.[paper.id]?.runs?.find(x => x.id === mExamRuns[2]);
+      if (!run) return sendJSON(res, 404, {error: 'run not found'});
+      return sendJSON(res, 200, {ok: true, result: examDetail(paper, run)});
+    }
+    const mExamAct = p.match(/^\/api\/exams\/([a-z0-9-]{3,40})\/(start|answer|submit)$/);
+    if (mExamAct) {
+      if (req.method !== 'POST') return sendJSON(res, 405, {error: 'method'});
+      if (!examRouteBody(req, res, readBody, sendJSON)) return;
+      const paper = examPaper(mExamAct[1]);
+      if (!paper) return sendJSON(res, 404, {error: 'exam not found'});
+      let body;
+      try { body = await readJsonBody(req, readBody); } catch (e) { return sendJSON(res, 400, {error: 'bad json'}); }
+      const now = Date.now();
+      const byQid = new Map(paper.questions.map(q => [q.id, q]));
+      if (mExamAct[2] === 'start') {
+        const unlock = examUnlock(paper);
+        if (!unlock.ready) return sendJSON(res, 409, {error: `还差 ${unlock.need - unlock.done} 节学完解锁`, code: 'exam_locked', unlock});
+        const out = (() => {
+          try {
+            return examPersist(store => {
+              const st = examState(store, paper.id);
+              if (st.active) return {run: st.active, resumed: true};
+              st.active = {id: 'ex' + now.toString(36) + Math.random().toString(36).slice(2, 8), startedAt: now, updatedAt: now, paperVersion: paper.version, answers: {}, unsure: {}};
+              return {run: st.active, resumed: false};
+            });
+          } catch (e) {
+            return {error: e};
+          }
+        })();
+        if (out.error) return sendJSON(res, 503, {error: 'exam not persisted'});
+        return sendJSON(res, 200, {ok: true, ...out});
+      }
+      if (mExamAct[2] === 'answer') {
+        const q = byQid.get(body.qid);
+        if (!q) return sendJSON(res, 400, {error: 'unknown question'});
+        if (!/^[ABCD]$/.test(String(body.letter || ''))) return sendJSON(res, 400, {error: 'letter must be A-D'});
+        if (typeof body.runId !== 'string' || !/^[\w-]{3,60}$/.test(body.runId)) return sendJSON(res, 400, {error: 'runId required'});
+        let out;
+        try {
+          out = examPersist(store => {
+            const st = examState(store, paper.id);
+            if (!st.active || st.active.id !== body.runId) { const e = Error('本轮已结束，请重新开始'); e.code = 'run_not_active'; throw e; }
+            st.active.answers[q.id] = body.letter;
+            st.active.unsure[q.id] = body.unsure === true;
+            st.active.updatedAt = now;
+            return {answered: Object.keys(st.active.answers).length, total: paper.questions.length};
+          });
+        } catch (e) { return sendJSON(res, e.code ? 409 : 503, {error: e.message, code: e.code}); }
+        return sendJSON(res, 200, {ok: true, saved: true, ...out});
+      }
+      /* submit: 服务端判分; 未作答按错算分, 但不产生错题记录 */
+      const existing = EXAM_RUNS.exams?.[paper.id]?.runs?.find(x => x.id === body.runId);
+      if (existing) return sendJSON(res, 200, {ok: true, duplicate: true, result: examDetail(paper, existing)});
+      if (typeof body.runId !== 'string' || !/^[\w-]{3,60}$/.test(body.runId)) return sendJSON(res, 400, {error: 'runId required'});
+      const state = EXAM_RUNS.exams?.[paper.id];
+      if (!state?.active || state.active.id !== body.runId) return sendJSON(res, 409, {error: '本轮已结束，请重新开始', code: 'run_not_active'});
+      const run = state.active;
+      const items = paper.questions.map(q => {
+        const letter = run.answers[q.id] || null;
+        return {qid: q.id, letter, ok: letter === q.answer};
+      });
+      const correct = items.filter(i => i.ok).length;
+      const perType = {}, perLesson = {};
+      for (const q of paper.questions) {
+        const ok = items.find(i => i.qid === q.id)?.ok;
+        for (const [bucket, key] of [[perType, q.type], [perLesson, String(q.lessonNo)]]) {
+          bucket[key] = bucket[key] || {total: 0, correct: 0};
+          bucket[key].total++;
+          if (ok) bucket[key].correct++;
+        }
+      }
+      /* 先并入学习记录(带事件标记, 重试不会重复计分), 再落考试结果 */
+      const next = JSON.parse(JSON.stringify(RECORDS));
+      next.attemptEvents = next.attemptEvents || {};
+      for (const item of items) {
+        if (!item.letter) continue;
+        const q = byQid.get(item.qid), qid = `exam/${paper.id}/${item.qid}`, evt = 'exm-' + run.id + '-' + item.qid;
+        if (next.attemptEvents[evt]) continue;
+        try {
+          serverRecAttempt(next, {qid, set: 'exam', subj: paper.course, mk: paper.id, gkey: 'exam'},
+            {id: evt, answer: item.letter, ok: item.ok, secs: 0, t: run.startedAt + 1});
+          next.attemptEvents[evt] = {qid, examRun: run.id};
+          const mk = next.mistakes[qid];
+          if (mk && !item.ok) { mk.stem = q.stem; mk.lessonId = q.lessonId; mk.examRun = run.id; }
+        } catch (e) { console.warn('[exam] record', item.qid, e.message); }
+      }
+      next.revision = (RECORDS.revision || 0) + 1;
+      next.saved_at = new Date().toISOString();
+      try { recordsSave(next); } catch (e) { console.error('[exam]', e.message); return sendJSON(res, 503, {error: 'records not persisted'}); }
+      RECORDS = next;
+      let result;
+      try {
+        result = examPersist(store => {
+          const st = examState(store, paper.id);
+          if (!st.active || st.active.id !== run.id) {
+            const prev = st.runs.find(r => r.id === run.id);
+            if (prev) return examDetail(paper, prev);
+            const e = Error('本轮已结束，请重新开始'); e.code = 'run_not_active'; throw e;
+          }
+          Object.assign(st.active, {items, submittedAt: now, correct, total: paper.questions.length,
+            score: paper.questions.length ? correct / paper.questions.length : 0, perType, perLesson});
+          st.runs.push(st.active);
+          st.runs = st.runs.slice(-20);
+          st.active = null;
+          return examDetail(paper, st.runs.at(-1));
+        });
+      } catch (e) { return sendJSON(res, e.code ? 409 : 503, {error: e.message, code: e.code}); }
+      return sendJSON(res, 200, {ok: true, result});
+    }
+    const mExamOne = p.match(/^\/api\/exams\/([a-z0-9-]{3,40})$/);
+    if (mExamOne) {
+      if (req.method !== 'GET') return sendJSON(res, 405, {error: 'method'});
+      const paper = examPaper(mExamOne[1]);
+      if (!paper) return sendJSON(res, 404, {error: 'exam not found'});
+      const st = EXAM_RUNS.exams?.[paper.id];
+      const last = st?.runs?.at(-1);
+      return sendJSON(res, 200, {
+        ok: true, ...examMeta(paper), unlock: examUnlock(paper), lessons: paper.lessons,
+        questions: paper.questions.map(q => ({
+          id: q.id, number: q.number, lessonNo: q.lessonNo, lessonId: q.lessonId, lessonTitle: q.lessonTitle, type: q.type,
+          stem: q.stem, options: Object.fromEntries(Object.entries(q.options).map(([l, o]) => [l, {t: o.t}])),
+        })),
+        active: st?.active || null,
+        last: last ? examRunSummary(last) : null,
+        runs: (st?.runs || []).map(examRunSummary).reverse(),
+      });
     }
 
     /* ---- API: 背单词词库（只读, 一次全量, 客户端会话内缓存） ---- */

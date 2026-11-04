@@ -8,7 +8,7 @@
 <link rel="icon" type="image/png" sizes="96x96" href="/assets/brand/t-dot-v1/t-dot-96.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/assets/brand/t-dot-v1/t-dot-180.png">
 <title>TOEFL Lab · 托福自学练习</title>
-<link rel="stylesheet" href="desk.css?v=20261104r1">
+<link rel="stylesheet" href="desk.css?v=20261104r2">
 <style>
 /* 应用层补充样式（视觉基线在 desk.css，不改它的既有规则） */
 /* 单词与字符格保持同一行；焦点、已填、判题状态沿用研读桌配色。 */
@@ -207,6 +207,13 @@ details.ai-tsec[open] summary{margin-bottom:8px}
   </div>
 </div>
 
+<!-- ============ 期末考试（课程末的综合卷, 由复习中心进入） ============ -->
+<div class="view" id="v-final">
+  <div class="bhead"><h2 class="pt" id="fe-title">期末考试</h2><span class="ct" id="fe-ct"></span></div>
+  <p class="sub" id="fe-sub">按课综合卷 · 不限时 · 交卷后逐题复盘</p>
+  <div id="fe-body"><p role="status">正在读取试卷…</p></div>
+</div>
+
 <!-- ============ 做题（任务页, 不占主导航） ============ -->
 <div class="view" id="v-do">
   <div class="ctx">
@@ -267,7 +274,7 @@ details.ai-tsec[open] summary{margin-bottom:8px}
   <p class="sub" id="cs-sub">选择课节，配合讲义学习，再练对应题</p>
   <div class="cs-tabs" id="cs-tabs" role="tablist" aria-label="视频课板块">
     <button data-t="learn" class="on" aria-selected="true">我的课程</button>
-    <button data-t="review" aria-selected="false">课后复习</button>
+    <button data-t="review" aria-selected="false">复习中心</button>
   </div>
   <span class="ct" id="cs-ct"></span>
   </div>
@@ -1129,6 +1136,7 @@ function go(v){
   if(v==='course'||v==='eplod'){ renderCourse(); csCourseGo(csCourseTab); }
   if(v==='course') scheduleReviewPrefetch();   // 进视频课就后台预载课后复习, 点开页签即达
   if(v==='stats') renderStats();
+  if(v==='final') renderFinalExam();
   if(v==='vocab') mountVocab();
   gqStudyGate();
   window.scrollTo(0,0);
@@ -1147,11 +1155,19 @@ function route(){
   if(v==='sets'){location.replace('#/exam/sets');return;}
   if(v==='review'){location.replace('#/exam/review');return;}
   if(v==='memory'){location.replace('#/course/review');return;}   // 课后复习并入视频课
+  if(v==='final'){
+    const parts=h.split('/');
+    FE.id=parts[1]?decodeURIComponent(parts[1]):'ndf-01-final';
+    FE.runId=parts[2]==='run'&&parts[3]?decodeURIComponent(parts[3]):null;
+    go('final');return;
+  }
   if(['home','course','eplod','exam','stats','vocab'].includes(v)){
     if(v==='drill'&&arg&&SUBN[arg]) drillTab(arg);
     if(v==='course'&&arg){
       if(arg==='review'){csCourseTab='review';go('course');return;}
-      const f=courseFind(decodeURIComponent(arg));if(f){ if(f.c.kind==='eplod'){location.hash='#/eplod/'+encodeURIComponent(arg);return;} csSel={c:f.c.id,l:f.ix};csPick=f.c.id; } go('course');return;}
+      const f=courseFind(decodeURIComponent(arg));if(f){ if(f.c.kind==='eplod'){location.hash='#/eplod/'+encodeURIComponent(arg);return;} csSel={c:f.c.id,l:f.ix};csPick=f.c.id; }
+      csCourseTab='learn';   /* 直链进课节必须回到「我的课程」, 不能停在复习中心 */
+      go('course');return;}
     if(v==='eplod'){ if(arg){const f=courseFind(decodeURIComponent(arg));if(f){csSel={c:f.c.id,l:f.ix};csPick=f.c.id;epSel={c:f.c.id,l:f.ix};}} go('eplod');return;}
     if(v==='exam'){
       const parts=arg?arg.split('/'):[];const t=parts[0];
@@ -1166,7 +1182,7 @@ window.goBack=function(){ nav(lastNav||'home'); };
 document.querySelectorAll('.nav button').forEach(b=>{ b.onclick=()=>nav(b.dataset.v); });
 
 /* 手机可收缩导航: 左上角菜单键展开面板, 选中/点外部即收起 */
-const NAV_CUR_NAMES={home:'首页',course:'视频课',eplod:'EnglishPod',exam:'真题训练',vocab:'背单词',stats:'数据分析',do:'做题'};
+const NAV_CUR_NAMES={home:'首页',course:'视频课',eplod:'EnglishPod',exam:'真题训练',vocab:'背单词',stats:'数据分析',do:'做题',final:'期末考试'};
 function navMenuOpen(open){
   const top=document.querySelector('.top'),burger=$('nav-burger');
   if(!top||!burger)return;
@@ -1211,7 +1227,7 @@ function csCourseGo(t){
   $('cs-pane-learn').hidden=csCourseTab!=='learn';
   $('cs-pane-review').hidden=csCourseTab!=='review';
   const sub=$('cs-sub');
-  if(sub)sub.textContent=csCourseTab==='review'?'按课盖章复习，每天少量推进':'选择课节，配合讲义学习，再练对应题';
+  if(sub)sub.textContent=csCourseTab==='review'?'按来源回顾：课后练、期末考、EnglishPod、错题与词根':'选择课节，配合讲义学习，再练对应题';
   if(csCourseTab==='review')mountCourseMemory();
 }
 $('cs-tabs').querySelectorAll('button').forEach(b=>b.addEventListener('click',()=>{csCourseGo(b.dataset.t);history.replaceState(null,'','#/course'+(b.dataset.t==='review'?'/review':''));}));
@@ -5239,6 +5255,170 @@ async function startDueReview(button){
   finally{button.disabled=false;button.textContent='复习全部到期题';}
 }
 
+/* ---- 期末考试（2026-11-04）: 课程末综合卷, 服务端判分, 交卷后逐题复盘 ---- */
+const FE={id:null,runId:null,paper:null,active:null,last:null,phase:'cover',ix:0,answers:{},unsure:{},saveState:'',err:'',result:null,redo:null,confirm:false,busy:false};
+async function feRequest(path,body){
+  const r=await fetch('/api/exams'+path,body===undefined
+    ?{signal:AbortSignal.timeout(15000)}
+    :{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.timeout(20000)});
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok){const e=Error(j.error||'请求失败');e.code=j.code;e.unlock=j.unlock;throw e;}
+  return j;
+}
+function feQuestion(){return FE.paper?.questions?.[FE.ix];}
+function feFirstUnanswered(){const qs=FE.paper?.questions||[];const i=qs.findIndex(q=>!FE.answers[q.id]);return i<0?Math.max(0,qs.length-1):i;}
+function fePickCount(){return (FE.paper?.questions||[]).filter(q=>FE.answers[q.id]).length;}
+async function renderFinalExam(){
+  const id=FE.id||'ndf-01-final';FE.id=id;
+  const host=$('fe-body');if(!host)return;
+  host.innerHTML='<p role="status">正在读取试卷…</p>';
+  const hadRun=!!FE.runId;
+  try{
+    if(FE.runId){const j=await feRequest('/'+id+'/runs/'+encodeURIComponent(FE.runId));FE.runId=null;FE.result=j.result;FE.phase='result';}
+    else{const j=await feRequest('/'+id);FE.paper=j;FE.last=j.last;FE.active=j.active;
+      if(j.active){FE.answers={...(j.active.answers||{})};FE.unsure={...(j.active.unsure||{})};FE.phase='answer';FE.ix=feFirstUnanswered();}
+      else FE.phase='cover';}
+  }catch(e){
+    if(hadRun){FE.runId=null;FE.err='这次复盘暂不可用：'+e.message;return renderFinalExam();}
+    host.innerHTML='<p role="alert">'+esc(e.message)+'</p><button id="fe-retry">重试</button>';const b=$('fe-retry');if(b)b.onclick=renderFinalExam;return;
+  }
+  FE.err='';FE.saveState='';fePaint();
+}
+function fePaint(){
+  const host=$('fe-body');if(!host||!FE.paper&&!FE.result)return;
+  const paper=FE.paper;
+  const t=$('fe-title'),sub=$('fe-sub'),ct=$('fe-ct');
+  if(t)t.textContent=paper?.title||FE.result?.title||'期末考试';
+  if(sub)sub.textContent=paper?('共 '+paper.total+' 题 · '+(paper.untimed?'不限时 · 可中途退出续做':'限时')+' · 交卷后逐题复盘'):'逐题复盘';
+  if(ct)ct.textContent=FE.phase==='answer'?'已作答 '+fePickCount()+' / '+paper.total:'';
+  if(FE.phase==='cover')return fePaintCover(host);
+  if(FE.phase==='answer')return fePaintAnswer(host);
+  if(FE.phase==='redo')return fePaintRedo(host);
+  return fePaintResult(host);
+}
+function fePaintCover(host){
+  const p=FE.paper,u=p.unlock||{};
+  const firstOpen=(p.lessons||[]).find(l=>!REC.course?.[l.id]?.done);
+  const last=FE.last;
+  host.innerHTML='<div class="card fe-cover"><div class="fe-cover-top"><span class="fe-tag">'+esc(p.courseTitle||p.course)+'</span><b>'+esc(p.title)+'</b><span class="fe-meta">'+p.total+' 题 · 不限时</span></div>'
+    +'<p>覆盖全部 '+(p.lessons||[]).length+' 节，四种题型混合：'+(p.types?Object.entries(p.types).map(([k,n])=>feTypeName(k)+' '+n).join(' · '):'')+'。答错会进入错题本，按 1/3/7/14 天复习。</p>'
+    +(u.ready?'<p class="fe-lock ok">✓ 已解锁</p>':'<p class="fe-lock">还差 '+(u.need-u.done)+' 节学完解锁'+(firstOpen?' · <a href="#/course/'+esc(firstOpen.id)+'">去学《'+esc(firstOpen.title)+'》</a>':'')+'</p>')
+    +(last?'<p class="fe-last">上次成绩 <b>'+last.correct+' / '+last.total+'</b>（'+Math.round(last.score*100)+'%） · <button class="fe-link" id="fe-last">查看上次复盘</button></p>':'')
+    +'<div class="fe-actions">'+(p.active?'<button class="pri" id="fe-start">继续上次作答 →</button>':'<button class="pri" id="fe-start"'+(u.ready?'':' disabled')+'>开始考试 →</button>')+'<button id="fe-back">返回复习中心</button></div>'
+    +(FE.err?'<p class="fe-err" role="alert">'+esc(FE.err)+'</p>':'')+'</div>';
+  const s=$('fe-start');if(s)s.onclick=feStart;
+  const l=$('fe-last');if(l)l.onclick=()=>{FE.runId=FE.last.id;renderFinalExam();};
+  $('fe-back').onclick=()=>csCourseGo('review');
+}
+async function feStart(){
+  const button=$('fe-start');if(button)button.disabled=true;
+  try{
+    const j=await feRequest('/'+FE.id+'/start',{});
+    FE.active=j.run;FE.answers={...(j.run.answers||{})};FE.unsure={...(j.run.unsure||{})};FE.phase='answer';FE.ix=feFirstUnanswered();FE.err='';
+  }catch(e){
+    FE.err=e.message;
+    if(e.unlock){FE.paper.unlock=e.unlock;}
+  }
+  if(button)button.disabled=false;
+  fePaint();
+}
+function feTypeName(t){return {root:'词根词缀',meaning:'词义',collocation:'搭配',cloze:'语境填空'}[t]||t;}
+function fePaintAnswer(host){
+  const q=feQuestion();if(!q){host.innerHTML='<p>试卷缺少题目。</p>';return;}
+  const chosen=FE.answers[q.id]||'';
+  const opts='ABCD'.split('').map(l=>'<button class="fe-opt'+(chosen===l?' on':'')+'" data-fe-l="'+l+'"><span class="k">'+l+'</span><span class="t">'+esc(q.options[l]?.t||'')+'</span></button>').join('');
+  host.innerHTML='<div class="card fe-answer"><div class="fe-progress"><span>第 '+(FE.ix+1)+' / '+FE.paper.total+' 题</span><span class="fe-tag">'+feTypeName(q.type)+'</span><span class="fe-src">第 '+q.lessonNo+' 节 · '+esc(q.lessonTitle)+'</span></div>'
+    +'<div class="fe-stem">'+esc(q.stem)+'</div><div class="fe-opts">'+opts+'</div>'
+    +'<div class="fe-foot"><button id="fe-unsure" class="'+(FE.unsure[q.id]?'on':'')+'">'+(FE.unsure[q.id]?'已标记不确定':'标记不确定')+'</button>'
+    +'<span class="fe-save">'+(FE.saveState==='error'?'<span class="fe-err">'+esc(FE.err||'保存失败')+'</span>':chosen?'已保存':'未作答')+'</span>'
+    +'<span class="grow"></span><button id="fe-prev"'+(FE.ix===0?' disabled':'')+'>上一题</button><button id="fe-next"'+(FE.ix>=FE.paper.total-1?' disabled':'')+'>下一题</button>'
+    +(FE.confirm?'<button class="pri" id="fe-submit-now">确认交卷</button><button id="fe-submit-cancel">继续作答</button>':'<button class="pri" id="fe-submit">交卷</button>')+'</div>'
+    +(FE.confirm?'<p class="fe-warn">还有 '+(FE.paper.total-fePickCount())+' 题未作答，未答按错计分；确定交卷？</p>':'')
+    +(FE.err?'<p class="fe-err" role="alert">'+esc(FE.err)+'</p>':'')+'</div>';
+  host.querySelectorAll('[data-fe-l]').forEach(b=>b.onclick=()=>fePick(b.dataset.feL));
+  $('fe-unsure').onclick=feToggleUnsure;
+  $('fe-prev').onclick=()=>{if(FE.ix>0){FE.ix--;FE.confirm=false;fePaint();}};
+  $('fe-next').onclick=()=>{if(FE.ix<FE.paper.total-1){FE.ix++;FE.confirm=false;fePaint();}};
+  $('fe-submit').onclick=()=>{FE.confirm=true;fePaint();};
+  const cancel=$('fe-submit-cancel');if(cancel)cancel.onclick=()=>{FE.confirm=false;fePaint();};
+  const now=$('fe-submit-now');if(now)now.onclick=feSubmit;
+}
+async function fePick(letter){
+  const q=feQuestion();if(!q||FE.busy)return;
+  if(!'ABCD'.includes(letter))return;
+  FE.answers[q.id]=letter;FE.saveState='saving';fePaint();
+  FE.busy=true;
+  try{await feRequest('/'+FE.id+'/answer',{runId:FE.active.id,qid:q.id,letter,unsure:!!FE.unsure[q.id]});FE.saveState='saved';FE.err='';}
+  catch(e){FE.saveState='error';FE.err=e.message;}
+  FE.busy=false;fePaint();
+}
+async function feToggleUnsure(){
+  const q=feQuestion();if(!q)return;
+  FE.unsure[q.id]=!FE.unsure[q.id];fePaint();
+  if(FE.answers[q.id]){try{await feRequest('/'+FE.id+'/answer',{runId:FE.active.id,qid:q.id,letter:FE.answers[q.id],unsure:FE.unsure[q.id]});}catch(e){FE.err=e.message;fePaint();}}
+}
+async function feSubmit(){
+  if(FE.busy)return;
+  FE.busy=true;FE.err='';FE.confirm=false;fePaint();
+  try{
+    const j=await feRequest('/'+FE.id+'/submit',{runId:FE.active.id});
+    FE.result=j.result;FE.active=null;FE.last={id:j.result.id,score:j.result.score,correct:j.result.correct,total:j.result.total};FE.phase='result';
+  }catch(e){FE.err=e.message;}
+  FE.busy=false;fePaint();
+}
+function fePaintResult(host){
+  const r=FE.result;if(!r){host.innerHTML='<p>没有可显示的复盘。</p>';return;}
+  const pct=Math.round((r.score||0)*100),wrong=(r.items||[]).filter(i=>!i.ok);
+  const typeRows=Object.entries(r.perType||{}).map(([t,v])=>'<div class="fe-bar"><span>'+feTypeName(t)+'</span><i><b style="width:'+Math.round(v.total?v.correct/v.total*100:0)+'%"></b></i><span>'+v.correct+' / '+v.total+'</span></div>').join('');
+  const weak=Object.entries(r.perLesson||{}).filter(([,v])=>v.correct<v.total).sort((a,b)=>(a[1].correct/a[1].total)-(b[1].correct/b[1].total)||Number(a[0])-Number(b[0])).slice(0,6)
+    .map(([no,v])=>{const q=(r.items||[]).find(i=>String(i.lessonNo)===no);return '<li><a href="#/course/'+esc(q?.lessonId||'')+'">第 '+no+' 节</a> · '+(q?esc(q.lessonTitle):'')+' <b>'+v.correct+' / '+v.total+'</b></li>';}).join('');
+  const wrongHtml=wrong.map(i=>{
+    const chosen=i.letter?'<span class="bad">'+i.letter+' '+esc(i.options[i.letter]?.t||'')+'</span>':'<span class="bad">未作答</span>';
+    return '<div class="fe-wrong"><div class="fe-wrong-head"><span>#'+i.number+' · '+feTypeName(i.type)+' · 第 '+i.lessonNo+' 节</span><span class="fe-tag">'+esc(i.lessonTitle)+'</span></div>'
+      +'<p class="fe-q">'+esc(i.stem)+'</p><p class="fe-ans">你的答案 '+chosen+' · 正确 <b class="ok">'+i.answer+' '+esc(i.options[i.answer]?.t||'')+'</b></p>'
+      +'<p class="fe-exp">'+esc(i.explain||'')+'</p><p class="fe-links"><a href="#/course/'+esc(i.lessonId||'')+'">回看本节</a></p></div>';
+  }).join('')||'<p class="fe-none">全对，没有错题。</p>';
+  const all=(r.items||[]).map(i=>'<details class="fe-item"><summary><span class="'+(i.ok?'ok':'bad')+'">'+(i.ok?'✓':'✗')+'</span> #'+i.number+' · '+feTypeName(i.type)+' · 第 '+i.lessonNo+' 节</summary><p class="fe-q">'+esc(i.stem)+'</p><p class="fe-ans">'+(i.letter?'你选 '+i.letter+' '+esc(i.options[i.letter]?.t||''):'未作答')+' · 正确 '+i.answer+' '+esc(i.options[i.answer]?.t||'')+'</p><p class="fe-exp">'+esc(i.explain||'')+'</p></details>').join('');
+  host.innerHTML='<div class="fe-result"><div class="card"><div class="fe-hero"><b>'+r.correct+' / '+r.total+'</b><span>'+pct+'% · '+(pct>=90?'优秀':pct>=75?'通过':'需要再复习')+'</span></div>'
+    +'<div class="fe-bars">'+typeRows+'</div>'
+    +(weak?'<div class="fe-weak"><h4>薄弱课节</h4><ul>'+weak+'</ul></div>':'')
+    +'<div class="fe-actions"><button class="pri" id="fe-redo"'+(wrong.length?'':' disabled')+'>重做错题（'+wrong.length+'）</button><button id="fe-again">再做一遍</button><button id="fe-to-review">去错题本</button></div></div>'
+    +'<div class="card fe-wrongs"><h3>错题（'+wrong.length+'）</h3>'+wrongHtml+'</div>'
+    +'<div class="card"><h3>逐题复盘</h3>'+all+'</div></div>';
+  $('fe-redo').onclick=()=>{FE.redo={items:wrong,ix:0,revealed:null};FE.phase='redo';fePaint();};
+  $('fe-again').onclick=async()=>{FE.result=null;FE.phase='cover';await renderFinalExam();};
+  $('fe-to-review').onclick=()=>nav('exam/review');
+}
+function fePaintRedo(host){
+  const rd=FE.redo,q=rd.items[rd.ix];
+  if(!q){FE.phase='result';return fePaintResult(host);}
+  const opts='ABCD'.split('').map(l=>{
+    const cls=rd.revealed?(l===q.answer?' right':l===rd.revealed?' wrong':''):'';
+    return '<button class="fe-opt'+cls+'" data-fe-redo="'+l+'"'+(rd.revealed?' disabled':'')+'><span class="k">'+l+'</span><span class="t">'+esc(q.options[l]?.t||'')+'</span></button>';
+  }).join('');
+  host.innerHTML='<div class="card fe-answer"><div class="fe-progress"><span>错题重做 '+(rd.ix+1)+' / '+rd.items.length+'</span><span class="fe-tag">'+feTypeName(q.type)+'</span><span class="fe-src">第 '+q.lessonNo+' 节 · '+esc(q.lessonTitle)+'</span></div>'
+    +'<div class="fe-stem">'+esc(q.stem)+'</div><div class="fe-opts">'+opts+'</div>'
+    +(rd.revealed?'<p class="fe-exp">'+esc(q.explain||'')+'</p>':'')
+    +'<div class="fe-foot"><button id="fe-redo-back">返回成绩</button><span class="grow"></span><button id="fe-redo-prev"'+(rd.ix===0?' disabled':'')+'>上一题</button><button class="pri" id="fe-redo-next">'+(rd.ix>=rd.items.length-1?'完成':'下一题')+'</button></div></div>';
+  host.querySelectorAll('[data-fe-redo]').forEach(b=>b.onclick=()=>{rd.revealed=b.dataset.feRedo;fePaint();});
+  $('fe-redo-back').onclick=()=>{FE.phase='result';fePaint();};
+  $('fe-redo-prev').onclick=()=>{if(rd.ix>0){rd.ix--;rd.revealed=null;fePaint();}};
+  $('fe-redo-next').onclick=()=>{rd.ix++;rd.revealed=null;fePaint();};
+}
+document.addEventListener('keydown',e=>{
+  if(!$('v-final')?.classList.contains('on'))return;
+  if(FE.phase==='answer'){
+    if(/^[a-d1-4]$/i.test(e.key)&&!e.ctrlKey&&!e.metaKey&&!e.altKey){const map={1:'A',2:'B',3:'C',4:'D'};fePick(map[e.key]||e.key.toUpperCase());}
+    else if(e.key==='ArrowLeft'){if(FE.ix>0){FE.ix--;fePaint();}}
+    else if(e.key==='ArrowRight'||e.key==='Enter'){if(FE.ix<FE.paper.total-1){FE.ix++;fePaint();}}
+  }else if(FE.phase==='redo'&&FE.redo){
+    const rd=FE.redo;
+    if(/^[a-d1-4]$/i.test(e.key)&&!rd.revealed){const map={1:'A',2:'B',3:'C',4:'D'};rd.revealed=map[e.key]||e.key.toUpperCase();fePaint();}
+    else if(e.key==='Enter'&&rd.revealed){rd.ix++;rd.revealed=null;fePaint();}
+    else if(e.key==='ArrowLeft'&&rd.ix>0){rd.ix--;rd.revealed=null;fePaint();}
+  }
+});
+
 function reviewEntries(records) {
   return [...scopedEntries(records), ...Object.entries(records || {}).filter(([k]) => k.startsWith('gen/'))];
 }
@@ -5263,7 +5443,8 @@ async function renderReview(){
   // Revised questions keep historical attempts, but old mistakes are not current weaknesses.
   const revisions = (await api('/api/ai/quiz').catch(() => ({}))).revisions || {};
   const ms=[...scopedEntries(REC.mistakes).filter(([k,m])=>!cpManaged(k)&&m&&!m.cleared),
-            ...Object.entries(REC.mistakes||{}).filter(([k,m])=>k.startsWith('gen/')&&(!cpManaged(k)||window.cpShowWrong)&&m&&!m.cleared && (!revisions[k] || (m.last || 0) >= revisions[k]))];
+            ...Object.entries(REC.mistakes||{}).filter(([k,m])=>k.startsWith('gen/')&&(!cpManaged(k)||window.cpShowWrong)&&m&&!m.cleared && (!revisions[k] || (m.last || 0) >= revisions[k])),
+            ...Object.entries(REC.mistakes||{}).filter(([k,m])=>k.startsWith('exam/')&&m&&!m.cleared)];
   const dueN=ms.filter(([k,m])=>!cpManaged(k)&&(m.due||0)<=Date.now()).length;
   $('rv-stats').innerHTML=[
     ['题目错题',ms.length,''],
@@ -5284,8 +5465,9 @@ async function renderReview(){
   ms.sort((a,b)=>(a[1].due||0)-(b[1].due||0));
   await aiHave();   // 已生成清单, 按钮上标「已生成」
   /* 同源题收拢成组(真实题=套题·科目·模块; 课后练=课), 组可折叠; 组头给材料名, 行内不再显示 qid/材料名 */
-  const groupOf = k => k.startsWith('gen/') ? 'gen/' + k.split('/')[1] + '/' + k.split('/')[2] : k.split('/').slice(0, 3).join('/');
+  const groupOf = k => k.startsWith('gen/') ? 'gen/' + k.split('/')[1] + '/' + k.split('/')[2] : k.startsWith('exam/') ? 'exam/' + k.split('/')[1] : k.split('/').slice(0, 3).join('/');
   const groupName = (gk, genQ) => {
+    if (gk.startsWith('exam/')) return '托福词汇课 · 期末考';
     if (genQ) return (gk.split('/')[1]==='cfcm-01'?'万词班课后练':'新东方课堂复习')+' · 第 ' + (Number(gk.split('/')[2]) || '?') + ' 课';
     const [set, subj, mk] = gk.split('/');
     const all = (CATALOG && (CATALOG.sets || CATALOG)) || [];
@@ -5306,9 +5488,10 @@ async function renderReview(){
         <div class="m">${esc('错 ' + (r.m.n_wrong || 1) + ' 次')} · <span class="m-due" style="color:${r.col}">${esc(r.dt)}</span></div>
       </div>
       <div class="ops">
-        <button class="op-ai${AI_HAVE_SET.has(r.k) ? ' have' : ''}" data-ai="${esc(r.k)}" title="${AI_HAVE_SET.has(r.k) ? '已生成解析，点击秒开' : '生成 AI 助教解析（约 2~4 秒）'}">AI解析</button>
+        ${r.exam ? `<button class="op-lesson" data-exam-run="${esc(r.examRun || '')}" title="查看这次期末考的逐题复盘">看复盘</button><button class="op-lesson" data-lesson="${esc(r.lessonId || '')}" title="跳到视频课这一节">回看本节</button>` : ''}
+        ${r.exam ? '' : `<button class="op-ai${AI_HAVE_SET.has(r.k) ? ' have' : ''}" data-ai="${esc(r.k)}" title="${AI_HAVE_SET.has(r.k) ? '已生成解析，点击秒开' : '生成 AI 助教解析（约 2~4 秒）'}">AI解析</button>`}
         ${r.genQ ? `<button class="op-lesson" data-lesson="${esc(genLessonIdOf(r.k) || '')}" title="跳到视频课这一节（视频 · 讲义 · 课稿）">回看本节</button>` : ''}
-        <button class="op-redo" data-redo="${esc(r.k)}" title="进入本题重做">重做</button>
+        ${r.exam ? '' : `<button class="op-redo" data-redo="${esc(r.k)}" title="进入本题重做">重做</button>`}
         <button class="op-clear" data-clear="${esc(r.k)}" title="移出错题本，不再安排复习">不再训练</button>
       </div></div>
     <div class="ai-explain" hidden></div>`;
@@ -5319,14 +5502,14 @@ async function renderReview(){
       const col = due <= Date.now() ? 'var(--bad)' : (due <= Date.now() + 3 * 864e5 ? 'var(--warn)' : 'var(--ok)');
       const dt = cpManaged(k)?'由本课盖章计划安排':due <= Date.now() ? '现在可复习' : '距复习 ' + Math.max(1, Math.ceil((due - Date.now()) / 864e5)) + ' 天';
       const [, subj] = k.split('/');
-      const genQ = k.startsWith('gen/');
+      const genQ = k.startsWith('gen/'), examQ = k.startsWith('exam/');
       const full = m.stem || '';
       const sep = full.indexOf(' · ');
       const stem = genQ ? full : (sep > 0 ? full.slice(sep + 3) : full);   // 材料名进组头, 行内只留题干
-      return { k, m, stem, col, dt, subj, label: SUBN[subj] || '', genQ, i: ix++ };
+      return { k, m, stem, col, dt, subj, label: SUBN[subj] || '', genQ, exam: examQ, examRun: m.examRun || '', lessonId: m.lessonId || '', i: ix++ };
     });
     html.push('<details class="rv-group"'+(gDue ? ' open' : '')+'>'
-      + '<summary><b>' + esc(groupName(gk, g.genQ)) + '</b><span class="rv-src'+(g.genQ?' gen':' real')+'">'+(g.genQ?'课后练':'真题')+'</span><span class="rg-n">' + rows.length + ' 题</span>'
+      + '<summary><b>' + esc(groupName(gk, g.genQ)) + '</b><span class="rv-src'+(g.genQ?' gen':' real')+'">'+(gk.startsWith('exam/')?'期末':g.genQ?'课后练':'真题')+'</span><span class="rg-n">' + rows.length + ' 题</span>'
       + (gDue ? '<span class="rg-due">现在可复习 ' + gDue + '</span>' : '') + '</summary>'
       + rows.map(r => witemHtml(r)).join('')
       + '</details>');
@@ -5353,6 +5536,9 @@ async function renderReview(){
   });
   $('rv-list').querySelectorAll('[data-lesson]').forEach(b=>{
     b.onclick=()=>{ location.hash='#/course/'+b.dataset.lesson; };   // 课后练错题→视频课对应课节
+  });
+  $('rv-list').querySelectorAll('[data-exam-run]').forEach(b=>{
+    b.onclick=()=>{ const id=b.dataset.examRun; location.hash=id?'#/final/ndf-01-final/run/'+encodeURIComponent(id):'#/final/ndf-01-final'; };
   });
   // AI 解析: 即点即用, 生成过的解析服务端永久保存, 重复点不重复扣费
   $('rv-list').querySelectorAll('[data-ai]').forEach(b=>{

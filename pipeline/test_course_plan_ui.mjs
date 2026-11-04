@@ -68,3 +68,21 @@ test('due reminder ships with badge markup, boot watch and hidden-safe styles',(
   assert.match(css,/\.cp-bell\[hidden\]\{display:none\}/,'display:flex must not defeat the hidden attribute');
   assert.match(css,/\.cp-due-mask/);
 });
+test('review center is organized by source and retires the old folded practice app',()=>{
+  const html=fs.readFileSync(new URL('../web/index.html',import.meta.url),'utf8');
+  assert.match(html,/data-t="review" aria-selected="false">复习中心</);
+  assert.match(source,/按来源分区/);
+  assert.match(source,/cpEplodSummary\(\)/,'EnglishPod coverage has its own section');
+  assert.match(source,/cpExamCard\(\)/,'final exam card is part of the review center');
+  assert.match(source,/data-exam-go/);
+  assert.match(source,/错题与词根/);
+  assert.match(source,/ndf-01.*cfcm-01|cpPlansOf\('ndf-01'\)/,'vocabulary plans are grouped separately');
+  assert.doesNotMatch(source,/cp-old-review|import\('\/review\/app\.mjs'\)/,'old knowledge-point app is no longer mounted here');
+});
+test('direct lesson links return to the course tab, never the review tab',()=>{
+  const html=fs.readFileSync(new URL('../web/index.html',import.meta.url),'utf8');
+  const branch=html.slice(html.indexOf("if(v==='course'&&arg)"),html.indexOf("if(v==='eplod')"));
+  assert.match(branch,/csCourseTab='review'/,'review route still works');
+  assert.match(branch,/csCourseTab='learn';/,'lesson route resets to the course tab');
+  assert.ok(branch.indexOf("csCourseTab='learn';")>branch.indexOf("if(arg==='review')"),'reset applies to lesson links only');
+});

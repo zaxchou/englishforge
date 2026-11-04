@@ -56,20 +56,71 @@ function cpNavMeta(lid){
 }
 function cpLessonName(lid){const f=courseFind(lid);if(!f)return lid;return courseSeriesName(f.c.title)+' · '+shortLessonTitle(f.c.lessons[f.ix].title);}
 function cpOpenLesson(lid){CP.openLesson=lid;csCourseTab='learn';const f=courseFind(lid);if(f){videoSel={c:f.c.id,l:f.ix};csSel={...videoSel};csPick=f.c.id;}nav('course/'+encodeURIComponent(lid));}
+/* 复习中心(2026-11-04 用户反馈「像半成品」): 按来源分区, 不再把五套系统混成一张清单。
+   排期规则不变; 旧「知识点练习」App 入口撤掉(代码保留), 只留统一的来源入口。 */
+function cpPlansOf(prefix){return Object.values(CP.data?.plans||{}).filter(p=>String(p.lessonId).startsWith(prefix));}
+function cpGroupSummary(plans){
+  const done=plans.filter(p=>p.complete).length,active=plans.find(p=>p.active);
+  const started=plans.filter(p=>p.stamps.length||p.active).length;
+  return {total:plans.length,done,active,started};
+}
+function cpEplodSummary(){
+  const rows=Object.entries(REC.course||{}).filter(([id,l])=>id.startsWith('eplod-')&&l&&typeof l==='object');
+  const today=typeof epDay==='function'?epDay():new Date(Date.now()+8*3600000).toISOString().slice(0,10);
+  let todayN=0,full=0,started=0;
+  for(const [,l] of rows){
+    const days=l.drill?.stampDays||{};const keys=Object.keys(days).filter(d=>Array.isArray(days[d])&&days[d].length);
+    if(keys.length)started++;
+    if((days[today]||[]).length)todayN++;
+    if(keys.length>=3)full++;
+  }
+  return {learned:rows.length,today:todayN,started,full};
+}
+function cpWeakDue(){
+  const mistakes=Object.entries(REC.mistakes||{}).filter(([k,m])=>m&&!m.cleared&&!cpManaged(k)&&Number(m.due||0)<=Date.now()).length;
+  const families=Object.values(REC.families||{}).filter(f=>f&&!f.cleared&&Number(f.due||0)<=Date.now()).length;
+  return {mistakes,families};
+}
+async function cpExamCard(){
+  let exams=[];
+  try{exams=(await api('/api/exams')).exams||[];}catch(e){return '<section class="cp-sec"><h4>期末考试</h4><p class="cp-sec-note">暂时读取不到试卷。</p></section>';}
+  if(!exams.length)return '';
+  return exams.map(x=>{
+    const u=x.unlock||{done:0,need:x.total||0,ready:false};
+    const status=x.active?'进行中 · 已答 '+x.active.answered+' / '+x.total:x.last?'上次 '+x.last.correct+' / '+x.last.total+'（'+Math.round((x.last.score||0)*100)+'%）':'未开始';
+    return '<section class="cp-sec cp-sec-exam"><h4>期末考试</h4><div class="cp-exam"><div><b>'+esc(x.title)+'</b><span class="cp-exam-meta">'+x.total+' 题 · 不限时 · 交卷后逐题复盘</span><p>'+esc(status)+'</p><p class="cp-sec-note">'+(u.ready?'课程已学完，可以开考':'还差 '+(u.need-u.done)+' 节学完解锁')+'</p></div><div class="cp-exam-actions">'+(u.ready?'<button class="pri" data-exam-go="'+esc(x.id)+'">'+(x.active?'继续考试':'开始考试')+' →</button>':'')+'<button data-exam-go="'+esc(x.id)+'">查看试卷</button></div></div></section>';
+  }).join('');
+}
 async function cpDashboard(){
   const host=$('course-memory-content');if(!host)return;
   host.innerHTML='<p role="status">正在读取复习计划…</p>';
   try{await cpLoad();}catch(e){host.innerHTML='<p role="alert">'+esc(e.message)+'</p><button id="cp-reload">重试</button>';host.querySelector('button').onclick=cpDashboard;return;}
-  const d=CP.data,all=Object.values(d.plans||{}),done=all.filter(p=>p.complete).length,recs=d.recommendations||[];
-  host.innerHTML='<div class="cp-dashboard"><div class="cp-heading"><div><h3>课后练 · 盖章复习</h3><p>每课 '+d.settings.target+' 次，分段完成也算。晚几天回来，已有章照样保留。</p></div><span class="cp-total">'+done+' 课已盖满</span></div>'
-    +'<div class="cp-today"><div><b>'+(d.remainingToday>0?(recs.length?'今天建议复习 '+Math.min(d.remainingToday,recs.length)+' 课':'今天暂无到期课程'):'今天的复习已完成')+'</b><p>'+(d.remainingToday>0?'按课慢慢来，不用清空所有错题。':'可以收工了，想多练再选一课。')+'</p></div>'+(recs.length?'<button class="pri" data-cp-open="'+esc(recs[0])+'">'+(d.remainingToday>0?'开始今天的复习':'再练一课')+' →</button>':'')+'</div>'
-    +'<div class="cp-lessons">'+recs.map(lid=>{const p=cpPlan(lid);return '<div class="cp-lesson"><div><b>'+esc(cpLessonName(lid))+'</b>'+cpStamps(p)+'<p>'+esc(cpCaption(p))+'</p></div><button data-cp-open="'+esc(lid)+'">'+(p.active?'继续本遍':'复习本课')+' →</button></div>';}).join('')+'</div>'
+  const d=CP.data,recs=d.recommendations||[];
+  const ndf=cpGroupSummary(cpPlansOf('ndf-01')),cf=cpGroupSummary(cpPlansOf('cfcm-01'));
+  const ep=cpEplodSummary(),weak=cpWeakDue(),exam=await cpExamCard();
+  const plist=(plans)=>plans.map(p=>'<div class="cp-lesson"><div><b>'+esc(cpLessonName(p.lessonId))+'</b>'+cpStamps(p)+'<p>'+esc(cpCaption(p))+'</p></div><button data-cp-open="'+esc(p.lessonId)+'">'+(p.active?'继续本遍':'复习本课')+' →</button></div>').join('');
+  const recPlans=recs.map(lid=>cpPlan(lid)).filter(Boolean);
+  host.innerHTML='<div class="cp-dashboard"><div class="cp-heading"><div><h3>复习中心</h3><p>按来源分区：课后练盖章、期末考、EnglishPod 覆盖、错题与词根。各自独立计算，互不混排。</p></div><span class="cp-total">'+ndf.started+' / '+ndf.total+' 课已开始 · '+ndf.done+' 课盖满</span></div>'
+    +'<div class="cp-today"><div><b>'+(d.remainingToday>0?(recs.length?'今天建议复习 '+Math.min(d.remainingToday,recs.length)+' 课课后练':'今天暂无到期的课后练'):'今天的课后练复习已完成')+'</b><p>'+(d.remainingToday>0?'按课慢慢来，不用清空所有错题。':'可以收工了，想多练再选一课。')+'</p></div>'+(recs.length?'<button class="pri" data-cp-open="'+esc(recs[0])+'">'+(d.remainingToday>0?'开始今天的复习':'再练一课')+' →</button>':'')+'</div>'
+    +exam
+    +'<section class="cp-sec"><h4>新东方词汇课 · 课后练盖章<span>'+ndf.started+' 已开始 · '+ndf.done+' / '+ndf.total+' 盖满</span></h4>'
+      +'<div class="cp-lessons">'+(recPlans.filter(p=>String(p.lessonId).startsWith('ndf-01')).map(p=>'<div class="cp-lesson"><div><b>'+esc(cpLessonName(p.lessonId))+'</b>'+cpStamps(p)+'<p>'+esc(cpCaption(p))+'</p></div><button data-cp-open="'+esc(p.lessonId)+'">'+(p.active?'继续本遍':'复习本课')+' →</button></div>').join('')||'<p class="cp-sec-note">今天没有到期的课后练；可以展开全部进度挑一课。</p>')+'</div>'
+      +'<details class="cp-all"><summary>新东方词汇课进度 · '+ndf.total+' 课</summary>'+plist(cpPlansOf('ndf-01'))+'</details></section>'
+    +'<section class="cp-sec"><h4>万词班 · 课后练盖章<span>'+cf.started+' 已开始 · '+cf.done+' / '+cf.total+' 盖满</span></h4>'
+      +'<div class="cp-lessons">'+(recPlans.filter(p=>String(p.lessonId).startsWith('cfcm-01')).map(p=>'<div class="cp-lesson"><div><b>'+esc(cpLessonName(p.lessonId))+'</b>'+cpStamps(p)+'<p>'+esc(cpCaption(p))+'</p></div><button data-cp-open="'+esc(p.lessonId)+'">'+(p.active?'继续本遍':'复习本课')+' →</button></div>').join('')||'<p class="cp-sec-note">'+(cf.started?'今天没有到期的课后练；可以展开进度挑一课。':cf.total+' 节已排入计划，还没有开始。按自己的节奏随时开始第一课。')+'</p>')+'</div>'
+      +'<details class="cp-all"><summary>万词班进度 · '+cf.total+' 课</summary>'+plist(cpPlansOf('cfcm-01'))+'</details></section>'
+    +'<section class="cp-sec"><h4>EnglishPod · 覆盖背诵<span>三个不同日期各一遍，不是课后练的章</span></h4>'
+      +'<p class="cp-sec-note">已开始 '+ep.started+' 节 · 今日已计入 '+ep.today+' 节 · 三遍完成 '+ep.full+' 节</p>'
+      +'<div class="cp-sec-actions"><button data-ep-go>打开 EnglishPod 列表 →</button></div></section>'
+    +'<section class="cp-sec"><h4>错题与词根</h4><p class="cp-sec-note">今日到期：错题 '+weak.mistakes+' 题 · 词根家族 '+weak.families+' 个</p>'
+      +'<div class="cp-sec-actions"><button data-review-go>去错题本 →</button><button data-fam-go>词根家族练习 →</button></div></section>'
     +cpSettingsHTML(d.settings)
-    +'<details class="cp-all"><summary>全部课程进度 · '+all.length+' 课</summary>'+all.map(p=>'<div class="cp-lesson"><div><b>'+esc(cpLessonName(p.lessonId))+'</b>'+cpStamps(p)+'<p>'+esc(cpCaption(p))+'</p></div><button data-cp-open="'+esc(p.lessonId)+'">查看</button></div>').join('')+'</details>'
-    +'<details class="cp-extra"><summary>自主补充练习 · 知识点混练、抽查与词根</summary><p>这里是选做练习，不计盖章，也不增加必做任务。</p><button id="cp-old-review">打开知识点练习</button><div id="cp-old-host" hidden></div><button id="cp-families">词根家族练习</button></details></div>';
+    +'<p class="cp-sec-note cp-foot-note">旧「知识点练习」已收进历史，不再从这里进入；需要时可在真题训练里选题。</p></div>';
   host.querySelectorAll('[data-cp-open]').forEach(b=>b.onclick=()=>cpOpenLesson(b.dataset.cpOpen));
-  host.querySelector('#cp-families').onclick=()=>gqOpenFamilies(null);
-  host.querySelector('#cp-old-review').onclick=async()=>{const box=host.querySelector('#cp-old-host');box.hidden=false;try{const m=await import('/review/app.mjs');await m.mountReview(box,{embedded:true});host.querySelector('#cp-old-review').hidden=true;}catch{box.textContent='补充练习未能加载，请稍后重试。';}};
+  host.querySelectorAll('[data-exam-go]').forEach(b=>b.onclick=()=>nav('final/ndf-01-final'));
+  host.querySelector('[data-ep-go]').onclick=()=>nav('eplod');
+  host.querySelector('[data-review-go]').onclick=()=>nav('exam/review');
+  host.querySelector('[data-fam-go]').onclick=()=>gqOpenFamilies(null);
   cpWireSettings(host);gqRefreshList();
 }
 function cpSettingsHTML(s){return '<details class="cp-settings"><summary>复习计划设置</summary><form id="cp-settings"><label>盖章次数<select name="target">'+[1,2,3,4,5,6].map(n=>'<option'+(n===s.target?' selected':'')+'>'+n+'</option>').join('')+'</select></label><label>安排方式<select name="mode"><option value="fixed"'+(s.mode==='fixed'?' selected':'')+'>固定间隔</option><option value="adaptive"'+(s.mode==='adaptive'?' selected':'')+'>根据表现调整</option></select></label><label>每日推荐<select name="daily">'+[1,2,3,4,5].map(n=>'<option value="'+n+'"'+(n===s.daily?' selected':'')+'>'+n+' 课</option>').join('')+'</select></label><div id="cp-intervals"></div><p>间隔从上一遍实际完成日算起。固定模式只记录感受；根据表现调整会结合正确率和感受缩短或延长间隔。盖满后结束。</p><p>修改会调整后续安排，已有章保留，已开始的本遍可继续。历史已练课程从计划启用日安排，不推算旧完成日期。</p><button class="pri" type="submit">保存设置</button><span id="cp-settings-status" role="status"></span></form></details>';}
@@ -129,7 +180,7 @@ function cpSnooze(lid){
     for(let i=localStorage.length-1;i>=0;i--){const key=localStorage.key(i);if(key?.startsWith('tfl-cp-snooze/')&&!key.startsWith(prefix))localStorage.removeItem(key);}
   }catch(e){}
 }
-function cpBadgeUpdate(){const b=$('cp-bell');if(!b)return;const n=CP.data&&Array.isArray(CP.data.recommendations)?CP.data.recommendations.length:0;b.hidden=!n;if(n)b.title='有 '+n+' 课复习到期，点击开始';const t=b.querySelector('#cp-bell-n');if(t)t.textContent=n>9?'9+':String(n||'');}
+function cpBadgeUpdate(){const b=$('cp-bell');if(!b)return;const n=CP.data&&Array.isArray(CP.data.recommendations)?CP.data.recommendations.length:0;b.hidden=!n;if(n)b.title='有 '+n+' 课课后练复习到期，点击开始';const t=b.querySelector('#cp-bell-n');if(t)t.textContent=n>9?'9+':String(n||'');}
 function cpBadgeGo(){const d=CP.data;if(!d)return;const recs=d.recommendations||[];
   if(recs.length){cpOpenLesson(recs[0]);return;}
   if(Object.keys(d.plans||{}).length){csCourseGo('review');history.replaceState(null,'','#/course/review');}}

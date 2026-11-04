@@ -71,7 +71,7 @@ try{
   assert.equal(await p.evaluate(()=>location.hash),'#/exam/review');
   await p.goto(base+'/#/memory');await p.locator('#cs-tabs').waitFor({timeout:60000});
   assert.equal(await p.evaluate(()=>location.hash),'#/course/review');
-  assert.equal(await p.locator('#cs-tabs button.on').textContent(),'课后复习');
+  assert.equal(await p.locator('#cs-tabs button.on').textContent(),'复习中心');
   assert.ok(await p.locator('#cs-pane-review #course-memory-content').isVisible());
   await p.locator('#cs-tabs [data-t=learn]').click();
   assert.ok(await p.locator('#cs-layout').isVisible());

@@ -2515,3 +2515,86 @@ html.sb-min .cp-due-mask{padding-left:84px}
 .wp-sent .mine .extra{color:var(--bad);text-decoration:underline wavy var(--bad)}
 .wp-sent .mine .none{color:var(--t3)}
 
+
+/* 2026-11-04 · 期末考试视图（#/final）: 封面 / 逐题作答 / 成绩复盘 */
+#v-final{max-width:980px}
+.fe-cover,.fe-answer,.fe-result{display:block}
+.fe-cover{padding:22px 24px}
+.fe-cover-top{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.fe-cover-top b{font-size:20px;color:var(--t1)}
+.fe-tag{font-size:12px;color:var(--t2);background:var(--accbg);border-radius:999px;padding:2px 9px;white-space:nowrap}
+.fe-meta{font-size:12px;color:var(--t3)}
+.fe-cover p{margin:8px 0;font-size:13.5px;line-height:1.75;color:var(--t2)}
+.fe-lock{color:#8a5a1e}
+.fe-lock.ok{color:var(--acc);font-weight:600}
+.fe-last b{color:var(--t1)}
+.fe-link{border:0;background:none;color:var(--acc);cursor:pointer;font-size:13px;padding:0}
+.fe-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+.fe-answer{padding:18px 22px}
+.fe-progress{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:12.5px;color:var(--t2)}
+.fe-src{margin-left:auto;color:var(--t3);font-size:12px}
+.fe-stem{margin:14px 0 16px;font-size:16px;line-height:1.85;color:var(--t1)}
+.fe-opts{display:flex;flex-direction:column;gap:8px}
+.fe-opt{display:flex;gap:12px;align-items:flex-start;text-align:left;border:1px solid var(--line);background:var(--card);border-radius:10px;padding:11px 14px;font-size:14px;color:var(--t1);cursor:pointer}
+.fe-opt:hover{border-color:var(--t2)}
+.fe-opt.on{border-color:var(--acc);background:var(--accbg)}
+.fe-opt .k{flex:none;width:22px;height:22px;border-radius:6px;border:1px solid var(--line);display:inline-flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:var(--t2)}
+.fe-opt.on .k{background:var(--acc);border-color:var(--acc);color:#fff}
+.fe-opt.right{border-color:var(--acc);background:var(--accbg)}
+.fe-opt.wrong{border-color:var(--bad);background:#fbf0ec}
+.fe-opt[disabled]{cursor:default;opacity:.9}
+.fe-foot{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:16px}
+.fe-save{font-size:12px;color:var(--t3)}
+.fe-warn{margin:10px 0 0;font-size:12.5px;color:#8a5a1e}
+.fe-err{color:var(--bad);font-size:12.5px}
+.fe-result{display:flex;flex-direction:column;gap:14px}
+.fe-result .card{padding:18px 22px}
+.fe-hero{display:flex;align-items:baseline;gap:12px}
+.fe-hero b{font-size:30px;color:var(--t1);font-variant-numeric:tabular-nums}
+.fe-hero span{font-size:13px;color:var(--t2)}
+.fe-bars{display:flex;flex-direction:column;gap:7px;margin-top:14px}
+.fe-bar{display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--t2)}
+.fe-bar span:first-child{width:64px;flex:none}
+.fe-bar i{flex:1;height:7px;background:var(--line);border-radius:4px;overflow:hidden}
+.fe-bar i b{display:block;height:100%;background:var(--acc)}
+.fe-bar span:last-child{width:56px;text-align:right;font-variant-numeric:tabular-nums}
+.fe-weak{margin-top:16px}
+.fe-weak h4{font-size:13px;margin:0 0 6px;color:var(--t1)}
+.fe-weak ul{margin:0;padding-left:18px;font-size:13px;line-height:1.9;color:var(--t2)}
+.fe-wrongs h3,.fe-result h3{font-size:14px;margin:0 0 10px;color:var(--t1)}
+.fe-wrong{border-top:1px solid var(--line);padding:12px 0}
+.fe-wrong:first-of-type{border-top:0}
+.fe-wrong-head{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--t3)}
+.fe-q{margin:6px 0;font-size:14px;line-height:1.75;color:var(--t1)}
+.fe-ans{margin:4px 0;font-size:13px;color:var(--t2)}
+.fe-ans .ok{color:var(--acc)}
+.fe-ans .bad{color:var(--bad)}
+.fe-exp{margin:4px 0;font-size:12.5px;line-height:1.75;color:var(--t2)}
+.fe-links a{font-size:12.5px;color:var(--acc)}
+.fe-item{border-top:1px solid var(--line);padding:8px 0}
+.fe-item summary{cursor:pointer;font-size:13px;color:var(--t1)}
+.fe-item .ok{color:var(--acc)}
+.fe-item .bad{color:var(--bad)}
+.fe-none{font-size:13px;color:var(--t2)}
+@media(max-width:700px){
+  .fe-cover{padding:16px}
+  .fe-answer{padding:14px}
+  .fe-stem{font-size:15px}
+  .fe-src{width:100%;margin-left:0}
+  .fe-foot{position:sticky;bottom:8px;background:var(--card);padding-top:8px}
+  .fe-result .card{padding:14px}
+}
+
+/* 2026-11-04 · 复习中心分区（来源不再混排） */
+.cp-sec{margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
+.cp-sec h4{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:0 0 8px;font-size:14px;color:var(--t1)}
+.cp-sec h4 span{font-size:12px;font-weight:400;color:var(--t3)}
+.cp-sec-note{margin:6px 0;font-size:12.5px;line-height:1.7;color:var(--t2)}
+.cp-sec-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
+.cp-exam{display:flex;gap:14px;align-items:flex-start;flex-wrap:wrap;border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:var(--card)}
+.cp-exam>div:first-child{flex:1;min-width:200px}
+.cp-exam b{font-size:14.5px;color:var(--t1)}
+.cp-exam-meta{display:block;font-size:12px;color:var(--t3);margin-top:2px}
+.cp-exam p{margin:5px 0 0;font-size:12.5px;color:var(--t2)}
+.cp-exam-actions{display:flex;gap:8px;flex-wrap:wrap}
+.cp-foot-note{margin-top:18px;color:var(--t3)}
