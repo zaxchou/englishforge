@@ -2598,3 +2598,41 @@ html.sb-min .cp-due-mask{padding-left:84px}
 .cp-exam p{margin:5px 0 0;font-size:12.5px;color:var(--t2)}
 .cp-exam-actions{display:flex;gap:8px;flex-wrap:wrap}
 .cp-foot-note{margin-top:18px;color:var(--t3)}
+
+/* 2026-11-04 · 打卡日历：近 7 天可展开成整月，往前翻看哪天学过 */
+.ck-calbtn{flex:none;border:1px solid var(--line);background:var(--card);color:var(--t2);border-radius:8px;padding:6px 12px;font-size:12.5px;cursor:pointer}
+.ck-calbtn:hover{border-color:var(--acc);color:var(--acc)}
+.ck-cal{flex-basis:100%;width:100%;margin-top:8px;padding-top:12px;border-top:1px solid var(--line)}
+.ck-cal-head{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.ck-cal-head b{font-size:13.5px;color:var(--t1);font-variant-numeric:tabular-nums}
+.ck-cal-head>button{width:30px;height:30px;border:1px solid var(--line);background:var(--card);border-radius:8px;color:var(--t2);font-size:16px;line-height:1;cursor:pointer}
+.ck-cal-head>button:disabled{opacity:.4;cursor:default}
+.ck-cal-head .ck-cal-today{width:auto;padding:0 10px;font-size:12px;margin-left:auto}
+.ck-cal-week{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:4px}
+.ck-cal-week span{text-align:center;font-size:11px;color:var(--t3)}
+.ck-cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.ck-cell{aspect-ratio:1/1;min-height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:12px;font-variant-numeric:tabular-nums}
+.ck-cell.blank{background:none}
+.ck-cell.day{border:1px solid transparent;background:var(--sunk);color:var(--t3);cursor:pointer;padding:0}
+.ck-cell.day:hover{border-color:var(--acc)}
+.ck-cell.day.on{color:#f6f8f1;font-weight:600}
+.ck-cell.day.lv1{background:var(--accbg);color:var(--acc)}
+.ck-cell.day.lv2{background:#8aa79a;color:#fff}
+.ck-cell.day.lv3{background:var(--acc);color:#f6f8f1}
+.ck-cell.day.today{box-shadow:0 0 0 2px var(--accln)}
+.ck-cell.day.sel{outline:2px solid var(--acc);outline-offset:1px}
+.ck-cal-detail{margin:8px 0 0;font-size:12.5px;color:var(--t2)}
+.ck-cal-sum{margin:6px 0 0;font-size:12px;color:var(--t2)}
+.ck-cal-sum b{color:var(--t1)}
+.ck-cal-sum span{margin-left:8px;color:var(--t3)}
+@media(max-width:700px){
+  .ck-calbtn{margin-left:auto}
+  .ck-cal{padding-top:10px}
+  .ck-cell{min-height:26px;border-radius:7px}
+}
+/* 日历尺寸收紧：格子按固定行高，不随内容宽度放大 */
+.ck-cal{max-width:520px}
+.ck-cal-grid,.ck-cal-week{grid-template-columns:repeat(7,minmax(0,1fr))}
+.ck-cell{aspect-ratio:auto;height:34px;min-height:34px}
+.ck-cal-sum span{display:block;margin:2px 0 0;color:var(--t3)}
+@media(max-width:700px){.ck-cal{max-width:100%}.ck-cell{height:32px;min-height:32px}}
