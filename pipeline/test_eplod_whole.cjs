@@ -119,6 +119,13 @@ test('index.html 接线: 入口卡/取消钩子/刷新点/版本号在位', () =
   assert.match(html, /整篇过=当天这一遍盖满/);
   assert.match(html, /eplod-records\.js\?v=\d+/);
   assert.match(html, /desk\.css\?v=\d{8}r\d+/);   /* 只断言缓存击穿在位, 不钉具体版本号(升级不必改测试) */
+  // 2026-11-04 用户反馈: 录音中可直接取消(不上传), 有结果时原文只出现一次
+  assert.match(html, /class="ep-rec-cancel"[\s\S]*?hidden>取消<\/button>/, 'cancel sits next to the record button');
+  const wire = html.slice(html.indexOf("card.querySelectorAll('.ep-rec-cancel')"), html.indexOf('const lm=card.querySelector'));
+  assert.match(wire, /epCancelRecording\(st\)/, 'cancel never routes through ASR');
+  assert.doesNotMatch(wire, /epArchiveTake|epProcessTake/, 'cancel uploads nothing');
+  assert.match(html, /function epSyncOrigHint\(card,st,i\)/);
+  assert.match(html, /if\(hint\)hint\.hidden=shown/, '原文 hint yields to the result panel');
   // r11: 整篇录音对象必须是本体(浅拷贝包装曾让音量计守卫恒真 → 每次都报「没收到声音」)
   assert.match(html, /st\.wpTake=r;/, 'levelTimer/stop/cancel share one identity');
   assert.doesNotMatch(html, /st\.wpTake=\{phase:'rec'/, 'no wrapper object');

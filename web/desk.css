@@ -1665,6 +1665,15 @@ body.vfull .cs-stage video.tfl{max-height:none}
 .ep-rec.ing,.ep-bcard .ep-rec.ing:hover{background:var(--bad);border-color:var(--bad);animation:ep-pulse 1.2s ease-in-out infinite}
 .ep-rec svg{flex:none}
 .ep-rec .rt{font-style:normal;font-variant-numeric:tabular-nums}
+/* 2026-11-04 用户反馈: 录音中说错了可直接取消, 不再走识别上传 */
+.ep-rec-cancel{display:inline-flex;align-items:center;justify-content:center;min-height:44px;border:1px solid var(--line);background:var(--card);color:var(--t2);border-radius:var(--rs);padding:0 18px;font-size:14px;font-weight:600;cursor:pointer;margin:0}
+.ep-rec-cancel:hover{border-color:var(--t2);color:var(--t1)}
+.ep-bcard .ep-rec-cancel[hidden],.ep [hidden].ep-rec-cancel{display:none!important}
+@media(max-width:360px){
+  .ep .ep-bcard .vrow{gap:6px}
+  .ep .ep-bcard .vrow .ep-rec{padding:0 12px}
+  .ep .ep-bcard .ep-rec-cancel{padding:0 12px}
+}
 .elisten-me{border:1px solid var(--line);background:transparent;border-radius:6px;padding:4px 10px;font-size:var(--f4);cursor:pointer;color:var(--t2)}
 .elisten-me:hover{border-color:var(--acc);color:var(--acc)}
 .ep-cov{padding:12px 0;border-bottom:1px solid var(--line)}

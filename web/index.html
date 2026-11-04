@@ -8,7 +8,7 @@
 <link rel="icon" type="image/png" sizes="96x96" href="/assets/brand/t-dot-v1/t-dot-96.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/assets/brand/t-dot-v1/t-dot-180.png">
 <title>TOEFL Lab · 托福自学练习</title>
-<link rel="stylesheet" href="desk.css?v=20261103r2">
+<link rel="stylesheet" href="desk.css?v=20261104r1">
 <style>
 /* 应用层补充样式（视觉基线在 desk.css，不改它的既有规则） */
 /* 单词与字符格保持同一行；焦点、已填、判题状态沿用研读桌配色。 */
@@ -3940,7 +3940,7 @@ function epVoiceFeedback(st,i){
   if(take?.status==='processing')return '<p class="ep-note" role="status">转写中…可以先回听，结果会留在本句。</p>'+archive;
   if(take?.error)return '<p class="ep-note" role="status">'+esc(take.error)+'</p>'+(take.status==='error'&&take.audio?'<button class="ep-retry-asr" data-i="'+i+'">重试识别</button>':'')+archive;
   const reading=st.p.drill.rd[i],result=epSavedResult(reading,'voice');
-  if(take?.status==='cancelled')return '<p class="ep-note">录音已停止，本次未判分；可以回听或重新朗读。</p>'+archive;
+  if(take?.status==='cancelled')return '<p class="ep-note">已取消本次录音，未上传判分；可以回听或重新朗读。</p>'+archive;
   if(!take&&reading?.recAttemptId&&reading.recAttemptId!==result?.id)return '<p class="ep-note">最新录音已保存，尚无对应识别结果；可回听或重新朗读。上方为历史最好成绩。</p>'+archive;
   if(!result)return archive;
   const duration=Number(result.dur),sourceDur=u.t1-u.t0;
@@ -3965,6 +3965,7 @@ function epRefreshSentence(st,i){
     if(passed&&!speed){speed=document.createElement('span');speed.className='mini ok';speed.dataset.k='s';card.querySelector('.ep-card-history').append(speed);}
     if(speed){speed.textContent='同速 ✓';speed.hidden=!passed;}
     card.querySelector('.bvoice .dr').innerHTML=epVoiceFeedback(st,i);
+    epSyncOrigHint(card,st,i);
     const retry=card.querySelector('.ep-retry-asr');if(retry)retry.onclick=()=>epProcessTake(st,epTake(st,i));
     const retryArchive=card.querySelector('.ep-retry-archive');if(retryArchive)retryArchive.onclick=()=>epArchiveTake(st,epTake(st,i));
     epRecButton();
@@ -4037,7 +4038,8 @@ function epBlockCard(i){
       +'<div class="dr">'+epResultHTML(u.text,epSavedResult(drill.dd[i],'dict'))+'</div></div>'
     +'<div class="bbody bvoice" style="display:'+(mode==='voice'?'':'none')+'">'
       +(asr
-        ?'<div class="vrow"><button class="ep-rec" data-i="'+i+'">'+epRecLabel()+'</button></div>'
+        ?'<div class="vrow"><button class="ep-rec" data-i="'+i+'">'+epRecLabel()+'</button>'
+          +'<button class="ep-rec-cancel" data-i="'+i+'" title="取消本次录音，不上传判分" aria-label="取消本次录音" hidden>取消</button></div>'
         :'<p class="ep-note">朗读背诵需要转写服务（未配置 ASR），请用默写。</p>')
       +'<div class="dr">'+epVoiceFeedback(st,i)+'</div></div>'
     +'<div class="bbody btype" style="display:'+(mode==='type'?'':'none')+'">'
@@ -4152,6 +4154,16 @@ function epFitInput(ta){
   if(!ta||!ta.getClientRects().length)return;
   ta.style.height='auto';ta.style.height=Math.min(200,Math.max(66,ta.scrollHeight+2))+'px';
 }
+/* 结算区已逐词展示原文时, 「原文」提示就是同一段文字的第二遍(2026-11-04 用户反馈);
+   有结果就收起并隐藏该提示, 没有结果时保留作阶梯提示。 */
+function epSyncOrigHint(card,st,i){
+  if(!card||!st)return;
+  const mode=card.dataset.mode||st.amode?.[i]||'dict';
+  const shown=mode==='voice'?!!epSavedResult(st.p.drill.rd[i],'voice'):mode==='type'?!!epSavedResult(st.p.drill.rd[i],'type'):false;
+  const hint=card.querySelector('.h2'),orig=card.querySelector('.rorig');
+  if(hint)hint.hidden=shown;
+  if(shown&&orig){orig.style.display='none';if(hint){hint.classList.remove('on');hint.setAttribute('aria-expanded','false');}}
+}
 function epWireCard(card){
   const st=EP.st;if(!st)return;
   const drill=st.p.drill,a=$('ep-audio');
@@ -4168,6 +4180,7 @@ function epWireCard(card){
     card.querySelector('.btype').style.display=b.dataset.m==='type'?'':'none';
     card.querySelector('.rclue').style.display=b.dataset.m==='dict'?'none':'';
     card.querySelector('.ep-card-hints').style.display=b.dataset.m==='dict'?'none':'';
+    epSyncOrigHint(card,st,i);
     card.querySelectorAll('.dt').forEach(epFitInput);
     const target=card.querySelector('.bbody:not([style*="none"]) .dt')||card.querySelector('.ep-rec');
     if(target){
@@ -4205,6 +4218,12 @@ function epWireCard(card){
   }
   /* 朗读和默写保留各自本次结果，换句由用户主动完成。 */
   card.querySelectorAll('.ep-rec').forEach(b=>b.onclick=()=>epRecToggle(+b.dataset.i,card));
+  card.querySelectorAll('.ep-rec-cancel').forEach(b=>b.onclick=()=>{
+    if((st.recording&&st.recording.i===i)||st.recPending?.i===i){
+      epCancelRecording(st);
+      epNote('已取消本次录音，不会上传判分。',st);
+    }
+  });
   const lm=card.querySelector('.elisten-me');if(lm)lm.onclick=()=>epReplay(i);
   card.querySelector('.ep-sentence-prev').onclick=()=>epGo(i-1);
   card.querySelector('.ep-sentence-next').onclick=()=>epGo(i+1);
@@ -4228,6 +4247,7 @@ function epWireCard(card){
       if(!mini){mini=document.createElement('span');mini.className='mini';mini.dataset.k='r';card.querySelector('.ep-card-history').appendChild(mini);}
       mini.textContent='背诵历史最好 '+Math.round(best*100)+'%';mini.classList.toggle('ok',best>=0.9);mini.style.display='';
       body.querySelector('.dr').innerHTML=epResultHTML(u.text,drill.rd[i].typed);
+      epSyncOrigHint(card,st,i);
       if(EP.st===st){epStepsUpdate();epDockNo();}
 
     };
@@ -4241,6 +4261,7 @@ function epWireCard(card){
   const h1=card.querySelector('.h1'),h2=card.querySelector('.h2');
   if(h1)h1.onclick=()=>{const s=card.querySelector('.rsense'),on=s.style.display==='none';s.style.display=on?'':'none';h1.classList.toggle('on',on);h1.setAttribute('aria-expanded',String(on));};
   if(h2)h2.onclick=()=>{const s=card.querySelector('.rorig'),on=s.style.display==='none';s.style.display=on?'':'none';h2.classList.toggle('on',on);h2.setAttribute('aria-expanded',String(on));};
+  epSyncOrigHint(card,st,i);
 }
 
 /* ---- 覆盖式背诵(三章法): 一遍=当天过完全部句子, 三个不同日期各一遍即三星 ---- */
@@ -4643,10 +4664,12 @@ async function epRecToggle(i,card){
     }
     if(blob.size>8*1024*1024){take.status='error';take.error='录音过大，请缩短后重录。';if(newer)epRefreshSentence(st,i);return;}
     if(newer)epRefreshSentence(st,i);
+    /* 主动取消的录音只留在本机供本次回听, 不转码、不上传识别也不存档(2026-11-04 用户反馈) */
+    if(r.cancelled)return;
     take.audio=await new Promise(resolve=>{const fr=new FileReader();fr.onload=()=>resolve(String(fr.result));fr.readAsDataURL(blob);});
     if(!newer||epTake(st,i)!==take)return;
     const archive=epArchiveTake(st,take);
-    if(!r.cancelled)await epProcessTake(st,take);
+    await epProcessTake(st,take);
     await archive;
   };
   r.startTimer=setTimeout(()=>{
@@ -4667,6 +4690,8 @@ function epRecButton(){
   b.disabled=pending;
   b.innerHTML=pending?'正在打开麦克风…':ing?'● 停止 · <i class="rt">0:00</i><span class="lv"><i></i></span>':epRecLabel();
   b.classList.toggle('ing',ing);
+  /* 2026-11-04 用户反馈: 说错了要能直接取消, 不必先停止再上传识别 */
+  const c=list.querySelector('.ep-bcard .ep-rec-cancel');if(c)c.hidden=!(ing||pending);
 }
 
 function epTrainWire(){

@@ -133,6 +133,7 @@ function harness(st = lesson(), opts = {}) {
   load('function epDiff(', '/* ---- 四步训练(用户定案');
   load('function epNote(', 'function epResultHTML(');
   load('function epResultHTML(', 'function epSavedResult(');
+  load('function epSavedResult(', 'function epVoiceFeedback(');
   load('function epRdPassed(', 'function epStamp(');
   load('function epSettleTake(', 'async function epRecToggle(');
   load('async function epRecToggle(', 'function epRecLabel(');
@@ -241,7 +242,7 @@ async function main() {
   await run('R3 whole recording isolates hints: list/tools hidden+inert, restored after cancel', async () => {
     const h = harness(), card = new Element(); card.dataset.i = '0';
     h.ctx.epItems = () => h.st.d.dialogue;
-    h.load('function epWireCard(', '/* ---- 覆盖式背诵');
+    h.load('function epSyncOrigHint(', '/* ---- 覆盖式背诵');
     const original = card.querySelector('.rorig'); original.innerHTML = h.st.d.dialogue[0].text; original.style.display = 'none';
     const clue = card.querySelector('.rclue'); clue.textContent = '合成中文线索'; clue.style.display = '';
     const list = h.node('ep-blist'); list.querySelector = () => card;
@@ -524,6 +525,61 @@ async function main() {
     const panel = h.node('ep-whole').innerHTML;
     assert.match(panel, /#1 100%/);
     assert.doesNotMatch(panel, /wp-sent|class="miss"|class="extra"/);
+  });
+  await run('R15 explicit sentence cancel stops capture without ASR or archive upload', async () => {
+    const h = harness(), card = new Element(); card.dataset.i = '0'; card.dataset.mode = 'voice';
+    await h.ctx.epRecToggle(0, card); await h.advance(400);
+    assert.equal(h.recorders[0].state, 'recording');
+    h.ctx.epCancelRecording(h.st); await h.advance(0);
+    assert.equal(h.recorders[0].state, 'inactive');
+    assert.equal(h.streams[0].track.stopped, true);
+    assert.equal(h.st.recording, null);
+    assert.equal(h.intervals(), 0, 'level timer released');
+    assert.equal(h.calls.filter(c => c.route).length, 0, 'cancelled take uploads neither ASR nor archive');
+    assert.equal(h.calls.some(c => c.uncaught), false, 'cancel path leaves no uncaught error');
+    assert.equal(h.ctx.EP.takes['eplod-9998/0']?.status, 'cancelled', 'take stays local and unscored');
+  });
+  await run('R16 原文 hint hides once the result already shows the original', async () => {
+    const h = harness();
+    h.load('function epSyncOrigHint(', 'function epWireCard(');
+    const card = new Element(); card.dataset.mode = 'voice';
+    const hint = new Element(), orig = new Element();
+    card.children.set('.h2', hint); card.children.set('.rorig', orig);
+    h.ctx.epSyncOrigHint(card, h.st, 0);
+    assert.equal(hint.hidden, false, 'without a result the staged hint still exists');
+    h.st.p.drill.rd[0] = {acc: 1, voice: {id: 'v', at: 1, mode: 'voice', text: 'synthetic', acc: 1}};
+    h.ctx.epSyncOrigHint(card, h.st, 0);
+    assert.equal(hint.hidden, true, 'a rendered result already contains the original');
+    orig.style.display = 'none';
+    h.ctx.epSyncOrigHint(card, h.st, 0);
+    assert.equal(orig.style.display, 'none', 'no duplicate panel is left open');
+    card.dataset.mode = 'type';
+    h.st.p.drill.rd[0].typed = {id: 't', at: 2, mode: 'type', text: 'synthetic', acc: 1};
+    h.ctx.epSyncOrigHint(card, h.st, 0);
+    assert.equal(hint.hidden, true, 'typed results hide it too');
+    delete h.st.p.drill.rd[0].typed;
+    h.ctx.epSyncOrigHint(card, h.st, 0);
+    assert.equal(hint.hidden, false, 'switching to a mode without a result restores the hint');
+  });
+  await run('R17 sentence cancel button is reachable only while recording or waiting for permission', async () => {
+    const h = harness();
+    h.load('function epRecLabel(', 'function epTrainWire(');
+    const list = h.node('ep-blist');
+    const rec = new Element(); rec.dataset.i = '0';
+    const cancel = new Element(); cancel.hidden = true;
+    list.children.set('.ep-bcard .ep-rec', rec);
+    list.children.set('.ep-bcard .ep-rec-cancel', cancel);
+    h.ctx.epRecButton();
+    assert.equal(cancel.hidden, true, 'idle state has no cancel');
+    h.st.recPending = {i: 0};
+    h.ctx.epRecButton();
+    assert.equal(cancel.hidden, false, 'permission wait can be cancelled');
+    h.st.recPending = null; h.st.recording = {i: 0};
+    h.ctx.epRecButton();
+    assert.equal(cancel.hidden, false, 'active recording can be cancelled');
+    h.st.recording = null;
+    h.ctx.epRecButton();
+    assert.equal(cancel.hidden, true, 'cancel disappears once the take ends');
   });
   console.log('DONE review-fix regressions: all scenarios assert the fixed behavior.');
 }

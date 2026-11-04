@@ -24,7 +24,10 @@ async function setup(course={}){
   };
  });
  const p=await ctx.newPage();p.on('pageerror',e=>errors.push(e.message));
- await p.goto(base+'/#/eplod/eplod-0016');await p.locator('#ep-tabs').waitFor();await p.locator('#ep-tabs [data-m="train"]').click();
+ await p.goto(base+'/#/eplod/eplod-0016');await p.locator('#ep-tabs').waitFor();
+ /* 课后练到期弹窗按日期自动出现; 与本节播放流程无关, 出现就先「稍后」, 不阻塞后续点击 */
+ const later=p.locator('#cp-due-later');try{await later.waitFor({state:'visible',timeout:1500});await later.click();}catch{}
+ await p.locator('#ep-tabs [data-m="train"]').click();
  return {ctx,p,state,pending,errors,archive,stored:()=>stored,close:async()=>{for(const f of pending.splice(0))f();await ctx.close();}};
 }
 async function choose(p,i,mode='voice'){
