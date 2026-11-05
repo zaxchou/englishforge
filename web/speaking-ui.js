@@ -288,16 +288,20 @@ function renderSpeakCard(host, task) {
         const stopped = await stopRec();
         timer.textContent = '';
         if (!stopped || stopped.blob.size < 800) { spkNote('这次录音太短，没有提交。请点开始后再说话。', true); return; }
-        // 先转写：这一步决定成绩；存档失败不影响判分
-        const transcript = await asrText(stopped.blob);
-        if (!transcript) { spkNote('没有识别到语音内容，请再试一次。', true); return; }
+        // 存档与转写并行：先发存档（失败只影响回听），转写决定成绩
+        let uploadErr = null;
+        const uploadP = uploadTake(d.lessonId, task.key, ix, stopped.blob, stopped.mime)
+          .then(t => t.url).catch(e => { uploadErr = e; return null; });
+        let transcript = '';
+        try { transcript = await asrText(stopped.blob); }
+        catch (e) { spkNote('这次没转写成功：' + e.message + '（录音已留存，可直接重说）', true, 'asr'); return; }
+        if (!transcript) { spkNote('没有识别到语音内容，请再试一次（录音已留存）。', true, 'asr'); return; }
         const stage = attempt ? 'retry' : 'first';
         const ev = diffWords(item.text, transcript);
         const entry = { at: Date.now(), transcript, dur: Math.round(stopped.dur * 10) / 10,
           ev: { acc: ev.acc, miss: ev.miss.slice(0, 8), extra: ev.extra.slice(0, 8) } };
-        let uploadErr = null;
-        try { const take = await uploadTake(d.lessonId, task.key, ix, stopped.blob, stopped.mime); entry.take = take.url; }
-        catch (e) { uploadErr = e; }
+        const takeUrl = await uploadP;
+        if (takeUrl) entry.take = takeUrl;
         attempt = entry;
         saveAttempt(d.lessonId, task.key, ix, stage, entry);
         result.innerHTML = '';
@@ -356,14 +360,16 @@ function renderShadowCard(host, task) {
         try {
           const stopped = await stopRec();
           if (!stopped || stopped.blob.size < 800) { spkNote('这次录音太短，没有提交。', true); return; }
-          // 先转写（决定结果），存档失败只影响回听
+          // 存档与转写并行（存档失败只影响 A/B 回听）
+          let take = null, uploadErr = null;
+          const uploadP = uploadTake(d.lessonId, task.key, ix, stopped.blob, stopped.mime)
+            .then(t => t).catch(e => { uploadErr = e; return null; });
           const transcript = await asrText(stopped.blob);
-          if (!transcript) { spkNote('没有识别到语音内容，请再试一次。', true); return; }
+          if (!transcript) { spkNote('没有识别到语音内容，请再试一次（录音已尽量留存）。', true); return; }
           const ev = diffWords(item.text, transcript);
           const focusHit = (item.focus || []).filter(f => words(transcript).map(normWord).includes(normWord(f)));
-          let take = null;
-          try { take = await uploadTake(d.lessonId, task.key, ix, stopped.blob, stopped.mime); }
-          catch (e) { spkNote('跟读结果已记录，但录音没存上（' + e.message + '），所以不能和示范 A/B 对照。', true, 'upload'); }
+          take = await uploadP;
+          if (uploadErr) spkNote('跟读结果已记录，但录音没存上（' + uploadErr.message + '），不能用示范 A/B 对照。', true, 'upload');
           saveAttempt(d.lessonId, task.key, ix, 'practice', { at: Date.now(), transcript, dur: Math.round(stopped.dur * 10) / 10, ...(take ? { take: take.url } : {}), result: { ok: focusHit.length === (item.focus || []).length, n: focusHit.length, total: (item.focus || []).length } });
           result.innerHTML = '<div id="spk-diffbox"></div>'
             + '<div class="spk-eval">目标词命中 ' + focusHit.length + '/' + (item.focus || []).length + '（' + esc(focusHit.join(' / ') || '—') + '）'
