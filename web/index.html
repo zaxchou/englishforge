@@ -8,7 +8,7 @@
 <link rel="icon" type="image/png" sizes="96x96" href="/assets/brand/t-dot-v1/t-dot-96.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/assets/brand/t-dot-v1/t-dot-180.png">
 <title>TOEFL Lab · 托福自学练习</title>
-<link rel="stylesheet" href="desk.css?v=20261106r3">
+<link rel="stylesheet" href="desk.css?v=20261106r4">
 <style>
 /* 应用层补充样式（视觉基线在 desk.css，不改它的既有规则） */
 /* 单词与字符格保持同一行；焦点、已填、判题状态沿用研读桌配色。 */
@@ -355,7 +355,7 @@ details.ai-tsec[open] summary{margin-bottom:8px}
 <script src="eplod-records.js?v=16"></script>
 <script src="course-plan-model.js?v=20261029r8"></script>
 <script src="course-plan-ui.js?v=20261102r11"></script>
-<script src="speaking-ui.js?v=20261106r4"></script>
+<script src="speaking-ui.js?v=20261106r5"></script>
 <script>
 'use strict';
 /* ============================================================
@@ -2990,7 +2990,7 @@ function gqBindTabs(){
 function csToggleOutline(){const box=$('cs-layout'),btn=$('cs-outline-toggle');const on=box.classList.toggle('outline-open');btn.setAttribute('aria-expanded',String(on));if(on)requestAnimationFrame(()=>renderCourseNav());}
 function csCompletionUI(done){
   updateCourseCount();
-  const st=$('cs-status');if(st){const pill=st.querySelector('.pill');if(pill){pill.className='pill '+(done?'q':'t');pill.textContent=done?'已看完':'未看完';}const b=$('cs-done-btn');if(b)b.textContent=done?'取消看完':'标记看完';}
+  const st=$('cs-status');if(st){const pill=st.querySelector('.pill');if(pill){pill.className='pill '+(done?'q':'t');pill.textContent=done?'已看完':'未看完';}const b=$('cs-done-btn');if(b)b.textContent=done?'撤销已看完':'标记看完';}
   const end=$('cs-complete');if(end)end.style.display=done?'':'none';
 }
 function csBookmarks(l){
@@ -3499,8 +3499,12 @@ function renderCourseNav(){
       /* 两套样式：有盖章计划的课(词汇课)状态行已经被复习安排占满，已看完只在时长前打勾；
          其余课(口语/视频课)状态行写「✓ 已看完 / 练 x/y」 */
       const marks=[];
-      if(done&&!meta)marks.push('<span class="lmk ok">✓ 已看完</span>');
-      if(spk)marks.push('<span class="lmk'+(spk.ok?' ok':'')+'">'+esc(spk.text)+'</span>');
+      /* 已看完+已练完合并成一个标记，别两个勾连用（UI 评审 2026-11-06） */
+      if(spk&&done)marks.push('<span class="lmk ok">'+(spk.ok?'✓ 已看完 · 已练完':'✓ 已看完 · '+esc(spk.text))+'</span>');
+      else{
+        if(done&&!meta)marks.push('<span class="lmk ok">✓ 已看完</span>');
+        if(spk)marks.push('<span class="lmk'+(spk.ok?' ok':'')+'">'+esc(spk.text)+'</span>');
+      }
       const seenMark=(done&&meta)?'<i class="seen" title="视频已看完">✓</i>':'';
       const stateHTML=(meta||marks.length)?'<span class="cpn">'+dots
         +(meta?'<span class="cpn-t'+(meta.due?' due':'')+'">'+esc(meta.text)+'</span>':'')
@@ -4987,7 +4991,7 @@ function renderCourseMain(){
         <label class="cs-speed">速度 <select id="cs-speed" aria-label="播放速度">${[0.75,1,1.25,1.5,1.75,2,2.5].map(n=>`<option value="${n}">${n}×</option>`).join('')}</select></label>
         <button id="cs-vfull" onclick="csVfull()">${document.body.classList.contains('vfull')?'退出铺满':'铺满窗口'}</button>
         <button id="cs-vcol" onclick="csVideoCollapse(true)" title="收起视频，专心看讲义">收起视频</button>
-        <button id="cs-done-btn" onclick="csDone('${esc(c.id)}',${csSel.l})">${p.done?'取消看完':'标记看完'}</button></div>
+        <button id="cs-done-btn" onclick="csDone('${esc(c.id)}',${csSel.l})">${p.done?'撤销已看完':'标记看完'}</button></div>
     </div>
     <div class="na-box" id="cs-vnote" style="display:none"></div>
     <div class="cs-complete" id="cs-complete" style="display:${p.done?'':'none'}"><span>本节视频已看完</span><button class="pri" onclick="csSelectTab('${GEN_COURSES.has(c.id)||cur?.practice?'practice':'handout'}')">${GEN_COURSES.has(c.id)||cur?.practice?'练本节':'复习讲义'}</button>${csSel.l<c.lessons.length-1?'<button onclick="csNextLesson()">下一节 →</button>':'<span>已到课程最后一节</span>'}</div>
@@ -5043,8 +5047,8 @@ function renderCourseMain(){
     const ec=v.error&&v.error.code;
     const why={1:'加载被中断',2:'网络中断（下载超时）',3:'解码失败',4:'格式或编码不支持'}[ec]||('未知错误 '+ec);
     console.warn('[video] error code',ec,v.error&&v.error.message,l.video);
-    nn.innerHTML='视频加载失败：'+esc(why)+'（码 '+(ec||'?')+'，源 .'+esc((l.video_file||'').split('.').pop())+'）。'+
-      '可重试，或直接打开视频地址测试。<a href="'+esc(l.video)+'" target="_blank" rel="noopener">打开视频地址 ↗</a> <button id="cs-video-retry">重试</button>';$('cs-video-retry').onclick=()=>v.load();
+    nn.innerHTML='视频加载失败：这节课的视频在当前浏览器里播不了（通常是编码不支持）。'+
+      '<button id="cs-video-retry">重试</button><a href="'+esc(l.video)+'" target="_blank" rel="noopener">直接打开视频文件 ↗</a>';$('cs-video-retry').onclick=()=>v.load();
   });
   v.addEventListener('loadedmetadata',()=>{
     const vn=$('cs-vnote');if(vn)vn.style.display='none';const resume=$('cs-resume');

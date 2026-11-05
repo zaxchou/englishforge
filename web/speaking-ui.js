@@ -142,6 +142,13 @@ async function stopRec() {
   const dur = Math.max(0.3, (Date.now() - r.t0) / 1000);
   return { blob, dur, mime: r.mime };
 }
+/* 麦克风失败原因翻成人话：原始 e.message 是英文浏览器术语 */
+function micErrText(e) {
+  const m = String((e && e.message) || '');
+  if (/denied|not allowed|permission/i.test(m)) return '麦克风权限被拒绝：请在浏览器地址栏的麦克风图标里允许本站使用麦克风，然后重试。';
+  if (/not found|no .*device|找不到/i.test(m)) return '没有检测到可用麦克风：请插上麦克风或换个输入设备后重试。';
+  return '麦克风不可用：' + m + '。请检查设备后重试。';
+}
 /* 取消：停下并丢弃这段录音，不上传、不判分、不计次 */
 async function abortRec() {
   const r = SPK.rec; if (!r) return false;
@@ -323,9 +330,9 @@ function renderSpeakCard(host, task) {
   const d = SPK.data, isInterview = task.type === 'interview';
   host.innerHTML = headHTML(task, (isInterview ? '无准备时间 · 每题 45 秒' : '先听后说 · 每句 ' + (task.sec || 12) + ' 秒内')
     + ' · 参考音为合成朗读')
-    + '<div class="spk-actions"><button class="pri" id="spk-play">▶ 听' + (isInterview ? '题' : '这句') + '</button>'
+    + '<div class="spk-actions"><button class="spk-sec" id="spk-play">▶ 听' + (isInterview ? '题' : '这句') + '</button>'
     + '<button class="pri" id="spk-rec" disabled>🎙 按住说完点这里（开始录音）</button>'
-    + '<button class="spk-cancel" id="spk-cancel" hidden>✕ 取消这次录音</button>'
+    + '<button class="spk-cancel" id="spk-cancel" hidden>✕ 取消</button>'
     + '<span class="spk-timer" id="spk-timer"></span></div>'
     + '<div id="spk-result"></div>' + coachBoxHTML()
     + '<div class="spk-nav"><button id="spk-prev">‹ 上一句</button><span id="spk-pos"></span><button id="spk-next">下一句 ›</button></div>';
@@ -426,15 +433,15 @@ function renderSpeakCard(host, task) {
     }
     // 开始录音
     spkClearNote();
-    try { await startRec(); } catch (e) { spkNote('麦克风不可用：' + e.message + '。请允许麦克风权限后重试。', true); return; }
-    recBtn.textContent = '⏹ 说完了，点这里结束';
+    try { await startRec(); } catch (e) { spkNote(micErrText(e), true); return; }
+    recBtn.textContent = '⏹ 结束录音';
     cancelBtn.hidden = false; cancelBtn.disabled = false;
     playBtn.disabled = true;            // 录音中不播参考音，免得录进去
     const limit = isInterview ? 45 : (task.sec || 12) + 3;
     const tick = setInterval(() => {
       if (!SPK.rec) { clearInterval(tick); return; }   // 先判空再读 t0：停止录音后 tick 会读到 null
       const s = (Date.now() - SPK.rec.t0) / 1000;
-      timer.textContent = fmt2(Math.floor(s)) + 's';
+      timer.innerHTML = '<i class="spk-recdot" aria-hidden="true"></i>剩余 ' + Math.max(0, Math.ceil(limit - s)) + 's';
       if (s >= limit) { clearInterval(tick); onRec(item); }
     }, 250);
   }
@@ -465,9 +472,9 @@ function renderShadowCard(host, task) {
     pos.textContent = (ix + 1) + ' / ' + task.items.length;
     box.innerHTML = '<div class="spk-sentence">' + esc(item.text) + '</div>'
       + '<div class="spk-tips">' + (item.tips || []).map(x => '<span>' + esc(x) + '</span>').join('') + '</div>'
-      + '<div class="spk-actions"><button class="pri" id="spk-play">🔊 听示范</button>'
+      + '<div class="spk-actions"><button class="spk-sec" id="spk-play">🔊 听示范</button>'
       + '<button class="pri" id="spk-rec">🎙 录音跟读</button>'
-      + '<button class="spk-cancel" id="spk-cancel" hidden>✕ 取消这次录音</button>'
+      + '<button class="spk-cancel" id="spk-cancel" hidden>✕ 取消</button>'
       + '<span class="spk-timer" id="spk-timer"></span></div>'
       + '<div id="spk-shadow-result"></div>';
     const result = box.querySelector('#spk-shadow-result');
@@ -483,6 +490,7 @@ function renderShadowCard(host, task) {
         recBtn.disabled = true; recBtn.textContent = '转写中…';
         try {
           const stopped = await stopRec();
+          timer.textContent = '';
           if (!stopped || stopped.blob.size < 800) { spkNote('这次录音太短，没有提交。', true); return; }
           // 存档与转写并行（存档失败只影响 A/B 回听）
           let take = null, uploadErr = null;
@@ -510,15 +518,20 @@ function renderShadowCard(host, task) {
         return;
       }
       spkClearNote();
-      try { await startRec(); } catch (e) { spkNote('麦克风不可用：' + e.message, true); return; }
-      recBtn.textContent = '⏹ 说完了，点这里结束';
+      try { await startRec(); } catch (e) { spkNote(micErrText(e), true); return; }
+      recBtn.textContent = '⏹ 结束录音';
       cancelBtn.hidden = false; cancelBtn.disabled = false;
       playBtn.disabled = true;              // 录音中不播参考音，免得录进去
+      const tick = setInterval(() => {
+        if (!SPK.rec) { clearInterval(tick); return; }
+        timer.innerHTML = '<i class="spk-recdot" aria-hidden="true"></i>' + fmt2(Math.floor((Date.now() - SPK.rec.t0) / 1000)) + 's';
+      }, 250);
     };
     cancelBtn.onclick = async () => {
       if (!SPK.rec) { cancelBtn.hidden = true; return; }
       cancelBtn.disabled = true;
       await abortRec();
+      timer.textContent = '';
       cancelBtn.hidden = true; cancelBtn.disabled = false;
       recBtn.disabled = false; playBtn.disabled = false; recBtn.textContent = idle();
       spkNote('已取消这段录音，没有记录。', false, 'cancel');

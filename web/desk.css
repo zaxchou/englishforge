@@ -1100,7 +1100,7 @@ body.vfull .cs-status button:hover{background:#28392d;border-color:#4d6350}
    替代多课折叠堆叠: 加新课只需在数据里加一行, 下拉自动多一个选项 */
 .cs-pick{position:sticky;top:0;z-index:6;background:var(--card);
   padding:10px 10px 9px;border-bottom:1px solid var(--line)}
-.cs-pick select{width:100%;appearance:none;-webkit-appearance:none;
+.cs-pick select{width:100%;appearance:none;-webkit-appearance:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   font-family:inherit;font-size:14px;color:var(--t1);
   background:var(--card) url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23566158' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 10px center;
   border:1px solid #cfdcc9;border-radius:4px;padding:9px 30px 9px 11px;cursor:pointer}
@@ -2671,7 +2671,7 @@ html.sb-min .cp-due-mask{padding-left:84px}
 @media(max-width:700px){.ck-cal{max-width:100%}.ck-cell{height:32px;min-height:32px}}
 
 /* ---------- 口语课后练 (ndf-07, 2026-11-05) ---------- */
-.spk-intro{margin:2px 0 12px;color:var(--t2);font-size:13.5px;line-height:1.7}
+.spk-intro{margin:2px 20px 12px;color:var(--t2);font-size:13.5px;line-height:1.7}
 .spk-caps{margin:0 0 12px;padding:10px 14px;border-radius:12px;background:var(--soft-warn,#fff4e5);color:#8a5300;font-size:13px}
 .spk-tasks{display:flex;flex-direction:column;gap:8px;margin-bottom:14px}
 .spk-task{display:flex;align-items:center;gap:10px;text-align:left;padding:11px 14px;border:1px solid var(--line,#e5e7eb);border-radius:14px;background:#fff;cursor:pointer;font-size:14px}
@@ -2688,7 +2688,11 @@ html.sb-min .cp-due-mask{padding-left:84px}
 .spk-task-k{flex:none;color:var(--t3);font-size:12px;border:1px solid var(--line,#e5e7eb);border-radius:999px;padding:0 7px;line-height:1.6}
 .spk-hint{color:var(--t3);font-size:12.5px}
 .spk-actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:10px 0}
-.spk-timer{font-variant-numeric:tabular-nums;color:var(--t2)}
+.spk-timer{font-variant-numeric:tabular-nums;color:#b42318;font-weight:600;font-size:13px}
+.spk-recdot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#d64545;margin-right:6px;vertical-align:1px;animation:spkpulse 1.1s ease-in-out infinite}
+@keyframes spkpulse{0%,100%{opacity:1}50%{opacity:.25}}
+@media(prefers-reduced-motion:reduce){.spk-recdot{animation:none}}
+.spk-actions .spk-sec{background:#fff}
 .spk-cancel{color:#b42318;border-color:#e3bdb6}
 .spk-cancel:hover{background:#fdf3f1}
 .spk-cancel[hidden]{display:none!important}
