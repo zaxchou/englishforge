@@ -119,7 +119,7 @@ function renderTaskList() {
     const all = doneCount === t.items.length;
     const open = SPK.cur.taskKey === t.key;
     return '<button class="spk-task' + (open ? ' on' : '') + '" data-ti="' + ti + '" title="' + esc(t.title) + '">'
-      + '<span class="spk-task-dot ' + (all ? 'ok' : doneCount ? 'part' : '') + '"></span>'
+      + '<span class="spk-task-dot ' + (all ? 'spk-task-dot--ok' : doneCount ? 'spk-task-dot--partial' : '') + '"></span>'
       + '<span class="spk-task-t">' + esc(t.title) + '</span>'
       + '<span class="spk-task-n">' + doneCount + '/' + t.items.length + '</span></button>';
   }).join('');

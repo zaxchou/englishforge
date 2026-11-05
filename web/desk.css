@@ -2644,8 +2644,8 @@ html.sb-min .cp-due-mask{padding-left:84px}
 .spk-task{display:flex;align-items:center;gap:10px;text-align:left;padding:11px 14px;border:1px solid var(--line,#e5e7eb);border-radius:14px;background:#fff;cursor:pointer;font-size:14px}
 .spk-task.on{border-color:var(--brand,#2f6f4f);background:var(--brand-soft,#eef6f1)}
 .spk-task-dot{width:10px;height:10px;border-radius:50%;background:#d7dde3;flex:none}
-.spk-task-dot.part{background:#e8b64c}
-.spk-task-dot.ok{background:var(--brand,#2f6f4f)}
+.spk-task-dot--partial{background:#e8b64c}
+.spk-task-dot--ok{background:var(--brand,#2f6f4f)}
 .spk-task-t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .spk-task-n{color:var(--t3);font-size:12.5px;flex:none}
 .spk-cardbox{margin-top:4px;padding:16px 18px}
