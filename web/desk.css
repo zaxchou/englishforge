@@ -2653,6 +2653,9 @@ html.sb-min .cp-due-mask{padding-left:84px}
 .spk-hint{color:var(--t3);font-size:12.5px}
 .spk-actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:10px 0}
 .spk-timer{font-variant-numeric:tabular-nums;color:var(--t2)}
+.spk-cancel{color:#b42318;border-color:#e3bdb6}
+.spk-cancel:hover{background:#fdf3f1}
+.spk-cancel[hidden]{display:none!important}
 .spk-sentence{font-size:16px;line-height:1.7;margin:8px 0}
 .spk-zh{color:var(--t2);font-size:13px;margin:6px 0}
 .spk-tips{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 10px}

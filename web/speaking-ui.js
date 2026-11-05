@@ -43,7 +43,33 @@ function spkNote(msg, isErr, tag) {
 }
 function spkClearNote() { const n = document.querySelector('#spk-note'); if (n) { n.style.display = 'none'; n.textContent = ''; n.dataset.tag = ''; } }
 function spkRefUrl(text) { return '/api/speaking/tts?text=' + encodeURIComponent(text); }
-function stopRef() { if (SPK.refAudio) { try { SPK.refAudio.pause(); } catch (e) {} } }
+/* 参考音复用同一个 audio；播放期间按钮变「停止」，再点一次=停止并回到开头（下次从头重放） */
+let refBtn = null, refText = '';
+function spkRefReset() {
+  if (refBtn) { try { refBtn.textContent = refText; } catch (e) {} }
+  refBtn = null; refText = '';
+}
+function stopRef() {
+  const a = SPK.refAudio;
+  if (a) { try { a.pause(); } catch (e) {} try { a.currentTime = 0; } catch (e) {} }
+  spkRefReset();
+}
+/* 返回 true=开始播放，false=已停止（调用方可据此决定要不要计次） */
+function playRef(url, btn, playingText) {
+  if (!url) return false;
+  if (!SPK.refAudio) {
+    SPK.refAudio = new Audio();
+    SPK.refAudio.addEventListener('ended', spkRefReset);
+    SPK.refAudio.addEventListener('error', spkRefReset);
+  }
+  const a = SPK.refAudio;
+  if (a.getAttribute('src') === url && !a.paused) { stopRef(); return false; }   // 正在播同一条 → 停
+  stopRef();
+  a.src = url;
+  if (btn) { refBtn = btn; refText = btn.textContent; btn.textContent = playingText || '⏹ 停止'; }
+  a.play().catch(() => { spkRefReset(); spkNote('参考音播放失败，请检查网络或稍后再试', true); });
+  return true;
+}
 
 /* ---------- 录音 ---------- */
 async function ensureMic() {
@@ -76,6 +102,14 @@ async function stopRec() {
   const blob = new Blob(r.chunks, { type: r.mime });
   const dur = Math.max(0.3, (Date.now() - r.t0) / 1000);
   return { blob, dur, mime: r.mime };
+}
+/* 取消：停下并丢弃这段录音，不上传、不判分、不计次 */
+async function abortRec() {
+  const r = SPK.rec; if (!r) return false;
+  SPK.rec = null;
+  try { r.rec.stop(); } catch (e) {}
+  try { await r.done; } catch (e) {}
+  return true;
 }
 async function blobDataURI(blob) {
   return await new Promise((res, rej) => {
@@ -235,21 +269,28 @@ function renderSpeakCard(host, task) {
     + ' · 参考音为合成朗读</span></div>'
     + '<div class="spk-actions"><button class="pri" id="spk-play">▶ 听' + (isInterview ? '题' : '这句') + '</button>'
     + '<button class="pri" id="spk-rec" disabled>🎙 按住说完点这里（开始录音）</button>'
+    + '<button class="spk-cancel" id="spk-cancel" hidden>✕ 取消这次录音</button>'
     + '<span class="spk-timer" id="spk-timer"></span></div>'
     + '<div id="spk-result"></div>' + coachBoxHTML()
     + '<div class="spk-nav"><button id="spk-prev">‹ 上一句</button><span id="spk-pos"></span><button id="spk-next">下一句 ›</button></div>';
   let ix = SPK.cur.ix;
   let attempt = null;   // {transcript, dur, ev, takeUrl}
   const playBtn = host.querySelector('#spk-play'), recBtn = host.querySelector('#spk-rec');
+  const cancelBtn = host.querySelector('#spk-cancel');
   const timer = host.querySelector('#spk-timer'), result = host.querySelector('#spk-result');
   const coach = host.querySelector('#spk-coach');
+  const idleLabel = () => attempt
+    ? (isInterview ? '🎙 重说一次' : '🎙 重说一次（撤掉原文）')
+    : (isInterview ? '🎙 开始作答（45 秒）' : '🎙 听完开始录音');
   const paintPos = () => { host.querySelector('#spk-pos').textContent = (ix + 1) + ' / ' + task.items.length; };
   const loadIx = () => {
     attempt = null; result.innerHTML = ''; coach.hidden = true; recBtn.disabled = false;
+    playBtn.disabled = false;             // 上一句录音被导航打断时可能残留在禁用态
     recBtn.textContent = isInterview ? '🎙 开始作答（45 秒）' : '🎙 听完开始录音';
+    cancelBtn.hidden = true; cancelBtn.disabled = false;
     paintPos();
     const item = task.items[ix];
-    playBtn.onclick = () => { stopRef(); if (!SPK.refAudio) SPK.refAudio = new Audio(); SPK.refAudio.src = spkRefUrl(item.text); SPK.refAudio.play().catch(() => spkNote('参考音播放失败，请检查网络或稍后再试', true)); };
+    playBtn.onclick = () => playRef(spkRefUrl(item.text), playBtn, '⏹ 停止');
     recBtn.onclick = () => onRec(item);
     const saved = d.attempts.tasks[task.key]?.items?.[ix];
     if (saved?.first) restore(saved);
@@ -259,10 +300,6 @@ function renderSpeakCard(host, task) {
     recBtn.textContent = '🎙 重录首答'; paintResult('已保存的首答：');
     if (saved.first.coach) { coach.hidden = false; coach.innerHTML = coachHTML(saved.first.coach); }
     if (saved.retry) paintRetry(saved.retry);
-    if (attempt.take) {
-      const b = host.querySelector('#spk-hear');
-      if (b) b.onclick = () => { stopRef(); if (!SPK.refAudio) SPK.refAudio = new Audio(); SPK.refAudio.src = attempt.take; SPK.refAudio.play(); };
-    }
   }
   function paintResult(prefix) {
     const item = task.items[ix];
@@ -274,6 +311,8 @@ function renderSpeakCard(host, task) {
     if (attempt.take) {
       const hb = host.querySelector('#spk-hearbox');
       hb.innerHTML = '<button class="spk-mini" id="spk-hear">🔊 回听我的录音</button>';
+      const hearBtn = hb.querySelector('#spk-hear');
+      hearBtn.onclick = () => playRef(attempt.take, hearBtn, '⏹ 停止');
     }
   }
   function paintRetry(savedRetry) {
@@ -283,6 +322,8 @@ function renderSpeakCard(host, task) {
   }
   async function onRec(item) {
     if (SPK.rec) {                       // 正在录 → 停止并提交
+      cancelBtn.hidden = true; cancelBtn.disabled = false;
+      playBtn.disabled = true;          // 录音中不播参考音，免得录进去
       recBtn.disabled = true; recBtn.textContent = '转写中…';
       try {
         const stopped = await stopRec();
@@ -312,10 +353,8 @@ function renderSpeakCard(host, task) {
       } catch (e) {
         spkNote('这次没有判分：' + e.message, true);
       } finally {
-        recBtn.disabled = false;
-        recBtn.textContent = attempt
-          ? (isInterview ? '🎙 重说一次' : '🎙 重说一次（撤掉原文）')
-          : (isInterview ? '🎙 开始作答（45 秒）' : '🎙 听完开始录音');
+        recBtn.disabled = false; playBtn.disabled = false;
+        recBtn.textContent = idleLabel();
       }
       return;
     }
@@ -323,6 +362,8 @@ function renderSpeakCard(host, task) {
     spkClearNote();
     try { await startRec(); } catch (e) { spkNote('麦克风不可用：' + e.message + '。请允许麦克风权限后重试。', true); return; }
     recBtn.textContent = '⏹ 说完了，点这里结束';
+    cancelBtn.hidden = false; cancelBtn.disabled = false;
+    playBtn.disabled = true;            // 录音中不播参考音，免得录进去
     const limit = isInterview ? 45 : (task.sec || 12) + 3;
     const tick = setInterval(() => {
       if (!SPK.rec) { clearInterval(tick); return; }   // 先判空再读 t0：停止录音后 tick 会读到 null
@@ -331,8 +372,18 @@ function renderSpeakCard(host, task) {
       if (s >= limit) { clearInterval(tick); onRec(item); }
     }, 250);
   }
-  host.querySelector('#spk-prev').onclick = () => { if (ix > 0) { ix--; SPK.cur.ix = ix; loadIx(); } };
-  host.querySelector('#spk-next').onclick = () => { if (ix < task.items.length - 1) { ix++; SPK.cur.ix = ix; loadIx(); } };
+  /* 取消：停下丢弃，不上传不判分，按钮复位 */
+  cancelBtn.onclick = async () => {
+    if (!SPK.rec) { cancelBtn.hidden = true; return; }
+    cancelBtn.disabled = true;
+    await abortRec();
+    timer.textContent = '';
+    cancelBtn.hidden = true; cancelBtn.disabled = false;
+    recBtn.disabled = false; playBtn.disabled = false; recBtn.textContent = idleLabel();
+    spkNote('已取消这段录音，没有记录。', false, 'cancel');
+  };
+  host.querySelector('#spk-prev').onclick = async () => { if (ix > 0) { stopRef(); await abortRec(); timer.textContent = ''; ix--; SPK.cur.ix = ix; loadIx(); } };
+  host.querySelector('#spk-next').onclick = async () => { if (ix < task.items.length - 1) { stopRef(); await abortRec(); timer.textContent = ''; ix++; SPK.cur.ix = ix; loadIx(); } };
   loadIx();
 }
 
@@ -349,13 +400,20 @@ function renderShadowCard(host, task) {
     box.innerHTML = '<div class="spk-sentence">' + esc(item.text) + '</div>'
       + '<div class="spk-tips">' + (item.tips || []).map(x => '<span>' + esc(x) + '</span>').join('') + '</div>'
       + '<div class="spk-actions"><button class="pri" id="spk-play">🔊 听示范</button>'
-      + '<button class="pri" id="spk-rec">🎙 录音跟读</button><span class="spk-timer" id="spk-timer"></span></div>'
+      + '<button class="pri" id="spk-rec">🎙 录音跟读</button>'
+      + '<button class="spk-cancel" id="spk-cancel" hidden>✕ 取消这次录音</button>'
+      + '<span class="spk-timer" id="spk-timer"></span></div>'
       + '<div id="spk-shadow-result"></div>';
     const result = box.querySelector('#spk-shadow-result');
-    box.querySelector('#spk-play').onclick = () => { stopRef(); if (!SPK.refAudio) SPK.refAudio = new Audio(); SPK.refAudio.src = spkRefUrl(item.text); SPK.refAudio.play(); };
+    const playBtn = box.querySelector('#spk-play'), cancelBtn = box.querySelector('#spk-cancel');
+    const timer = box.querySelector('#spk-timer');
+    const idle = () => (result.innerHTML ? '🎙 重录' : '🎙 录音跟读');
+    playBtn.onclick = () => playRef(spkRefUrl(item.text), playBtn, '⏹ 停止');
     const recBtn = box.querySelector('#spk-rec');
     recBtn.onclick = async () => {
       if (SPK.rec) {
+        cancelBtn.hidden = true; cancelBtn.disabled = false;
+        playBtn.disabled = true;            // 录音中不播参考音，免得录进去
         recBtn.disabled = true; recBtn.textContent = '转写中…';
         try {
           const stopped = await stopRec();
@@ -377,20 +435,30 @@ function renderShadowCard(host, task) {
             + '<div class="spk-selfcheck">' + (item.tips || []).map((x, i) => '<label><input type="checkbox" data-i="' + i + '"> ' + esc(x) + '</label>').join('') + '</div>'
             + '<div class="spk-note-ok">自评勾选后本句即完成（练习记录）。</div>';
           showTranscriptDiff(result.querySelector('#spk-diffbox'), item, transcript, ev, {});
-          result.querySelector('#spk-ab-ref').onclick = () => { stopRef(); if (!SPK.refAudio) SPK.refAudio = new Audio(); SPK.refAudio.src = spkRefUrl(item.text); SPK.refAudio.play(); };
+          result.querySelector('#spk-ab-ref').onclick = (e) => playRef(spkRefUrl(item.text), e.currentTarget, '⏹ 停止');
           const abMe = result.querySelector('#spk-ab-me');
-          if (abMe) abMe.onclick = () => { stopRef(); if (!SPK.refAudio) SPK.refAudio = new Audio(); SPK.refAudio.src = take.url; SPK.refAudio.play(); };
+          if (abMe) abMe.onclick = (e) => playRef(take.url, e.currentTarget, '⏹ 停止');
         } catch (e) { spkNote('这次没有结果：' + e.message, true); }
-        finally { recBtn.disabled = false; recBtn.textContent = '🎙 重录'; }
+        finally { recBtn.disabled = false; playBtn.disabled = false; recBtn.textContent = idle(); }
         return;
       }
       spkClearNote();
       try { await startRec(); } catch (e) { spkNote('麦克风不可用：' + e.message, true); return; }
       recBtn.textContent = '⏹ 说完了，点这里结束';
+      cancelBtn.hidden = false; cancelBtn.disabled = false;
+      playBtn.disabled = true;              // 录音中不播参考音，免得录进去
+    };
+    cancelBtn.onclick = async () => {
+      if (!SPK.rec) { cancelBtn.hidden = true; return; }
+      cancelBtn.disabled = true;
+      await abortRec();
+      cancelBtn.hidden = true; cancelBtn.disabled = false;
+      recBtn.disabled = false; playBtn.disabled = false; recBtn.textContent = idle();
+      spkNote('已取消这段录音，没有记录。', false, 'cancel');
     };
   }
-  host.querySelector('#spk-prev').onclick = () => { if (ix > 0) { ix--; SPK.cur.ix = ix; paint(); } };
-  host.querySelector('#spk-next').onclick = () => { if (ix < task.items.length - 1) { ix++; SPK.cur.ix = ix; paint(); } };
+  host.querySelector('#spk-prev').onclick = async () => { if (ix > 0) { stopRef(); await abortRec(); ix--; SPK.cur.ix = ix; paint(); } };
+  host.querySelector('#spk-next').onclick = async () => { if (ix < task.items.length - 1) { stopRef(); await abortRec(); ix++; SPK.cur.ix = ix; paint(); } };
   paint();
 }
 function renderPickCard(host, task) {
@@ -407,7 +475,8 @@ function renderPickCard(host, task) {
       + '<div class="spk-options">' + item.pair.map((w, i) => '<button class="spk-opt" data-i="' + i + '">' + esc(w) + '</button>').join('') + '</div>'
       + '<div id="spk-pick-fb"></div>';
     tally.textContent = '已对 ' + correct + ' 题';
-    box.querySelector('#spk-play').onclick = () => { stopRef(); if (!SPK.refAudio) SPK.refAudio = new Audio(); SPK.refAudio.src = spkRefUrl(played); SPK.refAudio.play(); };
+    const pickPlay = box.querySelector('#spk-play');
+    pickPlay.onclick = () => playRef(spkRefUrl(played), pickPlay, '⏹ 停止');
     box.querySelectorAll('.spk-opt').forEach(b => {
       b.onclick = () => {
         const ok = item.pair[Number(b.dataset.i)] === played;
@@ -468,7 +537,8 @@ function renderChunkCard(host, task) {
       wbox.querySelectorAll('.spk-gap').forEach(g => g.classList.remove('on'));
       box.querySelector('#spk-chunk-fb').innerHTML = '';
     };
-    box.querySelector('#spk-play').onclick = () => { stopRef(); if (!SPK.refAudio) SPK.refAudio = new Audio(); SPK.refAudio.src = spkRefUrl(item.text); SPK.refAudio.play(); };
+    const chunkPlay = box.querySelector('#spk-play');
+    chunkPlay.onclick = () => playRef(spkRefUrl(item.text), chunkPlay, '⏹');   // 图标按钮：播放中变成停止
     primary = box.querySelector('#spk-primary');
     primary.onclick = () => { if (checked) advance(); else check(); };
     primary.focus({ preventScroll: true });
@@ -521,7 +591,13 @@ function renderDictationCard(host, task) {
       + '<textarea id="spk-dt" rows="2" placeholder="写出你听到的句子（Enter 提交）"></textarea>'
       + '<div class="spk-actions"><button class="pri" id="spk-submit">提交</button></div><div id="spk-dict-fb"></div>';
     const ta = box.querySelector('#spk-dt');
-    box.querySelector('#spk-play').onclick = () => { if (plays >= task.plays) { spkNote('这一句的播放次数用完了，先写再核对。', true); return; } plays++; box.querySelector('#spk-plays').textContent = task.plays - plays; stopRef(); if (!SPK.refAudio) SPK.refAudio = new Audio(); SPK.refAudio.src = spkRefUrl(item.text); SPK.refAudio.play(); };
+    const dictPlay = box.querySelector('#spk-play');
+    dictPlay.onclick = () => {
+      if (dictPlay.textContent.indexOf('停止') >= 0) { stopRef(); return; }   // 播放中点=停止，不算听一遍
+      if (plays >= task.plays) { spkNote('这一句的播放次数用完了，先写再核对。', true); return; }
+      plays++; box.querySelector('#spk-plays').textContent = task.plays - plays;
+      playRef(spkRefUrl(item.text), dictPlay, '⏹ 停止');
+    };
     const submit = () => {
       const ev = diffWords(item.text, ta.value);
       const ok = ev.acc >= 0.99;
