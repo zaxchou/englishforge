@@ -52,6 +52,7 @@ T1=$(date +%s)
 BACKUP_DIR="$PROJ/deploy/backups/$VER-$(date +%Y%m%d%H%M%S)"
 mkdir -p "$BACKUP_DIR"
 cp "$ENV_FILE" "$BACKUP_DIR/compose.env"
+cp "$COMPOSE_FILE" "$BACKUP_DIR/compose.yaml"
 RECORDS_PATH="$(dirname "$PROJ")/data/toefl-lab-production/records"
 [ -d "$RECORDS_PATH" ] || { echo "正式记录目录不存在，拒绝切换版本" >&2; exit 1; }
 cp -a "$RECORDS_PATH" "$BACKUP_DIR/records"
