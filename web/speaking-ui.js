@@ -32,13 +32,14 @@ function chunkCuts(item) {
   return cuts;
 }
 function fmt2(s) { return String(Math.floor(s)).padStart(2, '0'); }
-function spkNote(msg, isErr) {
+function spkNote(msg, isErr, tag) {
   const n = document.querySelector('#spk-note');
   if (!n) return;
   n.style.display = ''; n.className = 'gq-note' + (isErr ? ' spk-err' : '');
+  n.dataset.tag = tag || '';
   n.textContent = msg;
 }
-function spkClearNote() { const n = document.querySelector('#spk-note'); if (n) { n.style.display = 'none'; n.textContent = ''; } }
+function spkClearNote() { const n = document.querySelector('#spk-note'); if (n) { n.style.display = 'none'; n.textContent = ''; n.dataset.tag = ''; } }
 function spkRefUrl(text) { return '/api/speaking/tts?text=' + encodeURIComponent(text); }
 function stopRef() { if (SPK.refAudio) { try { SPK.refAudio.pause(); } catch (e) {} } }
 
@@ -122,11 +123,14 @@ function spkFlush() {
         await api('/api/speaking/attempt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(spkPayload(p)) });
         list.shift(); spkSetPending(list);
       } catch (e) {
-        spkNote('这次作答已存在本机，联网后会自动补传（' + e.message.slice(0, 40) + '）', true);
+        spkNote('这次作答已存在本机，联网后会自动补传（' + e.message.slice(0, 40) + '）', true, 'queue');
         break;
       }
     }
-    if (!list.length) spkClearNote();
+    if (!list.length) {
+      const n = document.querySelector('#spk-note');
+      if (n && n.dataset.tag === 'queue') spkClearNote();   // 只清「待补传」提示, 不动其他错误提示
+    }
   })().finally(() => { SPK_FLUSHING = null; });
   return SPK_FLUSHING;
 }
