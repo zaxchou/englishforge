@@ -589,7 +589,25 @@ def ai_lang(data, batch=45, jobs=("dg", "pb")):
 
 
 def apply_errata(data):
-    if int(data.get("ep", 0)) != 16:
+    ep = int(data.get("ep", 0))
+    if ep == 33:
+        # 2026-11-05 勘误: dialogue#8 官方文本漏词——原音实为 "the ref didn't even call it"
+        # (无偏置 ASR 割句验证 + 讲解段 126/166 行主持人原话均含 even)。覆盖正文/词块例句/意群/中文。
+        def correct33(value):
+            if isinstance(value, str):
+                return (value.replace("didn't call it", "didn't even call it")
+                             .replace("didn't call", "didn't even call")
+                             .replace("裁判没吹", "裁判都没吹"))
+            if isinstance(value, list):
+                return [correct33(x) for x in value]
+            if isinstance(value, dict):
+                return {k: correct33(v) for k, v in value.items()}
+            return value
+        corrected = correct33(data)
+        data.clear()
+        data.update(corrected)
+        return data
+    if ep != 16:
         return data
     def correct(value):
         if isinstance(value, str):
