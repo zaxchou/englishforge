@@ -53,18 +53,20 @@ async function lostAck(){
   const recoveryStart=html.indexOf('const pending=recovery.pending?.snapshot;');
   const recoveryEnd=html.indexOf('\n      }',recoveryStart);
   const recoveryCode=html.slice(recoveryStart,recoveryEnd);
-  function restart(remote,recovery){
-    box.recs=clone(remote);box.recovery=clone(recovery);
+  function restart(remote,recovery,committed){
+    box.recs=clone(remote);box.recovery=clone(recovery);box.COMMITTED_SNAPSHOTS=clone(committed||{});
     vm.runInContext(`REC=recClone(recs);recBase=recClone(REC);recPending=null;recDirty=false;`,box);
     vm.runInContext('{'+recoveryCode+'}',box);
     return vm.runInContext('REC.study.total',box);
   }
-  assert.equal(restart(accepted,backup),108);
-  assert.equal(restart({...accepted,study:{total:112}},backup),115);
+  /* GET 已不下发 snapshotEvents：提交状态由测试注入（对应 boot 里预取的 COMMITTED_SNAPSHOTS） */
+  const acceptedCommitted={[Object.keys(accepted.snapshotEvents||{})[0]]:true};
+  assert.equal(restart(accepted,backup,acceptedCommitted),108);
+  assert.equal(restart({...accepted,study:{total:112}},backup,acceptedCommitted),115);
   assert.equal(restart(baseline,backup),108);
   const beaconBackup={base:baseline,local:{...clone(baseline),study:{total:105}},snapshotId:'beacon-event-1'};
   const beaconRemote={...clone(beaconBackup.local),snapshotEvents:{'beacon-event-1':true}};
-  assert.equal(restart(beaconRemote,beaconBackup),105);assert.equal(vm.runInContext('recDirty',box),false);
+  assert.equal(restart(beaconRemote,beaconBackup,{'beacon-event-1':true}),105);assert.equal(vm.runInContext('recDirty',box),false);
   // Execute the actual unload callback, without touching browser or production storage.
   const unloadStart=html.indexOf("window.addEventListener('beforeunload',e=>{");
   const unloadEnd=html.indexOf('\n});',unloadStart)+4;

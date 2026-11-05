@@ -2173,6 +2173,15 @@ const handler = async (req, res) => {
       });
     }
 
+    /* ---- API: 快照提交过没（恢复流程用；提交日志本体不下发） ---- */
+    if (p === '/api/records/committed') {
+      if (req.method !== 'GET') return sendJSON(res, 405, { error: 'method' });
+      const ids = String(url.searchParams.get('ids') || '').split(',').filter(x => /^[\w-]{8,100}$/.test(x)).slice(0, 10);
+      const committed = {};
+      for (const id of ids) if (RECORDS.snapshotEvents && RECORDS.snapshotEvents[id]) committed[id] = true;
+      return sendJSON(res, 200, { ok: true, committed });
+    }
+
     /* ---- API: 单课练习账本全量（EP 目录只带轻索引, 进课即时取全量 drill） ---- */
     const mCourseRec = p.match(/^\/api\/course-record\/([\w-]+)$/);
     if (mCourseRec) {

@@ -2503,18 +2503,8 @@ const COURSE_MODULES=[
     oneLine:true },
 ];
 const courseModule=c=>COURSE_MODULES.find(m=>m.test(c))||null;
-/* EP 课节的逐句练习账按需加载：本会话已取过的课不再取 */
+/* EP 课节的逐句练习账按需加载：本会话已取过的课不再取（取数逻辑在 renderEplodMain） */
 const COURSE_REC_LOADED=new Set();
-async function loadCourseRecord(lid){
-  if(!lid||COURSE_REC_LOADED.has(lid))return;
-  try{
-    const r=await api('/api/course-record/'+encodeURIComponent(lid),{signal:AbortSignal.timeout(15000)});
-    if(r&&r.lesson&&typeof r.lesson==='object'){
-      REC.course[lid]=EplodRecords.mergeLesson(REC.course[lid],r.lesson);
-      COURSE_REC_LOADED.add(lid);
-    }
-  }catch(e){}
-}
 const GQ_UI = { lessonId:null, phase:'idle', quiz:null, order:[], ix:0, answers:{}, wrong:[],
                 qAt:0, err:'', checked:false, busy:false, run:'core' };
 let GQ_REDO = null;   // 错题本「重做」带来的待重做队列 {lessonId, qids}
@@ -5901,12 +5891,21 @@ async function boot(){
     REC.vocab=(REC.vocab&&typeof REC.vocab==='object'&&!Array.isArray(REC.vocab))?REC.vocab:{};
     REC.vocabCfg=(REC.vocabCfg&&Number.isFinite(Number(REC.vocabCfg.daily)))?REC.vocabCfg:{daily:20};
     recBase=recClone(REC);recReady=true;
+    /* 提交日志不再随 GET 下发：先在 async 上下文里问服务端"这些快照提交过没"，
+       结果放进 COMMITTED_SNAPSHOTS 供下面的恢复片段（保持可同步执行，test_eplod_records 会裸跑它）用 */
+    let COMMITTED_SNAPSHOTS={};
+    try{
+      const recProbe=JSON.parse(localStorage.getItem('tfl-record-recovery')||'null');
+      const probeIds=[recProbe?.pending?.snapshot?.snapshotId,recProbe?.snapshotId].filter(Boolean);
+      if(probeIds.length){const r=await api('/api/records/committed?ids='+encodeURIComponent(probeIds.join(',')));COMMITTED_SNAPSHOTS=(r&&r.committed)||{};}
+    }catch(e){}
     try{const recovery=JSON.parse(localStorage.getItem('tfl-record-recovery')||'null');
       if(recovery?.local){
         const pending=recovery.pending?.snapshot;
-        const committed=pending?.snapshotId&&recs.snapshotEvents?.[pending.snapshotId];
-        if(!pending&&recovery.snapshotId&&recs.snapshotEvents?.[recovery.snapshotId])localStorage.removeItem('tfl-record-recovery');
-        else {recApply(mergeRemote(recs,committed?pending:(recovery.base||{}),recovery.local));recDirty=true;recEpoch++;recPending=null;recSnapshotId=null;recSnapshotEpoch=-1;recBackup();recT=setTimeout(flushRecords,400);}
+        const committedSet=COMMITTED_SNAPSHOTS;
+        if(!pending&&recovery.snapshotId&&committedSet[recovery.snapshotId])localStorage.removeItem('tfl-record-recovery');
+        else {const committed=!!(pending?.snapshotId&&committedSet[pending.snapshotId]);
+          recApply(mergeRemote(recs,committed?pending:(recovery.base||{}),recovery.local));recDirty=true;recEpoch++;recPending=null;recSnapshotId=null;recSnapshotEpoch=-1;recBackup();recT=setTimeout(flushRecords,400);}
       }
     }catch(e){saveStatus('本机恢复记录无法读取，请导出备份');}
     recOverlayPending();
