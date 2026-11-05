@@ -8,7 +8,7 @@
 <link rel="icon" type="image/png" sizes="96x96" href="/assets/brand/t-dot-v1/t-dot-96.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/assets/brand/t-dot-v1/t-dot-180.png">
 <title>TOEFL Lab · 托福自学练习</title>
-<link rel="stylesheet" href="desk.css?v=20261106r1">
+<link rel="stylesheet" href="desk.css?v=20261106r2">
 <style>
 /* 应用层补充样式（视觉基线在 desk.css，不改它的既有规则） */
 /* 单词与字符格保持同一行；焦点、已填、判题状态沿用研读桌配色。 */
@@ -2485,6 +2485,22 @@ function gqCompleted(lid,ext=false){const r=REC.course['gq:'+lid];return !!(ext?
 const GEN_COURSE = 'ndf-01';   // AI 生成链路的课程; 课后练入口见 GEN_COURSES
 /* 已开通课后练的课程: ndf-01=AI 按课稿生成; cfcm-01=老师官方课后练习(导入件) */
 const GEN_COURSES = new Set(['ndf-01', 'cfcm-01']);
+/* ---------- 课程模块（2026-11-06）----------
+   词汇 / 口语 / 以后阅读听力：每类课程的目录行、默认页签、学习方式都不一样。
+   各自的差异挂在这里，目录渲染与材料区只认钩子；新模块加一项即可，不改公共代码。 */
+const COURSE_MODULES=[
+  { id:'speaking', test:c=>c.id==='ndf-07',
+    /* 口语课：章节号(1.1)进序号列，主题单行截断；打开就落在练习页签（练习比讲义高频，
+       也不受上次停留影响——想看讲义随时点）。标题尾部如「发音 ktp」是课件名残留，展示层剥掉。 */
+    defaultTab:()=> 'practice',
+    lessonRow:(l,li)=>{
+      const m=/^(\d+(?:\.\d+)?)[.、\s]\s*(.+)$/.exec(l.title);
+      const title=(m?m[2]:l.title).replace(/\s+[A-Za-z]{1,4}$/,'').trim()||l.title;
+      return { no:m?m[1]:String(li+1).padStart(2,'0'), title };
+    },
+    oneLine:true },
+];
+const courseModule=c=>COURSE_MODULES.find(m=>m.test(c))||null;
 const GQ_UI = { lessonId:null, phase:'idle', quiz:null, order:[], ix:0, answers:{}, wrong:[],
                 qAt:0, err:'', checked:false, busy:false, run:'core' };
 let GQ_REDO = null;   // 错题本「重做」带来的待重做队列 {lessonId, qids}
@@ -3465,6 +3481,8 @@ function renderCourseNav(){
     c.lessons.forEach((l,li)=>{
       const done=REC.course[l.id]&&REC.course[l.id].done;
       const on=(csSel.c===c.id&&csSel.l===li);
+      const mod=courseModule(c);
+      const rowInfo=mod&&mod.lessonRow?mod.lessonRow(l,li):null;
       const meta=GEN_COURSES.has(c.id)?cpNavMeta(l.id):null;
       const spk=c.id==='ndf-07'?spkNavMeta(l.id):null;   /* 口语课: 练了几题/练完没有 */
       const dots=meta?'<span class="cpd" aria-hidden="true">'+Array.from({length:Math.max(meta.target,meta.n)},(_,i)=>'<i'+(i<meta.n?' class="on"':'')+'></i>').join('')+'</span>':'';
@@ -3480,8 +3498,10 @@ function renderCourseNav(){
         +marks.join('')+'</span>':'';
       /* 短名进列表, 完整原名留在悬浮说明 */
       const tip=l.title+(done?' · 视频已看完':'')+(meta?' · 课后练 '+meta.n+'/'+meta.target+' 次 · '+meta.text:'')+(spk?' · 课后练 '+spk.text:'');
-      h+=`<div class="cli vcli${done?' done':''}${on?' on':''}${noSeq?' nono':''}" data-cid="${esc(c.id)}" data-ix="${li}" title="${esc(tip)}">
-        ${noSeq?'':`<span class="no">${String(li+1).padStart(2,'0')}</span>`}<span class="lt">${esc(shortLessonTitle(l.title))}</span><span class="ld">${seenMark}${l.duration_sec?fmtDur(l.duration_sec):(done?'':'—')}</span>${stateHTML}</div>`;
+      const noHTML=rowInfo?`<span class="no">${esc(rowInfo.no)}</span>`:(noSeq?'':`<span class="no">${String(li+1).padStart(2,'0')}</span>`);
+      const ltText=rowInfo?rowInfo.title:shortLessonTitle(l.title);
+      h+=`<div class="cli vcli${done?' done':''}${on?' on':''}${(!rowInfo&&noSeq)?' nono':''}${mod&&mod.oneLine?' oneline':''}" data-cid="${esc(c.id)}" data-ix="${li}" title="${esc(tip)}">
+        ${noHTML}<span class="lt"${rowInfo?` title="${esc(l.title)}"`:''}>${esc(ltText)}</span><span class="ld">${seenMark}${l.duration_sec?fmtDur(l.duration_sec):(done?'':'—')}</span>${stateHTML}</div>`;
     });}
   }
   const el=$('cs-nav'); el.innerHTML=h;
@@ -4983,9 +5003,10 @@ function renderCourseMain(){
   noteInput.oninput=()=>{try{localStorage.setItem('tfl-note-draft:'+l.id,noteInput.value);}catch{}};
   /* 页签恢复: 本节明确切过的页签优先; 首次打开默认落练习(练习比讲义高频),
      无练习内容的课节回退讲义, 不落在空练习态 */
-  const requested=p.tab;
-  if(['handout','script','practice','notes'].includes(requested))csSelectTab(requested);
-  else csSelectTab((GEN_COURSES.has(c.id)||cur?.practice||c.id==='ndf-07')?'practice':'handout');
+  const mod2=courseModule(c);
+  const requested=mod2?null:p.tab;   /* 模块课程固定默认页签, 不被上次停留带跑 */
+  if(requested&&['handout','script','practice','notes'].includes(requested))csSelectTab(requested);
+  else csSelectTab(mod2&&mod2.defaultTab?mod2.defaultTab():((GEN_COURSES.has(c.id)||cur?.practice||c.id==='ndf-07')?'practice':'handout'));
   const speed=$('cs-speed');let savedRate=1;try{savedRate=Number(localStorage.getItem('tfl-video-rate'))||1;}catch{}
   if(![0.75,1,1.25,1.5,1.75,2,2.5].includes(savedRate))savedRate=1;
   speed.value=String(savedRate);v.playbackRate=savedRate;

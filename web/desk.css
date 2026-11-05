@@ -2343,6 +2343,12 @@ html.sb-min .nav-label{display:none!important}   /* 收缩侧栏只留图标 */
 .csnav .cli.vcli.on .lmk.ok{color:#e7f0ca}
 .csnav .cli.vcli.on .lmk.todo{color:#d9cfa9}
 .csnav .cli.vcli:not(:has(.cpn)){align-items:center}
+/* 口语课模块目录（2026-11-06）：章节号在序号列，主题一行截断——每行等高，和词汇课一个节奏 */
+.csnav .cli.vcli.oneline{grid-template-columns:26px minmax(120px,1fr) auto}
+.csnav .cli.vcli.oneline .no{font-size:11.5px;padding-top:3px}
+.csnav .cli.vcli.oneline .lt{-webkit-line-clamp:1;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.6;padding-top:2px}
+.csnav .cli.vcli.oneline:not(:has(.cpn)){align-items:center}
+.csnav .cli.vcli.oneline .cpn{grid-column:2 / 4}
 .csnav .cli.vcli:not(:has(.cpn)) .no{grid-row:1}
 /* 课名自带章节号(1. / 2.1)的课程: 隐藏重复的序号列, 标题与状态占满整行 */
 .csnav .cli.vcli.nono{grid-template-columns:minmax(120px,1fr) auto}
