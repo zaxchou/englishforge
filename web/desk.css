@@ -1425,6 +1425,23 @@ body.vfull .cs-stage video.tfl{max-height:none}
    vz 模式漏了 dock 显示规则——dock 被基础 display:none 藏掉, 恢复按钮随之消失;
    且视频隐藏后 cs-stage 剩一个空边框盒(即那条横线)。补规则+剥空框。 */
 .cs-stick.vz .cs-vdock{display:flex}
+/* ---------- 口语课练习模式（2026-11-06.r3，用户确认）----------
+   收起后不是把视频藏掉，而是「两栏」：左边练习占主列，右边给视频留一条专属窄栏
+   （sticky 跟随滚动，收起条+小窗都在这条里，互不遮挡）。窄屏退回「隐藏视频 + 收起条」。 */
+@media(min-width:1101px){
+  .cs-stick.vz.spk{display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,330px);column-gap:22px;align-items:start}
+  .cs-stick.vz.spk > .csp-meta{grid-column:1 / -1;grid-row:1}
+  .cs-stick.vz.spk > .cs-complete{grid-column:1 / -1;grid-row:2}
+  .cs-stick.vz.spk > .cs-na-box,.cs-stick.vz.spk > .na-box{grid-column:1 / -1}
+  .cs-stick.vz.spk > .card.cs-materials{grid-column:1;grid-row:3;min-width:0}
+  .cs-stick.vz.spk > .cs-stage{grid-column:2;grid-row:3;position:sticky;top:70px;margin:0;
+    border-radius:14px;overflow:hidden;background:#000;border:1px solid rgba(255,255,255,.09);
+    box-shadow:0 12px 32px rgba(15,25,18,.3)}
+  .cs-stick.vz.spk > .cs-stage .cs-vdock{border-radius:0;border:0;border-bottom:1px solid rgba(255,255,255,.09);background:#101613}
+  .cs-stick.vz.spk > .cs-stage .cs-vdock .vd-run{color:#cfdcc8}
+  .cs-stick.vz.spk > .cs-stage video.tfl{display:block;width:100%;height:auto;max-height:200px;object-fit:contain;aspect-ratio:auto}
+}
+.cs-stick.vz.spk .cs-status{display:none}
 .cs-stick.qz .cs-stage,.cs-stick.vz .cs-stage{border:0;background:transparent}
 
 /* ============================================================

@@ -226,8 +226,9 @@ function saveAttempt(lessonId, taskKey, ix, stage, entry) {
   const pending = spkPending();
   pending.push({ lessonId, taskKey, ix, stage, entry, qid: [lessonId, taskKey, ix, stage, entry.at].join('|') });
   spkSetPending(pending);
-  spkFlush();
+  const flushP = spkFlush();
   if (typeof window.spkNavRefresh === 'function') window.spkNavRefresh();   // 课程列表的练习进度要跟着变
+  return flushP;   // 调用方（助教）要等作答落库后才拿得到
 }
 
 /* ---------- 卡片渲染 ---------- */
@@ -394,11 +395,12 @@ function renderSpeakCard(host, task) {
         const takeUrl = await uploadP;
         if (takeUrl) entry.take = takeUrl;
         attempt = entry;
-        saveAttempt(d.lessonId, task.key, ix, stage, entry);
+        const savedP = saveAttempt(d.lessonId, task.key, ix, stage, entry);
         result.innerHTML = '';
         paintResult(stage === 'retry' ? '重说已保存：' : '首答已保存：');
         if (stage === 'retry') paintRetry(entry);
         if (uploadErr) spkNote('本次成绩已记录，但录音没存上（' + uploadErr.message + '），所以不能回听。', true, 'upload');
+        await (savedP || Promise.resolve()).catch(() => {});   // 先落库再叫助教, 慢网下不再撞「attempt not found」
         await runCoach(task.key, ix, stage, coach);
       } catch (e) {
         spkNote('这次没有判分：' + e.message, true);

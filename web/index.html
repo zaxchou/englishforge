@@ -8,7 +8,7 @@
 <link rel="icon" type="image/png" sizes="96x96" href="/assets/brand/t-dot-v1/t-dot-96.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/assets/brand/t-dot-v1/t-dot-180.png">
 <title>TOEFL Lab · 托福自学练习</title>
-<link rel="stylesheet" href="desk.css?v=20261106r2">
+<link rel="stylesheet" href="desk.css?v=20261106r3">
 <style>
 /* 应用层补充样式（视觉基线在 desk.css，不改它的既有规则） */
 /* 单词与字符格保持同一行；焦点、已填、判题状态沿用研读桌配色。 */
@@ -355,7 +355,7 @@ details.ai-tsec[open] summary{margin-bottom:8px}
 <script src="eplod-records.js?v=16"></script>
 <script src="course-plan-model.js?v=20261029r8"></script>
 <script src="course-plan-ui.js?v=20261102r11"></script>
-<script src="speaking-ui.js?v=20261105r16"></script>
+<script src="speaking-ui.js?v=20261106r3"></script>
 <script>
 'use strict';
 /* ============================================================
@@ -2493,6 +2493,8 @@ const COURSE_MODULES=[
     /* 口语课：章节号(1.1)进序号列，主题单行截断；打开就落在练习页签（练习比讲义高频，
        也不受上次停留影响——想看讲义随时点）。标题尾部如「发音 ktp」是课件名残留，展示层剥掉。 */
     defaultTab:()=> 'practice',
+    /* 练习主导：进课默认把视频收成画中画（练习占满整行）；用户点过「恢复视频」就尊重其选择 */
+    dockVideo:true,
     lessonRow:(l,li)=>{
       const m=/^(\d+(?:\.\d+)?)[.、\s]\s*(.+)$/.exec(l.title);
       const title=(m?m[2]:l.title).replace(/\s+[A-Za-z]{1,4}$/,'').trim()||l.title;
@@ -2818,6 +2820,10 @@ function csVideoCollapse(on){
   const stick=document.querySelector('.cs-stick');
   if(!stick)return;
   stick.classList.toggle('vz',!!on);
+  if(stick.classList.contains('spk')){   /* 口语课记住用户的选择, 下节课不再自作主张 */
+    try{localStorage.setItem('tfl-spk-video',on?'dock':'open');}catch(e){}
+    if(on){const card=document.querySelector('.cs-materials');if(card)card.scrollIntoView({block:'nearest'});}
+  }
   csVDockPaint();
 }
 function csVDockPaint(){
@@ -2826,8 +2832,9 @@ function csVDockPaint(){
   const qz=stick.classList.contains('qz'), vz=stick.classList.contains('vz');
   dock.style.display=(qz||vz)?'':'none';
   if(!qz&&!vz)return;
-  if(vz&&!qz){   // 讲义对照: 只留恢复入口
-    dock.innerHTML='<span class="vd-run">视频已收起 · 讲义对照模式</span><span class="grow"></span><button class="pri" id="vd-restore">恢复视频</button>';
+  if(vz&&!qz){   // 收起: 只留恢复入口; 口语课=练习模式, 其它课=讲义对照
+    const spk=stick.classList.contains('spk');
+    dock.innerHTML='<span class="vd-run">'+(spk?'视频已收起 · 专心练习':'视频已收起 · 讲义对照模式')+'</span><span class="grow"></span><button class="pri" id="vd-restore">恢复视频</button>';
     $('vd-restore').onclick=()=>csVideoCollapse(false);
     return;
   }
@@ -4955,7 +4962,8 @@ function renderCourseMain(){
   const p=REC.course[l.id]||{};
   const cur=CURATED[l.id];
   const originals=l.handout?[{file:l.handout_file||'原讲义',url:l.handout}]:(c.handout_pdfs||[]).map(file=>({file,url:l.video.slice(0,l.video.lastIndexOf('/')+1)+encodeURIComponent(file)}));
-  el.innerHTML=`<div class="cs-stick">
+  const mod0=courseModule(c);
+  el.innerHTML=`<div class="cs-stick${mod0&&mod0.dockVideo?' spk':''}">
     <div class="csp-meta"><h3>${esc(l.title)}</h3>
       <span class="src">${esc(c.title)} · 第 ${csSel.l+1}/${c.lessons.length} 节${l.duration_sec?(' · '+fmtDur(l.duration_sec)):''}</span>
       ${cur&&cur.notes_verified?'<span class="chip a">讲义已核读</span>':''}</div>
@@ -5007,6 +5015,9 @@ function renderCourseMain(){
   const requested=mod2?null:p.tab;   /* 模块课程固定默认页签, 不被上次停留带跑 */
   if(requested&&['handout','script','practice','notes'].includes(requested))csSelectTab(requested);
   else csSelectTab(mod2&&mod2.defaultTab?mod2.defaultTab():((GEN_COURSES.has(c.id)||cur?.practice||c.id==='ndf-07')?'practice':'handout'));
+  /* 练习主导：模块要求时默认收起视频（画中画），用户上次手动恢复过就不动 */
+  if(mod2&&mod2.dockVideo){let pref='dock';try{pref=localStorage.getItem('tfl-spk-video')||'dock';}catch(e){}
+    if(pref==='dock'&&csSel.l!=null)csVideoCollapse(true);}
   const speed=$('cs-speed');let savedRate=1;try{savedRate=Number(localStorage.getItem('tfl-video-rate'))||1;}catch{}
   if(![0.75,1,1.25,1.5,1.75,2,2.5].includes(savedRate))savedRate=1;
   speed.value=String(savedRate);v.playbackRate=savedRate;
