@@ -493,8 +493,8 @@ function spkCoachPrompt(task, item, lesson, attempt, stage) {  const brief = les
   if (attempt.eval && Number.isFinite(attempt.eval.acc)) {
     const e = attempt.eval;
     lines.push('[系统词级对照] 词准 ' + Math.round(e.acc * 100) + '%'
-      + (e.miss && e.miss.length ? '；漏词 ' + e.miss.slice(0, 6).join(' / ') : '；无漏词')
-      + (e.extra && e.extra.length ? '；多出或替换 ' + e.extra.slice(0, 6).join(' / ') : '')
+      + ((e.miss || e.missWords) && (e.miss || e.missWords).length ? '；漏词 ' + (e.miss || e.missWords).slice(0, 6).join(' / ') : '；无漏词')
+      + ((e.extra || e.extraWords) && (e.extra || e.extraWords).length ? '；多出或替换 ' + (e.extra || e.extraWords).slice(0, 6).join(' / ') : '')
       + '（对照已把缩写与完整形式、英式美式拼写、数字读法视为等价）');
   }
   lines.push('[可判断的证据] 只有上面的转写文字和用时。');
@@ -2179,10 +2179,13 @@ const handler = async (req, res) => {
       if (body.eval && typeof body.eval === 'object') {
         const acc = Number(body.eval.acc);
         const clean = list => Array.isArray(list) ? list.filter(x => typeof x === 'string').map(x => x.slice(0, 40)).slice(0, 16) : [];
+        /* 客户端发 miss/extra；旧记录里存过 missWords/extraWords——两个名字都收，统一存 miss/extra */
+        const miss = clean(body.eval.miss).length ? clean(body.eval.miss) : clean(body.eval.missWords);
+        const extra = clean(body.eval.extra).length ? clean(body.eval.extra) : clean(body.eval.extraWords);
         entry.eval = {
           ...(Number.isFinite(acc) ? { acc: Math.max(0, Math.min(1, acc)) } : {}),
-          ...(clean(body.eval.missWords).length ? { missWords: clean(body.eval.missWords) } : {}),
-          ...(clean(body.eval.extraWords).length ? { extraWords: clean(body.eval.extraWords) } : {}),
+          ...(miss.length ? { miss } : {}),
+          ...(extra.length ? { extra } : {}),
         };
       }
       if (body.result !== undefined) {

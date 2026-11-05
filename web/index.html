@@ -405,7 +405,7 @@ const SETCACHE = {};
   const paint = () => { const b = bar(); if (b) b.classList.toggle('on', n > 0); };
   window.fetch = function(input, init) {
     const url = typeof input === 'string' ? input : (input && input.url) || '';
-    if (!/\/api\//.test(url)) return orig.call(this, input, init);
+    if (!/\/api\//.test(url) || /\/api\/health/.test(url)) return orig.call(this, input, init);
     n++; clearTimeout(hideT); paint();
     return orig.call(this, input, init).finally(() => {
       n = Math.max(0, n - 1);

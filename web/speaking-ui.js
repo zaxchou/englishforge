@@ -191,18 +191,21 @@ let SPK_FLUSHING = null;
 function spkFlush() {
   if (SPK_FLUSHING) return SPK_FLUSHING;
   SPK_FLUSHING = (async () => {
-    let list = spkPending();
-    while (list.length) {
+    /* 每轮都从 localStorage 重读：上传期间新作的答会 push 进来，
+       不能拿着旧数组 shift 后整份写回——那会把并发进来的一条抹掉（deep review 2026-11-06） */
+    for (;;) {
+      const list = spkPending();
+      if (!list.length) break;
       const p = list[0];
       try {
         await api('/api/speaking/attempt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(spkPayload(p)) });
-        list.shift(); spkSetPending(list);
+        spkSetPending(spkPending().filter(x => x.qid !== p.qid));   // 只移除已上传的这一条
       } catch (e) {
         spkNote('这次作答已存在本机，联网后会自动补传（' + e.message.slice(0, 40) + '）', true, 'queue');
         break;
       }
     }
-    if (!list.length) {
+    if (!spkPending().length) {
       const n = document.querySelector('#spk-note');
       if (n && n.dataset.tag === 'queue') spkClearNote();   // 只清「待补传」提示, 不动其他错误提示
     }
