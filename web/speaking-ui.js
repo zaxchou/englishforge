@@ -10,20 +10,42 @@ const SPK = window.SPK = { cur: null, data: null, rec: null, stream: null, refAu
 const WORD_RE = /[A-Za-z0-9'’-]+/g;
 function words(s) { return String(s || '').match(WORD_RE) || []; }
 function normWord(w) { return w.toLowerCase().replace(/[’]/g, "'"); }
+/* 作答记录里词级对照的字段名：旧记录写 ev，新记录写 eval（与服务端 payload 同名） */
+function evOf(e) { return (e && (e.eval || e.ev)) || {}; }
+/* 判定分词复用 EnglishPod 那套归一：缩写(You'll = You will)、英式拼写、数字读法、语气词
+   都归到同一条 token。不归一的话，学生把 You'll 说成 You will 会被判成「漏词 You'll / 多出 You will」
+   ——用户 2026-11-05 实报词准 92%，其实一个字都没错。 */
+function normTokens(s) {
+  const E = window.EplodRecords;
+  if (E && typeof E.normTokens === 'function') { try { const t = E.normTokens(String(s || '')); if (t.length) return t; } catch (e) {} }
+  return words(s).map(normWord);
+}
+/* 每个原词展开成若干判定 token，记住它来自第几个原词，好把结果回显到原文上 */
+function wordTokens(text) {
+  const ws = words(text), toks = [], byWord = ws.map(() => []);
+  ws.forEach((w, wi) => {
+    const t = normTokens(w);
+    (t.length ? t : [normWord(w)]).forEach(x => { byWord[wi].push(toks.length); toks.push({ t: x, wi }); });
+  });
+  return { ws, toks, byWord };
+}
 function diffWords(target, mine) {
-  const a = words(target).map(normWord), b = words(mine).map(normWord);
-  const n = a.length, m = b.length;
+  const A = wordTokens(target), B = wordTokens(mine);
+  const a = A.toks, b = B.toks, n = a.length, m = b.length;
   const dp = Array.from({ length: n + 1 }, () => new Array(m + 1).fill(0));
   for (let i = 1; i <= n; i++) for (let j = 1; j <= m; j++)
-    dp[i][j] = a[i - 1] === b[j - 1] ? dp[i - 1][j - 1] + 1 : Math.max(dp[i - 1][j], dp[i][j - 1]);
-  const miss = [], extra = [];
+    dp[i][j] = a[i - 1].t === b[j - 1].t ? dp[i - 1][j - 1] + 1 : Math.max(dp[i - 1][j], dp[i][j - 1]);
+  const okA = new Array(n).fill(false), okB = new Array(m).fill(false);
   let i = n, j = m;
-  while (i > 0 || j > 0) {
-    if (i > 0 && j > 0 && a[i - 1] === b[j - 1]) { i--; j--; }
-    else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) { extra.unshift(words(mine)[j - 1]); j--; }
-    else { miss.unshift(words(target)[i - 1]); i--; }
+  while (i > 0 && j > 0) {
+    if (a[i - 1].t === b[j - 1].t) { okA[i - 1] = true; okB[j - 1] = true; i--; j--; }
+    else if (dp[i - 1][j] >= dp[i][j - 1]) i--; else j--;
   }
-  return { acc: n ? (n - miss.length) / n : 0, miss, extra };
+  const miss = [], extra = [];
+  A.ws.forEach((w, wi) => { const own = A.byWord[wi]; if (own.length && !own.some(k => okA[k])) miss.push(w); });
+  B.ws.forEach((w, wi) => { const own = B.byWord[wi]; if (own.length && !own.some(k => okB[k])) extra.push(w); });
+  const matched = okA.reduce((s, x) => s + (x ? 1 : 0), 0);
+  return { acc: n ? matched / n : 0, miss, extra };
 }
 function chunkCuts(item) {
   /* 讲义分块 → 词间切点集合(切在第 k 个词之前, k 从 1 起) */
@@ -145,7 +167,7 @@ function spkPayload(p) {
     ...(p.entry.transcript != null ? { transcript: p.entry.transcript } : {}),
     ...(p.entry.dur != null ? { dur: p.entry.dur } : {}),
     ...(p.entry.take ? { take: p.entry.take } : {}),
-    ...(p.entry.eval ? { eval: p.entry.eval } : {}),
+    ...(p.entry.eval || p.entry.ev ? { eval: p.entry.eval || p.entry.ev } : {}),
     ...(p.entry.result ? { result: p.entry.result } : {}) };
 }
 let SPK_FLUSHING = null;
@@ -198,7 +220,7 @@ function taskDone(tkey, ix) {
   const last = prac.length ? prac[prac.length - 1] : null;
   if (it.first) {                       // 复述/面试/跟读：按最近一次的转写词准判「做对」
     const e = it.retry || it.first;
-    const acc = e && e.ev && Number.isFinite(e.ev.acc) ? e.ev.acc : null;
+    const acc = e && Number.isFinite(evOf(e).acc) ? evOf(e).acc : null;
     return {attempted: true, ok: acc == null ? true : acc >= 0.9};
   }
   return {attempted: !!prac.length, ok: !!(last && last.result && last.result.ok)};
@@ -303,11 +325,19 @@ function renderSpeakCard(host, task) {
   }
   function paintResult(prefix) {
     const item = task.items[ix];
+    /* 面试题没有范文，拿答案去跟题干做词比对毫无意义（此前就是这么比的，会显示一堆假漏词），
+       只回显回答与用时，内容判断交给助教。 */
     result.innerHTML = '<div class="spk-done">' + esc(prefix) + '</div>'
-      + '<div class="spk-zh">' + esc(item.zh || '') + '</div>'
-      + '<div id="spk-diffbox"></div><div id="spk-hearbox"></div>';
-    const diffbox = host.querySelector('#spk-diffbox');
-    showTranscriptDiff(diffbox, item, attempt.transcript, attempt.ev || {}, { evalHTML: evalHTML(attempt.ev, isInterview ? 45 : task.sec) });
+      + (isInterview
+        ? '<div class="spk-zh">题目：' + esc(item.text || '') + '</div>'
+          + '<div class="spk-diff"><div class="spk-diff-row"><span class="k">你的回答</span>' + (esc(attempt.transcript) || '<i>(空)</i>') + '</div></div>'
+          + '<div class="spk-eval">用时 ' + esc(String(attempt.dur || 0)) + ' 秒 · 参考 45 秒</div>'
+          + '<div id="spk-hearbox"></div>'
+        : '<div class="spk-zh">' + esc(item.zh || '') + '</div><div id="spk-diffbox"></div><div id="spk-hearbox"></div>');
+    if (!isInterview) {
+      const diffbox = host.querySelector('#spk-diffbox');
+      showTranscriptDiff(diffbox, item, attempt.transcript, evOf(attempt), { evalHTML: evalHTML(evOf(attempt), task.sec) });
+    }
     if (attempt.take) {
       const hb = host.querySelector('#spk-hearbox');
       hb.innerHTML = '<button class="spk-mini" id="spk-hear">🔊 回听我的录音</button>';
@@ -338,9 +368,10 @@ function renderSpeakCard(host, task) {
         catch (e) { spkNote('这次没转写成功：' + e.message + '（录音已留存，可直接重说）', true, 'asr'); return; }
         if (!transcript) { spkNote('没有识别到语音内容，请再试一次（录音已留存）。', true, 'asr'); return; }
         const stage = attempt ? 'retry' : 'first';
-        const ev = diffWords(item.text, transcript);
+        /* 复述题有原文可比才做词级对照；面试题只有题干，比对答案与题干只会产出假漏词 */
+        const ev = isInterview ? null : diffWords(item.text, transcript);
         const entry = { at: Date.now(), transcript, dur: Math.round(stopped.dur * 10) / 10,
-          ev: { acc: ev.acc, miss: ev.miss.slice(0, 8), extra: ev.extra.slice(0, 8) } };
+          ...(ev ? { eval: { acc: ev.acc, miss: ev.miss.slice(0, 8), extra: ev.extra.slice(0, 8) } } : {}) };
         const takeUrl = await uploadP;
         if (takeUrl) entry.take = takeUrl;
         attempt = entry;
@@ -425,7 +456,8 @@ function renderShadowCard(host, task) {
           const transcript = await asrText(stopped.blob);
           if (!transcript) { spkNote('没有识别到语音内容，请再试一次（录音已尽量留存）。', true); return; }
           const ev = diffWords(item.text, transcript);
-          const focusHit = (item.focus || []).filter(f => words(transcript).map(normWord).includes(normWord(f)));
+          const said = new Set(normTokens(transcript));
+          const focusHit = (item.focus || []).filter(f => { const t = normTokens(f); return t.length && t.every(x => said.has(x)); });
           take = await uploadP;
           if (uploadErr) spkNote('跟读结果已记录，但录音没存上（' + uploadErr.message + '），不能用示范 A/B 对照。', true, 'upload');
           saveAttempt(d.lessonId, task.key, ix, 'practice', { at: Date.now(), transcript, dur: Math.round(stopped.dur * 10) / 10, ...(take ? { take: take.url } : {}), result: { ok: focusHit.length === (item.focus || []).length, n: focusHit.length, total: (item.focus || []).length } });

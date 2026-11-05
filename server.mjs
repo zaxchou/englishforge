@@ -456,18 +456,33 @@ function spkCoachPrompt(task, item, lesson, attempt, stage) {
   if (task.type === 'interview') lines.push('[题目] ' + (item.text || ''));
   if (item.hint) lines.push('[答题提示] ' + item.hint);
   lines.push('[学生这次口述转写] ' + (attempt.transcript || '(转写为空)'));
-  if (attempt.dur) lines.push('[用时] 约 ' + attempt.dur + ' 秒');
-  if (attempt.eval && Number.isFinite(attempt.eval.acc)) lines.push('[词准粗测] ' + Math.round(attempt.eval.acc * 100) + '%');
+  if (attempt.dur) lines.push('[用时] 约 ' + attempt.dur + ' 秒' + (task.sec ? '（本句参考 ' + task.sec + ' 秒）' : ''));
+  if (attempt.eval && Number.isFinite(attempt.eval.acc)) {
+    const e = attempt.eval;
+    lines.push('[系统词级对照] 词准 ' + Math.round(e.acc * 100) + '%'
+      + (e.miss && e.miss.length ? '；漏词 ' + e.miss.slice(0, 6).join(' / ') : '；无漏词')
+      + (e.extra && e.extra.length ? '；多出或替换 ' + e.extra.slice(0, 6).join(' / ') : '')
+      + '（对照已把缩写与完整形式、英式美式拼写、数字读法视为等价）');
+  }
+  lines.push('[可判断的证据] 只有上面的转写文字和用时。');
+  lines.push('[不可判断] 没有音频，不许判断发音、重音、语调、停顿长短、连读、语速节奏、口音；本课检查点里的这类项目只在最后提醒学生自己回听。');
   if (stage === 'retry') lines.push('[注意] 这是重说，只针对上次指出的最该改的一点检查是否改进。');
   return lines.join('\n');
 }
-const SPK_COACH_SYS = '你是新东方托福口语课(张莹炜老师)的中文口语助教，只依据给定的本课方法检查学生这一次的口语作答，用中文输出。'
-  + '输出固定四段、不加任何标题符号：'
-  + '第一行以「最该改的一处：」开头，只挑影响最大的一个问题；'
-  + '然后 2~3 行要点，每行以「✓」或「✗」开头，对应给定检查点逐条核对；'
+const SPK_COACH_SYS = '你是新东方托福口语课后练的中文助教，只依据这次作答的转写文字和用时给反馈，用中文。'
+  + '【你能判断】内容是否切题完整、关键信息有没有漏、有没有说反或说过头、用词与时态单复数是否让意思走样、是否在时限内说完。'
+  + '【你不能判断】发音、重音、语调、停顿与节奏、连读、流利度细节、口音——你没有听到录音，一律不许下结论；'
+  + '本课检查点里凡是这类项目，不要打 ✓ 或 ✗，只在最后一句提醒学生自己回听做 A/B 对照。'
+  + '【评分口径·对齐托福口语】托福看的是能不能把意思有效传出去：同义替换、换个说法、缩写与完整形式(You\'ll 与 You will)、'
+  + '英式美式拼写、语序小调整、冠词介词小差异都算说对了，不要当错；只有漏掉或说反关键信息、时态单复数人称改变意思、'
+  + '用词错误造成误解、答非所问、明显没说完才算问题。不要为了显得严格硬挑毛病：文字层面确实没问题时，'
+  + '直接说"文字层面没有可核对的问题"，把建议放在下次怎么说得更好。'
+  + '【输出格式】固定四行、不加任何标题符号：'
+  + '第一行以「最该改的一处：」开头，只写一条且能在转写文字里指出证据（文字层面无可改时，写成"重说时把 X 说得更具体"这类可操作建议）；'
+  + '接着每行以「✓」或「✗」开头给出 2~3 条要点，对应本课检查点里可核对的部分，✗ 最多 1 条、其余都用 ✓；'
   + '再一行以「可迁移表达：」开头给出一个本课可复用的英文表达(带一句中文说明)；'
   + '最后一行以「重说只检查：」开头点出重说时要改进的那一点。'
-  + '总长不超过 180 字。转写为空或明显不是英语时，直接说明未捕捉到有效语音并建议重录。不编造学生没说的内容。';
+  + '总长不超过 150 字。不编造学生没说的内容，不引用学生没说过的话。转写为空或明显不是英语时，直接说明未捕捉到有效语音并建议重录。';
 async function spkCoach(task, item, lesson, attempt, stage) {
   const raw = await aiGen(SPK_COACH_SYS, spkCoachPrompt(task, item, lesson, attempt, stage));
   return String(raw || '').trim().slice(0, 900);
