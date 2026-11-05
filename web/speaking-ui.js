@@ -153,17 +153,27 @@ function saveAttempt(lessonId, taskKey, ix, stage, entry) {
 /* ---------- 卡片渲染 ---------- */
 function taskDone(tkey, ix) {
   const it = SPK.data.attempts.tasks[tkey]?.items?.[ix];
-  return !!(it && (it.first || (it.practice && it.practice.length)));
+  if (!it) return {attempted: false, ok: false};
+  const prac = Array.isArray(it.practice) ? it.practice : [];
+  const last = prac.length ? prac[prac.length - 1] : null;
+  if (it.first) {                       // 复述/面试/跟读：按最近一次的转写词准判「做对」
+    const e = it.retry || it.first;
+    const acc = e && e.ev && Number.isFinite(e.ev.acc) ? e.ev.acc : null;
+    return {attempted: true, ok: acc == null ? true : acc >= 0.9};
+  }
+  return {attempted: !!prac.length, ok: !!(last && last.result && last.result.ok)};
 }
 function renderTaskList() {
   const box = document.querySelector('#spk-tasks'); if (!box) return;
   const d = SPK.data;
   box.innerHTML = d.lesson.tasks.map((t, ti) => {
-    const doneCount = t.items.filter((_, i) => taskDone(t.key, i)).length;
-    const all = doneCount === t.items.length;
+    const states = t.items.map((_, i) => taskDone(t.key, i));
+    const doneCount = states.filter(x => x.attempted).length;
+    const allAttempted = doneCount === t.items.length;
+    const allOk = allAttempted && states.every(x => x.ok);
     const open = SPK.cur.taskKey === t.key;
     return '<button class="spk-task' + (open ? ' on' : '') + '" data-ti="' + ti + '" title="' + esc(t.title) + '">'
-      + '<span class="spk-task-dot ' + (all ? 'spk-task-dot--ok' : doneCount ? 'spk-task-dot--partial' : '') + '"></span>'
+      + '<span class="spk-task-dot ' + (allOk ? 'spk-task-dot--ok' : doneCount ? 'spk-task-dot--partial' : '') + '"></span>'
       + '<span class="spk-task-t">' + headTitle(t.title) + '</span>'
       + '<span class="spk-task-n">' + doneCount + '/' + t.items.length + '</span></button>';
   }).join('');
@@ -426,7 +436,7 @@ function renderChunkCard(host, task) {
       + '<div class="spk-words" id="spk-words"></div>'
       + '<div class="spk-foot"><button class="spk-mini" id="spk-prev"' + (ix === 0 ? ' disabled style="visibility:hidden"' : '') + ' aria-label="上一句">‹</button>'
       + '<button class="pri" id="spk-primary">核对断句</button>'
-      + '<span class="spk-foot-side"><button class="spk-mini" id="spk-clear">清空</button>'
+      + '<span class="spk-foot-side" id="spk-foot-side"><button class="spk-mini" id="spk-clear">清空</button>'
       + '<button class="spk-mini" id="spk-play" title="听示范" aria-label="听示范">🔊</button></span></div>'
       + '<div id="spk-chunk-fb"></div>';
     const wbox = box.querySelector('#spk-words');
@@ -460,12 +470,23 @@ function renderChunkCard(host, task) {
     const perfect = hit === want.size && extra === 0;
     checked = true;
     box.querySelectorAll('.spk-gap').forEach(g => { g.disabled = true; });
-    box.querySelector('#spk-clear').style.display = 'none';   /* 标点已锁定，清空无意义；听示范保留 */
+    box.querySelector('#spk-clear').style.display = 'none';
     const last = ix + 1 >= task.items.length;
-    primary.textContent = last ? '完成本任务' : '下一句 →';
-    box.querySelector('#spk-chunk-fb').innerHTML =
+    const fb = box.querySelector('#spk-chunk-fb');
+    fb.innerHTML =
       '<div class="' + (perfect ? 'spk-ok' : 'spk-bad') + '">' + (perfect ? '✓ 全对' : '断点 ' + hit + '/' + want.size + (extra ? '，多标 ' + extra + ' 处' : '')) + '</div>'
       + '<div class="spk-ref">' + item.chunks.map(c => '<span>' + esc(c) + '</span>').join('<b class="spk-slash">/</b>') + '</div>';
+    if (perfect) {
+      primary.textContent = last ? '完成本任务' : '下一句 →';
+      primary.onclick = advance;
+    } else {
+      /* 标错了要能改：主按钮变「再标一次」，旁边给次级「下一句」可以跳过 */
+      primary.textContent = '再标一次';
+      primary.onclick = () => { cuts = new Set(); paint(); };
+      box.querySelector('#spk-foot-side').insertAdjacentHTML('afterbegin',
+        '<button class="spk-mini" id="spk-skip">下一句 →</button>');
+      box.querySelector('#spk-skip').onclick = advance;
+    }
     primary.focus({ preventScroll: true });
     saveAttempt(d.lessonId, task.key, ix, 'practice', { at: Date.now(), result: { ok: perfect, n: hit, total: want.size } });
   }
