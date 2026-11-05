@@ -170,6 +170,24 @@ test('speaking API: lesson delivery, attempts persistence, recordings, guardrail
       assert.equal(notAudio.status, 400);
       const serveJunk = await fetch(base + '/media/rec/' + encodeURIComponent('spk-!!bad.webm'));
       assert.equal(serveJunk.status, 400, 'media route still validates names');
+      /* 回归：真实录音是几十~几百 KB 的 data URI，曾因通用 JSON 读取器 32KB 上限被判 404。
+         这里用 200KB 载荷确认走的是录音专用 12MB 限额。 */
+      const big = 'data:audio/webm;codecs=opus;base64,' + Buffer.from('x'.repeat(150 * 1024)).toString('base64');
+      const bigUp = await call('/api/speaking/recording', {lessonId: 'ndf-07-04', taskKey: 'retell-hiking', ix: 0, takeId: 'take-big1', audio: big});
+      assert.equal(bigUp.status, 200, '200KB 录音必须能存: ' + JSON.stringify(bigUp.data).slice(0, 120));
+      /* 超过 12MB：服务端 readBody 超限即断开（既有实现），客户端会看到 413 或连接中断；
+         只要「被拒绝且没有落盘」就算正确。 */
+      const tooBig = 'data:audio/webm;base64,' + Buffer.from('x'.repeat(13 * 1024 * 1024)).toString('base64');
+      let oversize = 'rejected';
+      try {
+        const r = await call('/api/speaking/recording', {lessonId: 'ndf-07-04', taskKey: 'retell-hiking', ix: 0, takeId: 'take-big2', audio: tooBig});
+        oversize = 'HTTP ' + r.status;
+        assert.equal(r.status, 413, '超限应 413');
+      } catch (e) {
+        oversize = 'connection rejected: ' + (e.cause?.code || e.message);
+      }
+      const files = fs.readdirSync(path.join(records, 'recordings'));
+      assert.ok(!files.some(f => f.includes('take-big2')), '超限录音不得落盘，实际 ' + oversize);
     });
 
     await t.test('guardrails: coach/tts degrade without keys, same-origin writes rejected', async () => {

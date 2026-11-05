@@ -2109,7 +2109,10 @@ const handler = async (req, res) => {
     if (p === '/api/speaking/recording') {
       if (req.method !== 'POST') return sendJSON(res, 405, { error: 'method' });
       if (!examRouteBody(req, res, readBody, sendJSON)) return;
-      const body = await readJsonBody(req, readBody);
+      /* 录音是 data URI, 体积远超普通 JSON(32KB 上限), 单独给 12MB */
+      let body;
+      try { body = JSON.parse((await readBody(req, 12 * 1024 * 1024)).toString('utf8') || '{}'); }
+      catch (e) { return sendJSON(res, 413, { error: '录音过大或格式错误' }); }
       const lessonId = String(body.lessonId || ''), taskKey = String(body.taskKey || '');
       if (!/^[a-z0-9-]{4,32}$/.test(lessonId) || !SPK_TASK_RE.test(taskKey)) return sendJSON(res, 400, { error: 'bad lesson/task' });
       const ix = Number(body.ix);

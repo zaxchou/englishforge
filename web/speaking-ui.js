@@ -268,28 +268,34 @@ function renderSpeakCard(host, task) {
   async function onRec(item) {
     if (SPK.rec) {                       // 正在录 → 停止并提交
       recBtn.disabled = true; recBtn.textContent = '转写中…';
-      let stopped;
-      try { stopped = await stopRec(); } catch (e) { spkNote('录音结束失败：' + e.message, true); recBtn.disabled = false; return; }
-      timer.textContent = '';
-      if (!stopped || stopped.blob.size < 800) { spkNote('这次录音太短，没有提交。请点开始后再说话。', true); recBtn.disabled = false; return; }
       try {
-        const take = await uploadTake(d.lessonId, task.key, ix, stopped.blob, stopped.mime);
+        const stopped = await stopRec();
+        timer.textContent = '';
+        if (!stopped || stopped.blob.size < 800) { spkNote('这次录音太短，没有提交。请点开始后再说话。', true); return; }
+        // 先转写：这一步决定成绩；存档失败不影响判分
         const transcript = await asrText(stopped.blob);
-        if (!transcript) { spkNote('没有识别到语音内容，请再试一次（录音已保留）。', true); recBtn.disabled = false; return; }
+        if (!transcript) { spkNote('没有识别到语音内容，请再试一次。', true); return; }
         const stage = attempt ? 'retry' : 'first';
         const ev = diffWords(item.text, transcript);
-        const entry = { at: Date.now(), transcript, dur: Math.round(stopped.dur * 10) / 10, take: take.url, ev: { acc: ev.acc, miss: ev.miss.slice(0, 8), extra: ev.extra.slice(0, 8) } };
-        saveAttempt(task.key, ix, stage, entry);
+        const entry = { at: Date.now(), transcript, dur: Math.round(stopped.dur * 10) / 10,
+          ev: { acc: ev.acc, miss: ev.miss.slice(0, 8), extra: ev.extra.slice(0, 8) } };
+        let uploadErr = null;
+        try { const take = await uploadTake(d.lessonId, task.key, ix, stopped.blob, stopped.mime); entry.take = take.url; }
+        catch (e) { uploadErr = e; }
         attempt = entry;
-        recBtn.textContent = isInterview ? '🎙 重说一次' : '🎙 重说一次（撤掉原文）';
+        saveAttempt(task.key, ix, stage, entry);
         result.innerHTML = '';
         paintResult(stage === 'retry' ? '重说已保存：' : '首答已保存：');
         if (stage === 'retry') paintRetry(entry);
+        if (uploadErr) spkNote('本次成绩已记录，但录音没存上（' + uploadErr.message + '），所以不能回听。', true, 'upload');
         await runCoach(task.key, ix, stage, coach);
-        recBtn.disabled = false;
       } catch (e) {
-        spkNote('提交失败：' + e.message + '。录音未上传成功，请重试。', true);
+        spkNote('这次没有判分：' + e.message, true);
+      } finally {
         recBtn.disabled = false;
+        recBtn.textContent = attempt
+          ? (isInterview ? '🎙 重说一次' : '🎙 重说一次（撤掉原文）')
+          : (isInterview ? '🎙 开始作答（45 秒）' : '🎙 听完开始录音');
       }
       return;
     }
@@ -333,21 +339,27 @@ function renderShadowCard(host, task) {
         recBtn.disabled = true; recBtn.textContent = '转写中…';
         try {
           const stopped = await stopRec();
-          const take = await uploadTake(d.lessonId, task.key, ix, stopped.blob, stopped.mime);
+          if (!stopped || stopped.blob.size < 800) { spkNote('这次录音太短，没有提交。', true); return; }
+          // 先转写（决定结果），存档失败只影响回听
           const transcript = await asrText(stopped.blob);
+          if (!transcript) { spkNote('没有识别到语音内容，请再试一次。', true); return; }
           const ev = diffWords(item.text, transcript);
           const focusHit = (item.focus || []).filter(f => words(transcript).map(normWord).includes(normWord(f)));
-          saveAttempt(d.lessonId, task.key, ix, 'practice', { at: Date.now(), transcript, dur: Math.round(stopped.dur * 10) / 10, take: take.url, result: { ok: focusHit.length === (item.focus || []).length, n: focusHit.length, total: (item.focus || []).length } });
+          let take = null;
+          try { take = await uploadTake(d.lessonId, task.key, ix, stopped.blob, stopped.mime); }
+          catch (e) { spkNote('跟读结果已记录，但录音没存上（' + e.message + '），所以不能和示范 A/B 对照。', true, 'upload'); }
+          saveAttempt(d.lessonId, task.key, ix, 'practice', { at: Date.now(), transcript, dur: Math.round(stopped.dur * 10) / 10, ...(take ? { take: take.url } : {}), result: { ok: focusHit.length === (item.focus || []).length, n: focusHit.length, total: (item.focus || []).length } });
           result.innerHTML = '<div id="spk-diffbox"></div>'
             + '<div class="spk-eval">目标词命中 ' + focusHit.length + '/' + (item.focus || []).length + '（' + esc(focusHit.join(' / ') || '—') + '）'
-            + ' · <button class="spk-mini" id="spk-ab-ref">🔊 示范</button> <button class="spk-mini" id="spk-ab-me">🔊 我的录音</button></div>'
+            + ' · <button class="spk-mini" id="spk-ab-ref">🔊 示范</button>' + (take ? ' <button class="spk-mini" id="spk-ab-me">🔊 我的录音</button>' : '') + '</div>'
             + '<div class="spk-selfcheck">' + (item.tips || []).map((x, i) => '<label><input type="checkbox" data-i="' + i + '"> ' + esc(x) + '</label>').join('') + '</div>'
             + '<div class="spk-note-ok">自评勾选后本句即完成（练习记录）。</div>';
           showTranscriptDiff(result.querySelector('#spk-diffbox'), item, transcript, ev, {});
           result.querySelector('#spk-ab-ref').onclick = () => { stopRef(); if (!SPK.refAudio) SPK.refAudio = new Audio(); SPK.refAudio.src = spkRefUrl(item.text); SPK.refAudio.play(); };
-          result.querySelector('#spk-ab-me').onclick = () => { stopRef(); if (!SPK.refAudio) SPK.refAudio = new Audio(); SPK.refAudio.src = take.url; SPK.refAudio.play(); };
-        } catch (e) { spkNote('提交失败：' + e.message, true); }
-        recBtn.disabled = false; recBtn.textContent = '🎙 重录';
+          const abMe = result.querySelector('#spk-ab-me');
+          if (abMe) abMe.onclick = () => { stopRef(); if (!SPK.refAudio) SPK.refAudio = new Audio(); SPK.refAudio.src = take.url; SPK.refAudio.play(); };
+        } catch (e) { spkNote('这次没有结果：' + e.message, true); }
+        finally { recBtn.disabled = false; recBtn.textContent = '🎙 重录'; }
         return;
       }
       spkClearNote();
