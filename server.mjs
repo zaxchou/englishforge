@@ -2083,7 +2083,7 @@ const handler = async (req, res) => {
         entry.transcript = tr;
       }
       if (Number.isFinite(Number(body.dur))) entry.dur = Math.max(0, Math.min(300, Math.round(Number(body.dur) * 10) / 10));
-      if (typeof body.take === 'string' && EPLOD_TAKE_ID.test(body.take)) entry.take = body.take;
+      if (typeof body.take === 'string' && (EPLOD_TAKE_ID.test(body.take) || /^\/media\/rec\/spk-[\w.-]{6,120}$/.test(body.take))) entry.take = body.take;
       if (body.eval && typeof body.eval === 'object') {
         const acc = Number(body.eval.acc);
         const clean = list => Array.isArray(list) ? list.filter(x => typeof x === 'string').map(x => x.slice(0, 40)).slice(0, 16) : [];

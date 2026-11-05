@@ -96,6 +96,40 @@ async function asrText(blob) {
     body: JSON.stringify({ audio: dataURI }) });
   return r.text || '';
 }
+/* 作答：先更本地(UI 立即响应) → 再入队上传。上传失败留在本机队列，下次保存/进页时自动补传，
+   断网或接口抖动都不丢作答。队列按「课-任务-题号-阶段-时间戳」去重，重传不会重复计次。 */
+const SPK_QKEY = 'tfl-spk-queue';
+function spkPending() {
+  try { const v = JSON.parse(localStorage.getItem(SPK_QKEY) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; }
+}
+function spkSetPending(list) { try { localStorage.setItem(SPK_QKEY, JSON.stringify(list.slice(-400))); } catch (e) {} }
+function spkPayload(p) {
+  return { lessonId: p.lessonId, taskKey: p.taskKey, ix: p.ix, stage: p.stage,
+    ...(p.entry.transcript != null ? { transcript: p.entry.transcript } : {}),
+    ...(p.entry.dur != null ? { dur: p.entry.dur } : {}),
+    ...(p.entry.take ? { take: p.entry.take } : {}),
+    ...(p.entry.eval ? { eval: p.entry.eval } : {}),
+    ...(p.entry.result ? { result: p.entry.result } : {}) };
+}
+let SPK_FLUSHING = null;
+function spkFlush() {
+  if (SPK_FLUSHING) return SPK_FLUSHING;
+  SPK_FLUSHING = (async () => {
+    let list = spkPending();
+    while (list.length) {
+      const p = list[0];
+      try {
+        await api('/api/speaking/attempt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(spkPayload(p)) });
+        list.shift(); spkSetPending(list);
+      } catch (e) {
+        spkNote('这次作答已存在本机，联网后会自动补传（' + e.message.slice(0, 40) + '）', true);
+        break;
+      }
+    }
+    if (!list.length) spkClearNote();
+  })().finally(() => { SPK_FLUSHING = null; });
+  return SPK_FLUSHING;
+}
 function saveAttempt(lessonId, taskKey, ix, stage, entry) {
   const tasks = SPK.data.attempts.tasks;
   const t = tasks[taskKey] = tasks[taskKey] || { items: {} };
@@ -104,6 +138,10 @@ function saveAttempt(lessonId, taskKey, ix, stage, entry) {
   if (stage === 'practice') { it.practice = (it.practice || []).concat([entry]).slice(-20); }
   else it[stage] = entry;
   renderTaskList();
+  const pending = spkPending();
+  pending.push({ lessonId, taskKey, ix, stage, entry, qid: [lessonId, taskKey, ix, stage, entry.at].join('|') });
+  spkSetPending(pending);
+  spkFlush();
 }
 
 /* ---------- 卡片渲染 ---------- */
@@ -234,7 +272,7 @@ function renderSpeakCard(host, task) {
         if (!transcript) { spkNote('没有识别到语音内容，请再试一次（录音已保留）。', true); recBtn.disabled = false; return; }
         const stage = attempt ? 'retry' : 'first';
         const ev = diffWords(item.text, transcript);
-        entry = { at: Date.now(), transcript, dur: Math.round(stopped.dur * 10) / 10, take: take.url, ev: { acc: ev.acc, miss: ev.miss.slice(0, 8), extra: ev.extra.slice(0, 8) } };
+        const entry = { at: Date.now(), transcript, dur: Math.round(stopped.dur * 10) / 10, take: take.url, ev: { acc: ev.acc, miss: ev.miss.slice(0, 8), extra: ev.extra.slice(0, 8) } };
         saveAttempt(task.key, ix, stage, entry);
         attempt = entry;
         recBtn.textContent = isInterview ? '🎙 重说一次' : '🎙 重说一次（撤掉原文）';
@@ -265,7 +303,6 @@ function renderSpeakCard(host, task) {
   host.querySelector('#spk-next').onclick = () => { if (ix < task.items.length - 1) { ix++; SPK.cur.ix = ix; loadIx(); } };
   loadIx();
 }
-let entry = null;   /* 当前正在提交的 attempt(见 onRec) */
 
 /* ---------- 发音卡 ---------- */
 function renderShadowCard(host, task) {
@@ -335,13 +372,13 @@ function renderPickCard(host, task) {
       b.onclick = () => {
         const ok = item.pair[Number(b.dataset.i)] === played;
         if (ok) correct++;
-        box.querySelector('#spk-pick-fb').innerHTML = '<div class="' + (ok ? 'spk-ok' : 'spk-bad') + '">' + (ok ? '✓ 对，刚才读的是 <b>' + esc(played) + '</b>' : '✗ 刚才读的是 <b>' + esc(played) + '</b>') + '</div>'
-          + '<button class="pri" id="spk-nextpair">' + (ix + 1 < task.items.length ? '下一组 →' : '完成，保存记录') + '</button>';
         box.querySelectorAll('.spk-opt').forEach(x => x.disabled = true);
+        saveAttempt(d.lessonId, task.key, ix, 'practice', { at: Date.now(), result: { ok, n: ok ? 1 : 0, total: 1 } });
+        box.querySelector('#spk-pick-fb').innerHTML = '<div class="' + (ok ? 'spk-ok' : 'spk-bad') + '">' + (ok ? '✓ 对，刚才读的是 <b>' + esc(played) + '</b>' : '✗ 刚才读的是 <b>' + esc(played) + '</b>') + '</div>'
+          + '<button class="pri" id="spk-nextpair">' + (ix + 1 < task.items.length ? '下一组 →' : '完成') + '</button>';
         box.querySelector('#spk-nextpair').onclick = () => {
           if (ix + 1 < task.items.length) { ix++; paint(); }
           else {
-            saveAttempt(d.lessonId, task.key, 0, 'practice', { at: Date.now(), result: { ok: correct === task.items.length, n: correct, total: task.items.length } });
             box.innerHTML = '<div class="spk-done">听辨完成：' + correct + ' / ' + task.items.length + '。错得多的组，回到上面的跟读任务多练几遍。</div>';
             tally.textContent = '';
           }
@@ -357,12 +394,15 @@ function renderChunkCard(host, task) {
   const d = SPK.data;
   let ix = SPK.cur.ix;
   host.innerHTML = '<div class="spk-head"><b>' + esc(task.title) + '</b><span class="spk-hint">点词与词之间的空隙插入「/」，标完点核对。依据：标点/主谓/从句/并列/介词短语。</span></div>'
-    + '<div id="spk-chunk"></div>';
-  const box = host.querySelector('#spk-chunk');
+    + '<div id="spk-chunk"></div>'
+    + '<div class="spk-nav"><button id="spk-prev">‹ 上一句</button><span id="spk-pos"></span><button id="spk-next">下一句 ›</button></div>';
+  const box = host.querySelector('#spk-chunk'), pos = host.querySelector('#spk-pos');
+  let cuts = new Set(), checked = false;
   function paint() {
     const item = task.items[ix];
     const ws = words(item.text);
-    const cuts = new Set();
+    cuts = new Set(); checked = false;
+    pos.textContent = (ix + 1) + ' / ' + task.items.length;
     box.innerHTML = '<div class="spk-progress">第 ' + (ix + 1) + ' / ' + task.items.length + ' 句</div>'
       + '<div class="spk-words" id="spk-words"></div>'
       + '<div class="spk-actions"><button class="pri" id="spk-check">核对断句</button> <button class="spk-mini" id="spk-clear">清空重标</button>'
@@ -373,25 +413,37 @@ function renderChunkCard(host, task) {
         const g = document.createElement('button');
         g.className = 'spk-gap'; g.textContent = '/';
         g.setAttribute('aria-label', '在第 ' + i + ' 个词后断句');
-        g.onclick = () => { if (cuts.has(i)) cuts.delete(i); else cuts.add(i); g.classList.toggle('on', cuts.has(i)); };
+        g.onclick = () => { if (checked) return; if (cuts.has(i)) cuts.delete(i); else cuts.add(i); g.classList.toggle('on', cuts.has(i)); };
         wbox.appendChild(g);
       }
       wbox.appendChild(Object.assign(document.createElement('span'), { className: 'spk-word', textContent: w }));
     });
-    box.querySelector('#spk-clear').onclick = () => { cuts.clear(); wbox.querySelectorAll('.spk-gap').forEach(g => g.classList.remove('on')); box.querySelector('#spk-chunk-fb').innerHTML = ''; };
+    box.querySelector('#spk-clear').onclick = () => {
+      cuts.clear(); checked = false;
+      wbox.querySelectorAll('.spk-gap').forEach(g => g.classList.remove('on'));
+      box.querySelector('#spk-chunk-fb').innerHTML = '';
+    };
     box.querySelector('#spk-play').onclick = () => { stopRef(); if (!SPK.refAudio) SPK.refAudio = new Audio(); SPK.refAudio.src = spkRefUrl(item.text); SPK.refAudio.play(); };
     box.querySelector('#spk-check').onclick = () => {
       const want = new Set(chunkCuts(item));
       let hit = 0;
       want.forEach(c => { if (cuts.has(c)) hit++; });
       const extra = [...cuts].filter(c => !want.has(c)).length;
-      const fb = box.querySelector('#spk-chunk-fb');
       const perfect = hit === want.size && extra === 0;
+      const fb = box.querySelector('#spk-chunk-fb');
       fb.innerHTML = '<div class="' + (perfect ? 'spk-ok' : 'spk-bad') + '">' + (perfect ? '✓ 全对' : '断点 ' + hit + '/' + want.size + '，多标 ' + extra + ' 处。') + '参考断法：</div>'
-        + '<div class="spk-ref">' + item.chunks.map(c => '<span>' + esc(c) + '</span>').join('<b class="spk-slash">/</b>') + '</div>';
-      if (perfect) saveAttempt(d.lessonId, task.key, ix, 'practice', { at: Date.now(), result: { ok: true, n: want.size, total: want.size } });
+        + '<div class="spk-ref">' + item.chunks.map(c => '<span>' + esc(c) + '</span>').join('<b class="spk-slash">/</b>') + '</div>'
+        + '<div class="spk-actions"><button class="pri" id="spk-nextchunk">' + (ix + 1 < task.items.length ? '下一句 →' : '完成本任务') + '</button></div>';
+      checked = true;
+      saveAttempt(d.lessonId, task.key, ix, 'practice', { at: Date.now(), result: { ok: perfect, n: hit, total: want.size } });
+      fb.querySelector('#spk-nextchunk').onclick = () => {
+        if (ix + 1 < task.items.length) { ix++; SPK.cur.ix = ix; paint(); }
+        else box.innerHTML = '<div class="spk-done">这个任务已做完（' + task.items.length + ' 句）。可以点上面其他任务继续，或切到「讲义」对照老师的断句讲解。</div>';
+      };
     };
   }
+  host.querySelector('#spk-prev').onclick = () => { if (ix > 0) { ix--; SPK.cur.ix = ix; paint(); } };
+  host.querySelector('#spk-next').onclick = () => { if (ix < task.items.length - 1) { ix++; SPK.cur.ix = ix; paint(); } };
   paint();
 }
 function renderDictationCard(host, task) {
@@ -438,15 +490,13 @@ function renderClassifyCard(host, task) {
       b.onclick = () => {
         const ok = Number(b.dataset.i) === item.cat;
         if (ok) correct++;
-        box.querySelector('#spk-cl-fb').innerHTML = '<div class="' + (ok ? 'spk-ok' : 'spk-bad') + '">' + (ok ? '✓ 对' : '✗ 应属「' + esc(task.categories[item.cat]) + '」') + '</div>'
-          + '<button class="pri" id="spk-nextcl">' + (ix + 1 < task.items.length ? '下一条 →' : '完成，保存') + '</button>';
         box.querySelectorAll('.spk-opt').forEach(x => x.disabled = true);
+        saveAttempt(d.lessonId, task.key, ix, 'practice', { at: Date.now(), result: { ok, n: ok ? 1 : 0, total: 1 } });
+        box.querySelector('#spk-cl-fb').innerHTML = '<div class="' + (ok ? 'spk-ok' : 'spk-bad') + '">' + (ok ? '✓ 对' : '✗ 应属「' + esc(task.categories[item.cat]) + '」') + '</div>'
+          + '<button class="pri" id="spk-nextcl">' + (ix + 1 < task.items.length ? '下一条 →' : '完成') + '</button>';
         box.querySelector('#spk-nextcl').onclick = () => {
           if (ix + 1 < task.items.length) { ix++; paint(); }
-          else {
-            saveAttempt(d.lessonId, task.key, 0, 'practice', { at: Date.now(), result: { ok: correct === task.items.length, n: correct, total: task.items.length } });
-            box.innerHTML = '<div class="spk-done">归类完成：' + correct + ' / ' + task.items.length + '。</div>';
-          }
+          else box.innerHTML = '<div class="spk-done">归类完成：' + correct + ' / ' + task.items.length + '。易混的是 are supposed to 与 are required to 的强度差别——回去对照第 05 课讲义再看一遍。</div>';
         };
       };
     });
@@ -468,15 +518,13 @@ function renderSimplePickCard(host, task) {
       b.onclick = () => {
         const ok = Number(b.dataset.i) === item.answer;
         if (ok) correct++;
-        box.querySelector('#spk-p-fb').innerHTML = '<div class="' + (ok ? 'spk-ok' : 'spk-bad') + '">' + (ok ? '✓ 对' : '✗ 正确是 <b>' + esc(item.options[item.answer]) + '</b>') + '</div>'
-          + '<button class="pri" id="spk-nextp">' + (ix + 1 < task.items.length ? '下一题 →' : '完成，保存') + '</button>';
         box.querySelectorAll('.spk-opt').forEach(x => x.disabled = true);
+        saveAttempt(d.lessonId, task.key, ix, 'practice', { at: Date.now(), result: { ok, n: ok ? 1 : 0, total: 1 } });
+        box.querySelector('#spk-p-fb').innerHTML = '<div class="' + (ok ? 'spk-ok' : 'spk-bad') + '">' + (ok ? '✓ 对' : '✗ 正确是 <b>' + esc(item.options[item.answer]) + '</b>') + '</div>'
+          + '<button class="pri" id="spk-nextp">' + (ix + 1 < task.items.length ? '下一题 →' : '完成') + '</button>';
         box.querySelector('#spk-nextp').onclick = () => {
           if (ix + 1 < task.items.length) { ix++; paint(); }
-          else {
-            saveAttempt(d.lessonId, task.key, 0, 'practice', { at: Date.now(), result: { ok: correct === task.items.length, n: correct, total: task.items.length } });
-            box.innerHTML = '<div class="spk-done">完成：' + correct + ' / ' + task.items.length + '。</div>';
-          }
+          else box.innerHTML = '<div class="spk-done">完成：' + correct + ' / ' + task.items.length + '。</div>';
         };
       };
     });
@@ -511,6 +559,7 @@ async function wire(course, lesson) {
     const r = await api('/api/speaking/lesson/' + encodeURIComponent(lesson.id));
     SPK.cur = { lessonId: lesson.id, taskKey: null, ix: 0, wired: true };
     SPK.data = r;
+    SPK.data.lessonId = r.lesson.lessonId;   /* 卡片里统一用 d.lessonId */
     const caps = [];
     if (!r.ttsOk) caps.push('参考音（TTS 未配置）');
     if (!r.asrOk) caps.push('转写判分（ASR 未配置）');
@@ -522,6 +571,7 @@ async function wire(course, lesson) {
       + '<div id="spk-card" class="card spk-cardbox"></div>';
     SPK.cur.taskKey = r.lesson.tasks[0].key;
     openTask(0);
+    if (spkPending().length) spkFlush();   // 上次没传成功的作答, 进页即补传
   } catch (e) {
     body.innerHTML = '<div class="empty">口语课后练加载失败：' + esc(e.message) + '。<button class="pri" id="spk-retry">重试</button></div>';
     const b = body.querySelector('#spk-retry');
