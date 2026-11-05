@@ -19,7 +19,9 @@
   python pipeline/build_eplod.py 0001 --chunks   # 追加 DeepSeek 翻译+词块
   python pipeline/build_eplod.py 0001 --apply    # 拷贝音频 + 落盘产物
 """
+import hashlib
 import json
+import math
 import re
 import shutil
 import sys
@@ -36,6 +38,44 @@ AUDIO_LIB = SIB / "EnglishPod音频库"
 BUILD_EP = ROOT / "build" / "eplod"
 CATALOG = ROOT / "build" / "courses" / "eplod-catalog.json"
 CHUNK_BANK = ROOT / "build" / "vocab" / "eplod-chunks.json"
+TIMING_OVERRIDES = Path(__file__).with_name("eplod-timing-overrides.json")
+
+
+def apply_timing_overrides(data, audio_path, overrides_path=TIMING_OVERRIDES):
+    """保留逐句复核过的切点；原音频或官方文本变化时拒绝套用旧切点。"""
+    overrides = json.loads(Path(overrides_path).read_text(encoding="utf-8"))
+    if overrides.get("version") != 1:
+        raise ValueError("不支持的断句校准版本")
+    ep = f"{int(data['ep']):04d}"
+    override = overrides.get("episodes", {}).get(ep)
+    if override is None:
+        return 0
+    dialogue = data["dialogue"]
+    text_hash = hashlib.sha256("\n".join(x["text"] for x in dialogue).encode("utf-8")).hexdigest()
+    audio_hash = hashlib.sha256(Path(audio_path).read_bytes()).hexdigest()
+    if text_hash != override["dialogueSha256"] or audio_hash != override["audioSha256"]:
+        raise ValueError(f"{ep} 原文或音频已变化，须重新复核断句")
+    bounds = override["bounds"]
+    duration = data["durations"]["dg"]
+    if not isinstance(duration, (int, float)) or isinstance(duration, bool) or not math.isfinite(duration) or duration <= 0:
+        raise ValueError(f"{ep} 对话音频时长无效")
+    if len(bounds) != len(dialogue):
+        raise ValueError(f"{ep} 校准句数与原文不一致")
+    previous_start, previous_end = -1, 0
+    for pair in bounds:
+        if not isinstance(pair, list) or len(pair) != 2 or any(
+            not isinstance(t, (int, float)) or isinstance(t, bool) or not math.isfinite(t) for t in pair
+        ):
+            raise ValueError(f"{ep} 校准时间无效")
+        start, end = pair
+        # 紧接话允许最多 250ms 交叠，保留前句词尾与后句词头。
+        if start < 0 or start <= previous_start or start < previous_end - 0.25 or end <= max(start, previous_end) or end > duration:
+            raise ValueError(f"{ep} 校准时间逆序、过度重叠或超出音频")
+        previous_start, previous_end = start, end
+    for line, (start, end) in zip(dialogue, bounds):
+        line["t0"], line["t1"] = start, end
+    return len(bounds)
+
 
 POS_WORDS = {"Phrase", "Verb", "Adjective", "Noun", "Adverb", "Expression", "Preposition", "Conjunction", "Interjection", "Pronoun",
              "phrase", "verb", "adjective", "noun", "adverb", "expression", "preposition", "conjunction", "interjection", "pronoun", "idiom"}
@@ -778,34 +818,42 @@ def run_episode(ep, do_chunks=True, do_apply=True, dg_lang_only=False, keep_ai=T
     pb = next(d.glob("*pb.mp3"))
     rv = next(d.glob("*rv.mp3"))
 
-    log("    whisper: 对话对齐")
-    segs_dg = whisper_segments(dg, skip_first=3.0)   # dg 片头 jingle 会让含它的窗口整个坍缩
-    if data["dialogue"]:
-        dia = [x["text"] for x in data["dialogue"]]
-        times = global_align(dia, segs_dg)
-        hit = sum(1 for t in times if t)
-        for i, t in enumerate(times):
-            data["dialogue"][i]["t0"], data["dialogue"][i]["t1"] = (t if t else [None, None])
-        log(f"    对话: {hit}/{len(dia)} 句有时间戳")
-        if 0<hit<len(dia)*0.999:   # 少数句漏对齐: 两侧锚点间插值, 不让单句变"无法播放"
-            got0=fill_time_gaps(data["dialogue"],segs_dg)
-            if got0:
-                data["timeApprox"]=True
-                log(f"    对话插值: {got0} 句(官方句未匹配上, 按词数估算)")
-        asr_words = sum(_wc(x["text"]) for x in segs_dg)
-        if asr_words < 15 or (segs_dg[-1]["t1"] - segs_dg[0]["t0"]) < 10:
-            raise RuntimeError(f"对话音频转写失败: {asr_words} 词 / {round(segs_dg[-1]['t1'] - segs_dg[0]['t0'])}s")
-        if hit < len(dia) * 0.7:
-            got = fill_time_gaps(data["dialogue"], segs_dg)
-            if got < len(dia) - hit:
-                raise RuntimeError(f"对话对齐率过低 {hit}/{len(dia)}, 仅插值 {got} 句")
-            data["timeApprox"] = True
-            log(f"    时间轴估算: {hit} 句精确 + {got} 句按词数插值（官方文本与音频不完全一致）")
+    data["durations"] = {"dg": ffprobe_sec(dg)}
+    reviewed = apply_timing_overrides(data, dg)
+    if reviewed:
+        playback = AUDIO_LIB / ep / "dg.mp3"
+        if playback.exists() and hashlib.sha256(playback.read_bytes()).digest() != hashlib.sha256(dg.read_bytes()).digest():
+            raise ValueError(f"{ep} 播放音频与已复核原音频不一致，拒绝发布旧切点")
+        log(f"    使用已复核对话时间轴: {reviewed} 句")
     else:
-        for x in segs_dg:
-            if x["text"].strip():
-                data["dialogue"].append({"spk": "", "text": clean_text(x["text"]), "t0": x["t0"], "t1": x["t1"]})
-        log(f"    对话(whisper 转写): {len(data['dialogue'])} 句")
+        log("    whisper: 对话对齐")
+        segs_dg = whisper_segments(dg, skip_first=3.0)   # dg 片头 jingle 会让含它的窗口整个坍缩
+        if data["dialogue"]:
+            dia = [x["text"] for x in data["dialogue"]]
+            times = global_align(dia, segs_dg)
+            hit = sum(1 for t in times if t)
+            for i, t in enumerate(times):
+                data["dialogue"][i]["t0"], data["dialogue"][i]["t1"] = (t if t else [None, None])
+            log(f"    对话: {hit}/{len(dia)} 句有时间戳")
+            if 0<hit<len(dia)*0.999:   # 少数句漏对齐: 两侧锚点间插值, 不让单句变"无法播放"
+                got0=fill_time_gaps(data["dialogue"],segs_dg)
+                if got0:
+                    data["timeApprox"]=True
+                    log(f"    对话插值: {got0} 句(官方句未匹配上, 按词数估算)")
+            asr_words = sum(_wc(x["text"]) for x in segs_dg)
+            if asr_words < 15 or (segs_dg[-1]["t1"] - segs_dg[0]["t0"]) < 10:
+                raise RuntimeError(f"对话音频转写失败: {asr_words} 词 / {round(segs_dg[-1]['t1'] - segs_dg[0]['t0'])}s")
+            if hit < len(dia) * 0.7:
+                got = fill_time_gaps(data["dialogue"], segs_dg)
+                if got < len(dia) - hit:
+                    raise RuntimeError(f"对话对齐率过低 {hit}/{len(dia)}, 仅插值 {got} 句")
+                data["timeApprox"] = True
+                log(f"    时间轴估算: {hit} 句精确 + {got} 句按词数插值（官方文本与音频不完全一致）")
+        else:
+            for x in segs_dg:
+                if x["text"].strip():
+                    data["dialogue"].append({"spk": "", "text": clean_text(x["text"]), "t0": x["t0"], "t1": x["t1"]})
+            log(f"    对话(whisper 转写): {len(data['dialogue'])} 句")
 
     log("    whisper: 讲解转写/对齐")
     segs_pb = whisper_segments(pb)
@@ -857,6 +905,10 @@ def run_episode(ep, do_chunks=True, do_apply=True, dg_lang_only=False, keep_ai=T
         update_chunk_bank(data)
 
     apply_errata(data)
+    reviewed = apply_timing_overrides(data, dg)
+    if reviewed:
+        data.pop("timeApprox", None)
+        log(f"    已复核断句: {reviewed} 句（原文与音频指纹一致）")
     if do_apply:
         outd = AUDIO_LIB / ep
         outd.mkdir(parents=True, exist_ok=True)

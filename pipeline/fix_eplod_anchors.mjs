@@ -6,7 +6,10 @@
    用法：node pipeline/fix_eplod_anchors.mjs [build目录] [--dry] */
 import fs from 'node:fs';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
+const timingOverrides = JSON.parse(fs.readFileSync(new URL('./eplod-timing-overrides.json', import.meta.url), 'utf8'));
+const sha256 = value => createHash('sha256').update(value).digest('hex');
 const args = process.argv.slice(2);
 const BUILD = path.resolve(args.find(x => x !== '--dry') || 'build');
 const DRY = args.includes('--dry');
@@ -57,6 +60,17 @@ let lines = 0, failed = 0;
 for (const f of fs.readdirSync(dir).filter(x => /^\d{4}\.json$/.test(x))) {
   const file = path.join(dir, f), ep = f.slice(0, -5);
   const j = JSON.parse(fs.readFileSync(file, 'utf8')), d = j.dialogue || [];
+  const reviewed = timingOverrides.episodes[ep];
+  if (reviewed) {
+    const mp3 = path.join(AUDIO_ROOT, ep, 'dg.mp3');
+    const valid = fs.existsSync(mp3) && sha256(fs.readFileSync(mp3)) === reviewed.audioSha256
+      && sha256(d.map(x => x.text).join('\n')) === reviewed.dialogueSha256
+      && d.length === reviewed.bounds.length
+      && d.every((x, i) => x.t0 === reviewed.bounds[i][0] && x.t1 === reviewed.bounds[i][1]);
+    if (!valid) { failed++; console.error(`[跳过] ${ep} 已复核断句的来源或切点变化，请先重新校准。`); }
+    else console.log(`${ep} 已复核断句保持不变。`);
+    continue;
+  }
   const intervals = silenceMap(ep);
   if (intervals === null) { failed++; continue; }
   let changed = 0;

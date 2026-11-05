@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "episodes": {
+    "0033": {
+      "reviewed": "2026-11-05",
+      "reason": "Partial-word alignment omitted opening words. Rechecked all 11 turns with cropped small/large-v3 word timestamps; brief overlaps preserve word endings and beginnings between adjacent speakers.",
+      "audioSha256": "29af869f84b4331041fc5096fbd61e885c05d978644dbae0cafbc7f050c2a9cd",
+      "dialogueSha256": "7f9530c0f7f327b42534765fc4b6a918501ac62c7acc02fdca6073dc991dae46",
+      "bounds": [
+        [7.6, 9.58],
+        [9.48, 11.22],
+        [11.1, 11.98],
+        [11.92, 13.12],
+        [13.7, 17.94],
+        [17.88, 21.05],
+        [21.7, 25.02],
+        [28.8, 32.42],
+        [32.24, 35.74],
+        [35.6, 41.92],
+        [42.15, 46.18]
+      ]
+    }
+  }
+}
