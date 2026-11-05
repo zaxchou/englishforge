@@ -2686,3 +2686,13 @@ html.sb-min .cp-due-mask{padding-left:84px}
 .spk-err{color:#b45309}
 .spk-progress{color:var(--t3);font-size:12.5px;margin-bottom:6px}
 #spk-dt{width:100%;min-height:66px;margin:8px 0;padding:10px 12px;border-radius:12px;border:1px solid var(--line,#dfe3e8);font:inherit;resize:vertical}
+/* 口语练习卡：单主按钮推进（2026-11-05.r9） */
+.spk-meta{font-size:12.5px;color:var(--t3);margin:0 0 8px}
+.spk-foot{display:flex;align-items:center;gap:8px;margin-top:14px;flex-wrap:wrap}
+.spk-foot-side{margin-left:auto;display:flex;gap:6px}
+.spk-foot .pri{min-width:118px}
+.spk-mini:disabled{opacity:.35;cursor:default}
+.spk-foot .spk-mini{color:var(--t3)}
+.spk-ok,.spk-bad{margin:10px 0 4px}
+.spk-ref{margin:0 0 2px;font-size:14.5px;line-height:1.9;color:var(--t1)}
+.spk-head .spk-hint{max-width:52ch}

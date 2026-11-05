@@ -32,6 +32,8 @@ function chunkCuts(item) {
   return cuts;
 }
 function fmt2(s) { return String(Math.floor(s)).padStart(2, '0'); }
+/* 标题里常带「（点词间空隙插入 /）」这类操作说明，与下方 hint 重复；统一只留任务名。 */
+function headTitle(t) { return esc(String(t || '').replace(/（[^）]*）/g, '').trim()); }
 function spkNote(msg, isErr, tag) {
   const n = document.querySelector('#spk-note');
   if (!n) return;
@@ -162,7 +164,7 @@ function renderTaskList() {
     const open = SPK.cur.taskKey === t.key;
     return '<button class="spk-task' + (open ? ' on' : '') + '" data-ti="' + ti + '" title="' + esc(t.title) + '">'
       + '<span class="spk-task-dot ' + (all ? 'spk-task-dot--ok' : doneCount ? 'spk-task-dot--partial' : '') + '"></span>'
-      + '<span class="spk-task-t">' + esc(t.title) + '</span>'
+      + '<span class="spk-task-t">' + headTitle(t.title) + '</span>'
       + '<span class="spk-task-n">' + doneCount + '/' + t.items.length + '</span></button>';
   }).join('');
   box.querySelectorAll('.spk-task').forEach(b => { b.onclick = () => openTask(Number(b.dataset.ti)); });
@@ -212,7 +214,7 @@ function showTranscriptDiff(box, item, transcript, ev, opts) {
 /* ---------- 复述卡 / 面试卡 ---------- */
 function renderSpeakCard(host, task) {
   const d = SPK.data, isInterview = task.type === 'interview';
-  host.innerHTML = '<div class="spk-head"><b>' + esc(task.title) + '</b><span class="spk-hint">'
+  host.innerHTML = '<div class="spk-head"><b>' + headTitle(task.title) + '</b><span class="spk-hint">'
     + (isInterview ? '无准备时间 · 每题 45 秒' : '先听后说 · 每句 ' + (task.sec || 12) + ' 秒内')
     + ' · 参考音为合成朗读</span></div>'
     + '<div class="spk-actions"><button class="pri" id="spk-play">▶ 听' + (isInterview ? '题' : '这句') + '</button>'
@@ -311,7 +313,7 @@ function renderSpeakCard(host, task) {
 /* ---------- 发音卡 ---------- */
 function renderShadowCard(host, task) {
   const d = SPK.data;
-  host.innerHTML = '<div class="spk-head"><b>' + esc(task.title) + '</b><span class="spk-hint">看原文 → 听示范 → 录音跟读 → A/B 对照自评（记为练习，不算独立作答）</span></div>'
+  host.innerHTML = '<div class="spk-head"><b>' + headTitle(task.title) + '</b><span class="spk-hint">看原文 → 听示范 → 录音跟读 → A/B 对照自评（记为练习，不算独立作答）</span></div>'
     + '<div id="spk-shadow"></div><div class="spk-nav"><button id="spk-prev">‹ 上一句</button><span id="spk-pos"></span><button id="spk-next">下一句 ›</button></div>';
   let ix = SPK.cur.ix;
   const box = host.querySelector('#spk-shadow'), pos = host.querySelector('#spk-pos');
@@ -360,7 +362,7 @@ function renderShadowCard(host, task) {
 function renderPickCard(host, task) {
   const d = SPK.data;
   let ix = 0, correct = 0, played = null;
-  host.innerHTML = '<div class="spk-head"><b>' + esc(task.title) + '</b><span class="spk-hint">听机器读一个词，点你听到的那个。机器判对错。</span></div>'
+  host.innerHTML = '<div class="spk-head"><b>' + headTitle(task.title) + '</b><span class="spk-hint">听机器读一个词，点你听到的那个。机器判对错。</span></div>'
     + '<div id="spk-pick"></div><div class="spk-nav"><span id="spk-tally"></span></div>';
   const box = host.querySelector('#spk-pick'), tally = host.querySelector('#spk-tally');
   function paint() {
@@ -393,24 +395,28 @@ function renderPickCard(host, task) {
   paint();
 }
 
-/* ---------- 练习题卡 ---------- */
+/* ---------- 练习题卡 ----------
+   一个主按钮走完全程：核对断句 → 下一句 → 完成。上一句是次级图标；清空/听示范是静音次级。
+   不再出现「正文一个下一句 + 底部一个下一句」的重复导航。 */
 function renderChunkCard(host, task) {
   const d = SPK.data;
+  const shortTitle = task.title.replace(/（[^）]*）/g, '').trim();
   let ix = SPK.cur.ix;
-  host.innerHTML = '<div class="spk-head"><b>' + esc(task.title) + '</b><span class="spk-hint">点词与词之间的空隙插入「/」，标完点核对。依据：标点/主谓/从句/并列/介词短语。</span></div>'
-    + '<div id="spk-chunk"></div>'
-    + '<div class="spk-nav"><button id="spk-prev">‹ 上一句</button><span id="spk-pos"></span><button id="spk-next">下一句 ›</button></div>';
-  const box = host.querySelector('#spk-chunk'), pos = host.querySelector('#spk-pos');
-  let cuts = new Set(), checked = false;
+  host.innerHTML = '<div class="spk-head"><b>' + headTitle(task.title) + '</b><span class="spk-hint">' + esc(task.hint || '点词间空隙标断句') + '</span></div>'
+    + '<div id="spk-chunk"></div>';
+  const box = host.querySelector('#spk-chunk');
+  let cuts = new Set(), checked = false, primary = null;
   function paint() {
     const item = task.items[ix];
     const ws = words(item.text);
     cuts = new Set(); checked = false;
-    pos.textContent = (ix + 1) + ' / ' + task.items.length;
-    box.innerHTML = '<div class="spk-progress">第 ' + (ix + 1) + ' / ' + task.items.length + ' 句</div>'
+    box.innerHTML = '<div class="spk-meta">第 ' + (ix + 1) + ' / ' + task.items.length + ' 句</div>'
       + '<div class="spk-words" id="spk-words"></div>'
-      + '<div class="spk-actions"><button class="pri" id="spk-check">核对断句</button> <button class="spk-mini" id="spk-clear">清空重标</button>'
-      + ' <button class="spk-mini" id="spk-play">🔊 听整体节奏</button></div><div id="spk-chunk-fb"></div>';
+      + '<div class="spk-foot"><button class="spk-mini" id="spk-prev"' + (ix === 0 ? ' disabled style="visibility:hidden"' : '') + ' aria-label="上一句">‹</button>'
+      + '<button class="pri" id="spk-primary">核对断句</button>'
+      + '<span class="spk-foot-side"><button class="spk-mini" id="spk-clear">清空</button>'
+      + '<button class="spk-mini" id="spk-play" title="听示范" aria-label="听示范">🔊</button></span></div>'
+      + '<div id="spk-chunk-fb"></div>';
     const wbox = box.querySelector('#spk-words');
     ws.forEach((w, i) => {
       if (i > 0) {
@@ -422,38 +428,46 @@ function renderChunkCard(host, task) {
       }
       wbox.appendChild(Object.assign(document.createElement('span'), { className: 'spk-word', textContent: w }));
     });
+    box.querySelector('#spk-prev').onclick = () => { if (ix > 0) { ix--; SPK.cur.ix = ix; paint(); } };
     box.querySelector('#spk-clear').onclick = () => {
-      cuts.clear(); checked = false;
+      cuts.clear();
       wbox.querySelectorAll('.spk-gap').forEach(g => g.classList.remove('on'));
       box.querySelector('#spk-chunk-fb').innerHTML = '';
     };
     box.querySelector('#spk-play').onclick = () => { stopRef(); if (!SPK.refAudio) SPK.refAudio = new Audio(); SPK.refAudio.src = spkRefUrl(item.text); SPK.refAudio.play(); };
-    box.querySelector('#spk-check').onclick = () => {
-      const want = new Set(chunkCuts(item));
-      let hit = 0;
-      want.forEach(c => { if (cuts.has(c)) hit++; });
-      const extra = [...cuts].filter(c => !want.has(c)).length;
-      const perfect = hit === want.size && extra === 0;
-      const fb = box.querySelector('#spk-chunk-fb');
-      fb.innerHTML = '<div class="' + (perfect ? 'spk-ok' : 'spk-bad') + '">' + (perfect ? '✓ 全对' : '断点 ' + hit + '/' + want.size + '，多标 ' + extra + ' 处。') + '参考断法：</div>'
-        + '<div class="spk-ref">' + item.chunks.map(c => '<span>' + esc(c) + '</span>').join('<b class="spk-slash">/</b>') + '</div>'
-        + '<div class="spk-actions"><button class="pri" id="spk-nextchunk">' + (ix + 1 < task.items.length ? '下一句 →' : '完成本任务') + '</button></div>';
-      checked = true;
-      saveAttempt(d.lessonId, task.key, ix, 'practice', { at: Date.now(), result: { ok: perfect, n: hit, total: want.size } });
-      fb.querySelector('#spk-nextchunk').onclick = () => {
-        if (ix + 1 < task.items.length) { ix++; SPK.cur.ix = ix; paint(); }
-        else box.innerHTML = '<div class="spk-done">这个任务已做完（' + task.items.length + ' 句）。可以点上面其他任务继续，或切到「讲义」对照老师的断句讲解。</div>';
-      };
-    };
+    primary = box.querySelector('#spk-primary');
+    primary.onclick = () => { if (checked) advance(); else check(); };
+    primary.focus({ preventScroll: true });
   }
-  host.querySelector('#spk-prev').onclick = () => { if (ix > 0) { ix--; SPK.cur.ix = ix; paint(); } };
-  host.querySelector('#spk-next').onclick = () => { if (ix < task.items.length - 1) { ix++; SPK.cur.ix = ix; paint(); } };
+  function check() {
+    const item = task.items[ix];
+    const want = new Set(chunkCuts(item));
+    let hit = 0;
+    want.forEach(c => { if (cuts.has(c)) hit++; });
+    const extra = [...cuts].filter(c => !want.has(c)).length;
+    const perfect = hit === want.size && extra === 0;
+    checked = true;
+    box.querySelectorAll('.spk-gap').forEach(g => { g.disabled = true; });
+    box.querySelector('#spk-clear').style.display = 'none';   /* 标点已锁定，清空无意义；听示范保留 */
+    const last = ix + 1 >= task.items.length;
+    primary.textContent = last ? '完成本任务' : '下一句 →';
+    box.querySelector('#spk-chunk-fb').innerHTML =
+      '<div class="' + (perfect ? 'spk-ok' : 'spk-bad') + '">' + (perfect ? '✓ 全对' : '断点 ' + hit + '/' + want.size + (extra ? '，多标 ' + extra + ' 处' : '')) + '</div>'
+      + '<div class="spk-ref">' + item.chunks.map(c => '<span>' + esc(c) + '</span>').join('<b class="spk-slash">/</b>') + '</div>';
+    primary.focus({ preventScroll: true });
+    saveAttempt(d.lessonId, task.key, ix, 'practice', { at: Date.now(), result: { ok: perfect, n: hit, total: want.size } });
+  }
+  function advance() {
+    if (ix + 1 < task.items.length) { ix++; SPK.cur.ix = ix; paint(); box.scrollIntoView({ block: 'nearest' }); }
+    else box.innerHTML = '<div class="spk-done">这组断句做完了（' + task.items.length + ' 句）。换上面其他任务继续，或去「讲义」对照老师的讲解。</div>';
+  }
+  host.onkeydown = e => { if (e.key === 'Enter' && primary) { e.preventDefault(); primary.click(); } };
   paint();
 }
 function renderDictationCard(host, task) {
   const d = SPK.data;
   let ix = 0, plays = 0;
-  host.innerHTML = '<div class="spk-head"><b>' + esc(task.title) + '</b><span class="spk-hint">听写句子，最多听 3 遍。标点不计，单词拼写与单复数要写对。</span></div><div id="spk-dict"></div>';
+  host.innerHTML = '<div class="spk-head"><b>' + headTitle(task.title) + '</b><span class="spk-hint">听写句子，最多听 3 遍。标点不计，单词拼写与单复数要写对。</span></div><div id="spk-dict"></div>';
   const box = host.querySelector('#spk-dict');
   function paint() {
     const item = task.items[ix]; plays = 0;
@@ -482,7 +496,7 @@ function renderDictationCard(host, task) {
 function renderClassifyCard(host, task) {
   const d = SPK.data;
   let ix = 0, correct = 0;
-  host.innerHTML = '<div class="spk-head"><b>' + esc(task.title) + '</b><span class="spk-hint">判断这条规则属于哪一档强制程度。</span></div><div id="spk-cl"></div>';
+  host.innerHTML = '<div class="spk-head"><b>' + headTitle(task.title) + '</b><span class="spk-hint">判断这条规则属于哪一档强制程度。</span></div><div id="spk-cl"></div>';
   const box = host.querySelector('#spk-cl');
   function paint() {
     const item = task.items[ix];
@@ -510,7 +524,7 @@ function renderClassifyCard(host, task) {
 function renderSimplePickCard(host, task) {
   const d = SPK.data;
   let ix = 0, correct = 0;
-  host.innerHTML = '<div class="spk-head"><b>' + esc(task.title) + '</b><span class="spk-hint">看中文选英文。</span></div><div id="spk-p"></div>';
+  host.innerHTML = '<div class="spk-head"><b>' + headTitle(task.title) + '</b><span class="spk-hint">看中文选英文。</span></div><div id="spk-p"></div>';
   const box = host.querySelector('#spk-p');
   function paint() {
     const item = task.items[ix];
