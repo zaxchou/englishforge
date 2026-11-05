@@ -137,6 +137,12 @@ function spkFlush() {
   return SPK_FLUSHING;
 }
 function saveAttempt(lessonId, taskKey, ix, stage, entry) {
+  /* 参数护栏：漏传 lessonId/entry 会让 entry.at 直接炸掉整张卡（r11 线上事故） */
+  if (!lessonId || !taskKey || !entry || typeof entry !== 'object' || !Number.isInteger(ix)) {
+    console.error('[speaking] saveAttempt 参数不完整', {lessonId, taskKey, ix, stage, hasEntry: !!entry});
+    spkNote('保存参数异常，本次没有记录（已上报）', true, 'bug');
+    return;
+  }
   const tasks = SPK.data.attempts.tasks;
   const t = tasks[taskKey] = tasks[taskKey] || { items: {} };
   t.items = t.items || {};
@@ -293,7 +299,7 @@ function renderSpeakCard(host, task) {
         try { const take = await uploadTake(d.lessonId, task.key, ix, stopped.blob, stopped.mime); entry.take = take.url; }
         catch (e) { uploadErr = e; }
         attempt = entry;
-        saveAttempt(task.key, ix, stage, entry);
+        saveAttempt(d.lessonId, task.key, ix, stage, entry);
         result.innerHTML = '';
         paintResult(stage === 'retry' ? '重说已保存：' : '首答已保存：');
         if (stage === 'retry') paintRetry(entry);
@@ -315,10 +321,10 @@ function renderSpeakCard(host, task) {
     recBtn.textContent = '⏹ 说完了，点这里结束';
     const limit = isInterview ? 45 : (task.sec || 12) + 3;
     const tick = setInterval(() => {
+      if (!SPK.rec) { clearInterval(tick); return; }   // 先判空再读 t0：停止录音后 tick 会读到 null
       const s = (Date.now() - SPK.rec.t0) / 1000;
-      if (!SPK.rec) { clearInterval(tick); return; }
       timer.textContent = fmt2(Math.floor(s)) + 's';
-      if (s >= limit) { clearInterval(tick); if (SPK.rec) onRec(item); }
+      if (s >= limit) { clearInterval(tick); onRec(item); }
     }, 250);
   }
   host.querySelector('#spk-prev').onclick = () => { if (ix > 0) { ix--; SPK.cur.ix = ix; loadIx(); } };
