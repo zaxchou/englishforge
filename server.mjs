@@ -1459,6 +1459,26 @@ function attemptVerdict(ref,inc) {
   }
   return inc.ok==null?null:!!inc.ok;
 }
+/* 客户端 GET 版记录：去掉事件日志的实体。
+   - snapshotEvents（提交去重日志，已 2 万条/约 1MB）：纯服务端用途，POST 时服务端自带去重，不下发；
+   - attemptEvents / vocabEvents：客户端只做 id 存在性检查，给 id→1 索引即可（原值是审计载荷）。 */
+function recordsForClient() {
+  const r = { ...RECORDS };
+  delete r.snapshotEvents;
+  for (const k of ['attemptEvents', 'vocabEvents']) {
+    if (r[k] && typeof r[k] === 'object') { const idx = {}; for (const id of Object.keys(r[k])) idx[id] = 1; r[k] = idx; }
+  }
+  return r;
+}
+/* snapshotEvents 按插入序封顶：超过 2 万条时丢最老的 1 万条。
+   旧 id 被裁掉的最坏情形 = 老页面重放旧快照 → revision 已变 → 409 走合并，不会重复计。 */
+function pruneSnapshotEvents(store) {
+  const se = store.snapshotEvents;
+  if (!se || typeof se !== 'object') return;
+  const ids = Object.keys(se);
+  if (ids.length <= 20000) return;
+  for (const id of ids.slice(0, ids.length - 10000)) delete se[id];
+}
 function recordsLoad() {
   try {
     const j = JSON.parse(fs.readFileSync(RECORDS_FILE, 'utf8'));
@@ -1915,7 +1935,7 @@ const handler = async (req, res) => {
     }
 
     if (p === '/api/records') {
-      if (req.method === 'GET') return sendJSON(res, 200, RECORDS);
+      if (req.method === 'GET') return sendJSON(res, 200, recordsForClient());
       if (req.method === 'POST') {
         const origin=req.headers.origin;
         if(origin && origin !== `http://${req.headers.host}` && origin !== `https://${req.headers.host}`) return sendJSON(res,403,{error:'cross-origin write rejected'});
@@ -1926,7 +1946,7 @@ const handler = async (req, res) => {
         if (inc?.snapshotId && RECORDS.snapshotEvents?.[inc.snapshotId]) return sendJSON(res,200,{ok:true,duplicate:true,revision:RECORDS.revision,saved_at:RECORDS.saved_at});
         if (inc?.revision !== (RECORDS.revision || 0)) return sendJSON(res, 409, {error:'records conflict', revision:RECORDS.revision || 0});
         let next;
-        try { next = nextRecords(inc); if(inc.snapshotId){if(typeof inc.snapshotId!=='string'||!/^[\w-]{8,100}$/.test(inc.snapshotId))throw Error('invalid snapshot id');next.snapshotEvents={...(RECORDS.snapshotEvents||{}),[inc.snapshotId]:true};} } catch (e) { return sendJSON(res, 400, {error:e.message}); }
+        try { next = nextRecords(inc); if(inc.snapshotId){if(typeof inc.snapshotId!=='string'||!/^[\w-]{8,100}$/.test(inc.snapshotId))throw Error('invalid snapshot id');next.snapshotEvents={...(RECORDS.snapshotEvents||{}),[inc.snapshotId]:true};pruneSnapshotEvents(next);} } catch (e) { return sendJSON(res, 400, {error:e.message}); }
         /* 旧客户端可能回传宽赦评分(R6): 合并后按严格口径再校正一次, 审计在落盘成功后写 */
         const inboundFix=correctVoiceScores(next);
         try { recordsSave(next); } catch (e) { console.error('[records]',e.message); return sendJSON(res, 503, {error:'records not persisted'}); }
