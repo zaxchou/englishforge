@@ -391,6 +391,103 @@ async function readJsonBody(req, readBody) {
   return JSON.parse(body.toString('utf8') || '{}');
 }
 
+/* ---------- 口语课后练（ndf-07, 2026-11-05）: 任务数据在 build/speaking/<course>/，
+   作答存 records/speaking-attempts.json（服务端权威独立小文件，不进 records 快照，避免旧页覆盖）。
+   复述/面试音频先经 /api/eplod/asr 转写（不带原文偏置），TTS 参考音复用 ttsSynthToFile 缓存链路。
+   coach 走 aiGen，按每课 coachBrief 检查学生的这一次作答。 ---------- */
+const SPK_DIR = path.join(BUILD_DIR, 'speaking');
+const SPK_ATTEMPTS_FILE = path.join(RECORDS_DIR, 'speaking-attempts.json');
+const SPK_CACHE = new Map();
+const SPK_TASK_RE = /^[a-z0-9][a-z0-9-]{0,48}$/;
+const SPK_COURSE_RE = /^[a-z0-9-]{2,24}$/;
+let SPK_ATTEMPTS = { version: 1, lessons: {} };
+try {
+  const j = JSON.parse(fs.readFileSync(SPK_ATTEMPTS_FILE, 'utf8'));
+  if (j && typeof j === 'object' && !Array.isArray(j)) SPK_ATTEMPTS = { version: 1, lessons: j.lessons || {} };
+} catch (e) {}
+function spkAttemptsSave(next) {
+  fs.mkdirSync(RECORDS_DIR, { recursive: true });
+  const tmp = SPK_ATTEMPTS_FILE + '.tmp';
+  const fd = fs.openSync(tmp, 'w');
+  try { fs.writeFileSync(fd, JSON.stringify(next)); fs.fsyncSync(fd); }
+  finally { fs.closeSync(fd); }
+  fs.renameSync(tmp, SPK_ATTEMPTS_FILE);
+}
+function spkPersist(mutate) {
+  const next = JSON.parse(JSON.stringify(SPK_ATTEMPTS));
+  const out = mutate(next);
+  next.version = 1;
+  spkAttemptsSave(next);
+  SPK_ATTEMPTS = next;
+  return out;
+}
+function spkLesson(course, no) {
+  if (!SPK_COURSE_RE.test(String(course || '')) || !/^\d{2}$/.test(String(no || ''))) return null;
+  const file = path.join(SPK_DIR, course, no + '.json');
+  let stat;
+  try { stat = fs.statSync(file); } catch { return null; }
+  const hit = SPK_CACHE.get(file);
+  if (hit && hit.mtime === stat.mtimeMs) return hit.data;
+  let data;
+  try { data = JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return null; }
+  SPK_CACHE.set(file, { mtime: stat.mtimeMs, data });
+  return data;
+}
+function spkState(store, course, lessonId) {
+  store.lessons[lessonId] = store.lessons[lessonId] || { course, tasks: {} };
+  const s = store.lessons[lessonId];
+  s.tasks = s.tasks || {};
+  return s;
+}
+function spkItemState(s, taskKey, ix) {
+  const t = s.tasks[taskKey] = s.tasks[taskKey] || { items: {} };
+  t.items = t.items || {};
+  const it = t.items[ix] = t.items[ix] || { practice: [] };
+  if (!Array.isArray(it.practice)) it.practice = [];
+  return it;
+}
+function spkCoachPrompt(task, item, lesson, attempt, stage) {
+  const brief = lesson.coachBrief || {};
+  const lines = [
+    '[本课方法] ' + (brief.method || '') + (brief.checks && brief.checks.length ? '；检查点：' + brief.checks.join('；') : ''),
+    '[本任务] ' + (task.title || ''),
+  ];
+  if (task.type === 'retell') lines.push('[原文] ' + (item.text || ''));
+  if (task.type === 'interview') lines.push('[题目] ' + (item.text || ''));
+  if (item.hint) lines.push('[答题提示] ' + item.hint);
+  lines.push('[学生这次口述转写] ' + (attempt.transcript || '(转写为空)'));
+  if (attempt.dur) lines.push('[用时] 约 ' + attempt.dur + ' 秒');
+  if (attempt.eval && Number.isFinite(attempt.eval.acc)) lines.push('[词准粗测] ' + Math.round(attempt.eval.acc * 100) + '%');
+  if (stage === 'retry') lines.push('[注意] 这是重说，只针对上次指出的最该改的一点检查是否改进。');
+  return lines.join('\n');
+}
+const SPK_COACH_SYS = '你是新东方托福口语课(张莹炜老师)的中文口语助教，只依据给定的本课方法检查学生这一次的口语作答，用中文输出。'
+  + '输出固定四段、不加任何标题符号：'
+  + '第一行以「最该改的一处：」开头，只挑影响最大的一个问题；'
+  + '然后 2~3 行要点，每行以「✓」或「✗」开头，对应给定检查点逐条核对；'
+  + '再一行以「可迁移表达：」开头给出一个本课可复用的英文表达(带一句中文说明)；'
+  + '最后一行以「重说只检查：」开头点出重说时要改进的那一点。'
+  + '总长不超过 180 字。转写为空或明显不是英语时，直接说明未捕捉到有效语音并建议重录。不编造学生没说的内容。';
+async function spkCoach(task, item, lesson, attempt, stage) {
+  const raw = await aiGen(SPK_COACH_SYS, spkCoachPrompt(task, item, lesson, attempt, stage));
+  return String(raw || '').trim().slice(0, 900);
+}
+function spkEvalHint(attempt, task, item) {
+  /* 确定性反馈(不经 AI, 总是展示): 词准粗测 + 漏词/多词样例 */
+  if (!attempt.eval) return null;
+  const e = attempt.eval;
+  const miss = (e.missWords || []).slice(0, 4);
+  const extra = (e.extraWords || []).slice(0, 4);
+  const parts = [];
+  if (Number.isFinite(e.acc)) parts.push('词准粗测 ' + Math.round(e.acc * 100) + '%');
+  if (miss.length) parts.push('待核对漏词: ' + miss.join(' / '));
+  if (extra.length) parts.push('多出或替换: ' + extra.join(' / '));
+  if (attempt.dur && task.sec) parts.push('用时 ' + attempt.dur + 's / 参考 ' + task.sec + 's');
+  return parts.join(' · ') || null;
+}
+const SPK_RECORDING_FILE = /^spk-[a-z0-9]+(?:-[a-z0-9]+){1,6}-[a-z0-9]{1,16}-[a-z0-9]{1,32}\.[\w]+$/;
+
+
 const GQ_COURSE = 'ndf-01';      // MVP 只开词汇课
 /* 原素材只读；优先提供本地文字复核派生稿，状态不等于逐句听音认证。 */
 const SCRIPT_DIRS = { 'ndf-01': path.join(SIB, '新D方', '新D方新托福全套', '01 托福词汇课 孙曦', '逐字稿') };
@@ -1953,6 +2050,133 @@ const handler = async (req, res) => {
       });
     }
 
+    /* ---- API: 口语课后练(ndf-07) ---- */
+    const mSpkLesson = p.match(/^\/api\/speaking\/lesson\/([a-z0-9-]+)$/);
+    if (mSpkLesson) {
+      if (req.method !== 'GET') return sendJSON(res, 405, { error: 'method' });
+      const parts = mSpkLesson[1].match(/^(.+)-(\d{2})$/);
+      const lesson = parts ? spkLesson(parts[1], parts[2]) : null;
+      if (!lesson) return sendJSON(res, 404, { error: '本节课后练未就绪' });
+      const s = SPK_ATTEMPTS.lessons[mSpkLesson[1]];
+      return sendJSON(res, 200, {
+        ok: true, lesson,
+        attempts: { tasks: s?.tasks || {} },
+        ttsOk: !!(TTS_CFG.key && TTS_CFG.url), asrOk: !!ASR_CFG.key, aiOk: !!(AI_CFG.key && AI_CFG.base),
+      });
+    }
+    if (p === '/api/speaking/attempt') {
+      if (req.method !== 'POST') return sendJSON(res, 405, { error: 'method' });
+      if (!examRouteBody(req, res, readBody, sendJSON)) return;
+      const body = await readJsonBody(req, readBody);
+      const parts = String(body.lessonId || '').match(/^([a-z0-9-]+)-(\d{2})$/);
+      const lesson = parts ? spkLesson(parts[1], parts[2]) : null;
+      if (!lesson) return sendJSON(res, 400, { error: 'bad lessonId' });
+      const task = (lesson.tasks || []).find(t => t.key === body.taskKey);
+      if (!task) return sendJSON(res, 400, { error: 'bad taskKey' });
+      const ix = Number(body.ix);
+      if (!Number.isInteger(ix) || ix < 0 || ix >= (task.items || []).length) return sendJSON(res, 400, { error: 'bad ix' });
+      const stage = body.stage;
+      if (!['first', 'retry', 'practice'].includes(stage)) return sendJSON(res, 400, { error: 'bad stage' });
+      const entry = { at: Date.now() };
+      if (body.transcript !== undefined) {
+        const tr = String(body.transcript || '').slice(0, 2000);
+        entry.transcript = tr;
+      }
+      if (Number.isFinite(Number(body.dur))) entry.dur = Math.max(0, Math.min(300, Math.round(Number(body.dur) * 10) / 10));
+      if (typeof body.take === 'string' && EPLOD_TAKE_ID.test(body.take)) entry.take = body.take;
+      if (body.eval && typeof body.eval === 'object') {
+        const acc = Number(body.eval.acc);
+        const clean = list => Array.isArray(list) ? list.filter(x => typeof x === 'string').map(x => x.slice(0, 40)).slice(0, 16) : [];
+        entry.eval = {
+          ...(Number.isFinite(acc) ? { acc: Math.max(0, Math.min(1, acc)) } : {}),
+          ...(clean(body.eval.missWords).length ? { missWords: clean(body.eval.missWords) } : {}),
+          ...(clean(body.eval.extraWords).length ? { extraWords: clean(body.eval.extraWords) } : {}),
+        };
+      }
+      if (body.result !== undefined) {
+        entry.result = { ok: body.result.ok === true, n: Number(body.result.n) || 0, total: Number(body.result.total) || 0 };
+      }
+      try {
+        spkPersist(store => {
+          const s = spkState(store, parts[1], lesson.lessonId);
+          const it = spkItemState(s, task.key, ix);
+          if (stage === 'practice') { it.practice.push(entry); it.practice = it.practice.slice(-20); }
+          else it[stage] = entry;
+        });
+      } catch (e) { return sendJSON(res, 503, { error: 'attempt not persisted' }); }
+      return sendJSON(res, 200, { ok: true, saved: true });
+    }
+    if (p === '/api/speaking/recording') {
+      if (req.method !== 'POST') return sendJSON(res, 405, { error: 'method' });
+      if (!examRouteBody(req, res, readBody, sendJSON)) return;
+      const body = await readJsonBody(req, readBody);
+      const lessonId = String(body.lessonId || ''), taskKey = String(body.taskKey || '');
+      if (!/^[a-z0-9-]{4,32}$/.test(lessonId) || !SPK_TASK_RE.test(taskKey)) return sendJSON(res, 400, { error: 'bad lesson/task' });
+      const ix = Number(body.ix);
+      if (!Number.isInteger(ix) || ix < 0 || ix > 99) return sendJSON(res, 400, { error: 'bad ix' });
+      if (!EPLOD_TAKE_ID.test(String(body.takeId || ''))) return sendJSON(res, 400, { error: 'bad takeId' });
+      const audio = String(body.audio || '');
+      if (!/^data:audio\/[\w.+-]+(?:;[\w.=+-]+)?;base64,[A-Za-z0-9+/=]+$/.test(audio)) return sendJSON(res, 400, { error: 'audio 须为 data:audio/*;base64' });
+      if (audio.length > 11 * 1024 * 1024) return sendJSON(res, 413, { error: '录音过大' });
+      const ext = (audio.match(/^data:audio\/([\w.+-]+)/) || [])[1] || 'webm';
+      const file = `spk-${lessonId}-${taskKey}-${ix}-${body.takeId}.${ext === 'mp4' ? 'm4a' : ext}`.replace(/[^.\w-]/g, '');
+      if (!SPK_RECORDING_FILE.test(file)) return sendJSON(res, 400, { error: 'bad filename' });
+      try {
+        fs.mkdirSync(RECORDING_DIR, { recursive: true });
+        fs.writeFileSync(path.join(RECORDING_DIR, file), Buffer.from(audio.split(',')[1], 'base64'), { flag: 'wx' });
+        const prefix = file.split('-').slice(0, -2).join('-');
+        const stale = fs.readdirSync(RECORDING_DIR)
+          .filter(f => f.startsWith(prefix + '-') && f !== file)
+          .map(f => ({ f, m: fs.statSync(path.join(RECORDING_DIR, f)).mtimeMs }))
+          .sort((a, b) => a.m - b.m);
+        for (const { f } of stale.slice(0, Math.max(0, stale.length - 7))) { try { fs.unlinkSync(path.join(RECORDING_DIR, f)); } catch {} }
+      } catch (e) { return sendJSON(res, 503, { error: 'recording not persisted' }); }
+      return sendJSON(res, 200, { ok: true, take: body.takeId, url: '/media/rec/' + file });
+    }
+    if (p === '/api/speaking/coach') {
+      if (req.method !== 'POST') return sendJSON(res, 405, { error: 'method' });
+      if (!examRouteBody(req, res, readBody, sendJSON)) return;
+      const body = await readJsonBody(req, readBody);
+      const parts = String(body.lessonId || '').match(/^([a-z0-9-]+)-(\d{2})$/);
+      const lesson = parts ? spkLesson(parts[1], parts[2]) : null;
+      if (!lesson) return sendJSON(res, 400, { error: 'bad lessonId' });
+      const task = (lesson.tasks || []).find(t => t.key === body.taskKey);
+      if (!task) return sendJSON(res, 400, { error: 'bad taskKey' });
+      const ix = Number(body.ix);
+      if (!Number.isInteger(ix) || ix < 0 || ix >= (task.items || []).length) return sendJSON(res, 400, { error: 'bad ix' });
+      const stage = ['first', 'retry'].includes(body.stage) ? body.stage : 'first';
+      const st = SPK_ATTEMPTS.lessons[lesson.lessonId];
+      const entry = st?.tasks?.[task.key]?.items?.[ix]?.[stage];
+      if (!entry) return sendJSON(res, 404, { error: 'attempt not found' });
+      if (entry.coach && entry.coachAt && Date.now() - entry.coachAt < 60e3 && !body.force) {
+        return sendJSON(res, 200, { ok: true, text: entry.coach, cached: true });
+      }
+      const item = task.items[ix] || {};
+      if (!AI_CFG.key || !AI_CFG.base) return sendJSON(res, 503, { error: 'coach 未配置（缺 TFL_AI_KEY）' });
+      try {
+        const text = await spkCoach(task, item, lesson, entry, stage);
+        spkPersist(store => {
+          const e2 = store.lessons?.[lesson.lessonId]?.tasks?.[task.key]?.items?.[ix]?.[stage];
+          if (e2 && e2.at === entry.at) { e2.coach = text; e2.coachAt = Date.now(); }
+        });
+        return sendJSON(res, 200, { ok: true, text });
+      } catch (e) {
+        return sendJSON(res, 502, { error: '助教暂时不可用：' + e.message });
+      }
+    }
+    if (p === '/api/speaking/tts') {
+      if (req.method !== 'GET') return sendJSON(res, 405, { error: 'method' });
+      const text = new URL(req.url, 'http://x').searchParams.get('text') || '';
+      if (!text.trim() || text.length > 400) return sendJSON(res, 400, { error: 'text 1~400 字符' });
+      try {
+        const f = await ttsSynthToFile(text.trim());
+        return sendFile(req, res, f);
+      } catch (e) {
+        const code = /未配置/.test(e.message) ? 503 : 502;
+        return sendJSON(res, code, { error: e.message });
+      }
+    }
+
     /* ---- API: 背单词词库（只读, 一次全量, 客户端会话内缓存） ---- */
     if (p === '/api/vocab/bank') {
       if (req.method !== 'GET') return sendJSON(res, 405, { error: 'method' });
@@ -2221,7 +2445,7 @@ const handler = async (req, res) => {
     /* ---- 媒体: 用户录音回放(records 卷/recordings，兼容旧句子文件与独立 take) ---- */
     const mRecMedia = p.match(/^\/media\/rec\/(.+)$/);
     if (mRecMedia) {
-      if (!EPLOD_RECORDING_FILE.test(mRecMedia[1])) return sendJSON(res, 400, { error: 'bad recording path' });
+      if (!EPLOD_RECORDING_FILE.test(mRecMedia[1]) && !SPK_RECORDING_FILE.test(mRecMedia[1])) return sendJSON(res, 400, { error: 'bad recording path' });
       const abs = path.resolve(RECORDING_DIR, mRecMedia[1]);
       if (!abs.startsWith(RECORDING_DIR + path.sep)) return sendJSON(res, 400, { error: 'bad recording path' });
       if (!fs.existsSync(abs)) return sendJSON(res, 404, { error: 'no recording' });
