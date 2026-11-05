@@ -2656,6 +2656,12 @@ html.sb-min .cp-due-mask{padding-left:84px}
 .spk-cancel{color:#b42318;border-color:#e3bdb6}
 .spk-cancel:hover{background:#fdf3f1}
 .spk-cancel[hidden]{display:none!important}
+/* 顶部进度条：有 API 请求在飞就亮，请求回来淡出（慢网下让"正在读"可见，不挡内容） */
+#net-bar{position:fixed;top:0;left:0;right:0;height:2px;z-index:130;opacity:0;transition:opacity .22s ease;pointer-events:none;overflow:hidden}
+#net-bar.on{opacity:1}
+#net-bar::after{content:'';display:block;height:100%;width:36%;background:var(--brand,#2f6f4f);border-radius:0 2px 2px 0;animation:netrun 1.15s ease-in-out infinite}
+@keyframes netrun{0%{transform:translateX(-110%)}55%{transform:translateX(120%)}100%{transform:translateX(300%)}}
+@media(prefers-reduced-motion:reduce){#net-bar::after{animation:none;width:100%;opacity:.5}}
 .spk-sentence{font-size:16px;line-height:1.7;margin:8px 0}
 .spk-zh{color:var(--t2);font-size:13px;margin:6px 0}
 .spk-tips{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 10px}

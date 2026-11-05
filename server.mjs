@@ -1641,9 +1641,34 @@ const MIME = {
   '.mp4': 'video/mp4', '.mov': 'video/quicktime', '.webm': 'video/webm',
   '.pdf': 'application/pdf', '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
 };
+/* 传输层（2026-11-05）：慢网下的体感主要来自「没压缩 + 每次全量重下」。
+   - 文本类（html/css/js/json/svg/md）一律 gzip，压缩结果按 mtime 缓存
+   - 带 ?v= 的静态资源一年 immutable（发版时换版本号），index.html 仍 no-store
+   - GET API 带内容 ETag，未变化直接 304（学习记录 1.8MB → 0 字节重下） */
+const GZ_MIN = 1024;
+const GZ_STATIC = new Map();          // 绝对路径 -> {mtime,size,buf}，只缓存文本静态文件
+const TEXT_EXT = new Set(['.html', '.css', '.js', '.mjs', '.json', '.md', '.svg']);
+function gzAccept(req) { return /gzip/.test(String((req && req.headers['accept-encoding']) || '')); }
+function gzStaticBuf(absPath, st) {
+  const hit = GZ_STATIC.get(absPath);
+  if (hit && hit.mtime === st.mtimeMs && hit.size === st.size) return hit.buf;
+  const buf = zlib.gzipSync(fs.readFileSync(absPath), { level: 6 });
+  GZ_STATIC.set(absPath, { mtime: st.mtimeMs, size: st.size, buf });
+  if (GZ_STATIC.size > 80) GZ_STATIC.delete(GZ_STATIC.keys().next().value);
+  return buf;
+}
 function sendJSON(res, code, obj) {
-  const body = JSON.stringify(obj);
-  res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+  let body = Buffer.from(JSON.stringify(obj));
+  const etag = '"' + createHash('sha1').update(body).digest('base64url').slice(0, 20) + '"';
+  const req = res.req;
+  if (code === 200 && req && req.headers['if-none-match'] === etag) {
+    res.writeHead(304, { 'ETag': etag, 'Cache-Control': 'private, no-cache', 'Vary': 'Accept-Encoding' });
+    return res.end();
+  }
+  const h = { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'private, no-cache', 'ETag': etag, 'Vary': 'Accept-Encoding' };
+  if (gzAccept(req) && body.length >= GZ_MIN) { body = zlib.gzipSync(body); h['Content-Encoding'] = 'gzip'; }
+  h['Content-Length'] = body.length;
+  res.writeHead(code, h);
   res.end(body);
 }
 function readBody(req, limit = 20 * 1024 * 1024) {
@@ -1676,6 +1701,15 @@ function sendFile(req, res, absPath) {
     const stream = fs.createReadStream(absPath, { start, end });
     stream.on('error', () => res.destroy()); res.on('close', () => stream.destroy()); stream.pipe(res);
   } else {
+    /* 文本静态文件走 gzip（index.html 377KB → 124KB，desk.css 191KB → 47KB）。
+       压缩结果按 mtime+size 缓存，重复请求不再压缩。 */
+    const ext = path.extname(absPath).toLowerCase();
+    if (TEXT_EXT.has(ext) && st.size >= GZ_MIN && gzAccept(req)) {
+      const buf = gzStaticBuf(absPath, st);
+      res.writeHead(200, { 'Content-Type': type, 'Cache-Control': common['Cache-Control'],
+        'Content-Encoding': 'gzip', 'Vary': 'Accept-Encoding', 'Content-Length': buf.length });
+      return res.end(buf);
+    }
     res.writeHead(200, { ...common, 'Content-Length': st.size });
     const stream = fs.createReadStream(absPath); stream.on('error', () => res.destroy()); res.on('close', () => stream.destroy()); stream.pipe(res);
   }
@@ -2487,6 +2521,9 @@ const handler = async (req, res) => {
       return sendJSON(res, 400, { error: 'bad path' });
     if (fs.existsSync(abs) && fs.statSync(abs).isFile()) {
       if (rel === '/index.html') res.setHeader('Cache-Control', 'no-store');   // 入口页永远最新(css 引用带版本查询参数)
+      /* 带版本号的资源一年不动：发版时 index.html 里的 ?v= 会换，旧缓存自然失效 */
+      else if (/[?&]v=/.test(req.url) && TEXT_EXT.has(path.extname(abs).toLowerCase()))
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
       return sendFile(req, res, abs);
     }
     sendJSON(res, 404, { error: 'not found', path: p });
