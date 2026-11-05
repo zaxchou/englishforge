@@ -2503,6 +2503,18 @@ const COURSE_MODULES=[
     oneLine:true },
 ];
 const courseModule=c=>COURSE_MODULES.find(m=>m.test(c))||null;
+/* EP 课节的逐句练习账按需加载：本会话已取过的课不再取 */
+const COURSE_REC_LOADED=new Set();
+async function loadCourseRecord(lid){
+  if(!lid||COURSE_REC_LOADED.has(lid))return;
+  try{
+    const r=await api('/api/course-record/'+encodeURIComponent(lid),{signal:AbortSignal.timeout(15000)});
+    if(r&&r.lesson&&typeof r.lesson==='object'){
+      REC.course[lid]=EplodRecords.mergeLesson(REC.course[lid],r.lesson);
+      COURSE_REC_LOADED.add(lid);
+    }
+  }catch(e){}
+}
 const GQ_UI = { lessonId:null, phase:'idle', quiz:null, order:[], ix:0, answers:{}, wrong:[],
                 qAt:0, err:'', checked:false, busy:false, run:'core' };
 let GQ_REDO = null;   // 错题本「重做」带来的待重做队列 {lessonId, qids}
@@ -3563,6 +3575,15 @@ window.renderEplodMain=async function(c){
     catch(e){if(isCurrent())el.innerHTML='<div class="cs-stick ep"><div class="card" style="padding:32px;text-align:center">本期加载失败，请重新选择本课重试。</div></div>';return;}
   }
   if(!isCurrent())return;
+  /* 目录只带轻索引(覆盖章/完成标记), 逐句练习账进本期才取；取不到就按索引渲染,
+     保存合并时服务端细账仍在, 不会丢 */
+  if(!COURSE_REC_LOADED.has(l.id)){
+    try{
+      const r=await api('/api/course-record/'+encodeURIComponent(l.id),{signal:AbortSignal.timeout(15000)});
+      if(r&&r.lesson&&typeof r.lesson==='object'){REC.course[l.id]=EplodRecords.mergeLesson(REC.course[l.id],r.lesson);COURSE_REC_LOADED.add(l.id);}
+    }catch(e){}
+    if(!isCurrent())return;
+  }
   const p=REC.course[l.id]||(REC.course[l.id]={});
   if(!p.marks||typeof p.marks!=='object'||Array.isArray(p.marks))p.marks={};
   if(!p.collected||typeof p.collected!=='object'||Array.isArray(p.collected))p.collected={};

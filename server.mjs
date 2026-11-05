@@ -1468,6 +1468,22 @@ function recordsForClient() {
   for (const k of ['attemptEvents', 'vocabEvents']) {
     if (r[k] && typeof r[k] === 'object') { const idx = {}; for (const id of Object.keys(r[k])) idx[id] = 1; r[k] = idx; }
   }
+  if (r.course && typeof r.course === 'object') {
+    /* 注意不能原地改 RECORDS.course——GET 之后一旦有保存，服务端细账就被索引覆盖（真数据丢失）。
+       这里必须整份新建 course 对象。 */
+    const idxCourse = {};
+    for (const [lid, les] of Object.entries(r.course)) {
+      if (!les || typeof les !== 'object' || !les.drill || typeof les.drill !== 'object') { idxCourse[lid] = les; continue; }
+      /* EP 逐句练习账(rd/dd/sd, 每课可到 14~16KB)按需下发：进哪节课才取哪节课。
+         目录/首页/覆盖章只需要 stampDays+recoveredCover+wp.best，留在索引里。 */
+      const d = les.drill, light = { ...les, drill: {} };
+      if (d.stampDays && typeof d.stampDays === 'object') light.drill.stampDays = d.stampDays;
+      if (d.recoveredCover && typeof d.recoveredCover === 'object') light.drill.recoveredCover = d.recoveredCover;
+      if (d.wp && typeof d.wp === 'object' && d.wp.best && typeof d.wp.best === 'object') light.drill.wp = { best: d.wp.best };
+      idxCourse[lid] = light;
+    }
+    r.course = idxCourse;
+  }
   return r;
 }
 /* snapshotEvents 按插入序封顶：超过 2 万条时丢最老的 1 万条。
@@ -2155,6 +2171,15 @@ const handler = async (req, res) => {
         last: last ? examRunSummary(last) : null,
         runs: (st?.runs || []).map(examRunSummary).reverse(),
       });
+    }
+
+    /* ---- API: 单课练习账本全量（EP 目录只带轻索引, 进课即时取全量 drill） ---- */
+    const mCourseRec = p.match(/^\/api\/course-record\/([\w-]+)$/);
+    if (mCourseRec) {
+      if (req.method !== 'GET') return sendJSON(res, 405, { error: 'method' });
+      const les = RECORDS.course?.[mCourseRec[1]];
+      if (!les || typeof les !== 'object') return sendJSON(res, 404, { error: 'no record' });
+      return sendJSON(res, 200, { ok: true, lessonId: mCourseRec[1], lesson: les });
     }
 
     /* ---- API: 口语课后练(ndf-07) ---- */
