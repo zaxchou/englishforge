@@ -56,6 +56,23 @@ function chunkCuts(item) {
 function fmt2(s) { return String(Math.floor(s)).padStart(2, '0'); }
 /* 标题里常带「（点词间空隙插入 /）」这类操作说明，与下方 hint 重复；统一只留任务名。 */
 function headTitle(t) { return esc(String(t || '').replace(/（[^）]*）/g, '').trim()); }
+/* 「标断句 · 校园问路 6 句（点词间空隙插入 /）」→ 类型 + 主题。
+   句数/题数已经由右侧计数(0/6)承担，标题里再写一遍既长又重复；括号里的操作说明也由 hint 承担。 */
+function titleParts(task) {
+  const raw = String((task && task.title) || '');
+  const core = raw.replace(/（[^）]*）/g, '').trim();
+  const m = core.match(/^(.+?)\s*·\s*(.+)$/);
+  const kind = m ? m[1].trim() : '';
+  let topic = (m ? m[2] : core).trim();
+  topic = topic.replace(/\s*\d+\s*(句|组|题|条)\s*$/, '').trim();
+  return { kind, topic: topic || core };
+}
+/* 卡片头部统一：类型标签 + 主题 + 一句操作提示 */
+function headHTML(task, hint) {
+  const { kind, topic } = titleParts(task);
+  return '<div class="spk-head">' + (kind ? '<span class="spk-kind">' + esc(kind) + '</span>' : '')
+    + '<b>' + esc(topic) + '</b>' + (hint ? '<span class="spk-hint">' + esc(hint) + '</span>' : '') + '</div>';
+}
 function spkNote(msg, isErr, tag) {
   const n = document.querySelector('#spk-note');
   if (!n) return;
@@ -210,6 +227,7 @@ function saveAttempt(lessonId, taskKey, ix, stage, entry) {
   pending.push({ lessonId, taskKey, ix, stage, entry, qid: [lessonId, taskKey, ix, stage, entry.at].join('|') });
   spkSetPending(pending);
   spkFlush();
+  if (typeof window.spkNavRefresh === 'function') window.spkNavRefresh();   // 课程列表的练习进度要跟着变
 }
 
 /* ---------- 卡片渲染 ---------- */
@@ -234,9 +252,11 @@ function renderTaskList() {
     const allAttempted = doneCount === t.items.length;
     const allOk = allAttempted && states.every(x => x.ok);
     const open = SPK.cur.taskKey === t.key;
+    const parts = titleParts(t);
     return '<button class="spk-task' + (open ? ' on' : '') + '" data-ti="' + ti + '" title="' + esc(t.title) + '">'
       + '<span class="spk-task-dot ' + (allOk ? 'spk-task-dot--ok' : doneCount ? 'spk-task-dot--partial' : '') + '"></span>'
-      + '<span class="spk-task-t">' + headTitle(t.title) + '</span>'
+      + (parts.kind ? '<span class="spk-task-k">' + esc(parts.kind) + '</span>' : '')
+      + '<span class="spk-task-t">' + esc(parts.topic) + '</span>'
       + '<span class="spk-task-n">' + doneCount + '/' + t.items.length + '</span></button>';
   }).join('');
   box.querySelectorAll('.spk-task').forEach(b => { b.onclick = () => openTask(Number(b.dataset.ti)); });
@@ -286,9 +306,8 @@ function showTranscriptDiff(box, item, transcript, ev, opts) {
 /* ---------- 复述卡 / 面试卡 ---------- */
 function renderSpeakCard(host, task) {
   const d = SPK.data, isInterview = task.type === 'interview';
-  host.innerHTML = '<div class="spk-head"><b>' + headTitle(task.title) + '</b><span class="spk-hint">'
-    + (isInterview ? '无准备时间 · 每题 45 秒' : '先听后说 · 每句 ' + (task.sec || 12) + ' 秒内')
-    + ' · 参考音为合成朗读</span></div>'
+  host.innerHTML = headHTML(task, (isInterview ? '无准备时间 · 每题 45 秒' : '先听后说 · 每句 ' + (task.sec || 12) + ' 秒内')
+    + ' · 参考音为合成朗读')
     + '<div class="spk-actions"><button class="pri" id="spk-play">▶ 听' + (isInterview ? '题' : '这句') + '</button>'
     + '<button class="pri" id="spk-rec" disabled>🎙 按住说完点这里（开始录音）</button>'
     + '<button class="spk-cancel" id="spk-cancel" hidden>✕ 取消这次录音</button>'
@@ -421,7 +440,7 @@ function renderSpeakCard(host, task) {
 /* ---------- 发音卡 ---------- */
 function renderShadowCard(host, task) {
   const d = SPK.data;
-  host.innerHTML = '<div class="spk-head"><b>' + headTitle(task.title) + '</b><span class="spk-hint">看原文 → 听示范 → 录音跟读 → A/B 对照自评（记为练习，不算独立作答）</span></div>'
+  host.innerHTML = headHTML(task, '看原文 → 听示范 → 录音跟读 → A/B 对照自评（记为练习，不算独立作答）')
     + '<div id="spk-shadow"></div><div class="spk-nav"><button id="spk-prev">‹ 上一句</button><span id="spk-pos"></span><button id="spk-next">下一句 ›</button></div>';
   let ix = SPK.cur.ix;
   const box = host.querySelector('#spk-shadow'), pos = host.querySelector('#spk-pos');
@@ -496,7 +515,7 @@ function renderShadowCard(host, task) {
 function renderPickCard(host, task) {
   const d = SPK.data;
   let ix = 0, correct = 0, played = null;
-  host.innerHTML = '<div class="spk-head"><b>' + headTitle(task.title) + '</b><span class="spk-hint">听机器读一个词，点你听到的那个。机器判对错。</span></div>'
+  host.innerHTML = headHTML(task, '听机器读一个词，点你听到的那个。机器判对错。')
     + '<div id="spk-pick"></div><div class="spk-nav"><span id="spk-tally"></span></div>';
   const box = host.querySelector('#spk-pick'), tally = host.querySelector('#spk-tally');
   function paint() {
@@ -537,7 +556,7 @@ function renderChunkCard(host, task) {
   const d = SPK.data;
   const shortTitle = task.title.replace(/（[^）]*）/g, '').trim();
   let ix = SPK.cur.ix;
-  host.innerHTML = '<div class="spk-head"><b>' + headTitle(task.title) + '</b><span class="spk-hint">' + esc(task.hint || '点词间空隙标断句') + '</span></div>'
+  host.innerHTML = headHTML(task, task.hint || '点词间空隙标断句')
     + '<div id="spk-chunk"></div>';
   const box = host.querySelector('#spk-chunk');
   let cuts = new Set(), checked = false, primary = null;
@@ -614,7 +633,7 @@ function renderChunkCard(host, task) {
 function renderDictationCard(host, task) {
   const d = SPK.data;
   let ix = 0, plays = 0;
-  host.innerHTML = '<div class="spk-head"><b>' + headTitle(task.title) + '</b><span class="spk-hint">听写句子，最多听 3 遍。标点不计，单词拼写与单复数要写对。</span></div><div id="spk-dict"></div>';
+  host.innerHTML = headHTML(task, '听写句子，最多听 3 遍。标点不计，单词拼写与单复数要写对。') + '<div id="spk-dict"></div>';
   const box = host.querySelector('#spk-dict');
   function paint() {
     const item = task.items[ix]; plays = 0;
@@ -649,7 +668,7 @@ function renderDictationCard(host, task) {
 function renderClassifyCard(host, task) {
   const d = SPK.data;
   let ix = 0, correct = 0;
-  host.innerHTML = '<div class="spk-head"><b>' + headTitle(task.title) + '</b><span class="spk-hint">判断这条规则属于哪一档强制程度。</span></div><div id="spk-cl"></div>';
+  host.innerHTML = headHTML(task, '判断这条规则属于哪一档强制程度。') + '<div id="spk-cl"></div>';
   const box = host.querySelector('#spk-cl');
   function paint() {
     const item = task.items[ix];
@@ -677,7 +696,7 @@ function renderClassifyCard(host, task) {
 function renderSimplePickCard(host, task) {
   const d = SPK.data;
   let ix = 0, correct = 0;
-  host.innerHTML = '<div class="spk-head"><b>' + headTitle(task.title) + '</b><span class="spk-hint">看中文选英文。</span></div><div id="spk-p"></div>';
+  host.innerHTML = headHTML(task, '看中文选英文。') + '<div id="spk-p"></div>';
   const box = host.querySelector('#spk-p');
   function paint() {
     const item = task.items[ix];

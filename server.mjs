@@ -446,8 +446,41 @@ function spkItemState(s, taskKey, ix) {
   if (!Array.isArray(it.practice)) it.practice = [];
   return it;
 }
-function spkCoachPrompt(task, item, lesson, attempt, stage) {
-  const brief = lesson.coachBrief || {};
+/* 每节课后练进度（课程列表标记用）：total=题目总数，attempted=做过的题，ok=做对的题。
+   口径与前端一致：复述/面试看首答或重说的词准≥90%，其它题型看 result.ok。 */
+function spkSummary(course) {
+  const out = {};
+  if (!/^[a-z0-9-]+$/.test(String(course || ''))) return out;
+  let files = [];
+  try { files = fs.readdirSync(path.join(SPK_DIR, course)).filter(f => /^\d{2}\.json$/.test(f)); } catch { return out; }
+  for (const f of files) {
+    const data = spkLesson(course, f.slice(0, 2));
+    if (!data) continue;
+    const lid = data.lessonId || (course + '-' + f.slice(0, 2));
+    let total = 0, attempted = 0, ok = 0;
+    for (const t of data.tasks || []) {
+      const items = t.items || [];
+      total += items.length;
+      const ts = SPK_ATTEMPTS.lessons?.[lid]?.tasks?.[t.key]?.items || {};
+      for (let ix = 0; ix < items.length; ix++) {
+        const it = ts[ix];
+        if (!it) continue;
+        const e = it.retry || it.first;
+        if (e) {
+          attempted++;
+          const acc = e.eval && Number.isFinite(e.eval.acc) ? e.eval.acc : null;
+          if (acc == null ? true : acc >= 0.9) ok++;
+        } else if (Array.isArray(it.practice) && it.practice.length) {
+          attempted++;
+          if (it.practice.some(p => p && p.result && p.result.ok)) ok++;
+        }
+      }
+    }
+    out[lid] = { total, attempted, ok };
+  }
+  return out;
+}
+function spkCoachPrompt(task, item, lesson, attempt, stage) {  const brief = lesson.coachBrief || {};
   const lines = [
     '[本课方法] ' + (brief.method || '') + (brief.checks && brief.checks.length ? '；检查点：' + brief.checks.join('；') : ''),
     '[本任务] ' + (task.title || ''),
@@ -2100,6 +2133,11 @@ const handler = async (req, res) => {
     }
 
     /* ---- API: 口语课后练(ndf-07) ---- */
+    /* 课程列表要显示「练到第几题/练完没有」：一次给全部课节的进度，别让前端每节点一次 */
+    if (p === '/api/speaking/summary') {
+      if (req.method !== 'GET') return sendJSON(res, 405, { error: 'method' });
+      return sendJSON(res, 200, { ok: true, lessons: spkSummary(String(url.searchParams.get('course') || 'ndf-07')) });
+    }
     const mSpkLesson = p.match(/^\/api\/speaking\/lesson\/([a-z0-9-]+)$/);
     if (mSpkLesson) {
       if (req.method !== 'GET') return sendJSON(res, 405, { error: 'method' });

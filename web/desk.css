@@ -2332,6 +2332,13 @@ html.sb-min .nav-label{display:none!important}   /* 收缩侧栏只留图标 */
 .csnav .cli.vcli .cpn-t{font-size:11px;line-height:1.4;color:var(--t2);
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .csnav .cli.vcli .cpn-t.due{color:var(--acc);font-weight:600}
+/* 第二行状态标记：已看完 / 已练完 / 练 x/y（2026-11-05 用户反馈列表看不出学没学、练没练） */
+.csnav .cli.vcli .lmk{font-size:11px;line-height:1.4;color:var(--t3);white-space:nowrap}
+.csnav .cli.vcli .lmk.ok{color:#2f6f4f;font-weight:600}
+.csnav .cli.vcli .lmk.todo{color:#9a8a63}
+.csnav .cli.vcli.on .lmk{color:#cfdcc8}
+.csnav .cli.vcli.on .lmk.ok{color:#e7f0ca}
+.csnav .cli.vcli.on .lmk.todo{color:#d9cfa9}
 .csnav .cli.vcli:not(:has(.cpn)){align-items:center}
 .csnav .cli.vcli:not(:has(.cpn)) .no{grid-row:1}
 /* 课名自带章节号(1. / 2.1)的课程: 隐藏重复的序号列, 标题与状态占满整行 */
@@ -2650,6 +2657,9 @@ html.sb-min .cp-due-mask{padding-left:84px}
 .spk-task-n{color:var(--t3);font-size:12.5px;flex:none}
 .spk-cardbox{margin-top:4px;padding:16px 18px}
 .spk-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px;margin-bottom:12px}
+/* 题型标签：一列任务都是"标断句/复述/跟读"时，标题里重复的类型前缀收成小标签 */
+.spk-kind{flex:none;padding:1px 8px;border-radius:999px;border:1px solid var(--line,#e5e7eb);background:var(--soft,#f2f5f2);color:var(--t2);font-size:11.5px;letter-spacing:.02em}
+.spk-task-k{flex:none;color:var(--t3);font-size:12px;border:1px solid var(--line,#e5e7eb);border-radius:999px;padding:0 7px;line-height:1.6}
 .spk-hint{color:var(--t3);font-size:12.5px}
 .spk-actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:10px 0}
 .spk-timer{font-variant-numeric:tabular-nums;color:var(--t2)}

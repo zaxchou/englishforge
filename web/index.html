@@ -8,7 +8,7 @@
 <link rel="icon" type="image/png" sizes="96x96" href="/assets/brand/t-dot-v1/t-dot-96.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/assets/brand/t-dot-v1/t-dot-180.png">
 <title>TOEFL Lab · 托福自学练习</title>
-<link rel="stylesheet" href="desk.css?v=20261105r5">
+<link rel="stylesheet" href="desk.css?v=20261105r6">
 <style>
 /* 应用层补充样式（视觉基线在 desk.css，不改它的既有规则） */
 /* 单词与字符格保持同一行；焦点、已填、判题状态沿用研读桌配色。 */
@@ -355,7 +355,7 @@ details.ai-tsec[open] summary{margin-bottom:8px}
 <script src="eplod-records.js?v=16"></script>
 <script src="course-plan-model.js?v=20261029r8"></script>
 <script src="course-plan-ui.js?v=20261102r11"></script>
-<script src="speaking-ui.js?v=20261105r15"></script>
+<script src="speaking-ui.js?v=20261105r16"></script>
 <script>
 'use strict';
 /* ============================================================
@@ -3395,6 +3395,22 @@ function epNavListHTML(c,q){
   }
   return shown?h:'<div class="cempty">没有匹配的课程，换个关键词试试</div>';
 }
+/* 口语课后练进度(课程列表标记用): 服务端一次给全部课节 */
+let SPK_SUM=null;
+function spkNavMeta(lid){
+  const s=SPK_SUM&&SPK_SUM[lid]; if(!s||!s.total)return null;
+  const a=s.attempted||0,t=s.total;
+  if(!a)return null;   /* 没练过就不挂标签：每行都写"未练"等于没信息 */
+  
+  if(a>=t)return {text:'✓ 已练完 '+t+' 题',ok:true};
+  return {text:'练 '+a+'/'+t,ok:false};
+}
+function spkNavRefresh(){
+  return api('/api/speaking/summary?course=ndf-07')
+    .then(r=>{SPK_SUM=r.lessons||{};if(document.querySelector('#v-course.on'))renderCourseNav();})
+    .catch(()=>{});
+}
+window.spkNavRefresh=spkNavRefresh;
 function renderCourseNav(){
   updateCourseCount();
   const series=(COURSES&&COURSES.series)||[];
@@ -3450,11 +3466,19 @@ function renderCourseNav(){
       const done=REC.course[l.id]&&REC.course[l.id].done;
       const on=(csSel.c===c.id&&csSel.l===li);
       const meta=GEN_COURSES.has(c.id)?cpNavMeta(l.id):null;
-      const dots=meta?'<span class="cpd" aria-hidden="true">'+Array.from({length:Math.max(meta.target,meta.n)},(_,i)=>'<i'+(i<meta.n?' class="on"':'')+'></i>').join('')+'</span>':'';
-      /* 短名进列表, 完整原名留在悬浮说明; 序号承担"第几节+是否看完" */
-      const tip=l.title+(done?' · 视频已看完':'')+(meta?' · 课后练 '+meta.n+'/'+meta.target+' 次 · '+meta.text:'');
+      const spk=c.id==='ndf-07'?spkNavMeta(l.id):null;   /* 口语课: 练了几题/练完没有 */
+      const dots=meta?'<span class="cpd" aria-hidden="true">'+Array.from({length:Math.max(meta.target,meta.n)},(_,i)=>'<i'+(i<meta.n?' class="on"':'')+'</i>').join('')+'</span>':'';
+      /* 第二行状态: 已看完 / 课后练进度。以前只有序号换个颜色, 列表里看不出学没学、练没练 */
+      const marks=[];
+      if(done)marks.push('<span class="lmk ok">✓ 已看完</span>');
+      if(spk)marks.push('<span class="lmk'+(spk.ok?' ok':'')+'">'+esc(spk.text)+'</span>');
+      const stateHTML=(meta||marks.length)?'<span class="cpn">'+dots
+        +(meta?'<span class="cpn-t'+(meta.due?' due':'')+'">'+esc(meta.text)+'</span>':'')
+        +marks.join('')+'</span>':'';
+      /* 短名进列表, 完整原名留在悬浮说明 */
+      const tip=l.title+(done?' · 视频已看完':'')+(meta?' · 课后练 '+meta.n+'/'+meta.target+' 次 · '+meta.text:'')+(spk?' · 课后练 '+spk.text:'');
       h+=`<div class="cli vcli${done?' done':''}${on?' on':''}${noSeq?' nono':''}" data-cid="${esc(c.id)}" data-ix="${li}" title="${esc(tip)}">
-        ${noSeq?'':`<span class="no">${String(li+1).padStart(2,'0')}</span>`}<span class="lt">${esc(shortLessonTitle(l.title))}</span><span class="ld">${l.duration_sec?fmtDur(l.duration_sec):'—'}</span>${meta?`<span class="cpn">${dots}<span class="cpn-t${meta.due?' due':''}">${esc(meta.text)}</span></span>`:''}</div>`;
+        ${noSeq?'':`<span class="no">${String(li+1).padStart(2,'0')}</span>`}<span class="lt">${esc(shortLessonTitle(l.title))}</span><span class="ld">${l.duration_sec?fmtDur(l.duration_sec):'—'}</span>${stateHTML}</div>`;
     });}
   }
   const el=$('cs-nav'); el.innerHTML=h;
@@ -5860,6 +5884,7 @@ async function boot(){
       /* 只刷首页：课程页重绘会把正在做的答题卡/练习面板冲掉（后台数据不该打断手上的事） */
       if(h==='#/home'||h==='')renderHome();
     }).catch(()=>{});
+    spkNavRefresh();   /* 课程列表「学没学、练没练」标记 */
   }catch(e){
     document.body.insertAdjacentHTML('beforeend',
       `<div style="position:fixed;left:0;right:0;bottom:0;background:var(--badbg);border-top:1px solid var(--badln);padding:10px 18px;font-size:13px;color:var(--bad);z-index:99">
