@@ -337,13 +337,14 @@ function renderSpeakCard(host, task) {
     + '<div id="spk-result"></div>' + coachBoxHTML()
     + '<div class="spk-nav"><button id="spk-prev">‹ 上一句</button><span id="spk-pos"></span><button id="spk-next">下一句 ›</button></div>';
   let ix = SPK.cur.ix;
-  let attempt = null;   // {transcript, dur, ev, takeUrl}
+  let attempt = null;   // {transcript, dur, eval, takeUrl}
+  let lastPrefix = '首答已保存：';   // 结果区当前展示的前缀，重说收起/取消恢复时用
   const playBtn = host.querySelector('#spk-play'), recBtn = host.querySelector('#spk-rec');
   const cancelBtn = host.querySelector('#spk-cancel');
   const timer = host.querySelector('#spk-timer'), result = host.querySelector('#spk-result');
   const coach = host.querySelector('#spk-coach');
   const idleLabel = () => attempt
-    ? (isInterview ? '🎙 重说一次' : '🎙 重说一次（撤掉原文）')
+    ? '🎙 重说一次'
     : (isInterview ? '🎙 开始作答（45 秒）' : '🎙 听完开始录音');
   const paintPos = () => { host.querySelector('#spk-pos').textContent = (ix + 1) + ' / ' + task.items.length; };
   const loadIx = () => {
@@ -360,7 +361,8 @@ function renderSpeakCard(host, task) {
   };
   function restore(saved) {
     attempt = saved.first;
-    recBtn.textContent = '🎙 重录首答'; paintResult('已保存的首答：');
+    lastPrefix = '已保存的首答：';
+    recBtn.textContent = '🎙 重录首答'; paintResult(lastPrefix);
     if (saved.first.coach) { coach.hidden = false; coach.innerHTML = coachHTML(saved.first.coach); }
     if (saved.retry) paintRetry(saved.retry);
   }
@@ -418,7 +420,8 @@ function renderSpeakCard(host, task) {
         attempt = entry;
         const savedP = saveAttempt(d.lessonId, task.key, ix, stage, entry);
         result.innerHTML = '';
-        paintResult(stage === 'retry' ? '重说已保存：' : '首答已保存：');
+        lastPrefix = stage === 'retry' ? '重说已保存：' : '首答已保存：';
+        paintResult(lastPrefix);
         if (stage === 'retry') paintRetry(entry);
         if (uploadErr) spkNote('本次成绩已记录，但录音没存上（' + uploadErr.message + '），所以不能回听。', true, 'upload');
         await (savedP || Promise.resolve()).catch(() => {});   // 先落库再叫助教, 慢网下不再撞「attempt not found」
@@ -431,9 +434,13 @@ function renderSpeakCard(host, task) {
       }
       return;
     }
-    // 开始录音
+    // 开始录音；重说时收起原文对照（结果区只剩中文释义），凭记忆说
     spkClearNote();
     try { await startRec(); } catch (e) { spkNote(micErrText(e), true); return; }
+    if (attempt && !isInterview) {
+      result.innerHTML = '<div class="spk-zh">' + esc(item.zh || '') + '</div>'
+        + '<div class="spk-note-ok">🎙 录音中…这一遍凭记忆说，先别看原文。</div>';
+    }
     recBtn.textContent = '⏹ 结束录音';
     cancelBtn.hidden = false; cancelBtn.disabled = false;
     playBtn.disabled = true;            // 录音中不播参考音，免得录进去
@@ -451,6 +458,7 @@ function renderSpeakCard(host, task) {
     cancelBtn.disabled = true;
     await abortRec();
     timer.textContent = '';
+    if (attempt && !isInterview) { result.innerHTML = ''; paintResult(lastPrefix); }
     cancelBtn.hidden = true; cancelBtn.disabled = false;
     recBtn.disabled = false; playBtn.disabled = false; recBtn.textContent = idleLabel();
     spkNote('已取消这段录音，没有记录。', false, 'cancel');
