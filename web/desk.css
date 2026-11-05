@@ -2300,7 +2300,7 @@ html.sb-min .nav-label{display:none!important}   /* 收缩侧栏只留图标 */
    序号替代视频勾, 章点+日期压成第二行, 收紧左侧缩进与行高。
    只作用于视频课 .vcli, EnglishPod 的 #ep-list .cli 不受影响。
    ============================================================ */
-.csnav .cli.vcli{display:grid;grid-template-columns:18px minmax(0,1fr) auto;
+.csnav .cli.vcli{display:grid;grid-template-columns:18px minmax(120px,1fr) auto;
   column-gap:7px;row-gap:1px;align-items:start;min-height:0;
   padding:7px 7px 7px 5px;margin:1px 0;border:0;border-radius:7px}
 .csnav .cli.vcli:hover{background:var(--hover)}
@@ -2324,7 +2324,7 @@ html.sb-min .nav-label{display:none!important}   /* 收缩侧栏只留图标 */
 .csnav .cli.vcli .ld{grid-column:3;grid-row:1;font-size:11px;color:#5f6a5c;
   padding-top:2px;font-variant-numeric:tabular-nums}
 .csnav .cli.vcli .cpn{grid-column:2 / 4;grid-row:2;display:flex;align-items:center;
-  gap:7px;min-width:0;padding-top:1px}
+  gap:7px;min-width:0;overflow:hidden;padding-top:1px}
 .csnav .cli.vcli .cpd{display:inline-flex;align-items:center;gap:3px;flex:none}
 .csnav .cli.vcli .cpd i{width:6px;height:6px;border-radius:50%;
   border:1px solid #a9b6a4;background:transparent}
@@ -2333,7 +2333,10 @@ html.sb-min .nav-label{display:none!important}   /* 收缩侧栏只留图标 */
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .csnav .cli.vcli .cpn-t.due{color:var(--acc);font-weight:600}
 /* 第二行状态标记：已看完 / 已练完 / 练 x/y（2026-11-05 用户反馈列表看不出学没学、练没练） */
-.csnav .cli.vcli .lmk{font-size:11px;line-height:1.4;color:var(--t3);white-space:nowrap}
+.csnav .cli.vcli .lmk{font-size:11px;line-height:1.4;color:var(--t3);white-space:nowrap;
+  min-width:0;flex:0 1 auto;overflow:hidden;text-overflow:ellipsis}
+/* 词汇课这类有盖章计划的课节：已看完只在时长前打个勾，不占状态行（状态行留给复习安排） */
+.csnav .cli.vcli .ld .seen{color:#2f6f4f;font-style:normal;font-weight:700;margin-right:3px}
 .csnav .cli.vcli .lmk.ok{color:#2f6f4f;font-weight:600}
 .csnav .cli.vcli .lmk.todo{color:#9a8a63}
 .csnav .cli.vcli.on .lmk{color:#cfdcc8}
@@ -2342,7 +2345,7 @@ html.sb-min .nav-label{display:none!important}   /* 收缩侧栏只留图标 */
 .csnav .cli.vcli:not(:has(.cpn)){align-items:center}
 .csnav .cli.vcli:not(:has(.cpn)) .no{grid-row:1}
 /* 课名自带章节号(1. / 2.1)的课程: 隐藏重复的序号列, 标题与状态占满整行 */
-.csnav .cli.vcli.nono{grid-template-columns:minmax(0,1fr) auto}
+.csnav .cli.vcli.nono{grid-template-columns:minmax(120px,1fr) auto}
 .csnav .cli.vcli.nono .lt{grid-column:1}
 .csnav .cli.vcli.nono .ld{grid-column:2}
 .csnav .cli.vcli.nono .cpn{grid-column:1 / 3}

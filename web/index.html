@@ -8,7 +8,7 @@
 <link rel="icon" type="image/png" sizes="96x96" href="/assets/brand/t-dot-v1/t-dot-96.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/assets/brand/t-dot-v1/t-dot-180.png">
 <title>TOEFL Lab · 托福自学练习</title>
-<link rel="stylesheet" href="desk.css?v=20261105r6">
+<link rel="stylesheet" href="desk.css?v=20261106r1">
 <style>
 /* 应用层补充样式（视觉基线在 desk.css，不改它的既有规则） */
 /* 单词与字符格保持同一行；焦点、已填、判题状态沿用研读桌配色。 */
@@ -3467,18 +3467,21 @@ function renderCourseNav(){
       const on=(csSel.c===c.id&&csSel.l===li);
       const meta=GEN_COURSES.has(c.id)?cpNavMeta(l.id):null;
       const spk=c.id==='ndf-07'?spkNavMeta(l.id):null;   /* 口语课: 练了几题/练完没有 */
-      const dots=meta?'<span class="cpd" aria-hidden="true">'+Array.from({length:Math.max(meta.target,meta.n)},(_,i)=>'<i'+(i<meta.n?' class="on"':'')+'</i>').join('')+'</span>':'';
+      const dots=meta?'<span class="cpd" aria-hidden="true">'+Array.from({length:Math.max(meta.target,meta.n)},(_,i)=>'<i'+(i<meta.n?' class="on"':'')+'></i>').join('')+'</span>':'';
       /* 第二行状态: 已看完 / 课后练进度。以前只有序号换个颜色, 列表里看不出学没学、练没练 */
+      /* 两套样式：有盖章计划的课(词汇课)状态行已经被复习安排占满，已看完只在时长前打勾；
+         其余课(口语/视频课)状态行写「✓ 已看完 / 练 x/y」 */
       const marks=[];
-      if(done)marks.push('<span class="lmk ok">✓ 已看完</span>');
+      if(done&&!meta)marks.push('<span class="lmk ok">✓ 已看完</span>');
       if(spk)marks.push('<span class="lmk'+(spk.ok?' ok':'')+'">'+esc(spk.text)+'</span>');
+      const seenMark=(done&&meta)?'<i class="seen" title="视频已看完">✓</i>':'';
       const stateHTML=(meta||marks.length)?'<span class="cpn">'+dots
         +(meta?'<span class="cpn-t'+(meta.due?' due':'')+'">'+esc(meta.text)+'</span>':'')
         +marks.join('')+'</span>':'';
       /* 短名进列表, 完整原名留在悬浮说明 */
       const tip=l.title+(done?' · 视频已看完':'')+(meta?' · 课后练 '+meta.n+'/'+meta.target+' 次 · '+meta.text:'')+(spk?' · 课后练 '+spk.text:'');
       h+=`<div class="cli vcli${done?' done':''}${on?' on':''}${noSeq?' nono':''}" data-cid="${esc(c.id)}" data-ix="${li}" title="${esc(tip)}">
-        ${noSeq?'':`<span class="no">${String(li+1).padStart(2,'0')}</span>`}<span class="lt">${esc(shortLessonTitle(l.title))}</span><span class="ld">${l.duration_sec?fmtDur(l.duration_sec):'—'}</span>${stateHTML}</div>`;
+        ${noSeq?'':`<span class="no">${String(li+1).padStart(2,'0')}</span>`}<span class="lt">${esc(shortLessonTitle(l.title))}</span><span class="ld">${seenMark}${l.duration_sec?fmtDur(l.duration_sec):(done?'':'—')}</span>${stateHTML}</div>`;
     });}
   }
   const el=$('cs-nav'); el.innerHTML=h;
