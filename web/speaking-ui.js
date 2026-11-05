@@ -262,8 +262,19 @@ function renderTaskList() {
   }).join('');
   box.querySelectorAll('.spk-task').forEach(b => { b.onclick = () => openTask(Number(b.dataset.ti)); });
 }
+/* 助教文本里可能混进 HTML 实体（模型习惯）或已转义的旧记录，显示前先还原成字符 */
+function coachText(text) {
+  let t = String(text || '');
+  if (/&[a-zA-Z#0-9]+;/.test(t)) {
+    const el = document.createElement('textarea');
+    el.innerHTML = t;
+    t = el.value;
+  }
+  return t;
+}
 function coachHTML(text) {
-  return esc(text).split('\n').filter(Boolean).map(line => {
+  /* 只在逐行渲染时 esc 一次：外层再 esc 会把 &quot; 变成 &amp;quot;，页面显示出一串 &quot; */
+  return coachText(text).split('\n').filter(Boolean).map(line => {
     const cls = line.startsWith('✗') ? 'spk-ck-bad' : line.startsWith('✓') ? 'spk-ck-good' : '';
     return '<div class="spk-coach-line ' + cls + '">' + esc(line).replace(/^(&#10003;|&#10007;|✓|✗)/, '<b>$1</b>') + '</div>';
   }).join('');

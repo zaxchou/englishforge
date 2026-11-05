@@ -515,10 +515,15 @@ const SPK_COACH_SYS = '你是新东方托福口语课后练的中文助教，只
   + '接着每行以「✓」或「✗」开头给出 2~3 条要点，对应本课检查点里可核对的部分，✗ 最多 1 条、其余都用 ✓；'
   + '再一行以「可迁移表达：」开头给出一个本课可复用的英文表达(带一句中文说明)；'
   + '最后一行以「重说只检查：」开头点出重说时要改进的那一点。'
-  + '总长不超过 150 字。不编造学生没说的内容，不引用学生没说过的话。转写为空或明显不是英语时，直接说明未捕捉到有效语音并建议重录。';
+  + '总长不超过 150 字。引号直接用中文「」或普通引号字符，禁止输出 HTML 转义符（比如 & 符号加 quot 那种）。'
+  + '不编造学生没说的内容，不引用学生没说过的话。转写为空或明显不是英语时，直接说明未捕捉到有效语音并建议重录。';
 async function spkCoach(task, item, lesson, attempt, stage) {
   const raw = await aiGen(SPK_COACH_SYS, spkCoachPrompt(task, item, lesson, attempt, stage));
-  return String(raw || '').trim().slice(0, 900);
+  /* 模型偶尔把引号写成 HTML 实体（&quot;），落库前还原，页面上才不会显示一串 &quot; */
+  return String(raw || '').trim()
+    .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&apos;/g, "'")
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&')
+    .slice(0, 900);
 }
 function spkEvalHint(attempt, task, item) {
   /* 确定性反馈(不经 AI, 总是展示): 词准粗测 + 漏词/多词样例 */
