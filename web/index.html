@@ -5397,10 +5397,12 @@ function fePaintAnswer(host){
     +(FE.confirm?'<p class="fe-warn">还有 '+(FE.paper.total-fePickCount())+' 题未作答，未答按错计分；确定交卷？</p>':'')
     +(FE.err?'<p class="fe-err" role="alert">'+esc(FE.err)+'</p>':'')+'</div>';
   host.querySelectorAll('[data-fe-l]').forEach(b=>b.onclick=()=>fePick(b.dataset.feL));
-  $('fe-unsure').onclick=feToggleUnsure;
-  $('fe-prev').onclick=()=>{if(FE.ix>0){FE.ix--;FE.confirm=false;fePaint();}};
-  $('fe-next').onclick=()=>{if(FE.ix<FE.paper.total-1){FE.ix++;FE.confirm=false;fePaint();}};
-  $('fe-submit').onclick=()=>{FE.confirm=true;fePaint();};
+  const unsure=$('fe-unsure');if(unsure)unsure.onclick=feToggleUnsure;
+  const prev=$('fe-prev');if(prev)prev.onclick=()=>{if(FE.ix>0){FE.ix--;FE.confirm=false;fePaint();}};
+  const next=$('fe-next');if(next)next.onclick=()=>{if(FE.ix<FE.paper.total-1){FE.ix++;FE.confirm=false;fePaint();}};
+  /* 确认态会把 #fe-submit 换成 #fe-submit-now/#fe-submit-cancel：必须判空，
+     否则绑定处抛错，确认按钮拿不到点击处理，点了没反应（2026-11-05 线上复现）。 */
+  const submit=$('fe-submit');if(submit)submit.onclick=()=>{FE.confirm=true;fePaint();};
   const cancel=$('fe-submit-cancel');if(cancel)cancel.onclick=()=>{FE.confirm=false;fePaint();};
   const now=$('fe-submit-now');if(now)now.onclick=feSubmit;
 }
