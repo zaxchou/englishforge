@@ -2012,7 +2012,8 @@ body.vfull .cs-stage video.tfl{max-height:none}
   .hm-cols{grid-template-columns:minmax(0,1fr)}
   .nav-burger{display:inline-flex;align-items:center;justify-content:center;flex:none;width:42px;height:42px;min-height:42px;padding:0;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--t1);cursor:pointer}
   .nav-burger:active{transform:translateY(1px)}
-  .topin{display:flex;flex-direction:row;align-items:center;gap:10px;height:auto;min-height:56px;padding:8px 14px}
+  .topin{display:flex;flex-direction:row;align-items:center;gap:10px;height:auto;min-height:56px;padding:12px 14px}
+  .wrap{margin-top:0}   /* 顶栏上下留白由同一处 padding 控制，避免下方叠加 8px */
   .desk-brand{display:flex;align-items:center;gap:8px;flex:none}
   .brand{font-size:19px;line-height:1.2;margin:0}   /* 清除旧版堆叠顶栏留下的下外边距 */
   .brand-caption{display:none}
