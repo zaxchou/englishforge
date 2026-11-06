@@ -1077,6 +1077,7 @@ body.vfull .cs-status button:hover{background:#28392d;border-color:#4d6350}
 /* ==== T. 品牌图标接入(t-dot-v1) ==== */
 .desk-brand{display:flex;align-items:center;gap:10px}
 .brand-ico{display:block;border-radius:7px;flex-shrink:0}
+@media(max-width:700px){.brand-ico{width:24px;height:24px;border-radius:6px}}
 .brand{display:inline-flex;align-items:baseline}
 /* 折叠轨: 只留图标(文字隐藏), 图标居中 */
 /* 折叠态尺寸与字标淡出由固定图标轨统一控制。 */
@@ -2011,7 +2012,8 @@ body.vfull .cs-stage video.tfl{max-height:none}
   .hm-cols{grid-template-columns:minmax(0,1fr)}
   .nav-burger{display:inline-flex;align-items:center;justify-content:center;flex:none;width:42px;height:42px;min-height:42px;padding:0;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--t1);cursor:pointer}
   .nav-burger:active{transform:translateY(1px)}
-  .topin{display:flex;flex-direction:row;align-items:center;gap:10px;height:auto;padding:8px 14px}
+  .topin{display:flex;flex-direction:row;align-items:center;gap:10px;height:auto;min-height:56px;padding:8px 14px}
+  .desk-brand{display:flex;align-items:center;gap:8px}   /* 图标与字标同轴, 不再跟文字基线错位 */
   .brand{font-size:19px}
   .brand-caption{display:none}
   .nav-cur{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;margin-left:0;font-size:12px;color:var(--t2);white-space:nowrap}   /* 右推让位给 .cp-bell 的 margin-left:auto */
@@ -2080,7 +2082,7 @@ html.sb-min .nav-label{display:none!important}   /* 收缩侧栏只留图标 */
 .ep-stage .cs-speed{display:inline-flex;align-items:center;gap:6px;color:var(--t2);font-size:12px;white-space:nowrap}
 .ep-stage .cs-speed select{font:inherit;font-size:13px;color:var(--t1);height:32px;min-height:32px;max-width:78px;padding:0 5px;border:1px solid var(--line);border-radius:var(--rs);background:var(--card)}
 .ep-more{position:relative}
-.ep-more>summary{display:flex;align-items:center;justify-content:center;list-style:none;min-width:34px;height:34px;padding:0 8px;border:1px solid var(--line);border-radius:var(--rs);background:var(--card);color:var(--t2);font-size:14px;letter-spacing:1px;cursor:pointer}
+.ep-more>summary{display:flex;align-items:center;justify-content:center;list-style:none;width:34px;min-width:34px;height:34px;padding:0;border:1px solid var(--line);border-radius:var(--rs);background:var(--card);color:var(--t2);font-size:14px;letter-spacing:1px;cursor:pointer}
 .ep-more>summary::-webkit-details-marker{display:none}
 .ep-more[open]>summary,.ep-more:has(button.on)>summary{color:var(--acc);border-color:var(--accln);background:var(--accbg)}
 .ep-more:has(button.on)>summary::after{content:'';width:5px;height:5px;position:absolute;top:3px;right:3px;border-radius:50%;background:var(--acc)}

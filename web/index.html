@@ -8,7 +8,7 @@
 <link rel="icon" type="image/png" sizes="96x96" href="/assets/brand/t-dot-v1/t-dot-96.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/assets/brand/t-dot-v1/t-dot-180.png">
 <title>TOEFL Lab · 托福自学练习</title>
-<link rel="stylesheet" href="desk.css?v=20261106r4">
+<link rel="stylesheet" href="desk.css?v=20261106r5">
 <style>
 /* 应用层补充样式（视觉基线在 desk.css，不改它的既有规则） */
 /* 单词与字符格保持同一行；焦点、已填、判题状态沿用研读桌配色。 */
@@ -3647,7 +3647,7 @@ window.renderEplodMain=async function(c){
       +'<div class="ep-seekrow" id="ep-seekrow" hidden><button id="ep-seek-play" aria-label="播放或暂停">▶</button><span id="ep-cur">0:00</span><input id="ep-seek" type="range" min="0" max="1000" step="1" value="0" aria-label="播放进度"><span id="ep-dur">—</span><button id="ep-vol" aria-label="静音">🔊</button><button id="ep-seek-close" aria-label="收起播放进度">×</button></div>'
       +'<div class="cs-status ep-status">'
         +'<label class="cs-speed"><span>速度</span> <select id="ep-speed" aria-label="播放速度">'+[0.75,1,1.25,1.5].map(n=>'<option value="'+n+'">'+n+'×</option>').join('')+'</select></label>'
-        +'<details class="ep-more" id="ep-more"><summary aria-label="更多播放工具">•••</summary><div class="ep-more-panel">'
+        +'<details class="ep-more" id="ep-more"><summary aria-label="更多播放工具"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg></summary><div class="ep-more-panel">'
           +'<button id="ep-loop">↻ 单句循环</button><button id="ep-mask">盲听原文</button>'
           +'<button class="ep-player-toggle" id="ep-player-toggle" aria-label="展开播放进度" aria-expanded="false">播放进度</button>'
           +'<details class="ep-shortcuts"><summary>键盘快捷键 <b>?</b></summary><p>空格　播放 / 暂停<br>Z　重听　X　循环<br>← / →　上一句 / 下一句<br>C　揭示原文</p></details>'
