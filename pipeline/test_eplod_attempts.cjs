@@ -214,7 +214,7 @@ function memoryChecks() {
   const slangOfficial = 'Oh, actually, Tuesday\'s no good. Sorry \'bout that.';
   const slangTyped = 'Oh, actually, Tuesday\'s no good. Sorry about that.';
   assert.equal(E.lcsAcc(slangOfficial, slangTyped), 1, 'reported case: \'bout matches about');
-  assert.deepEqual([...E.normTokens('I\'m gonna call')], ['i\'m', 'going', 'to', 'call']);
+  assert.deepEqual([...E.normTokens('I\'m gonna call')], ['i', 'am', 'going', 'to', 'call']);
   assert.deepEqual([...E.normTokens('wanna go')], ['want', 'to', 'go']);
   assert.deepEqual([...E.normTokens("gotta run")], ['got', 'to', 'run']);
   assert.deepEqual([...E.normTokens("c'mon")], ['come', 'on']);
@@ -258,7 +258,7 @@ function memoryChecks() {
   assert.deepEqual(E.normTokens('5:58'), ['five', 'fifty', 'eight'], 'r19 time reading unchanged');
   const docOfficial = 'Hey doc. Well, I think I might need glasses. I\'m getting headaches, and I really struggle to see things that are far away. But I have always had 20/20 vision.';
   const docTyped = 'Hey doc, well I think I might need glasses. I\'m getting headache, and I really struggle to see things that are far away, but I have always had twenty twenty vision.';
-  assert.equal(E.lcsAcc(docOfficial, docTyped).toFixed(3), '0.968', '20/20 matches; only the genuine plural difference remains');
+  assert.equal(E.lcsAcc(docOfficial, docTyped), 31 / 32, '20/20 matches; only the genuine plural difference remains');
 
   // r3(2026-10-31) 语气词互通: Mmm/Hmm/Um/Uh… 全家族归一为 'hmm', 真词不受影响。
   for (const filler of ['hmm', 'hmmm', 'hm', 'mmm', 'mm', 'um', 'umm', 'uh', 'uhh', 'uhm', 'er', 'erm', 'eh', 'huh', 'aha', 'ugh', 'ah', 'mhm', 'mhmm', 'mmhmm']) {
@@ -393,6 +393,7 @@ async function endpointChecks() {
     }
     assert.equal((await fetch(base + '/media/rec/eplod-0016-2-missing-safe.webm')).status, 404);
     const records = (await json('/api/records')).body;
+    records.course['eplod-0016'] = (await json('/api/course-record/eplod-0016')).body.lesson;
     assert.equal(E.speedPassed(records.course['eplod-0016'].drill.sd[0]), true, 'Server boot persists valid legacy evidence');
     assert.equal(E.speedPassed(records.course['eplod-0016'].drill.sd[1]), false);
     const correctedRd = clone(seed.course['eplod-0016'].drill.rd);
@@ -414,7 +415,7 @@ async function endpointChecks() {
     assert.equal(saved.status, 200);
     assert.equal(saved.body.corrected, 6, 'voice/latest acc + scoringVersion + lastAcc/lastScoringVersion mirrors');
     const afterPost = (await json('/api/records')).body;
-    const fixed = afterPost.course['eplod-0001'].drill.rd[0];
+    const fixed = (await json('/api/course-record/eplod-0001')).body.lesson.drill.rd[0];
     const expectedAcc = E.scoreTokens(fifteen.text, 'i have fifty dollars', true).acc;
     assert.ok(expectedAcc < 1, 'fifteen/fifty stays a miss under strict scoring');
     assert.equal(fixed.voice.acc, expectedAcc, 'inbound voice score corrected');

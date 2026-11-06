@@ -122,6 +122,56 @@ test('contraction rescoring repairs evidenced voice/whole takes and blocks versi
   assert.equal(E.repairVoiceScores(records, () => [{text: "I see... so you're calling in sick?"}]).changed, 0);
 });
 
+test('alright and all right match without inventing missing words or hiding real extras', () => {
+  const official = "Okay... end of the first quarter... Alright, I'm gonna make a beer run.";
+  const mine = "Okay, the end of the first quarter. All right, I'm gonna make a beer run.";
+  for (const fuzzy of [false, true]) {
+    const score = E.scoreTokens(official, mine, fuzzy);
+    assert.equal(score.acc, 1);
+    assert.ok(score.marks.every(Boolean));
+    assert.deepEqual(score.extras, ['the']);
+  }
+  for (const [a, b] of [['Alright, go.', 'All right, go.'], ['All right, go.', 'Alright, go.']]) {
+    assert.equal(E.lcsAcc(a, b), 1);
+    assert.deepEqual(E.scoreTokens(a, b, true).extras, []);
+    assert.equal(E.tokenSegments(a).map(part => part.text).join(''), a);
+  }
+  assert.deepEqual(E.tokenSegments('Alright')[0], {text: 'Alright', tokens: ['all', 'right']});
+  for (const [a, b] of [['All right.', 'All wrong.'], ['Alright, make a beer run.', 'All right, make a run.'], ['All right.', 'Right.']]) {
+    assert.ok(E.lcsAccFuzzy(a, b) < 1, a + '/' + b + ' keeps real content differences');
+  }
+});
+
+test('alright rescoring upgrades evidenced version-3 results, preserves progress and rejects stale snapshots', () => {
+  const official = "Okay... end of the first quarter... Alright, I'm gonna make a beer run.";
+  const mine = "Okay, the end of the first quarter. All right, I'm gonna make a beer run.";
+  const old = whole('alright-whole', 15, mine, 14 / 15,
+    {scoringVersion: 3, per: [{i: 0, acc: 14 / 15}], extra: ['the', 'all', 'right']});
+  const spoken = row(voice('alright-voice', 12, mine, 14 / 15, {scoringVersion: 3}));
+  const records = {course: {'eplod-0033': {drill: {
+    rd: {0: spoken}, wp: {best: clone(old), latest: clone(old)}, stampDays: {'2026-11-06': [0]}
+  }}}};
+  const source = () => [{text: official}];
+  const audit = E.repairVoiceScores(records, source);
+  const drill = records.course['eplod-0033'].drill;
+  assert.equal(drill.rd[0].latest.acc, 1);
+  assert.equal(drill.rd[0].voice.acc, 1);
+  assert.equal(drill.rd[0].lastAcc, 1);
+  assert.equal(drill.rd[0].acc, 14 / 15, 'Latest text does not prove a historical best aggregate');
+  assert.equal(drill.wp.latest.acc, 1);
+  assert.equal(drill.wp.best.acc, 1);
+  assert.deepEqual(drill.wp.latest.per, [{i: 0, acc: 1}]);
+  assert.deepEqual(drill.wp.latest.extra, ['the']);
+  assert.equal(drill.wp.latest.scoringVersion, E.SCORING_VERSION);
+  assert.deepEqual(drill.stampDays, {'2026-11-06': [0]});
+  assert.ok(audit.changes.some(change => change.reason === 'normalized-whole-transcript'));
+  for (const merged of [E.mergeDrill({wp: {latest: old, best: old}}, drill), E.mergeDrill(drill, {wp: {latest: old, best: old}})]) {
+    assert.equal(merged.wp.latest.acc, 1);
+    assert.equal(merged.wp.best.acc, 1);
+  }
+  assert.equal(E.repairVoiceScores(records, source).changed, 0);
+});
+
 test('confirmed sighted compounds match hyphenated forms and preserve original feedback text', () => {
   const official = 'Sounds like you may be far-sighted. OK, then, cover your left eye and read the chart in front of you.';
   const mine = 'Sounds like you may be farsighted. Okay, then cover your left eye and read the chart in front of you';

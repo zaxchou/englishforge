@@ -2,7 +2,7 @@
   'use strict';
   const copy=x=>x===undefined?undefined:JSON.parse(JSON.stringify(x));
   const object=x=>x&&typeof x==='object'&&!Array.isArray(x);
-  const SCORING_VERSION=3;
+  const SCORING_VERSION=4;
   /* 判分归一分词(r19): 官方文本的 "5:58" 分词成 [5,58], ASR/用户输入是 [five,fifty,eight],
      形状不同会白扣分——数字 token 统一展开成读法单词; oh 与 zero 互通(两侧同变换, 只增匹配不改错配)。 */
   const NUM1={0:'zero',1:'one',2:'two',3:'three',4:'four',5:'five',6:'six',7:'seven',8:'eight',9:'nine',10:'ten',11:'eleven',12:'twelve',13:'thirteen',14:'fourteen',15:'fifteen',16:'sixteen',17:'seventeen',18:'eighteen',19:'nineteen',20:'twenty'};   /* 20 曾缺表, expandNum 兜底成 "20" 配不上 twenty(r2 2026-10-30) */
@@ -42,8 +42,8 @@
      'hmm', 两侧同变换只增匹配。白名单按整词匹配, 真词(ham/hum/mum/her)不受影响;
      oh 仍归 zero(数字读法), 不入本家族。语料实测 16 种变体全部覆盖。 */
   const FILLER=/^(h+mm*|m+hmm*|mm+|um+|uh+|uhm+|erm?|eh+|huh+|aha|ugh|ah+)$/;
-  /* 口语缩略归一: 只有明确同义的缩写展开; 裸 cause 保留其名词/动词义。 */
-  const SLANG={gonna:['going','to'],wanna:['want','to'],gotta:['got','to'],kinda:['kind','of'],sorta:['sort','of'],
+  /* 口语缩略与等价写法归一: 只有明确同义的形式展开; 裸 cause 保留其名词/动词义。 */
+  const SLANG={alright:['all','right'],gonna:['going','to'],wanna:['want','to'],gotta:['got','to'],kinda:['kind','of'],sorta:['sort','of'],
     lemme:['let','me'],gimme:['give','me'],outta:['out','of'],lotta:['lot','of'],"c'mon":['come','on'],
     "'bout":['about'],"'em":['them'],"'cause":['because'],"'til":['till'],"'till":['till'],"'tis":['it','is']};
   /* 明确同义的常见缩写两侧展开。's(is/has/所有格)、'd(had/would)有歧义, 不盲目替换。 */
