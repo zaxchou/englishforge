@@ -3058,7 +3058,7 @@ function gqConsumeRedo(lessonId) {
 }
 
 /* ---------- 背单词（万词班词库 · SM-2 间隔重复, beizitie 同参数） ---------- */
-const VB = { bank:null, order:null, cur:null, revealed:false, hint:false, loading:false, err:'' };
+const VB = { bank:null, order:null, cur:null, revealed:false, hint:false, loading:false, err:'', rootMap:{} };
 let VB_TICK=null, VB_QUEUE_T=null, VB_WAKE=null, VB_FLUSHING=false, VB_SPOKEN=null;
 const VB_QKEY='tfl-vb-queue', VB_PREFIX='tfl-vb-event:';
 const VB_ACK={}, VB_DAYS={}, VB_SEEN=new Set();
@@ -3094,6 +3094,12 @@ async function vbLoadBank(){
     vbFlushQueue();
   }catch(e){ VB.err='词库读取失败'; }
   VB.loading=false; vbRender();
+  /* 词根学习档案投影(独立请求, 失败静默 = 卡片不升级): 命中词显示词根拆解与词典入口 */
+  try{
+    const rm=await api('/api/vocab/root-map',{signal:AbortSignal.timeout(10000)});
+    VB.rootMap=rm&&rm.words?rm.words:{};
+  }catch(e){ VB.rootMap={}; }
+  if(VB.cur||document.querySelector('#v-vocab.on'))vbRender();
 }
 function vbDay(at=Date.now()){return new Date(at+8*3600000).toISOString().slice(0,10);}
 function vbPending(){
@@ -3205,9 +3211,14 @@ function vbRender(){
       + (!isEp?'<div class="vb-act"><button class="vb-hintlink" id="vb-hint">'+(VB.hint?'已提示词根（按困难评吧）':'想不起来？看词根提示')+'</button></div>':'')
       + '<div class="vb-act"><button class="pri vb-show" id="vb-show">显示答案 <span class="vb-kbd">空格</span></button></div>';
   } else {
+    const rm=VB.rootMap&&VB.rootMap[cur.k];
+    const rootLine=rm&&rm.root
+      ? '<div class="vb-root">词根 <b>'+esc(rm.root)+'</b>「'+esc(rm.rootMeaning)+'」 · '+esc(rm.clue)+(rm.node?' <a class="vb-dictlink" href="http://127.0.0.1:8036/?node='+encodeURIComponent(rm.node)+'&q='+encodeURIComponent(cur.w)+'&view=lookup" target="_blank" rel="noopener" title="本机词根词典预览">看词根联盟 ↗</a>':'')+'</div>'
+      : (isEp?'<div class="vb-root">EnglishPod 语块 · '+esc(cur.gloss)+'</div>'
+             :'<div class="vb-root">词根 '+esc(cur.root)+'（'+esc(cur.gloss)+'）</div>');
     h+='<div class="vb-def">'+esc(cur.def)+'</div>'
-      + (isEp?'<div class="vb-root">EnglishPod 语块 · '+esc(cur.gloss)+'</div>'
-             :'<div class="vb-root">词根 '+esc(cur.root)+'（'+esc(cur.gloss)+'）</div>')
+      + rootLine
+      + (rm&&rm.example?'<div class="vb-rootexample">'+esc(rm.example.en)+(rm.example.zh?'<span>'+esc(rm.example.zh)+'</span>':'')+'</div>':'')
       /* 例句与出处收进折叠(窄屏默认收起): 评分按钮不滚即达; 桌面默认展开 */
       + '<details class="vb-sen-wrap" id="vb-sen-wrap"'+(cur.sen&&matchMedia('(min-width:701px)').matches?' open':'')+'><summary>'+(cur.sen?'例句与出处':'词在课中')+'</summary>'
           + (cur.sen?'<div class="vb-sen"><p>'+esc(cur.sen)+'</p>'+(cur.senZh?'<p class="vb-senzh">'+esc(cur.senZh)+'</p>':'')+'</div>':'')

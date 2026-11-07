@@ -1283,6 +1283,10 @@ body.vfull .cs-stage video.tfl{max-height:none}
 .vb-ipa{color:var(--t2);margin-top:8px;font-size:15px}
 .vb-def{font-size:19px;color:var(--t1);margin-top:18px;line-height:1.65}
 .vb-root{margin-top:14px;font-size:14px;color:var(--acc)}
+.vb-root b{color:var(--t1)}
+.vb-dictlink{margin-left:8px;font-size:12px;white-space:nowrap}
+.vb-rootexample{margin-top:10px;font-size:13px;color:var(--t2);border-left:3px solid var(--line);padding:6px 10px;border-radius:0 8px 8px 0}
+.vb-rootexample span{display:block;color:var(--t2);opacity:.85;margin-top:3px;font-size:12px}
 .vb-act{margin-top:22px}
 .vb-hintlink{background:none;border:none;color:var(--t3);font-size:13px;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
 .vb-hintlink:hover{color:var(--t1)}

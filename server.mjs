@@ -1018,6 +1018,53 @@ async function aiExplainGen(qidStr, course, mk, no, force) {
 const VOCAB_BANK_FILE = path.join(BUILD_DIR, 'vocab', 'cfcm-words.json');
 const EPLOD_CHUNKS_FILE = path.join(BUILD_DIR, 'vocab', 'eplod-chunks.json');
 let VOCAB_BANK = null, VOCAB_INDEX = null, VOCAB_BANK_RAW = null, VOCAB_BANK_GZ = null;
+/* 词根学习档案投影（只读）: 已发布 1.1.0 学习档案 → 背单词卡片的词根拆解/记忆线索/例句 + 词典入口 */
+let ROOT_MAP = null, ROOT_MAP_RAW = null, ROOT_MAP_GZ = null, ROOT_MAP_TOKEN = null;
+const ROOT_LEARNING_DIR = path.join(BUILD_DIR, 'root-universe', 'learning');
+function rootLearningMap() {
+  if (!fs.existsSync(ROOT_LEARNING_DIR)) return null;
+  let token = '';
+  const versions = [];
+  try {
+    for (const name of fs.readdirSync(ROOT_LEARNING_DIR).sort()) {
+      const pointer = path.join(ROOT_LEARNING_DIR, name, 'current.json');
+      if (!fs.existsSync(pointer)) continue;
+      const p = JSON.parse(fs.readFileSync(pointer, 'utf8'));
+      if (p.id !== name || !/^[a-f0-9]{64}$/.test(p.version)) continue;
+      token += name + ':' + p.version + ';';
+      versions.push({ name, entry: path.join(ROOT_LEARNING_DIR, name, 'versions', p.version, 'entry.json') });
+    }
+  } catch { return ROOT_MAP; }
+  if (!versions.length) return null;
+  if (token === ROOT_MAP_TOKEN && ROOT_MAP) return ROOT_MAP;
+  const words = {}, alliances = [];
+  for (const { name, entry } of versions) {
+    let e;
+    try { e = JSON.parse(fs.readFileSync(entry, 'utf8')); } catch { continue; }
+    if (!e.alliance || e.schema_version !== '1.1.0') continue;
+    alliances.push({ id: e.alliance.id || name, title: e.alliance.title });
+    const full = new Map((e.words || []).map(w => [String(w.word || '').toLowerCase(), w]));
+    for (const aw of e.alliance.words || []) {
+      const key = String(aw.word || '').toLowerCase();
+      if (words[key]) continue;
+      const f = full.get(key) || {};
+      const root = f.root_ids && f.root_ids.length ? (e.roots || []).find(r => r.id === f.root_ids[0]) : null;
+      words[key] = {
+        root: root ? root.label : '',
+        rootMeaning: root ? root.meaning : '',
+        clue: aw.clue || f.explanation || '',
+        lesson: aw.lesson || null,
+        allianceTitle: e.alliance.title,
+        node: aw.query_id || f.query_id || aw.sense_id || null,
+        example: f.example && f.example.en ? { en: f.example.en, zh: f.example.zh || '' } : null,
+      };
+    }
+  }
+  ROOT_MAP = { ok: true, generated: new Date().toISOString(), alliances, words };
+  ROOT_MAP_TOKEN = token;
+  ROOT_MAP_RAW = null; ROOT_MAP_GZ = null;
+  return ROOT_MAP;
+}
 const vocabKey = s => String(s || '').toLowerCase().replace(/\s+/g, '');
 function vocabIndex() {
   if (!VOCAB_INDEX) {
@@ -2346,6 +2393,25 @@ const handler = async (req, res) => {
         res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
         return res.end(VOCAB_BANK_RAW);
       } catch (e) { return sendJSON(res, 500, { error: '词库读取失败: ' + e.message }); }
+    }
+
+    /* ---- API: 词根学习档案投影（只读）: 背单词卡片升级 + 词根词典入口 ---- */
+    if (p === '/api/vocab/root-map') {
+      if (req.method !== 'GET') return sendJSON(res, 405, { error: 'method' });
+      try {
+        const map = rootLearningMap();
+        if (!map) return sendJSON(res, 200, { ok: true, words: {}, alliances: [] });
+        if (!ROOT_MAP_RAW) {
+          ROOT_MAP_RAW = JSON.stringify(map);
+          ROOT_MAP_GZ = zlib.gzipSync(Buffer.from(ROOT_MAP_RAW));
+        }
+        if (String(req.headers['accept-encoding'] || '').includes('gzip')) {
+          res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Encoding': 'gzip', 'Cache-Control': 'no-store' });
+          return res.end(ROOT_MAP_GZ);
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+        return res.end(ROOT_MAP_RAW);
+      } catch (e) { return sendJSON(res, 500, { error: '词根档案读取失败: ' + e.message }); }
     }
 
     /* ---- API: 背单词判分（SM-2, 服务端唯一真源, r56 同款增量直写） ---- */
