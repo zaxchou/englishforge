@@ -8,7 +8,7 @@ function rpStore(session){
 }
 function rpCommit(change){const session=JSON.parse(JSON.stringify(RP_STATE.session));change(session);return rpStore(session);}
 async function rpLoad(lesson){
-  const request=++RP_STATE.request;RP_STATE.lesson=lesson;RP_STATE.loading=true;RP_STATE.data=null;RP_STATE.err='';rpRender();
+  const request=++RP_STATE.request;RP_STATE.lesson=lesson;RP_STATE.loading=true;RP_STATE.data=null;RP_STATE.err='';rpRender();renderGenQuiz();
   try{
     const data=await api('/api/vocab/lesson-practice?lesson='+lesson,{signal:AbortSignal.timeout(15000)});
     if(request!==RP_STATE.request||!rpCurrent(lesson))return;

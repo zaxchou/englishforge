@@ -355,7 +355,7 @@ details.ai-tsec[open] summary{margin-bottom:8px}
 <script src="eplod-records.js?v=17"></script>
 <script src="course-plan-model.js?v=20261029r8"></script>
 <script src="course-plan-ui.js?v=20261107r8"></script>
-<script src="root-practice-ui.js?v=20261107r8"></script>
+<script src="root-practice-ui.js?v=20261107r9"></script>
 <script src="speaking-ui.js?v=20261106r6"></script>
 <script>
 'use strict';
@@ -2513,8 +2513,9 @@ let GQ_REDO = null;   // 错题本「重做」带来的待重做队列 {lessonId
 let GQ_TICK = null;
 function gqActive(){
   const lesson=courseById(csSel.c)?.lessons[csSel.l],pane=$('cs-mat-practice');
-  const rootActive=csSel.c==='cfcm-01'&&RP_STATE.lesson===csSel.l+1&&RP_STATE.data&&RP_STATE.stage==='quiz';
-  return (rootActive||GQ_UI.phase==='quiz') && !!document.querySelector('#v-course.on') &&
+  const rootSelected=typeof RP_STATE!=='undefined'&&csSel.c==='cfcm-01'&&RP_STATE.lesson===csSel.l+1&&(RP_STATE.loading||RP_STATE.data);
+  const rootActive=rootSelected&&!!RP_STATE.data&&RP_STATE.stage==='quiz';
+  return (rootSelected?rootActive:GQ_UI.phase==='quiz') && !!document.querySelector('#v-course.on') &&
     !document.hidden && !document.body.classList.contains('vfull') &&
     !!pane && pane.style.display!=='none' && !!document.getElementById('gq-body') &&
     !!lesson && (rootActive||lesson.id===GQ_UI.lessonId);
@@ -2552,7 +2553,9 @@ function renderGenQuiz() {
   csVDockPaint();  // 收起条的题号随进度刷新
   const st = GQ_UI, qz = st.quiz;
   $('gq-meta').textContent = qz ? (qz.questions.length - (qz.bad || []).length + ' 题') : '';
-  const rootArchive=csSel.c==='cfcm-01'&&RP_STATE.lesson===csSel.l+1&&!!RP_STATE.data;
+  const rootLoading=typeof RP_STATE!=='undefined'&&csSel.c==='cfcm-01'&&RP_STATE.lesson===csSel.l+1&&RP_STATE.loading;
+  if(rootLoading){body.innerHTML='<p class="gq-note">正在确认本节练习…</p>';return;}
+  const rootArchive=typeof RP_STATE!=='undefined'&&csSel.c==='cfcm-01'&&RP_STATE.lesson===csSel.l+1&&!!RP_STATE.data;
   const card=body.closest('.gq-card');
   if(card){card.querySelector('.phead b').textContent=rootArchive?'原配套题 · 历史回看':(csSel.c==='cfcm-01'?'课后练 · 老师出的本节配套练习':'课后练 · 按本节教材生成');}
   if(rootArchive){

@@ -16,7 +16,10 @@ async function run(){
    if(u.pathname==='/api/ai/quiz')return route.fulfill({status:200,contentType:'application/json',body:r.method()==='GET'?' {"lessons":[],"revisions":{}}':'{"quiz":null}'});
    return route.continue();
   });
-  await page.goto(base+'/#/course/cfcm-01-02');await page.locator('.htabs [data-h="practice"]').click();
+  let releaseLoading,loadingSeen;const loadingHeld=new Promise(r=>releaseLoading=r),loadingStarted=new Promise(r=>loadingSeen=r);
+  await page.route('**/api/vocab/lesson-practice?lesson=2',async route=>{loadingSeen();await loadingHeld;await route.continue();},{times:1});
+  await page.goto(base+'/#/course/cfcm-01-02');await page.locator('.htabs [data-h="practice"]').click();await loadingStarted;
+  assert.equal(await page.locator('#gq-body button').count(),0,'old actions must be suspended until root availability is known');releaseLoading();
   await page.waitForFunction(()=>RP_STATE.data?.lesson===2&&!RP_STATE.loading);
   assert.equal(await page.evaluate(()=>RP_STATE.data.branches.reduce((n,b)=>n+b.words.length,0)),216);
   await page.locator('[data-rp-branch]').first().click();await page.locator('#rp-begin').click();

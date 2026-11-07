@@ -37,5 +37,12 @@ function setup(data,store=new Map()){
  const otherKey='tfl-rp-v2:'+other.lessonId+':'+other.version,oq=other.quiz.questions[0];
  t.store.set(otherKey,JSON.stringify({schema:2,id:'other-round',lessonId:other.lessonId,version:other.version,mode:'plan',answers:{[oq.id]:oq.answer},corrections:{},pending:[{questionId:oq.id,answer:oq.answer,phase:'main'}],wordEvents:{}}));
  t.ctx.cpRequest=async()=>({plan:{active:{answers:{[oq.id]:{letter:oq.answer,ok:true}},corrections:{}}}});await t.ctx.rpFlushSaved();assert.equal(JSON.parse(t.store.get(otherKey)).pending.length,0);
- console.log('PASS root client: storage failure, word aggregation, queue failure recovery, no duplicate grade, exact refresh resume, out-of-order lesson requests, concurrent answers during sync, first-answer reconciliation, archived free restart, background lesson retry');
+ // A legacy quiz phase cannot keep the study clock alive after root practice finishes.
+ const html=fs.readFileSync(path.join(__dirname,'../web/index.html'),'utf8');
+ t.ctx.courseById=()=>({lessons:[{id:data.lessonId}]});t.ctx.GQ_UI={phase:'quiz',lessonId:data.lessonId};t.nodes.set('cs-mat-practice',{style:{display:''}});
+ t.ctx.document={hidden:false,querySelector:()=>({}),getElementById:()=>({}),body:{classList:{contains:()=>false}}};
+ vm.runInContext(html.slice(html.indexOf('function gqActive(){'),html.indexOf('function gqStudyGate()')),t.ctx);
+ t.run('RP_STATE.stage="finish";');assert.equal(t.ctx.gqActive(),false);t.run('RP_STATE.stage="quiz";');assert.equal(t.ctx.gqActive(),true);
+ t.run('RP_STATE.loading=true;RP_STATE.data=null;');assert.equal(t.ctx.gqActive(),false);t.run('RP_STATE.loading=false;');assert.equal(t.ctx.gqActive(),true,'uncovered lessons keep the existing quiz clock');
+ console.log('PASS root client: storage failure, word aggregation, queue failure recovery, no duplicate grade, exact refresh resume, out-of-order lesson requests, concurrent answers during sync, first-answer reconciliation, archived free restart, background lesson retry, root study clock isolation');
 })().catch(e=>{console.error(e);process.exitCode=1;});
