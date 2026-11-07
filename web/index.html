@@ -2479,7 +2479,102 @@ window.csDone=function(cid,ix){
   REC.course[l.id]={...REC.course[l.id],done:turnedOn,at:Date.now()};
   recSave(); renderCourseNav(); csCompletionUI(turnedOn); // 留在本节，不重载播放器
 };
-/* ---------- 课后练（AI 按教材讲义生成, gen qid 判分入库; 2026-10-06 P1） ---------- */
+/* ---------- 词根巩固（万词课课后练新系统: 联盟分支→逐词回忆→SM-2回写; 2026-11-07） ---------- */
+const RP_STATE = { lesson:null, data:null, loading:false, branch:null, stage:'branches', qIndex:0, answers:[], questions:[] };
+function rpKey(lesson){ return 'tfl-rp-lesson:'+lesson; }
+function rpProgress(lesson){
+  try{ return JSON.parse(localStorage.getItem(rpKey(lesson))||'{}'); }catch{ return {}; }
+}
+function rpSaveProgress(lesson, prog){
+  try{ localStorage.setItem(rpKey(lesson), JSON.stringify(prog)); }catch{}
+}
+async function rpLoad(lesson){
+  if(RP_STATE.loading) return;
+  RP_STATE.loading=true; RP_STATE.lesson=lesson;
+  const body=$('rp-body'); if(!body) {RP_STATE.loading=false; return;}
+  try{
+    const d=await api('/api/vocab/lesson-practice?lesson='+lesson,{signal:AbortSignal.timeout(15000)});
+    RP_STATE.data=(d&&d.branches&&d.branches.length)?d:null;
+  }catch(e){ RP_STATE.data=null; }
+  RP_STATE.loading=false; RP_STATE.branch=null; RP_STATE.stage='branches';
+  rpRender();
+}
+function rpQuestions(branch){
+  const qs=[];
+  for(const w of branch.words){
+    const alts=branch.words.filter(x=>x.word!==w.word&&x.def!==w.def).slice(0,2).map(x=>x.def);
+    qs.push({word:w.word,kind:'辨认词义',q:`${w.word} 在本课中的意思是？`,choices:[w.def,...alts],answer:w.def,why:w.clue,node:w.node});
+    if(w.recall) qs.push({word:w.word,kind:'主动回忆',q:w.recall.prompt,input:true,answer:w.recall.answer,why:w.recall.explanation,node:w.node});
+  }
+  return qs;
+}
+function rpGrade(word, correct){
+  /* 词根巩固结果直接进 SM-2 调度: 答对=良好(3), 答错=重来(1) */
+  api('/api/vocab/grade',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({word,rating:correct?3:1,at:Date.now()})}).catch(()=>{});
+}
+function rpRender(){
+  const body=$('rp-body'); if(!body) return;
+  const meta=$('rp-meta');
+  if(RP_STATE.loading){ return; }
+  if(!RP_STATE.data){ body.innerHTML='<p class="gq-note">本节词根联盟尚未收录，先做下面的课后练。</p>'; if(meta)meta.textContent=''; return; }
+  const d=RP_STATE.data, prog=rpProgress(RP_STATE.lesson);
+  const totalWords=d.branches.reduce((s,b)=>s+b.words.length,0);
+  if(meta) meta.textContent=d.branches.length+' 分支 · '+totalWords+' 词';
+  if(RP_STATE.stage==='branches'){
+    body.innerHTML='<div class="rp-branches">'+d.branches.map(b=>{
+      const done=prog[b.id]&&prog[b.id].done;
+      return `<button class="rp-branch ${done?'done':''}" data-rp-branch="${esc(b.id)}"><b>${esc(b.title)}</b><span>${b.words.length} 词${done?' · 已巩固':''}</span></button>`;
+    }).join('')+'</div><p class="gq-note">每支：先看构词讲解，再遮住解释回忆。回答直接进背单词的复习排期。</p>';
+    body.querySelectorAll('[data-rp-branch]').forEach(btn=>btn.onclick=()=>{
+      RP_STATE.branch=d.branches.find(b=>b.id===btn.dataset.rpBranch);
+      RP_STATE.stage='read'; RP_STATE.qIndex=0; RP_STATE.answers=[];
+      rpRender();
+    });
+    return;
+  }
+  const card=RP_STATE.branch;
+  if(RP_STATE.stage==='read'){
+    body.innerHTML=`<div class="rp-head"><button class="rp-back" id="rp-back">← 选其他分支</button><b>${esc(card.title)}</b></div>`
+      +'<div class="rp-lessonwords">'+card.words.map(w=>`<article class="rp-word"><div><b>${esc(w.word)}</b><span>${esc(w.def)}</span></div><p>${esc(w.explanation||w.clue)}</p>${w.example?`<p class="rp-example">${esc(w.example.en)}</p><small>${esc(w.example.zh)}</small>`:''}</article>`).join('')+'</div>'
+      +'<div class="rp-actions"><span class="gq-note">看懂后遮住解释回忆</span><button class="pri" id="rp-begin">开始逐词回忆 →</button></div>';
+    $('rp-back').onclick=()=>{RP_STATE.stage='branches';rpRender();};
+    $('rp-begin').onclick=()=>{RP_STATE.stage='quiz';RP_STATE.questions=rpQuestions(card);RP_STATE.qIndex=0;RP_STATE.answers=[];rpRender();};
+    return;
+  }
+  const qs=RP_STATE.questions;
+  if(RP_STATE.qIndex>=qs.length){
+    const good=RP_STATE.answers.filter((v,i)=>qs[i].input?v&&v.trim().toLowerCase()===qs[i].answer.toLowerCase():v===qs[i].answer).length;
+    const prog=rpProgress(RP_STATE.lesson);
+    prog[card.id]={done:true,good,total:qs.length,at:Date.now()};
+    rpSaveProgress(RP_STATE.lesson,prog);
+    const next=d.branches.find(b=>b.id===card.id&&false)||null;
+    const idx=d.branches.indexOf(card), nextB=d.branches[idx+1];
+    body.innerHTML=`<div class="rp-head"><button class="rp-back" id="rp-back">← 选其他分支</button><b>${esc(card.title)} · 完成</b></div>`
+      +'<div class="card" style="padding:24px;text-align:center"><h3 style="margin:0 0 8px">本分支已巩固 ✓</h3>'
+      +`<p class="gq-note">${card.words.length} 词 · ${qs.length} 题 · 首次答对 ${good} 题。每次回答已按对错写入背单词复习排期。</p>`
+      +(nextB?`<button class="pri" id="rp-next">下一支：${esc(nextB.title)} →</button>`:'')
+      +' <button id="rp-done">回分支列表</button></div>';
+    $('rp-back').onclick=()=>{RP_STATE.stage='branches';rpRender();};
+    $('rp-done').onclick=()=>{RP_STATE.stage='branches';rpRender();};
+    if(nextB)$('rp-next').onclick=()=>{RP_STATE.branch=nextB;RP_STATE.stage='read';RP_STATE.qIndex=0;RP_STATE.answers=[];rpRender();};
+    return;
+  }
+  const q=qs[RP_STATE.qIndex], sel=RP_STATE.answers[RP_STATE.qIndex], judged=sel!==undefined;
+  const correct=judged&&(q.input?sel.trim().toLowerCase()===q.answer.toLowerCase():sel===q.answer);
+  body.innerHTML=`<div class="rp-head"><button class="rp-back" id="rp-back">← 选其他分支</button><span>${esc(card.title)} · ${RP_STATE.qIndex+1} / ${qs.length}</span></div>`
+    +'<div class="gq-q"><div class="gq-type">'+esc(q.kind)+'</div><h4>'+esc(q.q)+'</h4></div>'
+    +(q.input?`<div class="rp-recall"><input id="rp-answer" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="输入英文单词" value="${esc(sel||'')}" ${judged?'disabled':''}><button class="pri" id="rp-check" ${judged?'disabled':''}>检查</button></div>`
+      :'<div class="rp-choices">'+q.choices.map((c,i)=>`<button class="rp-choice ${judged&&c===q.answer?'correct':''} ${judged&&c===sel&&!correct?'wrong':''}" data-rp-c="${esc(c)}" ${judged?'disabled':''}><span class="rp-letter">${'ABC'[i]}</span>${esc(c)}</button>`).join('')+'</div>')
+    +(judged?`<div class="gq-explain ${correct?'':'wrong'}"><b>${correct?'答对了':'正确答案：'+esc(q.answer)}</b><p>${esc(q.why)}</p></div>`:'')
+    +'<div class="rp-actions"><span></span><button class="pri" id="rp-nextq" '+(judged?'':'disabled')+'>'+(RP_STATE.qIndex===qs.length-1?'完成本支':'下一题 →')+'</button></div>';
+  $('rp-back').onclick=()=>{RP_STATE.stage='branches';rpRender();};
+  body.querySelectorAll('[data-rp-c]').forEach(b=>b.onclick=()=>{if(RP_STATE.answers[RP_STATE.qIndex]===undefined){RP_STATE.answers[RP_STATE.qIndex]=b.dataset.rpC;rpGrade(q.word,b.dataset.rpC===q.answer);rpRender();}});
+  const input=$('rp-answer');
+  if(input)$('rp-check').onclick=()=>{const v=input.value.trim();if(v){RP_STATE.answers[RP_STATE.qIndex]=v;rpGrade(q.word,v.toLowerCase()===q.answer.toLowerCase());rpRender();}};
+  if(input&&!judged)input.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();$('rp-check').click();}};
+  $('rp-nextq').onclick=()=>{RP_STATE.qIndex++;rpRender();};
+}
+
 let GQ_COMPLETION_REVISIONS={}, GQ_REVISIONS={};
 function gqCompleted(lid,ext=false){const r=REC.course['gq:'+lid];return !!(ext?r?.extDone:r?.done)&&(ext?r.extT||0:r.t||0)>=(GQ_COMPLETION_REVISIONS[lid]?.[ext?'ext':'core']||0);}
 const GEN_COURSE = 'ndf-01';   // AI 生成链路的课程; 课后练入口见 GEN_COURSES
@@ -2980,6 +3075,7 @@ function csSelectTab(name){
   if(name!=='practice')csQuizFocus(false);   // 离开练习 tab: 视频恢复
   const l=courseById(csSel.c)?.lessons[csSel.l];
   if(l&&REC.course[l.id]?.tab!==name){REC.course[l.id]={...REC.course[l.id],tab:name,at:Date.now()};recSave();}
+  if(name==='practice'&&csSel.c==='cfcm-01'&&l){const n=csSel.l+1;if(n!==RP_STATE.lesson||!RP_STATE.data&&!RP_STATE.loading)rpLoad(n);}
   gqStudyGate();
 }
 function gqBindTabs(){
@@ -5016,6 +5112,9 @@ function renderCourseMain(){
       <div id="cs-mat-practice" style="display:none">    ${cur&&cur.practice?`<div class="cs-act"><div class="l"><span class="k">看完练</span><b>${esc(cur.practice.label)}</b>
       <span class="why">${esc(cur.why||'')}</span></div>
       <button class="pri" id="cs-goquiz">练这组 →</button></div>`:''}
+    ${c.id==='cfcm-01'?`<div class="card gq-card rp-card" style="margin-top:16px">
+      <div class="phead"><div class="l"><b>词根巩固 · 看完就串一组记</b></div><div class="r" id="rp-meta"></div></div>
+      <div id="rp-body"><p class="gq-note">正在读取本节词根联盟…</p></div></div>`:''}
     ${GEN_COURSES.has(c.id)?`<div class="card gq-card" style="margin-top:16px">
       <div class="phead"><div class="l"><b>${c.id==='cfcm-01'?'课后练 · 老师出的本节配套练习':'课后练 · 按本节教材生成'}</b></div><div class="r" id="gq-meta"></div></div>
       <div id="gq-body"></div></div>`:''}

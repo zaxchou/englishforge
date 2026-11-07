@@ -1021,7 +1021,7 @@ let VOCAB_BANK = null, VOCAB_INDEX = null, VOCAB_BANK_RAW = null, VOCAB_BANK_GZ 
 /* 词根学习档案投影（只读）: 已发布 1.1.0 学习档案 → 背单词卡片的词根拆解/记忆线索/例句 + 词典入口 */
 let ROOT_MAP = null, ROOT_MAP_RAW = null, ROOT_MAP_GZ = null, ROOT_MAP_TOKEN = null;
 const ROOT_LEARNING_DIR = path.join(BUILD_DIR, 'root-universe', 'learning');
-function rootLearningMap() {
+function rootLearningEntries() {
   if (!fs.existsSync(ROOT_LEARNING_DIR)) return null;
   let token = '';
   const versions = [];
@@ -1032,16 +1032,22 @@ function rootLearningMap() {
       const p = JSON.parse(fs.readFileSync(pointer, 'utf8'));
       if (p.id !== name || !/^[a-f0-9]{64}$/.test(p.version)) continue;
       token += name + ':' + p.version + ';';
-      versions.push({ name, entry: path.join(ROOT_LEARNING_DIR, name, 'versions', p.version, 'entry.json') });
+      let e;
+      try { e = JSON.parse(fs.readFileSync(path.join(ROOT_LEARNING_DIR, name, 'versions', p.version, 'entry.json'), 'utf8')); } catch { continue; }
+      if (!e.alliance || e.schema_version !== '1.1.0') continue;
+      versions.push({ name, entry: e });
     }
-  } catch { return ROOT_MAP; }
+  } catch { return null; }
   if (!versions.length) return null;
+  return { token, versions };
+}
+function rootLearningMap() {
+  const data = rootLearningEntries();
+  if (!data) return null;
+  const { token, versions } = data;
   if (token === ROOT_MAP_TOKEN && ROOT_MAP) return ROOT_MAP;
   const words = {}, alliances = [];
-  for (const { name, entry } of versions) {
-    let e;
-    try { e = JSON.parse(fs.readFileSync(entry, 'utf8')); } catch { continue; }
-    if (!e.alliance || e.schema_version !== '1.1.0') continue;
+  for (const { name, entry: e } of versions) {
     alliances.push({ id: e.alliance.id || name, title: e.alliance.title });
     const full = new Map((e.words || []).map(w => [String(w.word || '').toLowerCase(), w]));
     for (const aw of e.alliance.words || []) {
@@ -1064,6 +1070,43 @@ function rootLearningMap() {
   ROOT_MAP_TOKEN = token;
   ROOT_MAP_RAW = null; ROOT_MAP_GZ = null;
   return ROOT_MAP;
+}
+/* 万词课课后巩固: 某课联盟的分支+逐词讲解/回忆题（只读投影, 与 root-map 同缓存 token） */
+let LESSON_PRACTICE_TOKEN = null, LESSON_PRACTICE = null;
+function lessonPractice(lesson) {
+  const n = Number(lesson);
+  if (!Number.isInteger(n) || n < 1 || n > 36) return null;
+  const data = rootLearningEntries();
+  if (!data) return null;
+  if (data.token !== LESSON_PRACTICE_TOKEN) { LESSON_PRACTICE = new Map(); LESSON_PRACTICE_TOKEN = data.token; }
+  if (LESSON_PRACTICE.has(n)) return LESSON_PRACTICE.get(n);
+  let result = null;
+  for (const { name, entry: e } of data.versions) {
+    const lessonWords = (e.alliance.words || []).filter(w => w.lesson === n);
+    if (!lessonWords.length) continue;
+    const full = new Map((e.words || []).map(w => [String(w.word || '').toLowerCase(), w]));
+    const byId = new Map(lessonWords.map(w => [String(w.id), w]));
+    const branches = (e.alliance.branches || [])
+      .map(b => ({
+        id: b.id, title: b.title, idea: b.idea,
+        words: (b.word_ids || []).map(id => byId.get(id)).filter(Boolean).map(aw => {
+          const f = full.get(String(aw.word || '').toLowerCase()) || {};
+          return {
+            word: aw.word, def: f.meaning || '', clue: aw.clue || f.explanation || '',
+            explanation: f.explanation || '', example: f.example && f.example.en ? { en: f.example.en, zh: f.example.zh || '' } : null,
+            recall: f.recall && f.recall.prompt ? { prompt: f.recall.prompt, answer: f.recall.answer, explanation: f.recall.explanation || '' } : null,
+            node: aw.query_id || f.query_id || aw.sense_id || null,
+            allianceTitle: e.alliance.title,
+          };
+        }),
+      }))
+      .filter(b => b.words.length);
+    if (!branches.length) continue;
+    result = { ok: true, lesson: n, title: e.alliance.title, branches };
+    break;
+  }
+  LESSON_PRACTICE.set(n, result);
+  return result;
 }
 const vocabKey = s => String(s || '').toLowerCase().replace(/\s+/g, '');
 function vocabIndex() {
@@ -2412,6 +2455,17 @@ const handler = async (req, res) => {
         res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
         return res.end(ROOT_MAP_RAW);
       } catch (e) { return sendJSON(res, 500, { error: '词根档案读取失败: ' + e.message }); }
+    }
+
+    /* ---- API: 万词课课后巩固（某课联盟分支+逐词回忆, 只读） ---- */
+    if (p === '/api/vocab/lesson-practice') {
+      if (req.method !== 'GET') return sendJSON(res, 405, { error: 'method' });
+      const q = new URL(req.url, 'http://x').searchParams;
+      const lesson = Number(q.get('lesson'));
+      try {
+        const data = lessonPractice(lesson);
+        return sendJSON(res, 200, data || { ok: true, lesson, title: null, branches: [] });
+      } catch (e) { return sendJSON(res, 500, { error: '课后巩固读取失败: ' + e.message }); }
     }
 
     /* ---- API: 背单词判分（SM-2, 服务端唯一真源, r56 同款增量直写） ---- */
