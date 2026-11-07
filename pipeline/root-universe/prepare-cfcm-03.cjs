@@ -3,7 +3,8 @@
 const fs=require('node:fs');
 const ws=require('../../root-universe/workspace.cjs');
 const kit=require('./validate-kit.cjs');
-const scopePath='build/qa/root-universe/review-20261107/cfcm-03-classroom-scope.json';
+const {englishEtymology}=require('./source-english.cjs');
+const scopePath='build/qa/root-universe/review-20261107/cfcm-03-classroom-scope-corrected.json';
 const scopeRaw=fs.readFileSync(kit.safeFile(ws.PROJECT,scopePath));
 const courseRaw=fs.readFileSync(kit.safeFile(ws.PROJECT,'build/vocab/cfcm-words.json'));
 const course=JSON.parse(courseRaw),courseIndex=new Map();
@@ -18,16 +19,13 @@ function addSource(title){
  const snapshot=c.path.replace('build/root-universe/','');
  const bytes=ws.bytes(ws.ROOT,snapshot),rev=JSON.parse(bytes).query.pages[0].revisions[0];
  const text=rev.slots.main.content;
- const en=text.indexOf('==English==');if(en<0)throw Error('NO_ENGLISH '+title);
- const ety=text.indexOf('===Etymology',en);if(ety<0)throw Error('NO_ETY '+title);
- const headLen=text.indexOf('\n',ety)+1;
- const excerpt=text.slice(headLen,headLen+220).replace(/[\s]+$/,'');
+ const excerpt=englishEtymology(text,title);
  if(!text.includes(excerpt))throw Error('EXCERPT_BUILD '+title);
  const id='E'+title;
  sources.push({id,entry:title,snapshot,snapshot_sha256:kit.sha(bytes),revision:rev.revid,url:'https://en.wiktionary.org/w/index.php?title='+encodeURIComponent(title)+'&oldid='+rev.revid,excerpt,excerpt_sha256:kit.sha(Buffer.from(excerpt)),license:'CC-BY-SA-4.0',attribution:'English Wiktionary contributors',retrieved_at:c.retrieved_at});
  return id;
 }
-for(const t of ['base','abyss','line','psyche','social','chemistry','bio','hair','horror','meter','life','wild'])addSource(t);
+for(const t of ['base','abyss','line','psyche','social','chemistry','bio-','hair','horror','meter','life','wild'])addSource(t);
 const S=(...t)=>t.map(addSource);
 const roots=[
  {id:'Rbase',label:'basis「基础」',meaning:'基础；底',origin:'拉丁 basis ← 希腊 βάσις「步、底座」（同词源 basis）',forms_note:'base/bass（低音）是 doublet；abase/debase 走「压低」义。',source_ids:S('base')},
@@ -35,7 +33,7 @@ const roots=[
  {id:'Rpsycho',label:'psychē「灵魂」',meaning:'灵魂；心智',origin:'希腊 ψυχή「灵魂、气息」→ psyche/psychology/psychiatry 等',forms_note:'psych- 词族庞大；somatic（身体的）、therapy（照护）等是同组希腊词但非 psych 根。',source_ids:S('psyche')},
  {id:'Rsoci',label:'socius「同伴」',meaning:'同伴；联合',origin:'拉丁 socius「同伴、伙伴」← sequor「跟随」→ social/society/associate',forms_note:'associate 本义「结为同伴」；sociology=社会+学。',source_ids:S('social')},
  {id:'Rchem',label:'chēmeia「炼金术」',meaning:'化学；炼金',origin:'chemist ← 拉丁 alchimista ← 阿拉伯 اَلْكِيمِيَاء ← 希腊 χυμεία「合金术/液体」← χέω「倒、灌」',forms_note:'al- 是阿拉伯语定冠词（alchemy 保留）；chemistry 是 chemist 的派生。',source_ids:S('chemistry')},
- {id:'Rbio',label:'bios「生命」',meaning:'生命；生物',origin:'希腊 βίος「生命」→ biology/biochemistry/antibiotic 等',forms_note:'aerobic=空气+生命（需氧）、amphibian=两（种）生命、symbiosis=共同生活；bio 单词是 biology 的截缩。',source_ids:S('bio')},
+ {id:'Rbio',label:'bios「生命」',meaning:'生命；生物',origin:'希腊 βίος「生命」→ biology/biochemistry/antibiotic 等',forms_note:'aerobic=空气+生命（需氧）、amphibian=两（种）生命、symbiosis=共同生活；bio 单词是 biology 的截缩。',source_ids:S('bio-')},
  {id:'Rhair',label:'hair「头发」',meaning:'头发；毛',origin:'古英语 hǣr「头发」← 日耳曼 *hērą ← 印欧 *ḱes-「刮、梳」',forms_note:'hair 组的「可怕」义走拉丁 horrēre（B8 第二根）——「毛竖起」意象连接两组，但 hair 与 horror 词源不同根。',source_ids:S('hair')},
  {id:'Rhorrere',label:'horrēre「毛竖」',meaning:'毛骨悚然；可怕',origin:'拉丁 horrere「（毛发因恐惧）竖起」→ horror/horrible/abhor',forms_note:'ab-「离开」+ horrēre → 令人发毛 → 憎恶；与 hair（日耳曼）不同根。',source_ids:S('horror')},
  {id:'Rmetron',label:'métron「测量」',meaning:'测量；尺度',origin:'希腊 métron「量具、尺度」（印欧 *mē-「量」）→ -meter 仪表词族/metric/geometry',forms_note:'meter 本词是日耳曼 metan「量」+受希腊 -meter 影响的拼法；拉丁 mensura（measure）与希腊 metron 同出印欧 *mē-，是远缘同源。',source_ids:S('meter')},
@@ -297,11 +295,15 @@ const table=[
   ['olive',null,'课堂对照：拉丁 olīva「橄榄」，与 life 无关'],
   ['oil',null,'课堂对照：拉丁 oleum「油」，与 life 无关'],
  ]],
- ['B10',null,'野 · wild 词族（4）',[
+ ['B10',null,'野 · wild 词族（9，wildlife另见life组）',[
   ['wild','Rwild','wilde「野的」（印欧 *h₂welh₁-「毛发蓬乱」）→ 野的；狂热的'],
   ['wilderness','Rwild','wild + deor「野兽」+ -ness → 荒野'],
   ['wildfire','Rwild','wild + fire → 野火；燎原之势'],
   ['wildflower','Rwild','wild + flower → 野花'],
+  ['wildly','Rwild','wild + -ly → 狂乱地；极其'],
+  ['bewildered','Rwild','bewilder + -ed → 困惑的；迷失方向的'],
+  ['bewildering','Rwild','bewilder + -ing → 令人困惑的'],
+  ['bewilderment','Rwild','bewilder + -ment → 困惑；茫然'],
  ]]
 ];
 const branchDefs=[],wordRows=[],seen=new Set(),wordBranch=new Map();
@@ -338,12 +340,12 @@ for(const w of wordRows){
 const allianceWords=words.map(w=>({id:w.id,word:w.word,lesson:w.lesson,branch:wordBranch.get(w.word),clue:w.explanation,source_ids:w.source_ids,query_id:w.query_id,sense_id:null}));
 const entry={schema_version:'1.1.0',id:'cfcm-03',author:'sess_ab049c26-65ea-48d2-a1b1-ef228119425e / main / learning-template-author',
  roots,words,sources,
- changes:'第3课10课堂组238词：11根身份（basis/line/psychē/socius/chēmeia/bios/hair/horrēre/métron/līf/wild）。hair与horror异根教学对照（毛竖意象）；meter本词为日耳曼metan；measure族与meter同印欧*mē-标cognate；somatic/chrome/therapy/deliver/livid/olive等课堂对照词标classroom。three-dimensiona（讲义换行截断形）与 larger-than-life（跨组词、课程表无此条目）不入档；wild 组讲义标题印刷 9 个而词行仅 4 个，差异5个未见对应词行，按实际词行收录。例句来自课程词表。',
+ changes:'第3课10课堂组242词：11根身份（basis/line/psychē/socius/chēmeia/bios/hair/horrēre/métron/līf/wild）。hair与horror异根教学对照（毛竖意象）；meter本词为日耳曼metan；measure族与meter同印欧*mē-标cognate；somatic/chrome/therapy/deliver/livid/olive等课堂对照词标classroom。three-dimensiona（讲义换行截断形）与 larger-than-life（跨组词、课程表无此条目）不入档；wild 组按印刷30—31页跨文件续接9词，wildlife在life组保留一次；补入wildly/bewildered/bewildering/bewilderment。例句来自课程词表。',
  alliance:{
   title:'第3课词根联盟',course_file:'build/vocab/cfcm-words.json',course_sha256:kit.sha(courseRaw),
-  coverage_note:`第3课 10 个课堂组、238 个词，11 个根身份（hair 与 horror 异根对照、measure 与 meter 远缘同源、21 个课堂对照词已标明）。`,
+  coverage_note:`第3课 10 个课堂组、242 个词，11 个根身份（hair 与 horror 异根对照、measure 与 meter 远缘同源、21 个课堂对照词已标明）。`,
   branches:branchDefs,words:allianceWords,excluded:[],
-  scope:{file:scopePath,sha256:kit.sha(scopeRaw),occurrences:242}
+  scope:{file:scopePath,sha256:kit.sha(scopeRaw),occurrences:247}
  }
 };
 const out=Buffer.from(JSON.stringify(entry,null,2)+'\n');

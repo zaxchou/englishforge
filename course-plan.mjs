@@ -48,7 +48,7 @@ function publicActive(round) {
   if (!round) return null;
   const p = phase(round), corrections = correctionOrder(round);
   return { id: round.id, phase: p, order: [...round.order], answers: clone(round.answers), correctionOrder: corrections,
-    corrections: clone(round.corrections), step: p === 'main' ? round.order.find(id => !Object.hasOwn(round.answers, id)) :
+    version: round.version, corrections: clone(round.corrections), step: p === 'main' ? round.order.find(id => !Object.hasOwn(round.answers, id)) :
       p === 'correction' ? corrections.find(id => !Object.hasOwn(round.corrections, id)) : null };
 }
 export function publicPlan(root, lid, now) {
@@ -83,7 +83,10 @@ export function ensurePlans(records, quizzes, now, id = randomUUID) {
       }
     }
     if (p.stamps.length >= root.settings.target) p.active = null;
-    else if (p.active && p.active.version !== version(quiz)) p.active = newRound(quiz, now, id);
+    else if (p.active && p.active.version !== version(quiz)) {
+      p.archivedRounds ||= []; p.archivedRounds.push(p.active);
+      p.active = newRound(quiz, now, id);
+    }
   }
   return available.map(([lid]) => lid);
 }
@@ -134,6 +137,7 @@ export function finishPlan(records, quizzes, input, now) {
   if (p.stamps.length >= root.settings.target) fail('course plan complete', 'plan_complete');
   const stamp = { id: input.roundId, at: now, historical: false, right: p.active.order.filter(id => p.active.answers[id].ok).length,
     total: p.active.order.length, rating: input.rating };
+  if (quizzes[input.lessonId].src === 'root') { p.archivedRounds ||= []; p.archivedRounds.push({ ...p.active, finishedAt: now }); }
   p.stamps.push(stamp); p.active = null;
   p.due = now + interval(root.settings, stamp, p.stamps.length) * Model.DAY;
   return { plan: publicPlan(root, input.lessonId, now), settings: clone(root.settings) };
@@ -175,23 +179,25 @@ export function applyPlanAttempt(records, quizzes, inc, now) {
   if (p.active.version !== version(quiz)) fail('question version changed', 'question_version_changed');
   const q = Model.coreQuestions(quiz).find(q => q.id === parsed.id);
   if (!q || !p.active.order.includes(q.id)) fail('question not in current core round', 'question_version_changed');
-  if (typeof inc.answer !== 'string' || !Object.hasOwn(q.options, inc.answer)) fail('answer must be an option letter', 'invalid_answer');
+  if (typeof inc.answer !== 'string' || inc.answer.length > 200 || !inc.answer.trim() ||
+      (!(quiz.src === 'root' && q.kind === 'recall') && !Object.hasOwn(q.options, inc.answer))) fail('invalid answer', 'invalid_answer', 400);
   const r = p.active, dest = inc.planPhase === 'main' ? r.answers : r.corrections;
   // Different devices may answer the same item: the first accepted answer in each phase wins.
   if (!Object.hasOwn(dest, q.id)) {
     if (phase(r) !== inc.planPhase || (inc.planPhase === 'correction' && !correctionOrder(r).includes(q.id))) fail('answer phase mismatch', 'phase_mismatch');
-    dest[q.id] = { letter: inc.answer, ok: inc.answer === q.answer, unsure: inc.unsure === true };
+    const ok = quiz.src === 'root' && q.kind === 'recall' ? inc.answer.trim().toLowerCase() === q.answer.toLowerCase() : inc.answer === q.answer;
+    dest[q.id] = { letter: inc.answer, ok, unsure: inc.unsure === true };
   }
   return publicPlan(root, parsed.lessonId, now);
 }
 export function createCoursePlanHandler(o) {
   function commit(next) {
-    if (JSON.stringify(next.coursePlan) === JSON.stringify(o.records().coursePlan)) return;
+    if (JSON.stringify(next.coursePlan) === JSON.stringify(o.records().coursePlan) && JSON.stringify(next.vocabEvents) === JSON.stringify(o.records().vocabEvents)) return;
     next.revision = (o.records().revision || 0) + 1; next.saved_at = new Date(o.now()).toISOString();
     o.save(next); o.setRecords(next);
   }
   return { async handle(req, res, p, readBody, sendJSON) {
-    if (p !== '/api/course-plan' && !['/api/course-plan/start', '/api/course-plan/finish', '/api/course-plan/settings'].includes(p)) return false;
+    if (p !== '/api/course-plan' && !['/api/course-plan/start', '/api/course-plan/finish', '/api/course-plan/settings', '/api/course-plan/root-answer'].includes(p)) return false;
     if (req.method !== (p === '/api/course-plan' ? 'GET' : 'POST')) { sendJSON(res, 405, { error: 'method' }); return true; }
     let input = {};
     if (req.method === 'POST') {
@@ -206,7 +212,29 @@ export function createCoursePlanHandler(o) {
       // Persist safe migration/reconciliation even when an obsolete request is rejected.
       commit(next);
       const work = clone(o.records());
-      const out = p.endsWith('/start') ? startPlan(work, quizzes, input, now) : p.endsWith('/finish') ? finishPlan(work, quizzes, input, now) :
+      let out;
+      if (p.endsWith('/root-answer')) {
+        const quiz = quizzes[input.lessonId];
+        if (!quiz || quiz.src !== 'root' || input.version !== quiz.contentVersion) fail('词根内容版本已变化，请重新读取本课', 'question_version_changed');
+        if (typeof input.questionId !== 'string' || !/^q[1-9]\d*$/.test(input.questionId)) fail('invalid question', 'invalid_answer', 400);
+        const q = Model.coreQuestions(quiz).find(q => q.id === input.questionId);
+        if (!q) fail('question not found', 'invalid_answer', 400);
+        const inc = { ref: { qid: Model.qid(quiz, q) }, answer: input.answer, planRound: input.roundId, planPhase: input.phase };
+        applyPlanAttempt(work, quizzes, inc, now);
+        const round = work.coursePlan.plans[input.lessonId].active;
+        const wordQuestions = quiz.questions.filter(x => x.word === q.word);
+        if (input.phase === 'main' && wordQuestions.every(x => Object.hasOwn(round.answers, x.id))) {
+          round.wordGrades ||= {};
+          if (!round.wordGrades[q.word]) {
+            const rating = wordQuestions.every(x => round.answers[x.id].ok) ? 3 : 1;
+            const id = 'root-' + createHash('sha256').update(round.id + ':' + q.word).digest('hex');
+            if (!o.gradeRootWord) fail('word scheduler unavailable', 'scheduler_unavailable', 503);
+            o.gradeRootWord(work, { id, word: q.word, rating, at: round.startedAt }, now);
+            round.wordGrades[q.word] = id;
+          }
+        }
+        out = { plan: publicPlan(work.coursePlan, input.lessonId, now), settings: clone(work.coursePlan.settings), vocab: work.vocab || {} };
+      } else out = p.endsWith('/start') ? startPlan(work, quizzes, input, now) : p.endsWith('/finish') ? finishPlan(work, quizzes, input, now) :
         p.endsWith('/settings') ? updateSettings(work, quizzes, input, now) : summary(work, quizzes, now);
       commit(work); sendJSON(res, 200, out);
     } catch (e) { sendJSON(res, e.status || 503, { error: e.message, code: e.code || 'plan_not_persisted', plan: publicPlan(o.records().coursePlan || { plans: {} }, input.lessonId, now) }); }

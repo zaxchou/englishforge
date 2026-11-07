@@ -3,6 +3,46 @@
 let selectedAllianceBranch=null,alliancePracticeBranch=null,alliancePracticeStage='read';
 const relationLabels={close:'近支词',cognate:'远缘同源',classroom:'课堂关联',unresolved:'关系待核'};
 const memberId=w=>w.query_id||w.sense_id;
+const alliancePracticeContext=branch=>JSON.stringify(['alliance-v1',lookupSense,learning.alliance.id,learning.version,branch]);
+function practiceBranch(id){return learning.alliance.branches.find(b=>b.id===id)||branchOfWord(learning,lookupSense)||learning.alliance.branches[0];}
+function allianceQuestionSet(){return JSON.stringify(questions.map(q=>[q.id,q.answer,q.choices||null]));}
+function initializeAlliancePractice(branch,stage='read',saved=null){
+  alliancePracticeBranch=practiceBranch(branch).id;alliancePracticeStage=stage;
+  practiceKey=alliancePracticeContext(alliancePracticeBranch);
+  questions=allianceQuestions();qIndex=0;answers=[];
+  // Rebuild from the reviewed projection, then accept only the matching question set and valid position.
+  if(saved&&saved.key===practiceKey&&saved.questionSet===allianceQuestionSet()&&
+    ['read','quiz'].includes(saved.stage)&&Number.isInteger(saved.index)&&saved.index>=0&&saved.index<=questions.length&&
+    Array.isArray(saved.answers)&&saved.answers.length>=saved.index&&saved.answers.length<=Math.min(saved.index+1,questions.length)&&
+    saved.answers.every((v,i)=>typeof v==='string'&&(questions[i].input?v.trim().length>0:questions[i].choices.includes(v)))){
+    alliancePracticeStage=saved.stage;qIndex=saved.index;answers=saved.answers;
+  }
+}
+function ensureAlliancePractice(){
+  if(practiceKey===alliancePracticeContext(alliancePracticeBranch))return;
+  let saved=null;
+  try{saved=JSON.parse(localStorage.getItem('root-universe:session')||'null');}catch{}
+  const matches=saved&&saved.query===lookupSense&&saved.alliance===learning.alliance.id&&saved.version===learning.version&&
+    learning.alliance.branches.some(b=>b.id===saved.branch)&&saved.key===alliancePracticeContext(saved.branch);
+  initializeAlliancePractice(matches?saved.branch:null,'read',matches?saved:null);
+  saveAllianceSession();
+}
+function startAlliancePractice(branch,stage='read'){
+  if(learningLookup!==lookupSense)return;
+  initializeAlliancePractice(branch,stage);saveAllianceSession();renderAlliancePractice();
+}
+function shuffleAllianceChoices(choices,seed){
+  let state=2166136261;
+  for(const c of seed)state=Math.imul(state^c.charCodeAt(0),16777619)>>>0;
+  const shuffled=[...new Set(choices)];
+  for(let i=shuffled.length-1;i>0;i--){
+    state=(state+0x6D2B79F5)>>>0;
+    let n=Math.imul(state^(state>>>15),state|1);n^=n+Math.imul(n^(n>>>7),n|61);
+    const j=Math.floor(((n^(n>>>14))>>>0)/4294967296*(i+1));
+    [shuffled[i],shuffled[j]]=[shuffled[j],shuffled[i]];
+  }
+  return shuffled;
+}
 function branchOfWord(data,id){return data.alliance.branches.find(b=>b.words.some(w=>memberId(w)===id));}
 function reviewedMember(id){return learning.members.find(w=>memberId(w)===id);}
 function allianceProfileHTML(data){
@@ -19,7 +59,7 @@ function completeAllianceHTML(data){
   ${a.excluded.length?`<details class="alliance-branch"><summary><b>课堂对照与未决候选</b><span>${a.excluded.length} 词</span></summary><div class="alliance-excluded">${a.excluded.map(x=>`<div><b>${esc(x.word)}</b><span>${esc(x.reason)}</span></div>`).join('')}</div></details>`:''}</section>`;
 }
 function bindAllianceActions(root){
-  root.querySelectorAll('[data-learn-branch]').forEach(b=>b.onclick=()=>{alliancePracticeBranch=b.dataset.learnBranch;alliancePracticeStage='read';practiceKey=null;setView('practice');});
+  root.querySelectorAll('[data-learn-branch]').forEach(b=>b.onclick=()=>{startAlliancePractice(b.dataset.learnBranch);setView('practice');});
   root.querySelectorAll('[data-map-branch]').forEach(b=>b.onclick=()=>{selectedAllianceBranch=b.dataset.mapBranch;rootGraphMode=true;graphFocus='branch:'+learning.alliance.id+':'+selectedAllianceBranch;setView('graph');graphFocus='branch:'+learning.alliance.id+':'+selectedAllianceBranch;renderGraph();});
 }
 function allianceGraphData(){
@@ -65,6 +105,7 @@ function allianceQuestions(){
     // Context and answer are independently reviewed; alternatives are not generated from spelling similarity.
     const items=[{id:w.id+':meaning',word_id:memberId(w),kind:'辨认词义',q:`${w.word} 在本课中的意思是？`,hint:'先回想分支的意思，再判断这个词。',choices:[w.meaning,...other.slice(0,2).map(x=>x.meaning)],answer:w.meaning,why:w.explanation}];
     if(w.recall)items.push({id:w.id+':recall',word_id:memberId(w),kind:'主动回忆',q:w.recall.prompt,hint:'输入完整英文单词。',input:true,answer:w.recall.answer,why:w.recall.explanation});
+    for(const q of items)if(q.choices)q.choices=shuffleAllianceChoices(q.choices,alliancePracticeContext(b.id)+q.id);
     return items;
   });
 }
@@ -75,34 +116,37 @@ function evidenceEvents(){
 }
 function allianceEvidence(version){const events=evidenceEvents().filter(e=>e.version===version&&e.kind==='主动回忆');return {words:new Set(events.map(e=>e.word_id)).size,events};}
 function saveAllianceSession(){
-  try{localStorage.setItem('root-universe:session',JSON.stringify({key:practiceKey,branch:alliancePracticeBranch,index:qIndex,answers,stage:alliancePracticeStage,version:learning.version}));return true;}
+  if(learningLookup!==lookupSense||practiceKey!==alliancePracticeContext(alliancePracticeBranch))return false;
+  try{localStorage.setItem('root-universe:session',JSON.stringify({key:practiceKey,query:lookupSense,alliance:learning.alliance.id,branch:alliancePracticeBranch,index:qIndex,answers,stage:alliancePracticeStage,version:learning.version,questionSet:allianceQuestionSet()}));return true;}
   catch{toast('学习位置未能保存，请保持此页打开后重试。');return false;}
 }
 function recordAllianceAnswer(value){
-  const q=questions[qIndex];if(answers[qIndex]!==undefined)return;
+  if(learningLookup!==lookupSense||practiceKey!==alliancePracticeContext(alliancePracticeBranch)||alliancePracticeStage!=='quiz')return;
+  const q=questions[qIndex];if(!q||answers[qIndex]!==undefined||typeof value!=='string'||(!q.input&&!q.choices.includes(value)))return;
   const correct=q.input?value.trim().toLowerCase()===q.answer.toLowerCase():value===q.answer;
-  const event={id:crypto.randomUUID(),word_id:q.word_id,question_id:q.id,version:learning.version,kind:q.kind,answer:value,correct,at:Date.now()};
+  const event={id:crypto.randomUUID(),word_id:q.word_id,question_id:q.id,query_id:lookupSense,alliance_id:learning.alliance.id,branch_id:alliancePracticeBranch,context:practiceKey,version:learning.version,kind:q.kind,answer:value,correct,at:Date.now()};
   try{localStorage.setItem('root-universe:event:'+event.id,JSON.stringify(event));}
   catch{toast('这次回答未保存，请重试。');return;}
   answers[qIndex]=value;saveAllianceSession();renderPractice();
 }
 function renderAlliancePractice(){
-  const a=learning.alliance,b=a.branches.find(b=>b.id===alliancePracticeBranch)||branchOfWord(learning,lookupSense)||a.branches[0];
+  if(learningLookup!==lookupSense)return renderPractice();
+  ensureAlliancePractice();
+  const a=learning.alliance,b=practiceBranch(alliancePracticeBranch);
   alliancePracticeBranch=b.id;const card=$('#practice-card');$('#practice-family-tag').textContent=a.title;
   $('#practice-aside').innerHTML=`<h3>选择语义分支</h3>${a.branches.map(branch=>`<button class="branch-pick ${branch.id===b.id?'active':''}" data-pick-branch="${esc(branch.id)}"><b>${esc(branch.title)}</b><small>${branch.words.length} 词</small></button>`).join('')}<p class="practice-storage-note">学习记录保存在此浏览器，可刷新接续。</p>`;
-  $('#practice-aside').querySelectorAll('[data-pick-branch]').forEach(btn=>btn.onclick=()=>{alliancePracticeBranch=btn.dataset.pickBranch;alliancePracticeStage='read';startPractice(familyOf(lookupSense));});
-  if(alliancePracticeStage!=='read'&&questions.length===0)questions=allianceQuestions();
+  $('#practice-aside').querySelectorAll('[data-pick-branch]').forEach(btn=>btn.onclick=()=>startAlliancePractice(btn.dataset.pickBranch));
   if(alliancePracticeStage==='read'){
     card.innerHTML=`<div class="practice-meta"><span>${esc(a.title)}</span><span>${b.words.length}词</span></div><h2 class="question">${esc(b.title)}</h2><p class="question-hint">${esc(b.idea)}</p><div class="lesson-words">${b.words.map(item=>{const w=reviewedMember(memberId(item));return `<article><div><b>${esc(w.word)}</b><span>${esc(w.meaning)}</span></div><p>${esc(w.clue&&w.clue!==w.meaning?w.clue:(w.explanation&&w.explanation!==w.meaning?w.explanation:'本课记忆条目：释义见上。'))}</p>${w.example?`<p class="lesson-example">${esc(w.example.en)}</p><small>${esc(w.example.zh)}</small>`:''}<button class="link" data-open-word="${esc(memberId(w))}">回看词条 →</button></article>`;}).join('')}</div><div class="practice-actions"><span class="question-hint">看懂后，遮住解释试着回忆。</span><button class="primary" id="begin-branch">开始逐词回忆 →</button></div>`;
     card.querySelectorAll('[data-open-word]').forEach(btn=>btn.onclick=async()=>{lookupSense=btn.dataset.openWord;await renderWord();setView('lookup');});
-    $('#begin-branch').onclick=()=>{alliancePracticeStage='quiz';qIndex=0;answers=[];questions=allianceQuestions();saveAllianceSession();renderPractice();};return;
+    $('#begin-branch').onclick=()=>startAlliancePractice(b.id,'quiz');return;
   }
   if(qIndex>=questions.length){
     const events=allianceEvidence(learning.version).events,good=answers.filter((v,i)=>questions[i].input?v?.trim().toLowerCase()===questions[i].answer.toLowerCase():v===questions[i].answer).length;
     const next=a.branches[a.branches.indexOf(b)+1];
     card.innerHTML=`<div class="finish"><div class="roundcheck">✓</div><h2>这一分支已练完</h2><p>${b.words.length}词 · 本轮${questions.length}题 · 首次答对${good}题</p><p>每个词的回答分别保存；这不代表整个联盟已经掌握。</p><div class="finish-actions">${next?`<button class="primary" id="next-branch">下一支：${esc(next.title)}</button>`:''}<button class="secondary" id="restart">再回忆一遍</button><button class="link" id="finish-family">回看联盟</button></div></div>`;
-    if(next)$('#next-branch').onclick=()=>{alliancePracticeBranch=next.id;alliancePracticeStage='read';startPractice(familyOf(lookupSense));};
-    $('#restart').onclick=()=>{alliancePracticeStage='quiz';startPractice(familyOf(lookupSense));};$('#finish-family').onclick=()=>{selectedAllianceBranch=b.id;graphFocus='branch:'+a.id+':'+b.id;setView('graph');};return;
+    if(next)$('#next-branch').onclick=()=>startAlliancePractice(next.id);
+    $('#restart').onclick=()=>startAlliancePractice(b.id,'quiz');$('#finish-family').onclick=()=>{selectedAllianceBranch=b.id;graphFocus='branch:'+a.id+':'+b.id;setView('graph');};return;
   }
   const q=questions[qIndex],selected=answers[qIndex],judged=selected!==undefined,correct=judged&&(q.input?selected.trim().toLowerCase()===q.answer.toLowerCase():selected===q.answer);
   card.innerHTML=`<div class="practice-meta"><span>${esc(b.title)}</span><span>${qIndex+1} / ${questions.length}</span></div><div class="progress"><i class="progress-fill"></i></div><div class="q-type">${esc(q.kind)}</div><h2 class="question">${esc(q.q)}</h2><p class="question-hint">${esc(q.hint)}</p>${q.input?`<form id="recall-form"><label class="recall-label" for="recall-answer">你的答案</label><input id="recall-answer" autocomplete="off" autocapitalize="none" spellcheck="false" value="${esc(selected||'')}" ${judged?'disabled':''}><button class="secondary" ${judged?'disabled':''}>检查答案</button></form>`:`<div class="answers">${q.choices.map((v,i)=>`<button class="answer ${judged&&v===q.answer?'correct':''} ${judged&&v===selected&&!correct?'wrong':''}" data-answer="${esc(v)}" ${judged?'disabled':''}><span class="letter">${'ABC'[i]}</span><span>${esc(v)}</span></button>`).join('')}</div>`}${judged?`<div class="feedback ${correct?'':'wrong'}"><h3>${correct?'答对了':'正确答案：'+esc(q.answer)}</h3><p>${esc(q.why)}</p></div>`:''}<div class="practice-actions"><button class="link" id="read-again">回看本支讲解</button><button class="primary" id="next-q" ${judged?'':'disabled'}>${qIndex===questions.length-1?'完成本支':'下一题 →'}</button></div>`;

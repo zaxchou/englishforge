@@ -33,7 +33,7 @@ test('courses whose titles already carry section numbers hide the duplicate sequ
   const css=fs.readFileSync(new URL('../web/desk.css',import.meta.url),'utf8');
   assert.match(html,/const noSeq=seqN>=Math\.ceil\(c\.lessons\.length\*\.6\)/);
   assert.match(html,/noSeq\?'':`<span class="no">/);
-  assert.match(css,/\.cli\.vcli\.nono\{grid-template-columns:minmax\(0,1fr\) auto\}/);
+  assert.match(css,/\.cli\.vcli\.nono\{grid-template-columns:minmax\((?:0|\d+px),1fr\) auto\}/);
   const numbered=['1.听力导学','2.1 认识学术讲座','1.1 写作导学'].every(t=>/^\d+(?:\.\d+)?[.、\s]/.test(t));
   assert.ok(numbered);
 });

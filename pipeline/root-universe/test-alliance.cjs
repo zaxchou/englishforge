@@ -11,7 +11,10 @@ async function run(){
   browser=await pw.chromium.launch({channel:'msedge',headless:true});
   const check=(name,fn)=>{fn();out.checks.push(name);};
   for(const [width,height] of [[1440,900],[390,844],[320,760]]){
-   const ctx=await browser.newContext({viewport:{width,height},permissions:[]});const page=await ctx.newPage();
+   const ctx=await browser.newContext({viewport:{width,height},permissions:[],serviceWorkers:'block'});
+   const blocked=[];
+   await ctx.route('**/*',route=>{const req=route.request(),url=new URL(req.url());if(url.origin===origin&&req.method()==='GET'&&['/','/app.js','/alliance-ui.js','/style.css','/brand.png','/favicon.ico','/api/graph','/api/learning','/api/search','/api/source'].includes(url.pathname))return route.continue();blocked.push(req.method()+' '+req.url());return route.abort('blockedbyclient');});
+   const page=await ctx.newPage();
    page.setDefaultTimeout(20000);const errors=[];page.on('pageerror',e=>errors.push(e.message));
    try{
     // Lookup a learning-only word and verify the alliance UI
@@ -34,7 +37,8 @@ async function run(){
     await page.locator('#root-panorama').click();
     await page.locator('.map-node').first().waitFor();
     const mapNodes=await page.locator('.map-node').count();
-    assert(mapNodes>=12,'panorama should show root+branches, got '+mapNodes);
+    const topology=await page.evaluate(()=>({branches:learning.alliance.branches.length,roots:learning.family_roots.length}));
+    assert.equal(mapNodes,topology.branches+(topology.roots===1?1:0),'panorama must expose every branch and use a shared root only for a single-root alliance');
     const shot1=ws.file(ws.QA,stamp+'/'+width+'-graph.png');await page.screenshot({path:shot1});out.screenshots.push(shot1);
     // Branch practice flow: read -> quiz -> meaning + recall answers
     await page.locator(width<=700?'.mobile-tabs [data-view="practice"]':'.sidebar [data-view="practice"]').click();
@@ -42,22 +46,34 @@ async function run(){
     const shot2=ws.file(ws.QA,stamp+'/'+width+'-branch-read.png');await page.screenshot({path:shot2});out.screenshots.push(shot2);
     await page.locator('#begin-branch').click();
     await page.locator('.practice-card .question').waitFor();
-    // Answer all questions of branch B2 (contradict branch: 3 words, meaning + recall = 6)
+    // Compare against the reviewed branch, then answer each word by identity.
+    const snapshot=()=>page.evaluate(()=>({key:practiceKey,index:qIndex,answers,stage:alliancePracticeStage,branch:alliancePracticeBranch,questions,session:JSON.parse(localStorage.getItem('root-universe:session')),events:Object.keys(localStorage).filter(k=>k.startsWith('root-universe:event:')).length}));
+    const expected=await page.evaluate(()=>learning.alliance.branches.find(b=>b.id===alliancePracticeBranch).words.flatMap(item=>{const w=learning.members.find(w=>(w.query_id||w.sense_id)===(item.query_id||item.sense_id));return [{id:w.id+':meaning',word_id:w.query_id||w.sense_id,answer:w.meaning},...(w.recall?[{id:w.id+':recall',word_id:w.query_id||w.sense_id,answer:w.recall.answer}]:[])];}));
     const total=Number(/(\d+)\s*\/\s*(\d+)/.exec(await page.locator('.practice-meta span:last-child').textContent())[2]);
-    assert(total>=6,'branch practice should have >=6 questions, got '+total);
+    assert.equal(total,expected.length);assert(total>=6);
+    assert.deepEqual((await snapshot()).questions.map(q=>({id:q.id,word_id:q.word_id,answer:q.answer})),expected);
     for(let i=0;i<total;i++){
      const input=page.locator('#recall-answer');
-     if(await input.count()){await input.fill('contradiction');await page.locator('#recall-form button').click();}
-     else await page.locator('.practice-card .answer').first().click();
+     if(await input.count()){await input.fill(expected[i].answer);await page.locator('#recall-form button').click();}
+     else await page.locator('.practice-card [data-answer]').nth((await snapshot()).questions[i].choices.indexOf(expected[i].answer)).click();
      await page.locator('.practice-card .feedback').waitFor();
+     assert.equal(await page.locator('.feedback h3').textContent(),'答对了');
+     if(i===0||i===1){
+      const before=await snapshot();assert(before.key);assert.equal(before.session.key,before.key);assert.equal(before.session.index,i);assert.equal(before.session.answers[i],expected[i].answer);
+      await page.reload();await page.locator('.practice-card .feedback').waitFor();assert.deepEqual(await snapshot(),before,'refresh must restore exact question, answer, option order and event count');
+     }
      if(i<total-1){await page.locator('#next-q').click();await page.locator('.practice-card .question').waitFor();}
     }
     const shot3=ws.file(ws.QA,stamp+'/'+width+'-branch-finish.png');await page.screenshot({path:shot3});out.screenshots.push(shot3);
     // Recorded events persist and refresh resumes
     const events=await page.evaluate(()=>Object.keys(localStorage).filter(k=>k.startsWith('root-universe:event:')).length);
     assert(events>=total,'events should persist, got '+events);
-    await page.reload();
-    await page.locator('#practice-view .finish, #practice-view .question, #practice-view .lesson-words').first().waitFor();
+    const beforeReload=await snapshot();await page.reload();
+    await page.locator('#practice-view .feedback').waitFor();assert.deepEqual(await snapshot(),beforeReload);
+    await page.locator('#next-q').click();await page.locator('#restart').waitFor();
+    assert((await page.locator('.finish').textContent()).includes('首次答对'+total+'题'));
+    await page.locator('#restart').click();await page.locator('.practice-card .question').waitFor();
+    const restarted=await snapshot();assert.equal(restarted.index,0);assert.deepEqual(restarted.answers,[]);assert.deepEqual(restarted.questions.map(q=>({id:q.id,word_id:q.word_id,answer:q.answer})),expected);
     const size=await page.evaluate(()=>({doc:document.documentElement.scrollWidth,width:innerWidth}));
     assert(size.doc<=size.width,'horizontal overflow at '+width+': '+JSON.stringify(size));
     assert.deepEqual(errors,[],'page errors at '+width);
@@ -103,6 +119,7 @@ async function run(){
       const shot5=ws.file(ws.QA,stamp+'/'+width+'-'+word+'-practice.png');await page.screenshot({path:shot5});out.screenshots.push(shot5);
       out.checks.push('viewport '+width+': '+word+' lookup, '+clickable+' clickable, branch practice card ok');
     }
+    assert.deepEqual(blocked,[],'browser must not access write or paid endpoints');
    }finally{await ctx.close();}
   }
   out.ok=true;

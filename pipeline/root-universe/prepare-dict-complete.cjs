@@ -75,6 +75,8 @@ const authored={
 // Teach/token family members reuse the cognate source of their leader; morphology clues are author-organized.
 const familySource={predicate:['Epredicate'],indicate:['Eindicate'],index:['Eindex'],paradigm:['Eparadigm'],predicament:['Epredicament'],digit:['Edigit'],digital:['Edigit'],digitally:['Edigit'],digitize:['Edigit'],'double-digit':['Edigit'],teach:['Eteach'],teacher:['Eteach'],'teacher-librarian':['Eteach'],teaching:['Eteach'],token:['Etoken'],betoken:['Etoken'],syndicate:['Esyndicate'],syndicated:['Esyndicate'],judicial:['Ejudicial','Eprejudice'],judiciary:['Ejudicial','Eprejudice'],judicious:['Ejudicial','Eprejudice'],prejudice:['Eprejudice'],prejudiced:['Eprejudice'],unconditionally:['Eunconditional']};
 const S=id=>[id];
+const digitWords=new Set(['digit','digital','digitally','digitize','double-digit']);
+entry.roots.push({id:'Rdigit',label:'digit- / digitus',meaning:'手指；数位',origin:'拉丁 digitus「手指」经中古英语进入 digit；数字义由用手指数数引申。',forms_note:'digit 族与 dic-/dict- 不同源；本联盟仅按课堂拼形对照并列。',source_ids:['Edigit']});
 const scopes=new Map();
 for(const o of scope.occurrences){const k=o.lookup_key||String(o.word||'').toLowerCase();if(!scopes.has(k))scopes.set(k,o);}
 const branchOf={
@@ -125,9 +127,9 @@ for(const aw of allWords){
  const p=profiles[name],au=authored[name];
  const isFull=p||au;
  const meaning=au?.meaning||p?.meaning||c.def;
- const trace=isFull?[{label:name,kind:'word',meaning:meaning,sense_id:p?.sense_id,source_ids:aw.source_ids},...(p?[{label:'praedīcō',kind:'historical',meaning:'拉丁语：预言',source_ids:['Epraedico']}]:[]),{label:'dict- / dic-',kind:'root',meaning:'学习词根：说；讲',root_id:'Rdict',source_ids:aw.source_ids}]:[{label:name,kind:'word',meaning:meaning,source_ids:aw.source_ids}];
+ const trace=isFull?[{label:name,kind:'word',meaning:meaning,sense_id:p?.sense_id,source_ids:aw.source_ids},...(p?[{label:'praedīcō',kind:'historical',meaning:'拉丁语：预言',source_ids:['Epraedico']}]:[]),{label:digitWords.has(name)?'digit- / digitus':'dict- / dic-',kind:'root',meaning:digitWords.has(name)?'手指；数位':'学习词根：说；讲',root_id:digitWords.has(name)?'Rdigit':'Rdict',source_ids:aw.source_ids}]:[{label:name,kind:'word',meaning:meaning,source_ids:aw.source_ids}];
  words.push({
-  id:aw.id,word:name,sense_id:senseByWord[name]||null,query_id:`Ldict:${name.toLowerCase()}`,meaning,root_ids:['Rdict'],
+  id:aw.id,word:name,sense_id:senseByWord[name]||null,query_id:`Ldict:${name.toLowerCase()}`,meaning,root_ids:[digitWords.has(name)?'Rdigit':'Rdict'],
   relation_kind:relation[name]||'classroom',lesson:c.lesson,parts:roles[name]||p?.parts||null,
   modern_formula:au?.clue||p?.modern_formula||`${name}（课堂记忆条目）`,
   explanation:au?.explanation||p?.explanation||c.def,

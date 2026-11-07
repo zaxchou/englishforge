@@ -20,6 +20,7 @@
    - 素材根可被 --root / TFL_ROOT 覆盖（Windows 映射盘与 NAS 挂载兼容）。
    ============================================================ */
 import { createCoursePlanHandler, Model as CoursePlanModel, ensurePlans, applyPlanAttempt, publicPlan, attemptFingerprint, questionSignature } from './course-plan.mjs';
+import { createRootPractice } from './root-practice.mjs';
 import { createReviewHub } from './review-hub.mjs';
 import EplodRecords from './web/eplod-records.js';
 import { validateEvent, linkCoachEvidence } from './web/review/model.mjs';
@@ -1021,98 +1022,14 @@ let VOCAB_BANK = null, VOCAB_INDEX = null, VOCAB_BANK_RAW = null, VOCAB_BANK_GZ 
 /* 词根学习档案投影（只读）: 已发布 1.1.0 学习档案 → 背单词卡片的词根拆解/记忆线索/例句 + 词典入口 */
 let ROOT_MAP = null, ROOT_MAP_RAW = null, ROOT_MAP_GZ = null, ROOT_MAP_TOKEN = null;
 const ROOT_LEARNING_DIR = path.join(BUILD_DIR, 'root-universe', 'learning');
-function rootLearningEntries() {
-  if (!fs.existsSync(ROOT_LEARNING_DIR)) return null;
-  let token = '';
-  const versions = [];
-  let names;
-  try { names = fs.readdirSync(ROOT_LEARNING_DIR).sort(); } catch { return null; }
-  for (const name of names) {
-    const pointer = path.join(ROOT_LEARNING_DIR, name, 'current.json');
-    try {
-      if (!fs.existsSync(pointer)) continue;
-      const st = fs.statSync(pointer);
-      const p = JSON.parse(fs.readFileSync(pointer, 'utf8'));
-      if (p.id !== name || !/^[a-f0-9]{64}$/.test(p.version)) { token += name + ':invalid:' + st.mtimeMs + ';'; continue; }
-      token += name + ':' + st.size + ':' + st.mtimeMs + ';';
-      let e;
-      try {
-        e = JSON.parse(fs.readFileSync(path.join(ROOT_LEARNING_DIR, name, 'versions', p.version, 'entry.json'), 'utf8'));
-        if (!e.alliance || e.schema_version !== '1.1.0') { token += name + ':noprofile:' + p.version + ';'; continue; }
-      } catch { token += name + ':broken:' + p.version + ';'; continue; }
-      versions.push({ name, entry: e });
-    } catch { token += name + ':error:' + Date.now() + ';'; }
-  }
-  if (!versions.length) return null;
-  return { token, versions };
-}
+const ROOT_PRACTICE = createRootPractice(ROOT_LEARNING_DIR);
 function rootLearningMap() {
-  const data = rootLearningEntries();
-  if (!data) return null;
-  const { token, versions } = data;
-  if (token === ROOT_MAP_TOKEN && ROOT_MAP) return ROOT_MAP;
-  const words = {}, alliances = [];
-  for (const { name, entry: e } of versions) {
-    alliances.push({ id: e.alliance.id || name, title: e.alliance.title });
-    const full = new Map((e.words || []).map(w => [String(w.word || '').toLowerCase(), w]));
-    for (const aw of e.alliance.words || []) {
-      const key = String(aw.word || '').toLowerCase();
-      if (words[key]) continue;
-      const f = full.get(key) || {};
-      const root = f.root_ids && f.root_ids.length ? (e.roots || []).find(r => r.id === f.root_ids[0]) : null;
-      words[key] = {
-        root: root ? root.label : '',
-        rootMeaning: root ? root.meaning : '',
-        clue: aw.clue || f.explanation || '',
-        lesson: aw.lesson || null,
-        allianceTitle: e.alliance.title,
-        node: aw.query_id || f.query_id || aw.sense_id || null,
-        example: f.example && f.example.en ? { en: f.example.en, zh: f.example.zh || '' } : null,
-      };
-    }
-  }
-  ROOT_MAP = { ok: true, generated: new Date().toISOString(), alliances, words };
-  ROOT_MAP_TOKEN = token;
-  ROOT_MAP_RAW = null; ROOT_MAP_GZ = null;
-  return ROOT_MAP;
+  const map = ROOT_PRACTICE.rootMap();
+  if (map.token !== ROOT_MAP_TOKEN) { ROOT_MAP_TOKEN = map.token; ROOT_MAP_RAW = null; ROOT_MAP_GZ = null; }
+  return map;
 }
-/* 万词课课后巩固: 某课联盟的分支+逐词讲解/回忆题（只读投影, 与 root-map 同缓存 token） */
-let LESSON_PRACTICE_TOKEN = null, LESSON_PRACTICE = null;
-function lessonPractice(lesson) {
-  const n = Number(lesson);
-  if (!Number.isInteger(n) || n < 1 || n > 36) return null;
-  const data = rootLearningEntries();
-  if (!data) return null;
-  if (data.token !== LESSON_PRACTICE_TOKEN) { LESSON_PRACTICE = new Map(); LESSON_PRACTICE_TOKEN = data.token; }
-  if (LESSON_PRACTICE.has(n)) return LESSON_PRACTICE.get(n);
-  let result = null;
-  for (const { name, entry: e } of data.versions) {
-    const lessonWords = (e.alliance.words || []).filter(w => w.lesson === n);
-    if (!lessonWords.length) continue;
-    const full = new Map((e.words || []).map(w => [String(w.word || '').toLowerCase(), w]));
-    const byId = new Map(lessonWords.map(w => [String(w.id), w]));
-    const branches = (e.alliance.branches || [])
-      .map(b => ({
-        id: b.id, title: b.title, idea: b.idea,
-        words: (b.word_ids || []).map(id => byId.get(id)).filter(Boolean).map(aw => {
-          const f = full.get(String(aw.word || '').toLowerCase()) || {};
-          return {
-            word: aw.word, def: f.meaning || '', clue: aw.clue || f.explanation || '',
-            explanation: f.explanation || '', example: f.example && f.example.en ? { en: f.example.en, zh: f.example.zh || '' } : null,
-            recall: f.recall && f.recall.prompt ? { prompt: f.recall.prompt, answer: f.recall.answer, explanation: f.recall.explanation || '' } : null,
-            node: aw.query_id || f.query_id || aw.sense_id || null,
-            allianceTitle: e.alliance.title,
-          };
-        }),
-      }))
-      .filter(b => b.words.length);
-    if (!branches.length) continue;
-    result = { ok: true, lesson: n, title: e.alliance.title, branches };
-    break;
-  }
-  LESSON_PRACTICE.set(n, result);
-  return result;
-}
+function lessonPractice(lesson) { return ROOT_PRACTICE.lesson(Number(lesson)); }
+function coursePlanQuizzes() { return { ...GQ_STORE, ...ROOT_PRACTICE.quizzes() }; }
 const vocabKey = s => String(s || '').toLowerCase().replace(/\s+/g, '');
 function vocabIndex() {
   if (!VOCAB_INDEX) {
@@ -1215,6 +1132,24 @@ async function ttsSynthUncached(word) {
   const tmp = cacheFile + '.tmp';
   fs.writeFileSync(tmp, fixed); fs.renameSync(tmp, cacheFile);
   return cacheFile;
+}
+function rootGradeWord(records, event, now) {
+  const key = vocabKey(event.word), id = event.id;
+  if (!vocabIndex().has(key)) throw Error('词不在词库');
+  const fingerprint = JSON.stringify([key, event.rating, event.at]);
+  const old = records.vocabEvents?.[id];
+  if (old) { if (old.fingerprint !== fingerprint) throw Error('评分身份冲突'); return; }
+  const previous = records.vocab?.[key];
+  if (previous && !vocabStateValid(previous)) throw Error('已有调度异常，记录已保留');
+  const state = { ...sm2Grade(event.rating, previous || null, now), n: (previous?.n || 0) + 1, at: now };
+  if (!vocabStateValid(state)) throw Error('调度结果异常');
+  state.born = previous?.born || now;
+  records.vocab ||= {}; records.vocab[key] = state;
+  records.vocabEvents ||= {}; records.vocabEvents[id] = { fingerprint, key, at: now, introduced: !previous };
+  records.vocabDays ||= {};
+  const day = new Date(now + 8 * 3600000).toISOString().slice(0, 10);
+  const daily = records.vocabDays[day] ||= { grades: 0, introduced: 0 };
+  daily.grades++; if (!previous) daily.introduced++;
 }
 function vocabStateValid(st) {
   return st && [0,1,2,99].includes(st.s) && Number.isFinite(st.e) && st.e>=1.3 &&
@@ -1797,7 +1732,7 @@ if(repairedSpeed){
   recordsSave(repaired);RECORDS=repaired;
   console.log('[eplod] verified legacy same-speed results:',repairedSpeed);
 }
-const COURSE_PLAN=createCoursePlanHandler({records:()=>RECORDS,setRecords:x=>{RECORDS=x;},save:recordsSave,quizzes:()=>GQ_STORE,now:()=>Date.now()});
+const COURSE_PLAN=createCoursePlanHandler({records:()=>RECORDS,setRecords:x=>{RECORDS=x;},save:recordsSave,quizzes:coursePlanQuizzes,gradeRootWord:rootGradeWord,now:()=>Date.now()});
 const REVIEW_HUB=createReviewHub({web:WEB_DIR,records:()=>RECORDS,setRecords:x=>{RECORDS=x;},save:recordsSave,recordAttempt:serverRecAttempt,quizzes:()=>GQ_STORE,banks:()=>[...REVIEW_BANKS.values()],reviewEvents:()=>REVIEW_EVENTS,ai:AI_CFG});
 
 /* ---------- HTTP 基础 ---------- */
@@ -2105,7 +2040,10 @@ const handler = async (req, res) => {
       const hasPlan=inc.planRound!==undefined||inc.planPhase!==undefined;
       // Initialize before appending this answer so it cannot turn into a historical stamp.
       if(hasPlan) {
-        try { ensurePlans(next,GQ_STORE,Date.now());applyPlanAttempt(next,GQ_STORE,inc,Date.now()); }
+        try { const quizzes=coursePlanQuizzes();ensurePlans(next,quizzes,Date.now());
+          const parsed=CoursePlanModel.parseQid(inc.ref.qid);
+          if(parsed&&quizzes[parsed.lessonId]?.src==='root')throw Object.assign(Error('本课已使用词根巩固，请在新练习中继续；原作答保留。'),{status:409,code:'question_version_changed'});
+          applyPlanAttempt(next,quizzes,inc,Date.now()); }
         catch(e) { if(!e.status)return sendJSON(res,503,{error:'course plan unavailable'});planError={error:e.message,planError:e.message,code:e.code}; }
       }
       let attentionSaved=false;

@@ -1,0 +1,48 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
+import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import { createRequire } from 'node:module';
+import { createRootPractice } from '../root-practice.mjs';
+import { createCoursePlanHandler } from '../course-plan.mjs';
+const require=createRequire(import.meta.url),{englishEtymology}=require('./root-universe/source-english.cjs');
+const sha=b=>createHash('sha256').update(b).digest('hex');
+const base=fs.mkdtempSync(path.join(os.tmpdir(),'tfl-root-practice-'));
+const roots=path.resolve('build/root-universe/learning');
+function fixture(name){const p=JSON.parse(fs.readFileSync(path.join(roots,name,'current.json'))),b=fs.readFileSync(path.join(roots,name,'versions',p.version,'entry.json'));fs.mkdirSync(path.join(base,name,'versions',p.version),{recursive:true});fs.writeFileSync(path.join(base,name,'current.json'),JSON.stringify(p));fs.writeFileSync(path.join(base,name,'versions',p.version,'entry.json'),b);}
+for(const id of ['cfcm-01','cfcm-02','cfcm-03','dict'])fixture(id);
+let reads=0;const io={...fs,readFileSync(file,...args){if(String(file).endsWith('entry.json'))reads++;return fs.readFileSync(file,...args);}};
+const service=createRootPractice(base,io);
+const l1=service.lesson(1),l2=service.lesson(2),l3=service.lesson(3);
+assert.equal(l1.branches.flatMap(b=>b.words).length,176);
+assert.equal(l2.branches.flatMap(b=>b.words).length,216);
+assert(l2.branches.some(b=>b.words.some(w=>w.word==='password')));
+assert(l3.branches.some(b=>b.words.some(w=>w.word==='aerobics')));
+assert(l1.branches.every(b=>b.words.length<=8));
+for(const n of [4,18,20,22,36])assert.equal(service.lesson(n),null);
+assert(new Set(l1.quiz.questions.filter(q=>q.kind==='meaning').map(q=>q.answer)).size>1,'correct positions vary');
+service.rootMap();reads=0;service.rootMap();service.lesson(2);assert.equal(reads,0,'hot calls must not read entries');
+const pointer=path.join(base,'cfcm-02','current.json'),saved=fs.readFileSync(pointer);fs.writeFileSync(pointer,'invalid');assert.equal(service.lesson(2),null);assert(service.lesson(1));fs.writeFileSync(pointer,saved);assert.equal(service.lesson(2).version,l2.version);
+assert.throws(()=>englishEtymology('==English==\n===Noun===\nx\n==Chinese==\n===Etymology===\nwrong','bio'),/NO_ENGLISH_ETYMOLOGY/);
+assert.equal(englishEtymology('==English==\n===Etymology===\nright\n===Noun===\nx\n==Chinese==\n===Etymology===\nwrong'), 'right');
+// The real course-plan handler keeps all persistence in this in-memory fixture.
+let records={},now=100000000,grades=0,saveFail=false;const quiz=structuredClone(l1.quiz);quiz.questions=quiz.questions.filter(q=>q.word===quiz.questions[0].word);const lid=l1.lessonId;
+const handler=createCoursePlanHandler({records:()=>records,setRecords:r=>records=r,save(){if(saveFail)throw Error('disk unavailable');},quizzes:()=>({[lid]:quiz}),now:()=>now,gradeRootWord(r,event){grades++;r.vocab||={};r.vocab[event.word]={n:(r.vocab[event.word]?.n||0)+1};r.vocabEvents||={};r.vocabEvents[event.id]=event;}});
+async function call(route,input){let result;const req={method:route==='/api/course-plan'?'GET':'POST',headers:{host:'local','content-type':'application/json'}};await handler.handle(req,{},route,async()=>JSON.stringify(input),(res,status,data)=>result={status,data});return result;}
+await call('/api/course-plan');let start=await call('/api/course-plan/start',{lessonId:lid});let round=start.data.plan.active.id;
+const answer=async(q,value,phase='main')=>call('/api/course-plan/root-answer',{lessonId:lid,version:quiz.contentVersion,roundId:round,questionId:q.id,answer:value,phase});
+const [meaning,recall]=quiz.questions;assert(recall?.kind==='recall');
+assert.equal((await answer(meaning,meaning.answer)).status,200);assert.equal(Object.keys(records.vocab||{}).length,0);
+assert.equal((await answer(recall,recall.answer)).status,200);assert.equal(records.vocab[meaning.word].n,1);
+await answer(recall,recall.answer);assert.equal(records.vocab[meaning.word].n,1,'replay cannot advance schedule');
+let finish=await call('/api/course-plan/finish',{lessonId:lid,roundId:round,rating:'good'});assert.equal(finish.status,200);assert.equal(finish.data.plan.stamps.length,1);assert.equal(records.coursePlan.plans[lid].archivedRounds[0].answers[recall.id].letter,recall.answer);assert(records.coursePlan.plans[lid].archivedRounds[0].wordGrades[meaning.word]);
+await call('/api/course-plan/finish',{lessonId:lid,roundId:round,rating:'good'});assert.equal(records.coursePlan.plans[lid].stamps.length,1);
+now=finish.data.plan.due;start=await call('/api/course-plan/start',{lessonId:lid});round=start.data.plan.active.id;
+const bad=Object.keys(meaning.options).find(k=>k!==meaning.answer);await answer(meaning,bad);await answer(recall,'wrong');
+assert.equal(records.vocab[meaning.word].n,2,'one settlement for a wrong-word round');
+assert.equal((await call('/api/course-plan/finish',{lessonId:lid,roundId:round,rating:'good'})).status,409);
+await answer(meaning,meaning.answer,'correction');await answer(recall,recall.answer,'correction');assert.equal(records.vocab[meaning.word].n,2,'correction does not repeat grade');
+saveFail=true;const before=JSON.stringify(records);assert.equal((await call('/api/course-plan/finish',{lessonId:lid,roundId:round,rating:'good'})).status,503);assert.equal(JSON.stringify(records),before);saveFail=false;
+assert.equal((await call('/api/course-plan/finish',{lessonId:lid,roundId:round,rating:'good'})).status,200);
+console.log('PASS root practice: exact classroom membership, absent courses, 8-word groups, varied answers, hot entry cache, damaged pointer recovery, bounded English, atomic handler, once-per-word grading, replay, correction, stamps, persistence failure');

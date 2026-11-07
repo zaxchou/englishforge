@@ -2754,7 +2754,12 @@ html.sb-min .cp-due-mask{padding-left:84px}
 .spk-head .spk-hint{max-width:52ch}
 
 /* ---------- 词根巩固（万词课课后练新系统） ---------- */
-.rp-card .phead{margin-bottom:10px}
+.rp-card .phead{margin-bottom:0}
+#rp-body{padding:18px 20px 22px}
+#rp-body h4{font-size:16px;line-height:1.6;margin:8px 0 12px}
+#rp-body>p{font-size:13px;line-height:1.7;margin:12px 0}
+#rp-body>button{margin-top:10px}
+@media(max-width:700px){#rp-body{padding:14px 12px 18px}.rp-head{gap:8px}}
 .rp-branches{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px}
 .rp-branch{display:flex;flex-direction:column;gap:3px;text-align:left;background:var(--bg2,transparent);border:1px solid var(--line);border-radius:9px;padding:11px 13px;min-height:52px}
 .rp-branch b{font-size:13.5px;color:var(--t1)}

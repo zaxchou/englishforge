@@ -18,7 +18,8 @@
     const bad = new Set(quiz.bad || []), seen = new Set();
     return (quiz.questions || []).filter(q => {
       if (!q || !/^q[1-9]\d*$/.test(q.id) || seen.has(q.id) || bad.has(q.id) || q.tier === 'ext' ||
-          !q.stem || !q.options || typeof q.answer !== 'string' || !Object.hasOwn(q.options, q.answer)) return false;
+          !q.stem || typeof q.answer !== 'string' ||
+          (!(quiz.src === 'root' && q.kind === 'recall') && (!q.options || !Object.hasOwn(q.options, q.answer)))) return false;
       seen.add(q.id); return true;
     });
   }

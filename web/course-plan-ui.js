@@ -207,7 +207,7 @@ async function cpDueCheck(){try{await cpLoad();}catch(e){return;}
   if(typeof epWholeLocked==='function'&&epWholeLocked())return;
   /* 正在录音/等待麦克风/回听/音频兜底时也不打断(与答题中同口径) */
   if(typeof EP!=='undefined'&&EP.st&&(EP.st.recording||EP.st.recPending||EP.st.wpTake||EP.st.blobRequest||EP.replay))return;
-  if(GQ_UI&&(GQ_UI.phase==='answer'||GQ_UI.phase==='prep'||GQ_UI.planRound))return;   /* 答题中不打断, 下一轮提醒再看 */
+  if(location.hash.startsWith('#/course')&&GQ_UI&&(GQ_UI.phase==='quiz'||GQ_UI.phase==='prep'||GQ_UI.planRound))return;   /* 仅可见课程中的活动练习抑制提醒 */
   if(location.hash.startsWith('#/course'))return;   /* 人已在课程/复习页, 不重复打扰(不依赖页面状态就位时序) */
   const lid=cpDuePick(CP.data&&CP.data.recommendations,cpSnoozeLoad(),cpTodayKey());   /* 每次实时回读, 多标签页共享同一天的稍后记录 */
   if(lid)cpDuePromptShow(lid);

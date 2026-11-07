@@ -3,6 +3,7 @@
 const fs=require('node:fs');
 const ws=require('../../root-universe/workspace.cjs');
 const kit=require('./validate-kit.cjs');
+const {englishEtymology}=require('./source-english.cjs');
 const scopePath='build/qa/root-universe/review-20261107/cfcm-02-classroom-scope.json';
 const scopeRaw=fs.readFileSync(kit.safeFile(ws.PROJECT,scopePath));
 const courseRaw=fs.readFileSync(kit.safeFile(ws.PROJECT,'build/vocab/cfcm-words.json'));
@@ -18,10 +19,7 @@ function addSource(title){
  const snapshot=c.path.replace('build/root-universe/','');
  const bytes=ws.bytes(ws.ROOT,snapshot),rev=JSON.parse(bytes).query.pages[0].revisions[0];
  const text=rev.slots.main.content;
- const en=text.indexOf('==English==');if(en<0)throw Error('NO_ENGLISH '+title);
- const ety=text.indexOf('===Etymology',en);if(ety<0)throw Error('NO_ETY '+title);
- const headLen=text.indexOf('\n',ety)+1;
- const excerpt=text.slice(headLen,headLen+220).replace(/[\s]+$/,'');
+ const excerpt=englishEtymology(text,title);
  if(!text.includes(excerpt))throw Error('EXCERPT_BUILD '+title);
  const id='E'+title;
  sources.push({id,entry:title,snapshot,snapshot_sha256:kit.sha(bytes),revision:rev.revid,url:'https://en.wiktionary.org/w/index.php?title='+encodeURIComponent(title)+'&oldid='+rev.revid,excerpt,excerpt_sha256:kit.sha(Buffer.from(excerpt)),license:'CC-BY-SA-4.0',attribution:'English Wiktionary contributors',retrieved_at:c.retrieved_at});
