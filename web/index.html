@@ -8,7 +8,7 @@
 <link rel="icon" type="image/png" sizes="96x96" href="/assets/brand/t-dot-v1/t-dot-96.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/assets/brand/t-dot-v1/t-dot-180.png">
 <title>TOEFL Lab · 托福自学练习</title>
-<link rel="stylesheet" href="desk.css?v=20261107r8">
+<link rel="stylesheet" href="desk.css?v=20261107r10">
 <style>
 /* 应用层补充样式（视觉基线在 desk.css，不改它的既有规则） */
 /* 单词与字符格保持同一行；焦点、已填、判题状态沿用研读桌配色。 */
@@ -130,6 +130,7 @@ details.ai-tsec[open] summary{margin-bottom:8px}
       <button data-v="vocab" title="背单词"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5h6.5a2 2 0 0 1 2 2V20a1.6 1.6 0 0 0-1.6-1.6H4Z"/><path d="M20 5.5h-6.5a2 2 0 0 0-2 2V20a1.6 1.6 0 0 1 1.6-1.6H20Z"/></svg><span class="nv-t">背单词</span></button>
       <div class="nav-label second">工具</div>
       <button data-v="stats" title="数据分析"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 20h16"/><path d="M7.5 16.5v-5"/><path d="M12 16.5V7"/><path d="M16.5 16.5v-8"/></svg><span class="nv-t">数据分析</span></button>
+      <a class="nav-ext" href="/dict/" target="_blank" rel="noopener" title="词根词典（新窗口打开）"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6.5C10.5 5 8.5 4.5 5.5 4.5c-.6 0-1 .4-1 1v12c0 .6.4 1 1 1 3 0 5 .5 6.5 2 1.5-1.5 3.5-2 6.5-2 .6 0 1-.4 1-1v-12c0-.6-.4-1-1-1-3 0-5 .5-6.5 2Z"/><path d="M12 6.5v14"/></svg><span class="nv-t">词根词典</span></a>
     </div>
     <button class="cp-bell" id="cp-bell" hidden aria-label="有课程复习到期，点击开始"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 8-3 8h18s-3-1-3-8"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg><span class="cp-bell-t">复习到期</span><span id="cp-bell-n"></span></button>
     <span class="nav-cur" id="nav-cur" aria-hidden="true">首页</span>
@@ -3224,8 +3225,8 @@ function vbRender(){
       + '<div class="vb-act"><button class="pri vb-show" id="vb-show">显示答案 <span class="vb-kbd">空格</span></button></div>';
   } else {
     const rm=VB.rootMap&&VB.rootMap[cur.k];
-    const local=location.hostname==="127.0.0.1"||location.hostname==="localhost";
-    const dictLink=rm&&rm.node&&local?' <a class="vb-dictlink" href="http://127.0.0.1:8036/?node='+encodeURIComponent(rm.node)+'&q='+encodeURIComponent(cur.w)+'&view=lookup" target="_blank" rel="noopener" title="本机词根词典预览">看词根联盟 ↗</a>':'';
+    /* 词典已同源挂在 /dict/, 所有环境都可直达; 新窗口保持背词进度不被切走 */
+    const dictLink=rm&&rm.node?' <a class="vb-dictlink" href="/dict/?node='+encodeURIComponent(rm.node)+'&q='+encodeURIComponent(cur.w)+'&view=lookup" target="_blank" rel="noopener" title="打开词根词典">看词根联盟 ↗</a>':'';
     const rootLine=rm&&(rm.root||rm.clue)
       ? '<div class="vb-root">'+(rm.root?'词根 <b>'+esc(rm.root)+'</b>「'+esc(rm.rootMeaning)+'」':'课堂关联')+' · '+esc(rm.clue)+dictLink+'</div>'
       : (isEp?'<div class="vb-root">EnglishPod 语块 · '+esc(cur.gloss)+'</div>'

@@ -21,6 +21,7 @@
    ============================================================ */
 import { createCoursePlanHandler, Model as CoursePlanModel, ensurePlans, applyPlanAttempt, publicPlan, attemptFingerprint, questionSignature } from './course-plan.mjs';
 import { createRootPractice } from './root-practice.mjs';
+import { createRootDict } from './root-dict.mjs';
 import { createReviewHub } from './review-hub.mjs';
 import EplodRecords from './web/eplod-records.js';
 import { validateEvent, linkCoachEvidence } from './web/review/model.mjs';
@@ -1023,6 +1024,7 @@ let VOCAB_BANK = null, VOCAB_INDEX = null, VOCAB_BANK_RAW = null, VOCAB_BANK_GZ 
 let ROOT_MAP = null, ROOT_MAP_RAW = null, ROOT_MAP_GZ = null, ROOT_MAP_TOKEN = null;
 const ROOT_LEARNING_DIR = path.join(BUILD_DIR, 'root-universe', 'learning');
 const ROOT_PRACTICE = createRootPractice(ROOT_LEARNING_DIR);
+const ROOT_DICT = createRootDict({ project: __dirname });
 function rootLearningMap() {
   const map = ROOT_PRACTICE.rootMap();
   if (map.token !== ROOT_MAP_TOKEN) { ROOT_MAP_TOKEN = map.token; ROOT_MAP_RAW = null; ROOT_MAP_GZ = null; }
@@ -2675,6 +2677,11 @@ const handler = async (req, res) => {
       if (!abs.startsWith(path.normalize(dir) + path.sep)) return sendJSON(res, 400, { error: 'bad path' });
       if (!/\.(jpg|jpeg|png)$/i.test(abs)) return sendJSON(res, 403, { error: 'ext not allowed' });
       return sendFile(req, res, abs);
+    }
+
+    /* ---- 词根词典（/dict/, 只读: root-universe 事实索引 + 已发布学习档案） ---- */
+    if (p === '/dict' || p.startsWith('/dict/')) {
+      if (ROOT_DICT.handle(req, res, p, url, sendJSON, sendFile)) return;
     }
 
     /* ---- 静态页 ---- */

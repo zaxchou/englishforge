@@ -56,7 +56,9 @@ function allianceHTML(data){
 }
 let practiceFamily=null,practiceKey=null,questions=[],qIndex=0,answers=[];
 const practiceContext=()=>JSON.stringify([lookupSense,learning?.alliance?.id||'',learning?.version||'']);
-const api=async p=>{const r=await fetch(p);const d=await r.json();if(!r.ok)throw Error(d.error||'REQUEST_FAILED');return d;};
+/* 独立服务(8036)走 /api；挂在研读桌 /dict/ 下走 /dict/api，页面自身只改这一处基址。 */
+const API_BASE=location.pathname.startsWith('/dict')?'/dict/api':'/api';
+const api=async p=>{const r=await fetch(p.replace(/^\/api(?=\/|$)/,API_BASE));const d=await r.json();if(!r.ok)throw Error(d.error||'REQUEST_FAILED');return d;};
 let toastTimer=null;
 function toast(text){const t=$('#toast');t.textContent=text;t.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>{t.hidden=true;},2600);}
 const sensesOf=headId=>G.nodes.filter(n=>n.type==='senses'&&n.headword_id===headId);

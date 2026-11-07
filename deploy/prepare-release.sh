@@ -17,8 +17,10 @@ CUR=$(cat "$PROJ/VERSION")
 
 rm -rf "$REL"
 mkdir -p "$REL"
-cp "$PROJ/server.mjs" "$PROJ/review-hub.mjs" "$PROJ/course-plan.mjs" "$PROJ/root-practice.mjs" "$PROJ/VERSION" "$REL/"
-cp -r "$PROJ/web" "$PROJ/data" "$PROJ/build" "$REL/"
+cp "$PROJ/server.mjs" "$PROJ/review-hub.mjs" "$PROJ/course-plan.mjs" "$PROJ/root-practice.mjs" "$PROJ/root-dict.mjs" "$PROJ/VERSION" "$REL/"
+cp -r "$PROJ/web" "$PROJ/data" "$PROJ/build" "$PROJ/root-universe" "$REL/"
+mkdir -p "$REL/pipeline/root-universe"
+cp "$PROJ/pipeline/root-universe/validate-kit.cjs" "$REL/pipeline/root-universe/"
 # 已知调试残留不进发布包（工作树里的原件不动，等用户手动清理）
 rm -f "$REL/web/_desk_body.html"
 
@@ -27,7 +29,7 @@ rm -f "$REL/web/_desk_body.html"
   echo "{"
   echo "  \"version\": \"$VER\","
   echo "  \"created\": \"$(date '+%F %T')\","
-  echo "  \"contents\": [\"server.mjs\", \"review-hub.mjs\", \"course-plan.mjs\", \"root-practice.mjs\", \"VERSION\", \"web/\", \"data/\", \"build/\"],"
+  echo "  \"contents\": [\"server.mjs\", \"review-hub.mjs\", \"course-plan.mjs\", \"root-practice.mjs\", \"root-dict.mjs\", \"VERSION\", \"web/\", \"data/\", \"build/\", \"root-universe/\", \"pipeline/root-universe/validate-kit.cjs\"],"
   echo "  \"excluded\": [\"records\", \"docs\", \"pipeline\", \"deploy\", \"releases\", \"skills\", \"server.log\"]"
   echo "}"
 } > "$REL/manifest.release.json"

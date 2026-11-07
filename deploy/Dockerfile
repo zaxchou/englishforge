@@ -5,10 +5,12 @@
 FROM node:22-alpine
 WORKDIR /app
 ENV NODE_ENV=production TZ=Asia/Shanghai
-COPY server.mjs review-hub.mjs course-plan.mjs root-practice.mjs VERSION ./
+COPY server.mjs review-hub.mjs course-plan.mjs root-practice.mjs root-dict.mjs VERSION ./
 COPY web ./web
 COPY data ./data
 COPY build ./build
+COPY root-universe ./root-universe
+COPY pipeline/root-universe/validate-kit.cjs ./pipeline/root-universe/validate-kit.cjs
 # 与 .env 的 CONTAINER_UID/GID 一致（zaxchou 1026:100，已在 NAS 核实），
 # records/ 由 compose 挂载进来，属主须与运行身份一致才能写。
 ARG CONTAINER_UID=1026
