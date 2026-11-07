@@ -2,7 +2,7 @@
   'use strict';
   const copy=x=>x===undefined?undefined:JSON.parse(JSON.stringify(x));
   const object=x=>x&&typeof x==='object'&&!Array.isArray(x);
-  const SCORING_VERSION=4;
+  const SCORING_VERSION=5;
   /* 判分归一分词(r19): 官方文本的 "5:58" 分词成 [5,58], ASR/用户输入是 [five,fifty,eight],
      形状不同会白扣分——数字 token 统一展开成读法单词; oh 与 zero 互通(两侧同变换, 只增匹配不改错配)。 */
   const NUM1={0:'zero',1:'one',2:'two',3:'three',4:'four',5:'five',6:'six',7:'seven',8:'eight',9:'nine',10:'ten',11:'eleven',12:'twelve',13:'thirteen',14:'fourteen',15:'fifteen',16:'sixteen',17:'seventeen',18:'eighteen',19:'nineteen',20:'twenty'};   /* 20 曾缺表, expandNum 兜底成 "20" 配不上 twenty(r2 2026-10-30) */
@@ -60,21 +60,25 @@
   function wordTokens(w){
     const out=[];
     if(w==='okay')return ['ok'];
-    if(/^\d+$/.test(w)){
-      expandNum(parseInt(w,10),out);
+    const bare=w.replace(/^'+|'+$/g,'');   /* 游离撇号和词尾所有格 customers'; SLANG 仍按原词查('bout 等靠撇号) */
+    if(/^\d+$/.test(bare)){
+      expandNum(parseInt(bare,10),out);
       return out.every(token=>typeof token==='string')?out:[w];
     }
+    /* 身高写法 6'1"(官方文本) vs ASR 读法 six one(r5 2026-11-07): 数字'数字展开成读法
+       单词, 两侧同变换只增匹配; o'clock 等非数字后缀不匹配。弯引号已在折叠层归一。 */
+    const feet=bare.match(/^(\d{1,2})'(\d{1,2})$/);
+    if(feet){const spoken=[];expandNum(parseInt(feet[1],10),spoken);expandNum(parseInt(feet[2],10),spoken);return spoken;}
     if(Object.hasOwn(SLANG,w))return SLANG[w].slice();
-    w=w.replace(/^'+|'+$/g,'');   /* 游离撇号和词尾所有格 customers' */
-    if(Object.hasOwn(CONTRACTIONS,w))return CONTRACTIONS[w].slice();
+    if(!bare)return out;
+    if(Object.hasOwn(CONTRACTIONS,bare))return CONTRACTIONS[bare].slice();
     /* 已确认的视力复合词与连字符/分写形式同分词; 不普遍拼接(如 re-sign/resign)。 */
-    const sighted=w.match(/^(far|near|short|long)(sighted(?:ness)?)$/);
+    const sighted=bare.match(/^(far|near|short|long)(sighted(?:ness)?)$/);
     if(sighted)return [sighted[1],sighted[2]];
-    if(!w)return out;
-    if(FILLER.test(w))return ['hmm'];
+    if(FILLER.test(bare))return ['hmm'];
     /* 同音称呼两侧同变换, 不按大写猜测姓名。 */
-    if(w==='miss')w='ms';else if(w==='misses')w='mrs';
-    return [w==='oh'?'zero':usSpelling(w)];
+    if(bare==='miss')return ['ms'];else if(bare==='misses')return ['mrs'];
+    return [bare==='oh'?'zero':usSpelling(bare)];
   }
   /* 评分与显示共享的原文词段。折叠时保留每个字符的原文范围, 因而 d + 空格 + U+0301
      + ecor 是同一段, 不能按空格拆开后分别归一。分隔符不消耗 marks; 数字/缩写可消耗多个。 */

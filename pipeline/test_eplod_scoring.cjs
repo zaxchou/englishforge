@@ -56,11 +56,17 @@ test('normalization retains spelling, number readings, fillers, slang, accents a
     ['Mmm, okay, oh.', 'Hmm, ok, zero.'],
     ["I'm gonna tell 'em 'bout it.", "I'm going to tell them about it."],
     ["I’m gonna tell ’em ’bout it.", "I'm going to tell them about it."],
-    ['The décor, de\u0301cor and d \u0301ecor.', 'The decor decor and decor.']
+    ['The décor, de\u0301cor and d \u0301ecor.', 'The decor decor and decor.'],
+    ["He's quite tall, around 6'1\", he's tall.", "He's quite tall, around six one, he's tall."],
+    ["around 6\u20191\u201d", 'around six one'],
+    ["around 6' 1\"", 'around six one']
   ]) {
     assert.deepEqual(E.normTokens(a), E.normTokens(b), a);
     assert.equal(E.lcsAcc(a, b), 1);
   }
+  assert.equal(E.normTokens("o'clock")[0], "o'clock", 'o-clock is not a feet-inches token');
+  assert.equal(E.normTokens("customers'")[0], 'customers', 'trailing possessive apostrophe still strips');
+  assert.deepEqual(E.normTokens("'bout"), ['about'], 'slang lookup keeps its leading apostrophe');
   assert.deepEqual(E.scoreTokens("I'm gonna call.", "I'm gonna to call.", true), {
     acc: 1, marks: [true, true, true, true, true], extras: ['to'],
     matched: [true, true, true, false, true, true], pairs: [[0, 0], [1, 1], [2, 2], [3, 4], [4, 5]]
@@ -291,6 +297,25 @@ const dialogue = [
   {text: 'Julianne calls McNealy.', t0: 3, t1: 6},
   {text: 'The d \u0301ecor is beautiful.', t0: 6, t1: 9}
 ];
+
+test('r5: historical scores for 6\'1" lines rescore to the spoken form six one', () => {
+  const height = [{text: "He's quite tall, around 6'1\", he's happy.", t0: 0, t1: 5}];
+  const spoken = "He's quite tall, around six one, he's happy.";
+  // 语音路径: 旧账按旧引擎只拿 5/7, 新引擎逐词全中
+  const records = {course: {'eplod-0039': {drill: {
+    rd: {0: {...row(voice('height-take', 20, spoken, 5 / 7)), recAttemptId: 'height-take'}}
+  }}}};
+  const audit = E.repairVoiceScores(records, () => height);
+  assert.ok(audit.changed >= 1, 'voice repair fired');
+  assert.equal(records.course['eplod-0039'].drill.rd[0].voice.acc, 1);
+  assert.equal(records.course['eplod-0039'].drill.rd[0].latest.acc, 1);
+  assert.equal(E.repairVoiceScores(records, () => height).changed, 0, 'idempotent');
+  // 听写路径: repairNumberScores 同款只升不降
+  const dict = {course: {'eplod-0039': {drill: {dd: {0: {acc: 6 / 7, mode: 'dict', last: spoken, at: 5}}}}}};
+  assert.equal(E.repairNumberScores(dict, () => height), 1);
+  assert.equal(dict.course['eplod-0039'].drill.dd[0].acc, 1);
+});
+
 const bestText = 'I have fifty dollars. Julian calls McLean. The decor is beautiful.';
 const latestText = 'I have dollars. Julian calls McLean. The decor beautiful. extra';
 
