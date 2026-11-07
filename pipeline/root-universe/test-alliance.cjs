@@ -87,6 +87,22 @@ async function run(){
     else await page.locator('.practice-card .answer').first().click();
     await page.locator('.practice-card .feedback').waitFor();
     out.checks.push('viewport '+width+': lesson1 multi-root lookup, '+l1Clickable+' clickable, '+l1Nodes+'-branch panorama, branch practice works');
+    // ---- Lessons 2 & 3: lookup, alliance coverage, branch practice entry ----
+    for(const [word,prefix,minWords] of [['compass','Lcfcm-02:',200],['psychology','Lcfcm-03:',200]]){
+      await page.goto(origin+'/');
+      await page.locator('.word-title h2').waitFor();
+      await page.getByLabel('搜索单词').fill(word);
+      await page.getByRole('button',{name:'查词',exact:true}).click();
+      await page.waitForURL(u=>(u.searchParams.get('node')||'').startsWith(prefix));
+      assert.equal(await page.locator('.word-title h2').textContent(),word);
+      const clickable=await page.locator('.alliance-word.clickable').count();
+      assert(clickable>=minWords,word+' alliance clickable '+clickable+' < '+minWords);
+      await page.waitForTimeout(400);
+      await page.locator(width<=700?'.mobile-tabs [data-view="practice"]':'.sidebar [data-view="practice"]').click();
+      await page.locator('.lesson-words').waitFor();
+      const shot5=ws.file(ws.QA,stamp+'/'+width+'-'+word+'-practice.png');await page.screenshot({path:shot5});out.screenshots.push(shot5);
+      out.checks.push('viewport '+width+': '+word+' lookup, '+clickable+' clickable, branch practice card ok');
+    }
    }finally{await ctx.close();}
   }
   out.ok=true;
