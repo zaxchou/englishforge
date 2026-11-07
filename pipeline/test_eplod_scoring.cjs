@@ -59,11 +59,16 @@ test('normalization retains spelling, number readings, fillers, slang, accents a
     ['The décor, de\u0301cor and d \u0301ecor.', 'The decor decor and decor.'],
     ["He's quite tall, around 6'1\", he's tall.", "He's quite tall, around six one, he's tall."],
     ["around 6\u20191\u201d", 'around six one'],
-    ["around 6' 1\"", 'around six one']
+    ["around 6' 1\"", 'around six one'],
+    ["He's really good looking.", 'He is really good looking.'],
+    ["What's wrong? Here's the plan.", 'What is wrong? Here is the plan.']
   ]) {
     assert.deepEqual(E.normTokens(a), E.normTokens(b), a);
     assert.equal(E.lcsAcc(a, b), 1);
   }
+  assert.ok(E.lcsAcc("he's got the keys", 'he has got the keys') > E.lcsAcc("he's got the keys", 'he held the keys'), 'has-reading still gains partial matches');
+  assert.ok(E.lcsAcc("the boy's book", 'the boys book') < 1, 'possessive or plural confusion is not forgiven');
+  assert.ok(E.lcsAcc('its fine', "it's fine") < 1, "its and it's stay distinct");
   assert.equal(E.normTokens("o'clock")[0], "o'clock", 'o-clock is not a feet-inches token');
   assert.equal(E.normTokens("customers'")[0], 'customers', 'trailing possessive apostrophe still strips');
   assert.deepEqual(E.normTokens("'bout"), ['about'], 'slang lookup keeps its leading apostrophe');
@@ -99,12 +104,15 @@ test('common contractions equal their full forms without erasing grammar or cont
     ["You're calling in sick.", 'You were calling in sick.'],
     ["I've called.", 'I called.'],
     ["I'll call.", 'I would call.'],
-    ["He's called.", 'He is called.'],
     ["He's called.", 'He has called.'],
     ["I'd called.", 'I had called.'],
     ["I'd call.", 'I would call.'],
     ["The customer's calling.", 'The customer is calling.']
   ]) assert.ok(E.scoreTokens(a, b, true).acc < 1, a + ' retains a distinct or ambiguous form');
+  // r6 2026-11-07: 代词+'s 从不表示所有格, 按 is 读法两侧展开; 名词所有格与 'd 仍不展开。
+  assert.equal(E.lcsAcc("He's called.", 'He is called.'), 1, "pronoun he's equals he is");
+  assert.equal(E.lcsAcc("What's wrong? Where's he?", 'What is wrong? Where is he?'), 1);
+  assert.ok(E.lcsAcc("James's book", 'James is book') < 1, "possessive James's is not expanded");
 });
 
 test('contraction rescoring repairs evidenced voice/whole takes and blocks version-1 snapshots', () => {

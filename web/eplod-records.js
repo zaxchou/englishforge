@@ -2,7 +2,7 @@
   'use strict';
   const copy=x=>x===undefined?undefined:JSON.parse(JSON.stringify(x));
   const object=x=>x&&typeof x==='object'&&!Array.isArray(x);
-  const SCORING_VERSION=5;
+  const SCORING_VERSION=6;
   /* 判分归一分词(r19): 官方文本的 "5:58" 分词成 [5,58], ASR/用户输入是 [five,fifty,eight],
      形状不同会白扣分——数字 token 统一展开成读法单词; oh 与 zero 互通(两侧同变换, 只增匹配不改错配)。 */
   const NUM1={0:'zero',1:'one',2:'two',3:'three',4:'four',5:'five',6:'six',7:'seven',8:'eight',9:'nine',10:'ten',11:'eleven',12:'twelve',13:'thirteen',14:'fourteen',15:'fifteen',16:'sixteen',17:'seventeen',18:'eighteen',19:'nineteen',20:'twenty'};   /* 20 曾缺表, expandNum 兜底成 "20" 配不上 twenty(r2 2026-10-30) */
@@ -46,8 +46,13 @@
   const SLANG={alright:['all','right'],gonna:['going','to'],wanna:['want','to'],gotta:['got','to'],kinda:['kind','of'],sorta:['sort','of'],
     lemme:['let','me'],gimme:['give','me'],outta:['out','of'],lotta:['lot','of'],"c'mon":['come','on'],
     "'bout":['about'],"'em":['them'],"'cause":['because'],"'til":['till'],"'till":['till'],"'tis":['it','is']};
-  /* 明确同义的常见缩写两侧展开。's(is/has/所有格)、'd(had/would)有歧义, 不盲目替换。 */
+  /* 明确同义的常见缩写两侧展开。's(is/has/所有格)有歧义——但人称/指示代词+'s 从不表示
+     所有格(its/ours 无撇号), 按 is 读法展开(r6 2026-11-07): ASR 常把 He's 写成 He is,
+     形状差(1↔2 token)整对落空; has 读法(he's got ↔ he has got)展开后 he/got 仍各得其所。
+     名词所有格(boy's/James's/today's)不展开。'd(had/would)仍不盲目替换。 */
   const CONTRACTIONS={"i'm":['i','am'],"you're":['you','are'],"we're":['we','are'],"they're":['they','are'],
+    "he's":['he','is'],"she's":['she','is'],"it's":['it','is'],"that's":['that','is'],"what's":['what','is'],
+    "who's":['who','is'],"there's":['there','is'],"here's":['here','is'],"where's":['where','is'],"how's":['how','is'],
     "i've":['i','have'],"you've":['you','have'],"we've":['we','have'],"they've":['they','have'],
     "i'll":['i','will'],"you'll":['you','will'],"he'll":['he','will'],"she'll":['she','will'],
     "it'll":['it','will'],"we'll":['we','will'],"they'll":['they','will'],"let's":['let','us'],
