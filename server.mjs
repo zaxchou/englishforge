@@ -1025,19 +1025,24 @@ function rootLearningEntries() {
   if (!fs.existsSync(ROOT_LEARNING_DIR)) return null;
   let token = '';
   const versions = [];
-  try {
-    for (const name of fs.readdirSync(ROOT_LEARNING_DIR).sort()) {
-      const pointer = path.join(ROOT_LEARNING_DIR, name, 'current.json');
+  let names;
+  try { names = fs.readdirSync(ROOT_LEARNING_DIR).sort(); } catch { return null; }
+  for (const name of names) {
+    const pointer = path.join(ROOT_LEARNING_DIR, name, 'current.json');
+    try {
       if (!fs.existsSync(pointer)) continue;
+      const st = fs.statSync(pointer);
       const p = JSON.parse(fs.readFileSync(pointer, 'utf8'));
-      if (p.id !== name || !/^[a-f0-9]{64}$/.test(p.version)) continue;
-      token += name + ':' + p.version + ';';
+      if (p.id !== name || !/^[a-f0-9]{64}$/.test(p.version)) { token += name + ':invalid:' + st.mtimeMs + ';'; continue; }
+      token += name + ':' + st.size + ':' + st.mtimeMs + ';';
       let e;
-      try { e = JSON.parse(fs.readFileSync(path.join(ROOT_LEARNING_DIR, name, 'versions', p.version, 'entry.json'), 'utf8')); } catch { continue; }
-      if (!e.alliance || e.schema_version !== '1.1.0') continue;
+      try {
+        e = JSON.parse(fs.readFileSync(path.join(ROOT_LEARNING_DIR, name, 'versions', p.version, 'entry.json'), 'utf8'));
+        if (!e.alliance || e.schema_version !== '1.1.0') { token += name + ':noprofile:' + p.version + ';'; continue; }
+      } catch { token += name + ':broken:' + p.version + ';'; continue; }
       versions.push({ name, entry: e });
-    }
-  } catch { return null; }
+    } catch { token += name + ':error:' + Date.now() + ';'; }
+  }
   if (!versions.length) return null;
   return { token, versions };
 }

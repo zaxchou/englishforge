@@ -2502,15 +2502,19 @@ async function rpLoad(lesson){
 function rpQuestions(branch){
   const qs=[];
   for(const w of branch.words){
-    const alts=branch.words.filter(x=>x.word!==w.word&&x.def!==w.def).slice(0,2).map(x=>x.def);
+    const alts=[...new Set(branch.words.filter(x=>x.word!==w.word&&x.def!==w.def).slice(0,4).map(x=>x.def))].slice(0,2);
     qs.push({word:w.word,kind:'辨认词义',q:`${w.word} 在本课中的意思是？`,choices:[w.def,...alts],answer:w.def,why:w.clue,node:w.node});
     if(w.recall) qs.push({word:w.word,kind:'主动回忆',q:w.recall.prompt,input:true,answer:w.recall.answer,why:w.recall.explanation,node:w.node});
   }
   return qs;
 }
 function rpGrade(word, correct){
-  /* 词根巩固结果直接进 SM-2 调度: 答对=良好(3), 答错=重来(1) */
-  api('/api/vocab/grade',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({word,rating:correct?3:1,at:Date.now()})}).catch(()=>{});
+  /* 词根巩固结果直接进 SM-2 调度: 答对=良好(3), 答错=重来(1)。走背单词离线事件队列(断网可补传)。 */
+  const id='rp-'+(crypto.randomUUID?crypto.randomUUID():(Date.now()+'-'+Math.random().toString(36).slice(2)));
+  try{
+    localStorage.setItem(VB_PREFIX+id,JSON.stringify({id,word,rating:correct?3:1,at:Date.now()}));
+    vbFlushQueue();
+  }catch(e){ /* 队列写失败时评分不落, 下次作答会再写 */ }
 }
 function rpRender(){
   const body=$('rp-body'); if(!body) return;
@@ -3308,10 +3312,12 @@ function vbRender(){
       + '<div class="vb-act"><button class="pri vb-show" id="vb-show">显示答案 <span class="vb-kbd">空格</span></button></div>';
   } else {
     const rm=VB.rootMap&&VB.rootMap[cur.k];
-    const rootLine=rm&&rm.root
-      ? '<div class="vb-root">词根 <b>'+esc(rm.root)+'</b>「'+esc(rm.rootMeaning)+'」 · '+esc(rm.clue)+(rm.node?' <a class="vb-dictlink" href="http://127.0.0.1:8036/?node='+encodeURIComponent(rm.node)+'&q='+encodeURIComponent(cur.w)+'&view=lookup" target="_blank" rel="noopener" title="本机词根词典预览">看词根联盟 ↗</a>':'')+'</div>'
+    const local=location.hostname==="127.0.0.1"||location.hostname==="localhost";
+    const dictLink=rm&&rm.node&&local?' <a class="vb-dictlink" href="http://127.0.0.1:8036/?node='+encodeURIComponent(rm.node)+'&q='+encodeURIComponent(cur.w)+'&view=lookup" target="_blank" rel="noopener" title="本机词根词典预览">看词根联盟 ↗</a>':'';
+    const rootLine=rm&&(rm.root||rm.clue)
+      ? '<div class="vb-root">词根 <b>'+esc(rm.root||cur.root)+'</b>「'+esc(rm.rootMeaning||cur.gloss)+'」 · '+esc(rm.clue)+dictLink+'</div>'
       : (isEp?'<div class="vb-root">EnglishPod 语块 · '+esc(cur.gloss)+'</div>'
-             :'<div class="vb-root">词根 '+esc(cur.root)+'（'+esc(cur.gloss)+'）</div>');
+             :'<div class="vb-root">词根 '+esc(cur.root)+'（'+esc(cur.gloss)+'）'+dictLink+'</div>');
     h+='<div class="vb-def">'+esc(cur.def)+'</div>'
       + rootLine
       + (rm&&rm.example?'<div class="vb-rootexample">'+esc(rm.example.en)+(rm.example.zh?'<span>'+esc(rm.example.zh)+'</span>':'')+'</div>':'')

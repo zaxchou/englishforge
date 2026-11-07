@@ -61,7 +61,7 @@ function allianceGraphDetail(){
 function allianceQuestions(){
   const a=learning.alliance,b=a.branches.find(b=>b.id===alliancePracticeBranch)||branchOfWord(learning,lookupSense)||a.branches[0];alliancePracticeBranch=b.id;
   return b.words.flatMap(item=>{
-    const w=reviewedMember(memberId(item)),other=learning.members.filter(x=>x.word!==w.word&&x.meaning!==w.meaning);
+    const w=reviewedMember(memberId(item)),other=[...new Map(learning.members.filter(x=>x.word!==w.word&&x.meaning!==w.meaning&&x.meaning).map(x=>[x.meaning,x])).values()];
     // Context and answer are independently reviewed; alternatives are not generated from spelling similarity.
     const items=[{id:w.id+':meaning',word_id:memberId(w),kind:'辨认词义',q:`${w.word} 在本课中的意思是？`,hint:'先回想分支的意思，再判断这个词。',choices:[w.meaning,...other.slice(0,2).map(x=>x.meaning)],answer:w.meaning,why:w.explanation}];
     if(w.recall)items.push({id:w.id+':recall',word_id:memberId(w),kind:'主动回忆',q:w.recall.prompt,hint:'输入完整英文单词。',input:true,answer:w.recall.answer,why:w.recall.explanation});
