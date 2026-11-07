@@ -590,6 +590,21 @@ def ai_lang(data, batch=45, jobs=("dg", "pb")):
 
 def apply_errata(data):
     ep = int(data.get("ep", 0))
+    if ep == 39:
+        # 2026-11-07 勘误: dialogue#0 官方文本 "So, how how did it go?" 多一个 how——
+        # 双引擎无偏置 ASR(qwen3-asr-flash + faster-whisper 词级)一致只有单个 how。覆盖正文/词块例句/意群。
+        def correct39(value):
+            if isinstance(value, str):
+                return value.replace("How how did it go", "How did it go").replace("how how did it go", "how did it go")
+            if isinstance(value, list):
+                return [correct39(x) for x in value]
+            if isinstance(value, dict):
+                return {k: correct39(v) for k, v in value.items()}
+            return value
+        corrected = correct39(data)
+        data.clear()
+        data.update(corrected)
+        return data
     if ep == 33:
         # 2026-11-05 勘误: dialogue#8 官方文本漏词——原音实为 "the ref didn't even call it"
         # (无偏置 ASR 割句验证 + 讲解段 126/166 行主持人原话均含 even)。覆盖正文/词块例句/意群/中文。
