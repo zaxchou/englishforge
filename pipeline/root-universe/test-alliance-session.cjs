@@ -112,7 +112,9 @@ async function run(){
    await page.evaluate(()=>{recordAllianceAnswer('lesson2 meaning 0');setView('practice');});
    assert.equal(await page.evaluate(()=>Object.keys(localStorage).filter(k=>k.startsWith('root-universe:event:')).length),oldEvents);
   }finally{release();}
-  await page.waitForFunction(()=>learningLookup==='P0001:s0001');s=await state();expectQuestions(s,profiles[0],'B1');expectSession(s);assert.equal(s.stage,'read');
+  await page.waitForFunction(()=>learningLookup==='P0001:s0001');
+  await page.locator('.sidebar [data-view="practice"]').click();
+  s=await state();expectQuestions(s,profiles[0],'B1');expectSession(s);assert.equal(s.stage,'read');
   check('pending lookup hides old quiz and blocks old-answer writes before the matching profile arrives');
   assert.deepEqual(out.blocked,[],'all requests must stay inside the fixture allowlist');assert.deepEqual(out.errors,[]);
   out.ok=true;

@@ -24,8 +24,12 @@ function learningSearch(index,q,options){
   const all=[...heads.values()].sort((a,b)=>(a.display.toLowerCase()===key?0:1)-(b.display.toLowerCase()===key?0:1)||a.display.localeCompare(b.display));
   return {results:all.slice(0,max),truncated:raw.truncated||all.length>max};
 }
-function createServer({base=ws.ROOT}={}) {
+function createServer({base=ws.ROOT,deskUrl=process.env.TFL_DESK_URL??'https://192.168.31.246:8018/#/home'}={}) {
   ws.controlled(base);
+  let desk;
+  try {desk=new URL(deskUrl);} catch {throw Error('TFL_DESK_URL_INVALID');}
+  if(!['http:','https:'].includes(desk.protocol))throw Error('TFL_DESK_URL_INVALID');
+  const deskHref=desk.href.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const assets={'/':['index.html','text/html; charset=utf-8'],'/app.js':['app.js','text/javascript; charset=utf-8'],'/alliance-ui.js':['alliance-ui.js','text/javascript; charset=utf-8'],'/style.css':['style.css','text/css; charset=utf-8'],'/brand.png':['brand.png','image/png']};
   const send=(res,status,body,type='application/json; charset=utf-8')=>{
     res.writeHead(status,{'Content-Type':type,'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer','Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'"});
@@ -45,7 +49,12 @@ function createServer({base=ws.ROOT}={}) {
     if(req.url.length>2048)return send(res,414,{error:'URL_LIMIT'});
     let url;
     try {url=new URL(req.url,'http://127.0.0.1');decodeURIComponent(req.url);}catch{return send(res,400,{error:'URL_INVALID'});}
-    if(assets[url.pathname])return send(res,200,fs.readFileSync(path.join(__dirname,'public',assets[url.pathname][0])),assets[url.pathname][1]);
+    if(assets[url.pathname]){
+      const [file,type]=assets[url.pathname];
+      let body=fs.readFileSync(path.join(__dirname,'public',file));
+      if(file==='index.html')body=body.toString('utf8').replace(/href="\/#\/home"(?= data-desk-link)/g,()=>`href="${deskHref}"`);
+      return send(res,200,body,type);
+    }
     const routes={'/api/health':[],'/api/graph':[],'/api/search':['q','max'],'/api/node':['id'],'/api/neighbors':['id','depth','maxNodes','maxEdges','layer','type','direction'],'/api/source':['id'],'/api/learning':['id']};
     if(!Object.hasOwn(routes,url.pathname))return send(res,404,{error:'NOT_FOUND'});
     for(const key of url.searchParams.keys()) if(!routes[url.pathname].includes(key)||url.searchParams.getAll(key).length!==1)return send(res,400,{error:'PARAMETER_INVALID'});

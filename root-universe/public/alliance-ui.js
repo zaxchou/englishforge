@@ -1,6 +1,6 @@
 'use strict';
 // The reviewed learning projection supplies membership; it does not add historical fact edges.
-let selectedAllianceBranch=null,alliancePracticeBranch=null,alliancePracticeStage='read';
+let selectedAllianceBranch=null,selectedAllianceRoot=null,alliancePracticeBranch=null,alliancePracticeStage='read';
 const relationLabels={close:'近支词',cognate:'远缘同源',classroom:'课堂关联',unresolved:'关系待核'};
 const memberId=w=>w.query_id||w.sense_id;
 const alliancePracticeContext=branch=>JSON.stringify(['alliance-v1',lookupSense,learning.alliance.id,learning.version,branch]);
@@ -45,11 +45,20 @@ function shuffleAllianceChoices(choices,seed){
 }
 function branchOfWord(data,id){return data.alliance.branches.find(b=>b.words.some(w=>memberId(w)===id));}
 function reviewedMember(id){return learning.members.find(w=>memberId(w)===id);}
+function allianceBreakdownHTML(data,branch){
+  const w=data.word,parts=w.parts||[];
+  const placeholder=parts.length===1&&parts[0].role==='base'&&parts[0].label.toLowerCase()===w.word.toLowerCase();
+  if(!parts.length||placeholder){
+    const clue=branch?.words.find(item=>memberId(item)===data.query_id)?.clue;
+    return `<section class="section root-breakdown"><h3>课堂记忆线索</h3><p class="explanation">${esc(clue||'本词按当前课堂分支串联，构词资料仍在整理。')}</p><p class="breakdown-note">逐词构词分析待补充；这里保留课堂线索。</p></section>`;
+  }
+  return `<section class="section root-breakdown"><h3>拆开记，更好懂</h3><div class="breakdown" data-parts="${parts.length}">${parts.map((p,i)=>`${i?'<span class="plus">+</span>':''}<div class="piece ${p.role==='root'?'root-piece':'base'}"><small>${esc(roleNames[p.role])}</small><strong>${esc(p.label)}</strong><span>${esc(p.meaning)}</span></div>`).join('')}</div>${w.explanation&&w.explanation!==w.meaning?`<p class="explanation">${esc(w.explanation)}</p>`:''}${w.modern_formula?`<div class="modern-formula"><strong>现代构词与记忆</strong><span>${esc(w.modern_formula)}</span></div>`:''}</section>`;
+}
 function allianceProfileHTML(data){
   const w=data.word,branch=branchOfWord(data,data.query_id),rooted=data.roots.length>0;
   return `<section class="root-answer" aria-label="核心词根"><div class="eyebrow">${rooted?'这个词的词源基础':'课堂关联与构词'}</div>${rooted?data.roots.map(r=>`<div class="root-heading"><h3>${esc(r.label)}</h3><span>${esc(r.meaning)}</span></div><p>${esc(r.origin)}</p>`).join(''):`<div class="root-heading"><h3>${esc(relationLabels[w.relation_kind])}</h3></div><p>保留课堂上的串联位置，不把相似拼写当作同根证明。</p>`}<p class="relation-caption">${esc(relationLabels[w.relation_kind])}${branch?' · '+esc(branch.title):''}</p><button class="link" id="root-panorama">围绕词根看整个联盟 →</button></section>
-  <section class="section root-breakdown"><h3>拆开记，更好懂</h3>${w.parts?.length?`<div class="breakdown">${w.parts.map((p,i)=>`${i?'<span class="plus">+</span>':''}<div class="piece ${p.role==='root'?'root-piece':'base'}"><small>${esc(roleNames[p.role])}</small><strong>${esc(p.label)}</strong><span>${esc(p.meaning)}</span></div>`).join('')}</div>`:''}<p class="explanation">${esc(w.explanation)}</p><div class="modern-formula"><strong>现代构词</strong><span>${esc(w.modern_formula)}</span></div></section>
-  <section class="section root-trace"><h3>词源与关联依据</h3><p class="trace-caption">${esc(relationLabels[w.relation_kind])} · 历史来源与记忆提示分开阅读</p><ol>${w.trace.map(s=>`<li class="${esc(s.kind)}"><strong>${esc(s.label)}</strong><span>${esc(s.meaning)}</span></li>`).join('')}</ol><p class="explanation">${esc(w.caveat||'')}</p><details class="root-evidence"><summary>查看来源与更早形式</summary>${learningSources(data,w.source_ids)}${data.roots.map(r=>`<p>${esc(r.forms_note)}</p><div class="earlier-origin">${(r.earlier||[]).map(e=>`<span><b>${esc(e.label)}</b> · ${esc(e.meaning)}</span>`).join(' → ')}</div><p>${esc(r.earlier_note)}</p>`).join('')}<details><summary>原文片段与许可</summary>${data.sources.filter(s=>w.source_ids.includes(s.id)).map(s=>`<article class="learning-source"><strong>${esc(s.entry)}</strong><blockquote>${esc(s.excerpt)}</blockquote><p>${learningSources(data,[s.id])} · ${esc(s.license)} · ${esc(s.attribution)}</p></article>`).join('')}</details></details></section>
+  ${allianceBreakdownHTML(data,branch)}
+  <section class="section root-trace"><h3>词源与关联依据</h3><p class="trace-caption">${esc(relationLabels[w.relation_kind])} · 历史来源与记忆提示分开阅读</p>${w.trace.some(s=>s.kind!=='word')?`<ol>${w.trace.map(s=>`<li class="${esc(s.kind)}"><strong>${esc(s.label)}</strong><span>${esc(s.meaning)}</span></li>`).join('')}</ol>`:''}${w.caveat?`<p class="explanation">${esc(w.caveat)}</p>`:''}<details class="root-evidence"><summary>查看来源与更早形式</summary>${learningSources(data,w.source_ids)}${data.roots.map(r=>`<p>${esc(r.forms_note)}</p><div class="earlier-origin">${(r.earlier||[]).map(e=>`<span><b>${esc(e.label)}</b> · ${esc(e.meaning)}</span>`).join(' → ')}</div><p>${esc(r.earlier_note)}</p>`).join('')}<details><summary>原文片段与许可</summary>${data.sources.filter(s=>w.source_ids.includes(s.id)).map(s=>`<article class="learning-source"><strong>${esc(s.entry)}</strong><blockquote>${esc(s.excerpt)}</blockquote><p>${learningSources(data,[s.id])} · ${esc(s.license)} · ${esc(s.attribution)}</p></article>`).join('')}</details></details></section>
   ${w.example?`<section class="section"><h3>放进一句话</h3><div class="meaning-example"><p>${esc(w.example.en)}</p><small>${esc(w.example.zh)}</small></div></section>`:''}${completeAllianceHTML(data)}`;
 }
 function completeAllianceHTML(data){
@@ -60,50 +69,98 @@ function completeAllianceHTML(data){
 }
 function bindAllianceActions(root){
   root.querySelectorAll('[data-learn-branch]').forEach(b=>b.onclick=()=>{startAlliancePractice(b.dataset.learnBranch);setView('practice');});
-  root.querySelectorAll('[data-map-branch]').forEach(b=>b.onclick=()=>{selectedAllianceBranch=b.dataset.mapBranch;rootGraphMode=true;graphFocus='branch:'+learning.alliance.id+':'+selectedAllianceBranch;setView('graph');graphFocus='branch:'+learning.alliance.id+':'+selectedAllianceBranch;renderGraph();});
+  root.querySelectorAll('[data-map-branch]').forEach(b=>b.onclick=()=>{
+    selectedAllianceBranch=b.dataset.mapBranch;
+    const branch=learning.alliance.branches.find(x=>x.id===selectedAllianceBranch),roots=new Set(branch.words.flatMap(item=>{const ids=reviewedMember(memberId(item)).root_ids;return ids?.length?ids:['@classroom'];}));
+    selectedAllianceRoot=roots.size===1?[...roots][0]:'@all';
+    rootGraphMode=true;graphFocus='branch:'+learning.alliance.id+':'+selectedAllianceBranch;setView('graph');graphFocus='branch:'+learning.alliance.id+':'+selectedAllianceBranch;renderGraph();
+  });
 }
 function allianceGraphData(){
-  const a=learning.alliance,branches=a.branches,pos={},edges=[];
-  const multiRoot=learning.family_roots.length>1;
-  for(const r of learning.family_roots)nodeById.set('learning:'+r.id,{id:'learning:'+r.id,type:'learning_root',label:r.label,zh:r.meaning});
-  let rootId='learning:'+learning.family_roots[0].id;
-  if(!multiRoot){pos[rootId]={x:50,y:65};}
-  const chosen=branches.find(b=>b.id===selectedAllianceBranch);
-  const visible=chosen?[chosen]:branches;
-  const colX=i=>i%2?74:26;
-  const rowY=i=>multiRoot?(chosen?170:75+Math.floor(i/2)*150):(chosen?220:220+Math.floor(i/2)*185);
-  visible.forEach((b,i)=>{
-    const id='branch:'+a.id+':'+b.id;
-    nodeById.set(id,{id,type:'learning_branch',label:b.title,zh:b.words.length+'词 · '+b.idea,branch_id:b.id});
-    pos[id]={x:chosen?50:colX(i),y:rowY(i)};
-    if(!multiRoot)edges.push({from_id:id,to_id:rootId,layer:'learning',type:'alliance_branch',label:''});
-  });
-  let height=chosen?365:rowY(visible.length-1)+150;
-  if(chosen){
-    chosen.words.forEach((w,i)=>{const id=memberId(w),full=reviewedMember(id);nodeById.set(id,{...(nodeById.get(id)||{}),id,type:nodeById.get(id)?.type||'learning_word',label:w.word,zh:full.meaning});pos[id]={x:chosen.words.length===1?50:i%2?75:25,y:chosen?335+Math.floor(i/2)*160:385+Math.floor(i/2)*160};edges.push({from_id:id,to_id:'branch:'+a.id+':'+chosen.id,layer:'learning',type:'alliance_member',label:''});});
-    height=475+Math.ceil(chosen.words.length/2)*160;
+  const a=learning.alliance,pos={},edges=[],rows=[];
+  const members=learning.members,roots=learning.family_roots.filter(r=>members.some(w=>w.root_ids?.includes(r.id)));
+  const groups=roots.map(r=>({key:r.id,id:'learning:'+r.id,label:r.label,meaning:r.meaning}));
+  if(members.some(w=>!w.root_ids?.length))groups.push({key:'@classroom',id:'learning-group:'+a.id,label:'课堂对照',meaning:'保留课堂串联，不视为同根'});
+  if(!groups.some(g=>g.key===selectedAllianceRoot)&&selectedAllianceRoot!=='@all')selectedAllianceRoot=groups.find(g=>learning.word.root_ids?.includes(g.key))?.key||groups[0]?.key;
+  let picker=$('#alliance-root-picker');
+  if(!picker){picker=document.createElement('div');picker.id='alliance-root-picker';picker.className='graph-root-picker';$('#graph-modes').after(picker);}
+  picker.hidden=groups.length<2;
+  picker.innerHTML='<label for="alliance-root-select">查看词根</label><select id="alliance-root-select">'+groups.map(g=>`<option value="${esc(g.key)}">${esc(g.label)} · ${members.filter(w=>g.key==='@classroom'?!w.root_ids?.length:w.root_ids?.includes(g.key)).length}词</option>`).join('')+'<option value="@all">全部词根 · 分开展示</option></select>';
+  const select=$('#alliance-root-select');select.value=selectedAllianceRoot;
+  select.onchange=()=>{selectedAllianceRoot=select.value;selectedAllianceBranch=null;graphFocus=groups.find(g=>g.key===selectedAllianceRoot)?.id||'alliance-overview:'+a.id;renderGraph();};
+  const matchesGroup=(word,g)=>g.key==='@classroom'?!word.root_ids?.length:word.root_ids?.includes(g.key);
+  const chosenBranch=a.branches.find(b=>b.id===selectedAllianceBranch);
+  const visibleGroups=(selectedAllianceRoot==='@all'?groups:groups.filter(g=>g.key===selectedAllianceRoot))
+    .filter(g=>!chosenBranch||chosenBranch.words.some(item=>matchesGroup(reviewedMember(memberId(item)),g)));
+  const columns=$('#family-map').clientWidth<520?1:2;
+  const addRows=ids=>{for(let i=0;i<ids.length;i+=columns)rows.push(ids.slice(i,i+columns));};
+  for(const g of visibleGroups){
+    nodeById.set(g.id,{id:g.id,type:g.key==='@classroom'?'learning_group':'learning_root',label:g.label,zh:g.meaning,root_id:g.key});
+    pos[g.id]={x:50,y:0};rows.push([g.id]);
+    const branches=a.branches.filter(b=>!selectedAllianceBranch||b.id===selectedAllianceBranch),branchIds=[];
+    for(const b of branches){
+      const words=b.words.filter(item=>{const w=reviewedMember(memberId(item));return g.key==='@classroom'?!w.root_ids?.length:w.root_ids?.includes(g.key);});
+      if(!words.length)continue;
+      const id='branch:'+a.id+':'+b.id+(selectedAllianceRoot==='@all'?':'+g.key:'');
+      nodeById.set(id,{id,type:'learning_branch',label:b.title,zh:words.length+'词 · '+b.idea,branch_id:b.id,root_id:g.key,member_ids:words.map(memberId)});
+      pos[id]={x:50,y:0};branchIds.push(id);
+      edges.push({from_id:id,to_id:g.id,layer:g.key==='@classroom'?'learning_classroom':'learning',type:'alliance_branch',label:''});
+      if(selectedAllianceBranch){
+        addRows([id]);const ids=[];
+        for(const item of words){const wordId=memberId(item),w=reviewedMember(wordId);nodeById.set(wordId,{...(nodeById.get(wordId)||{}),id:wordId,type:nodeById.get(wordId)?.type||'learning_word',label:w.word,zh:w.meaning});pos[wordId]={x:50,y:0};ids.push(wordId);edges.push({from_id:wordId,to_id:id,layer:w.relation_kind==='classroom'?'learning_classroom':'learning',type:'alliance_member',label:''});}
+        addRows(ids);
+      }
+    }
+    if(!selectedAllianceBranch)addRows(branchIds);
   }
-  return {pos,edges,height,rootMode:true,allianceMode:true};
+  return {pos,edges,rows,columns,rootMode:true,allianceMode:true};
+}
+function layoutAllianceRows(data){
+  const host=$('#family-map');let y=20;
+  for(const row of data.rows){
+    const nodes=row.map(id=>host.querySelector(`[data-node="${CSS.escape(id)}"]`));
+    const height=Math.max(...nodes.map(n=>n.getBoundingClientRect().height));
+    nodes.forEach((n,i)=>{n.style.left=(nodes.length===1?50:i===0?26:74)+'%';n.style.top=(y+height/2)+'px';});
+    y+=height+48;
+  }
+  host.style.height=y+'px';data.height=y;
 }
 function allianceGraphDetail(){
   const a=learning.alliance,n=nodeById.get(graphFocus),branch=n?.branch_id?a.branches.find(b=>b.id===n.branch_id):null,w=reviewedMember(graphFocus);
   const detail=$('#graph-detail');
-  if(branch){detail.innerHTML=`<div><span class="eyebrow">语义分支</span><h2>${esc(branch.title)}</h2><p class="translation">${branch.words.length} 个关联词</p></div><p class="detail-text">${esc(branch.idea)}</p><button class="primary" id="expand-branch">展开这一支</button><button class="link" data-learn-branch="${esc(branch.id)}">开始分支学习 →</button><button class="link" id="all-branches">返回整个联盟</button>`;$('#expand-branch').onclick=()=>{selectedAllianceBranch=branch.id;renderGraph();};}
+  if(branch){detail.innerHTML=`<div><span class="eyebrow">语义分支</span><h2>${esc(branch.title)}</h2><p class="translation">${n.member_ids.length} 个关联词</p></div><p class="detail-text">${esc(branch.idea)}</p><button class="primary" id="expand-branch">展开这一支</button><button class="link" data-learn-branch="${esc(branch.id)}">开始分支学习 →</button><button class="link" id="all-branches">返回整个联盟</button>`;$('#expand-branch').onclick=()=>{selectedAllianceRoot=n.root_id;selectedAllianceBranch=branch.id;graphFocus='branch:'+a.id+':'+branch.id;renderGraph();};}
   else if(w){detail.innerHTML=`<div><span class="eyebrow">${esc(relationLabels[w.relation_kind])}</span><h2>${esc(w.word)}</h2><div class="translation">${esc(w.meaning)}</div></div><p class="detail-text">${esc(w.explanation)}</p><p>${learningSources(learning,w.source_ids)}</p><button class="primary" id="graph-word">查看这个词</button><button class="link" id="all-branches">返回整个联盟</button>`;$('#graph-word').onclick=async()=>{lookupSense=memberId(w);await renderWord();setView('lookup');};}
-  else if(n.type==='learning_root'){
+  else if(n?.type==='learning_group'){
+    detail.innerHTML='<div><span class="eyebrow">课堂串联</span><h2>课堂对照</h2><p class="detail-text">这些词保留课堂并列位置。相似拼写与教学联想不是同源证据；请逐词查看各自来源。</p></div><button class="link" id="all-branches">看全部分支</button>';
+  }
+  else if(n?.type==='learning_root'){
     const r=learning.family_roots.find(x=>'learning:'+x.id===n.id);
     detail.innerHTML=`<div><span class="eyebrow">核心词根</span><h2>${esc(r.label)}</h2><p class="translation">${esc(r.meaning)}</p></div><p class="detail-text">${esc(r.origin)}</p><p class="detail-text">${esc(r.forms_note||'')}${r.earlier_note?' '+esc(r.earlier_note):''}</p>${learningSources(learning,r.source_ids)}<button class="primary" id="graph-word">返回查词</button><button class="link" id="all-branches">看全部分支</button>`;$('#graph-word').onclick=()=>setView('lookup');
   }
   else{detail.innerHTML=`<div><span class="eyebrow">联盟概览</span><h2>${esc(a.title)}</h2><p class="translation">${a.branches.length} 分支 · ${a.words.length} 词</p></div><p class="detail-text">点分支看小组。近支、远缘同源和课堂关联分别标明；这里的连线表示学习分组，不表示直接历史派生。</p>${learning.family_roots.length>1?`<p class="detail-text"><b>本课 ${learning.family_roots.length} 个根身份：</b><br>${learning.family_roots.map(r=>`${esc(r.label)}「${esc(r.meaning)}」`).join('<br>')}</p>`:''}<button class="primary" id="graph-word">返回查词</button><button class="link" id="all-branches">看全部分支</button>`;$('#graph-word').onclick=()=>setView('lookup');}
-  const back=$('#all-branches');if(back)back.onclick=()=>{selectedAllianceBranch=null;graphFocus='learning:'+learning.family_roots[0].id;renderGraph();};
+  const back=$('#all-branches');if(back)back.onclick=()=>{selectedAllianceBranch=null;graphFocus=selectedAllianceRoot==='@all'?'alliance-overview:'+a.id:selectedAllianceRoot==='@classroom'?'learning-group:'+a.id:'learning:'+selectedAllianceRoot;renderGraph();};
   bindAllianceActions(detail);
+}
+function meaningTerms(text){
+  return [...new Set(String(text||'').normalize('NFKC').toLowerCase().replace(/\b(?:adj|adv|vt|vi|prep|pron|conj|interj|num|aux|ad|n|v|a)\.\s*/g,'').split(/[;；,，、/]/).map(s=>s.replace(/[\s.。()（）“”‘’]/g,'')).filter(Boolean))].sort();
+}
+function meaningAlternatives(word){
+  const used=new Set(meaningTerms(word.meaning)),out=[];
+  for(const candidate of learning.members){
+    if(candidate.word===word.word)continue;
+    const terms=meaningTerms(candidate.meaning);
+    if(!terms.length||terms.some(t=>used.has(t)))continue;
+    out.push(candidate);terms.forEach(t=>used.add(t));if(out.length===2)break;
+  }
+  return out;
 }
 function allianceQuestions(){
   const a=learning.alliance,b=a.branches.find(b=>b.id===alliancePracticeBranch)||branchOfWord(learning,lookupSense)||a.branches[0];alliancePracticeBranch=b.id;
   return b.words.flatMap(item=>{
-    const w=reviewedMember(memberId(item)),other=[...new Map(learning.members.filter(x=>x.word!==w.word&&x.meaning!==w.meaning&&x.meaning).map(x=>[x.meaning,x])).values()];
-    // Context and answer are independently reviewed; alternatives are not generated from spelling similarity.
-    const items=[{id:w.id+':meaning',word_id:memberId(w),kind:'辨认词义',q:`${w.word} 在本课中的意思是？`,hint:'先回想分支的意思，再判断这个词。',choices:[w.meaning,...other.slice(0,2).map(x=>x.meaning)],answer:w.meaning,why:w.explanation}];
+    const w=reviewedMember(memberId(item)),other=meaningAlternatives(w);
+    // Ignore part-of-speech prefixes and reordered synonyms when selecting alternatives.
+    const items=[];
+    if(other.length===2)items.push({id:w.id+':meaning',word_id:memberId(w),kind:'辨认词义',q:`${w.word} 在本课中的意思是？`,hint:'先回想分支的意思，再判断这个词。',choices:[w.meaning,...other.map(x=>x.meaning)],answer:w.meaning,why:w.explanation});
     if(w.recall)items.push({id:w.id+':recall',word_id:memberId(w),kind:'主动回忆',q:w.recall.prompt,hint:'输入完整英文单词。',input:true,answer:w.recall.answer,why:w.recall.explanation});
     for(const q of items)if(q.choices)q.choices=shuffleAllianceChoices(q.choices,alliancePracticeContext(b.id)+q.id);
     return items;

@@ -68,6 +68,11 @@ export function createRootDict({ project }) {
   function handle(req, res, pathname, url, sendJSON, sendFile) {
     if (pathname === '/dict' || pathname === '/dict/') {
       if (req.method !== 'GET') return sendJSON(res, 405, { error: 'method' }), true;
+      if (pathname === '/dict') {
+        res.writeHead(308, { Location: '/dict/' + url.search, 'Cache-Control': 'no-store' });
+        res.end();
+        return true;
+      }
       res.setHeader('Content-Security-Policy', DICT_CSP);
       sendFile(req, res, path.join(dir, 'public', 'index.html'));
       return true;

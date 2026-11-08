@@ -1210,7 +1210,7 @@ function navMenuOpen(open){
   burger.setAttribute('aria-label',open?'收起导航菜单':'展开导航菜单');
 }
 $('nav-burger').onclick=e=>{e.stopPropagation();navMenuOpen(!document.querySelector('.top').classList.contains('nav-open'));};
-document.querySelectorAll('.nav button').forEach(b=>b.addEventListener('click',()=>navMenuOpen(false)));
+document.querySelectorAll('.nav button, .nav a.nav-ext').forEach(b=>b.addEventListener('click',()=>navMenuOpen(false)));
 document.addEventListener('click',e=>{const top=document.querySelector('.top');if(top?.classList.contains('nav-open')&&!top.contains(e.target))navMenuOpen(false);});
 
 /* 真题训练: 单视图三页签(整套/专项/错题), 页签切换不重进路由 */

@@ -37,8 +37,9 @@ async function run(){
     await page.locator('#root-panorama').click();
     await page.locator('.map-node').first().waitFor();
     const mapNodes=await page.locator('.map-node').count();
-    const topology=await page.evaluate(()=>({branches:learning.alliance.branches.length,roots:learning.family_roots.length}));
-    assert.equal(mapNodes,topology.branches+(topology.roots===1?1:0),'panorama must expose every branch and use a shared root only for a single-root alliance');
+    const topology=await page.evaluate(()=>({branches:Object.keys(activeGraphData.pos).filter(id=>nodeById.get(id).type==='learning_branch').length,roots:Object.keys(activeGraphData.pos).filter(id=>nodeById.get(id).type==='learning_root').length,scope:selectedAllianceRoot,edges:activeGraphData.edges.length}));
+    assert.equal(topology.scope,'Rdict');assert.equal(topology.roots,1);assert.equal(topology.branches,11);assert.equal(topology.edges,11);
+    assert.equal(mapNodes,topology.branches+topology.roots,'panorama must connect each visible branch to its real root');
     const shot1=ws.file(ws.QA,stamp+'/'+width+'-graph.png');await page.screenshot({path:shot1});out.screenshots.push(shot1);
     // Branch practice flow: read -> quiz -> meaning + recall answers
     await page.locator(width<=700?'.mobile-tabs [data-view="practice"]':'.sidebar [data-view="practice"]').click();
@@ -89,8 +90,10 @@ async function run(){
     assert(l1Clickable>=176,'lesson1 alliance should expose >=176 words, got '+l1Clickable);
     await page.locator('#root-panorama').click();
     await page.locator('.map-node').first().waitFor();
+    await page.locator('#alliance-root-select').selectOption('@all');
     const l1Nodes=await page.locator('.map-node').count();
-    assert(l1Nodes>=13,'lesson1 panorama should show 13 branches, got '+l1Nodes);
+    const branchCount=await page.evaluate(()=>new Set(Object.keys(activeGraphData.pos).filter(id=>nodeById.get(id).type==='learning_branch').map(id=>nodeById.get(id).branch_id)).size);
+    assert.equal(branchCount,13,'all-root view must preserve every classroom branch');assert(l1Nodes>13);
     const shot4=ws.file(ws.QA,stamp+'/'+width+'-lesson1-graph.png');await page.screenshot({path:shot4});out.screenshots.push(shot4);
     await page.locator(width<=700?'.mobile-tabs [data-view="practice"]':'.sidebar [data-view="practice"]').click();
     await page.locator('.lesson-words').waitFor();

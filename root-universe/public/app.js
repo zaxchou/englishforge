@@ -25,6 +25,12 @@ function humanLocator(locator){
 let G=null,nodeById=new Map(),view='lookup';
 let lookupSense=null,graphFocus=null,trail=[],graphFamily=null;
 let learning=null,learningLookup=null,lookupSequence=0,rootGraphMode=false;
+let graphStatus='loading',lookupStatus='idle',activeGraphData=null,graphLayoutWidth=0;
+function updateNavigation(){
+  document.querySelectorAll('[data-view]').forEach(b=>{b.disabled=graphStatus!=='ready'||(b.dataset.view!=='lookup'&&lookupStatus!=='ready');});
+  $('#search').disabled=graphStatus!=='ready';
+  $('#search-form button').disabled=graphStatus!=='ready';
+}
 const roleNames={root:'词根',prefix:'前缀',suffix:'后缀',base:'基词'};
 function address(replace=true){
   const u=new URL(location.href);u.search='';
@@ -62,7 +68,7 @@ const api=async p=>{const r=await fetch(p.replace(/^\/api(?=\/|$)/,API_BASE));co
 let toastTimer=null;
 function toast(text){const t=$('#toast');t.textContent=text;t.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>{t.hidden=true;},2600);}
 const sensesOf=headId=>G.nodes.filter(n=>n.type==='senses'&&n.headword_id===headId);
-const familyOf=id=>G.familyOf.get(id)||null;
+const familyOf=id=>G?.familyOf?.get(id)||null;
 const familySenses=f=>f?f.member_ids.map(id=>nodeById.get(id)).filter(n=>n.type==='senses'&&n.zh&&n.language==='en'):[];
 const familyLabelOf=id=>{const f=familyOf(id);return f?f.label:'未分族';};
 function edgesTouching(id){return G.edges.filter(e=>e.from_id===id||e.to_id===id);}
@@ -92,7 +98,9 @@ function bindSourceTriggers(root){
   });
 }
 function setView(v){
-  if(v==='graph'&&view==='lookup'){rootGraphMode=learning?.status==='reviewed';graphFocus=lookupSense;trail=[];}
+  if(graphStatus!=='ready'){renderDown();return;}
+  if(v!=='lookup'&&lookupStatus!=='ready'){showLookupState();return;}
+  if(v==='graph'&&view==='lookup'){rootGraphMode=learning?.status==='reviewed';graphFocus=rootGraphMode&&learning.roots?.length?'learning:'+learning.roots[0].id:lookupSense;trail=[];}
   view=v;address();
   document.querySelectorAll('.view').forEach(el=>el.hidden=el.id!==v+'-view');
   document.querySelectorAll('[data-view]').forEach(b=>{b.classList.toggle('on',b.dataset.view===v);if(b.dataset.view===v)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
@@ -106,12 +114,29 @@ function setView(v){
   }
   window.scrollTo({top:0,behavior:'instant'});
 }
+function displayLookupView(){
+  view='lookup';document.querySelectorAll('.view').forEach(el=>el.hidden=el.id!=='lookup-view');
+  document.querySelectorAll('[data-view]').forEach(b=>{const on=b.dataset.view==='lookup';b.classList.toggle('on',on);if(on)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
+  $('#top-context').textContent='从一个词，认识一个词族';
+}
 function renderDown(){
-  document.querySelectorAll('.view').forEach(el=>el.hidden=el.id!=='lookup-view');
-  $('#word-content').innerHTML='<div class="notice-empty"><h2>词族内容暂未就绪</h2><p>正式索引尚未构建或暂时无法读取，可稍后重试。</p><button class="primary" id="reload-app">重试</button></div>';
+  graphStatus='error';displayLookupView();updateNavigation();
+  $('#word-content').removeAttribute('aria-busy');
+  $('#word-content').innerHTML='<div class="notice-empty" role="alert"><h2>词族内容暂未就绪</h2><p>暂时无法读取词库，请联网后重试。已保存的学习记录仍会保留。</p><button class="primary" id="reload-app">重新读取词库</button></div>';
   $('#reload-app').onclick=()=>location.reload();
 }
+function showLookupState(){
+  displayLookupView();updateNavigation();
+  const name=nodeById.get(lookupSense)?.label||$('#search').value;
+  if(lookupStatus==='loading'){
+    $('#word-content').innerHTML=`<div class="notice-empty" role="status"><h2>正在读取 ${esc(name)}</h2><p>词义、构词和来源正在加载。</p></div>`;return;
+  }
+  $('#word-content').removeAttribute('aria-busy');
+  $('#word-content').innerHTML=`<div class="notice-empty" role="alert"><h2>${esc(name)} 的词条暂时无法读取</h2><p>请联网后重试，也可以继续搜索其他词。已保存的学习记录仍会保留。</p><button class="primary" id="retry-word">重试读取这个词</button></div>`;
+  $('#retry-word').onclick=()=>renderWord();
+}
 function renderUnknown(){
+  lookupStatus='unknown';learning=null;learningLookup=null;displayLookupView();updateNavigation();
   $('#word-content').innerHTML='<div class="notice-empty"><h2>这个词还未收录</h2><p>目前只收录已通过独立来源复核的词族。可以先看看已收录的词。</p><button class="secondary" id="reset-word">查看已收录的词</button></div>';
   $('#reset-word').onclick=()=>{lookupSense=defaultSense();renderWord();};
 }
@@ -121,16 +146,27 @@ function defaultSense(){
 }
 async function renderWord(){
   const n=nodeById.get(lookupSense),sequence=++lookupSequence,previousContext=JSON.stringify([learningLookup,learning?.alliance?.id||'',learning?.version||'']);
-  learningLookup=null;
-  if(view==='practice')renderPractice();
-  if(!n||(n.type!=='senses'&&n.type!=='learning_word')){renderUnknown();return;}
+  learningLookup=null;lookupStatus='loading';
+  const practiceCard=$('#practice-card');if(practiceCard)practiceCard.innerHTML='<p class="question-hint">正在读取当前词的学习档案…</p>';
+  if(graphStatus!=='ready'){renderDown();return;}
+  if(!n||(n.type!=='senses'&&n.type!=='learning_word')){learning=null;lookupStatus='unknown';updateNavigation();renderUnknown();return;}
+  $('#search').value=n.label;showLookupState();address();
   $('#word-content').setAttribute('aria-busy','true');
   let data;
-  try{data=await api('/api/learning?id='+encodeURIComponent(n.id));}catch{data={status:'unresolved'};}
+  try{
+    data=await api('/api/learning?id='+encodeURIComponent(n.id));
+    if(!data||!['reviewed','unresolved'].includes(data.status)||(data.status==='reviewed'&&(!data.word||typeof data.word.meaning!=='string'||
+      !Array.isArray(data.word.parts)||!Array.isArray(data.word.trace)||!Array.isArray(data.roots)||!Array.isArray(data.sources)||!Array.isArray(data.members)||!Array.isArray(data.family_roots)))||
+      (n.type==='learning_word'&&(data.status!=='reviewed'||!Array.isArray(data.alliance?.branches)||!Array.isArray(data.alliance?.words))))throw Error('PROFILE_UNAVAILABLE');
+  }catch{
+    if(sequence!==lookupSequence)return;
+    learning=null;lookupStatus='error';showLookupState();return;
+  }
   if(sequence!==lookupSequence)return;
-  learning=data;learningLookup=n.id;
+  try{
+  learning=data;learningLookup=n.id;lookupStatus='ready';updateNavigation();
   if(previousContext!==practiceContext()){
-    selectedAllianceBranch=null;alliancePracticeBranch=null;alliancePracticeStage='read';
+    selectedAllianceBranch=null;selectedAllianceRoot=null;alliancePracticeBranch=null;alliancePracticeStage='read';
     practiceKey=null;questions=[];qIndex=0;answers=[];
   }
   if(view==='practice')renderPractice();
@@ -184,6 +220,9 @@ async function renderWord(){
   if($('#lookup-practice'))$('#lookup-practice').onclick=()=>{startPractice(familyOf(lookupSense));setView('practice');};
   bindSourceTriggers($('#word-content'));
   if(data.alliance?.id&&data.word.query_id)bindAllianceActions($('#word-content'));
+  }catch{
+    learning=null;learningLookup=null;lookupStatus='error';showLookupState();
+  }
 }
 function practiceFamilyAvailable(f){return f&&familySenses(f).filter(m=>m.label).length>=3&&new Set(familySenses(f).map(m=>m.label)).size>=3;}
 /* ---------- graph ---------- */
@@ -236,6 +275,8 @@ function graphData(){
   return {pos,edges:G.edges.filter(e=>levels.has(e.from_id)&&levels.has(e.to_id))};
 }
 function renderGraph(){
+  if(graphStatus!=='ready'){renderDown();return;}
+  if(lookupStatus!=='ready'){showLookupState();return;}
   const fam=familyOf(graphFocus)||familyOf(lookupSense);
   let modes=$('#graph-modes');
   if(!modes){modes=document.createElement('div');modes.id='graph-modes';modes.className='graph-modes';$('.graph-toolbar').before(modes);}
@@ -249,14 +290,21 @@ function renderGraph(){
   document.querySelectorAll('#family-switch button').forEach(b=>b.classList.toggle('active',b.dataset.family===(fam?fam.id:'')));
   $('#graph-back').disabled=!trail.length;
   $('#graph-back').onclick=()=>{if(trail.length){graphFocus=trail.pop();renderGraph();}};
-  const data=graphData();
+  const data=graphData();activeGraphData=data;graphLayoutWidth=$('#family-map').clientWidth;
+  if(data.allianceMode&&!data.pos[graphFocus]&&!String(graphFocus).startsWith('alliance-overview:'))graphFocus=Object.keys(data.pos).find(id=>['learning_root','learning_group'].includes(nodeById.get(id).type));
   $('#family-map').classList.toggle('root-map',!!data.rootMode);
+  $('#family-map').classList.toggle('alliance-map',!!data.allianceMode);
+  $('#family-map').classList.toggle('single-column',data.columns===1);
+  const picker=$('#alliance-root-picker');if(picker&&!data.allianceMode)picker.hidden=true;
+  $('.graph-legend').innerHTML=data.allianceMode?'<span><i class="legend-line"></i>词根分组</span><span><i class="legend-line history"></i>课堂串联</span>':'<span><i class="legend-line"></i>现代构词</span><span><i class="legend-line history"></i>历史溯源</span>';
+  if(data.allianceMode)$('.graph-note').textContent='按词根身份分组；连线表示学习关联，不等于直接历史派生。点分支看成员，点词条查具体来源。';
   $('#family-map').style.height=(data.height||476)+'px';
   $('#map-nodes').innerHTML=Object.entries(data.pos).map(([id,p])=>{
-    const n=nodeById.get(id),root=n.type==='learning_root'||n.type==='etymologies'||(n.language&&n.language!=='en');
+    const n=nodeById.get(id),root=n.type==='learning_root'||n.type==='learning_group'||n.type==='etymologies'||(n.language&&n.language!=='en');
     return `<button class="map-node ${id===graphFocus?'current':''} ${root?'root':''}" data-node="${esc(id)}" data-x="${p.x}" data-y="${p.y}" aria-pressed="${id===graphFocus}"><strong>${esc(n.label||'')}</strong><small>${esc(n.zh||posNames[n.pos]||langNames[n.language]||'词族节点')}</small></button>`;
   }).join('');
   document.querySelectorAll('#map-nodes [data-node]').forEach(b=>{b.style.left=b.dataset.x+'%';b.style.top=b.dataset.y+'px';});
+  if(data.allianceMode)layoutAllianceRows(data);
   document.querySelectorAll('#map-nodes [data-node]').forEach(b=>{b.onclick=()=>focusWord(b.dataset.node);});
   renderGraphDetail();
   requestAnimationFrame(()=>drawLines(data));
@@ -298,6 +346,13 @@ function drawLines(data){
     if(!aEl||!bEl)return '';
     const a=aEl.getBoundingClientRect(),b=bEl.getBoundingClientRect();
     const ax=a.x+a.width/2-hb.x,ay=a.y+a.height/2-hb.y,bx=b.x+b.width/2-hb.x,by=b.y+b.height/2-hb.y;
+    if(data.allianceMode){
+      const classroom=e.layer==='learning_classroom',color=classroom?'#967345':'#789b87';
+      const startY=a.bottom-hb.y,endX=bx<ax?b.right-hb.x:b.left-hb.x;
+      const d=data.columns===1?`M ${a.left-hb.x} ${ay} H 10 V ${by} H ${b.left-hb.x}`:
+        Math.abs(ax-bx)<1?`M ${ax} ${startY} V ${b.top-hb.y}`:`M ${ax} ${startY} V ${by} H ${endX}`;
+      return `<path d="${d}" fill="none" stroke="${color}" stroke-width="1.5" ${classroom?'stroke-dasharray="5 4"':''}/>`;
+    }
     const dx=bx-ax,dy=by-ay;
     const f1=Math.min(Math.abs((a.width/2+3)/(dx||.001)),Math.abs((a.height/2+3)/(dy||.001)));
     const f2=Math.min(Math.abs((b.width/2+3)/(dx||.001)),Math.abs((b.height/2+3)/(dy||.001)));
@@ -308,7 +363,10 @@ function drawLines(data){
     return `<path d="M${x1} ${y1} L${x2} ${y2}" fill="none" stroke="${color}" stroke-width="1.5" ${e.layer==='historical'?'stroke-dasharray="4 4"':''}/><text x="${mx}" y="${my-5}" text-anchor="middle" fill="${e.layer==='historical'?'#846338':'#557260'}" class="map-line-label">${esc(label)}</text>`;
   }).join('');
 }
-new ResizeObserver(()=>{if(view==='graph'&&!$('#graph-view').hidden)drawLines(graphData());}).observe($('#family-map'));
+new ResizeObserver(()=>{
+  if(graphStatus!=='ready'||view!=='graph'||$('#graph-view').hidden||!activeGraphData)return;
+  if(activeGraphData.allianceMode&&graphLayoutWidth!==$('#family-map').clientWidth)renderGraph();else drawLines(activeGraphData);
+}).observe($('#family-map'));
 function buildFamilySwitch(){
   const fams=G.families.filter(f=>f.member_ids.some(id=>{const n=nodeById.get(id);return n.type==='senses'&&n.language==='en';}));
   $('#family-switch').innerHTML=fams.map(f=>`<button data-family="${esc(f.id)}">${esc(f.label)}</button>`).join('');
@@ -371,6 +429,8 @@ function makeQuestions(fam){
 }
 function memberIn(f,id){return !!(f&&f.member_ids.includes(id));}
 function renderPractice(){
+  if(graphStatus!=='ready'){renderDown();return;}
+  if(lookupStatus!=='ready'){showLookupState();return;}
   if(learningLookup!==lookupSense){$('#practice-card').innerHTML='<p class="question-hint">正在读取当前词的学习档案…</p>';return;}
   if(learning?.status==='reviewed'&&learning.alliance?.id&&learning.word.query_id)return renderAlliancePractice();
   let fam=G.families.find(f=>f.id===practiceFamily);
@@ -441,13 +501,17 @@ $('#search-form').onsubmit=e=>{
   }).catch(()=>toast('暂时无法读取，请重试。'));
 };
 document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>setView(b.dataset.view));
+updateNavigation();
 (async function boot(){
   try{
-    G=await api('/api/graph');
+    const graph=await api('/api/graph');
+    if(!graph||!Array.isArray(graph.nodes)||!Array.isArray(graph.families)||!Array.isArray(graph.edges))throw Error('INDEX_INVALID');
+    G=graph;
   }catch(e){renderDown();return;}
   G.nodes.forEach(n=>nodeById.set(n.id,n));
   G.familyOf=new Map();
   G.families.forEach(f=>f.member_ids.forEach(id=>G.familyOf.set(id,f)));
+  graphStatus='ready';updateNavigation();
   const params=new URLSearchParams(location.search),requested=params.get('node'),query=params.get('q');
   lookupSense=requested||G.nodes.find(n=>n.type==='senses'&&n.label?.toLowerCase()===query?.toLowerCase())?.id||defaultSense();
   const fam=familyOf(lookupSense);
