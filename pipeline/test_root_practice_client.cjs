@@ -1,5 +1,7 @@
 const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict'),path=require('node:path');
 const code=fs.readFileSync(path.join(__dirname,'../web/root-practice-ui.js'),'utf8');
+const assetVersion=require('node:crypto').createHash('sha256').update(code.replace(/\r\n/g,'\n')).digest('hex').slice(0,12);
+assert(fs.readFileSync(path.join(__dirname,'../web/index.html'),'utf8').includes('root-practice-ui.js?v='+assetVersion),'practice client cache version must match the deployed bytes');
 function setup(data,store=new Map()){
  let fail=false,queueFail=false,seq=0;const nodes=new Map(),body={innerHTML:'',querySelectorAll:()=>[]};
  const ctx={console,AbortSignal,crypto:{randomUUID:()=>`test-${++seq}`},window:{addEventListener(){}},Date,JSON,Math,Object,Array,Map,Set,Promise,String,
