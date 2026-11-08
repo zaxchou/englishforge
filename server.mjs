@@ -1030,7 +1030,7 @@ function rootLearningMap() {
   if (map.token !== ROOT_MAP_TOKEN) { ROOT_MAP_TOKEN = map.token; ROOT_MAP_RAW = null; ROOT_MAP_GZ = null; }
   return map;
 }
-function lessonPractice(lesson) { return ROOT_PRACTICE.lesson(Number(lesson)); }
+function lessonPractice(lesson, version) { return version === undefined ? ROOT_PRACTICE.lesson(Number(lesson)) : ROOT_PRACTICE.lessonVersion(Number(lesson), version); }
 function coursePlanQuizzes() { return { ...GQ_STORE, ...ROOT_PRACTICE.quizzes() }; }
 const vocabKey = s => String(s || '').toLowerCase().replace(/\s+/g, '');
 function vocabIndex() {
@@ -1734,7 +1734,9 @@ if(repairedSpeed){
   recordsSave(repaired);RECORDS=repaired;
   console.log('[eplod] verified legacy same-speed results:',repairedSpeed);
 }
-const COURSE_PLAN=createCoursePlanHandler({records:()=>RECORDS,setRecords:x=>{RECORDS=x;},save:recordsSave,quizzes:coursePlanQuizzes,gradeRootWord:rootGradeWord,now:()=>Date.now()});
+const COURSE_PLAN=createCoursePlanHandler({records:()=>RECORDS,setRecords:x=>{RECORDS=x;},save:recordsSave,quizzes:coursePlanQuizzes,
+  rootQuizVersion:(lid,v)=>/^cfcm-01-\d{2}$/.test(lid)?ROOT_PRACTICE.lessonVersion(Number(lid.slice(-2)),v)?.quiz:null,
+  gradeRootWord:rootGradeWord,now:()=>Date.now()});
 const REVIEW_HUB=createReviewHub({web:WEB_DIR,records:()=>RECORDS,setRecords:x=>{RECORDS=x;},save:recordsSave,recordAttempt:serverRecAttempt,quizzes:()=>GQ_STORE,banks:()=>[...REVIEW_BANKS.values()],reviewEvents:()=>REVIEW_EVENTS,ai:AI_CFG});
 
 /* ---------- HTTP 基础 ---------- */
@@ -2408,7 +2410,7 @@ const handler = async (req, res) => {
       const q = new URL(req.url, 'http://x').searchParams;
       const lesson = Number(q.get('lesson'));
       try {
-        const data = lessonPractice(lesson);
+        const data = lessonPractice(lesson, q.has('version') ? q.get('version') : undefined);
         return sendJSON(res, 200, data || { ok: true, lesson, title: null, branches: [] });
       } catch (e) { return sendJSON(res, 500, { error: '课后巩固读取失败: ' + e.message }); }
     }
@@ -2433,9 +2435,23 @@ const handler = async (req, res) => {
       const id = inc.id === undefined ? 'legacy-' + createHash('sha256').update(fingerprint).digest('hex') : inc.id;
       if (typeof id !== 'string' || !/^[\w-]{8,100}$/.test(id)) return sendJSON(res, 400, { error: 'invalid event id' });
       if (['__proto__','constructor','prototype'].includes(id)) return sendJSON(res, 400, {error:'invalid event id'});
+      const rootRound = inc.rootRound;
+      if (rootRound !== undefined && (typeof rootRound !== 'string' || !/^[\w-]{1,100}$/.test(rootRound))) return sendJSON(res, 400, { error: 'invalid root round' });
+      const scopeId = rootRound === undefined ? id : 'root-free-' + createHash('sha256').update(JSON.stringify([rootRound,key])).digest('hex');
       const oldEvent = Object.hasOwn(RECORDS.vocabEvents || {}, id) ? RECORDS.vocabEvents[id] : null;
-      if (oldEvent) {
-        if (oldEvent.fingerprint !== fingerprint) return sendJSON(res, 409, { error: 'event id reused with different payload' });
+      const settled = Object.hasOwn(RECORDS.vocabEvents || {}, scopeId) ? RECORDS.vocabEvents[scopeId] : null;
+      if (oldEvent && (oldEvent.key !== key || oldEvent.rootRound !== undefined && oldEvent.rootRound !== rootRound ||
+          (rootRound === undefined || !settled) && oldEvent.fingerprint !== fingerprint)) return sendJSON(res, 409, { error: 'event id reused with different payload' });
+      if (settled || oldEvent) {
+        // Migrate an already accepted legacy UUID to its round/word identity without advancing SM-2.
+        if (rootRound !== undefined && !settled) {
+          const next = JSON.parse(JSON.stringify(RECORDS));
+          next.vocabEvents[id] = { ...oldEvent, rootRound };
+          next.vocabEvents[scopeId] = { ...oldEvent, rootRound };
+          next.revision = (RECORDS.revision || 0) + 1; next.saved_at = new Date().toISOString();
+          try { recordsSave(next); } catch { return sendJSON(res, 503, { error: 'records not persisted' }); }
+          RECORDS = next;
+        }
         return sendJSON(res, 200, { ok:true, duplicate:true, id, st:RECORDS.vocab?.[key] || null, vocabDays:RECORDS.vocabDays || {}, revision:RECORDS.revision });
       }
       const existing = Object.hasOwn(RECORDS.vocab || {}, key) ? RECORDS.vocab[key] : null;
@@ -2447,7 +2463,8 @@ const handler = async (req, res) => {
       if (!existing) st.born = now;
       else if (Number.isFinite(existing.born) && existing.born > 0) st.born = existing.born;
       next.vocab ||= {}; next.vocab[key] = st;
-      next.vocabEvents ||= {}; next.vocabEvents[id] = {fingerprint, key, at:now, introduced:!existing};
+      next.vocabEvents ||= {}; next.vocabEvents[id] = {fingerprint, key, at:now, introduced:!existing, ...(rootRound === undefined ? {} : {rootRound})};
+      if (scopeId !== id) next.vocabEvents[scopeId] = { ...next.vocabEvents[id] };
       next.vocabDays ||= {};
       const day = new Date(now + 8*3600000).toISOString().slice(0,10); // 本地 NAS 用户时区 Asia/Shanghai
       const daily = next.vocabDays[day] ||= {grades:0, introduced:0};

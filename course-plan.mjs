@@ -175,7 +175,12 @@ export function applyPlanAttempt(records, quizzes, inc, now) {
   if (!inc.planRound && inc.planPhase === undefined) return null;
   if (!parsed || inc.delete || typeof inc.planRound !== 'string' || !['main', 'correction'].includes(inc.planPhase)) fail('invalid plan round/phase', 'round_mismatch');
   const root = records.coursePlan, p = root?.plans[parsed.lessonId], quiz = quizzes[parsed.lessonId];
-  if (!p?.active || p.active.id !== inc.planRound) fail('round no longer active', 'round_mismatch');
+  if (!p?.active || p.active.id !== inc.planRound) {
+    const archived = quiz?.src === 'root' && p?.archivedRounds?.find(r => r.id === inc.planRound);
+    const accepted = archived?.[inc.planPhase === 'main' ? 'answers' : 'corrections']?.[parsed.id];
+    if (!accepted || accepted.letter !== inc.answer || accepted.unsure !== (inc.unsure === true)) fail('round no longer active; only an accepted answer can be confirmed', 'round_mismatch');
+    return publicPlan(root, parsed.lessonId, now);
+  }
   if (p.active.version !== version(quiz)) fail('question version changed', 'question_version_changed');
   const q = Model.coreQuestions(quiz).find(q => q.id === parsed.id);
   if (!q || !p.active.order.includes(q.id)) fail('question not in current core round', 'question_version_changed');
@@ -215,15 +220,29 @@ export function createCoursePlanHandler(o) {
       let out;
       if (p.endsWith('/root-answer')) {
         const quiz = quizzes[input.lessonId];
-        if (!quiz || quiz.src !== 'root' || input.version !== quiz.contentVersion) fail('词根内容版本已变化，请重新读取本课', 'question_version_changed');
+        if (!quiz || quiz.src !== 'root') fail('词根内容版本已变化，请重新读取本课', 'question_version_changed');
         if (typeof input.questionId !== 'string' || !/^q[1-9]\d*$/.test(input.questionId)) fail('invalid question', 'invalid_answer', 400);
+        const plan = work.coursePlan.plans[input.lessonId];
+        const archived = plan?.archivedRounds?.find(r => r.id === input.roundId);
+        const round = plan?.active?.id === input.roundId ? plan.active : archived;
+        if (!round) fail('round no longer active', 'round_mismatch');
+        // The immutable archive can confirm a lost response even after a real question update.
+        // It cannot accept a new answer, a different answer, or a new correction.
+        if (archived) {
+          const accepted = ['main','correction'].includes(input.phase) && archived[input.phase === 'main' ? 'answers' : 'corrections']?.[input.questionId];
+          if (!accepted || accepted.letter !== input.answer) fail('结束轮仅可确认已接收的原答案', 'round_mismatch');
+        } else {
+          const oldQuiz = input.version === quiz.contentVersion ? quiz : o.rootQuizVersion?.(input.lessonId, input.version);
+          if (!oldQuiz || version(oldQuiz) !== round.version || round.version !== version(quiz)) fail('题目已更新，旧回答保留在本机，可回看旧版记录后开始新版练习', 'question_version_changed');
+        }
         const q = Model.coreQuestions(quiz).find(q => q.id === input.questionId);
-        if (!q) fail('question not found', 'invalid_answer', 400);
-        const inc = { ref: { qid: Model.qid(quiz, q) }, answer: input.answer, planRound: input.roundId, planPhase: input.phase };
-        applyPlanAttempt(work, quizzes, inc, now);
-        const round = work.coursePlan.plans[input.lessonId].active;
-        const wordQuestions = quiz.questions.filter(x => x.word === q.word);
-        if (input.phase === 'main' && wordQuestions.every(x => Object.hasOwn(round.answers, x.id))) {
+        if (!archived) {
+          if (!q) fail('question not found', 'invalid_answer', 400);
+          const inc = { ref: { qid: Model.qid(quiz, q) }, answer: input.answer, planRound: input.roundId, planPhase: input.phase };
+          applyPlanAttempt(work, quizzes, inc, now);
+        }
+        const wordQuestions = q ? quiz.questions.filter(x => x.word === q.word) : [];
+        if (!archived && input.phase === 'main' && wordQuestions.every(x => Object.hasOwn(round.answers, x.id))) {
           round.wordGrades ||= {};
           if (!round.wordGrades[q.word]) {
             const rating = wordQuestions.every(x => round.answers[x.id].ok) ? 3 : 1;
@@ -233,7 +252,9 @@ export function createCoursePlanHandler(o) {
             round.wordGrades[q.word] = id;
           }
         }
-        out = { plan: publicPlan(work.coursePlan, input.lessonId, now), settings: clone(work.coursePlan.settings), vocab: work.vocab || {} };
+        out = { plan: publicPlan(work.coursePlan, input.lessonId, now), round: { ...publicActive(round), archived: !!archived,
+          finishedAt: round.finishedAt || null, completed: !!plan.stamps.find(s => s.id === round.id) },
+          settings: clone(work.coursePlan.settings), vocab: work.vocab || {} };
       } else out = p.endsWith('/start') ? startPlan(work, quizzes, input, now) : p.endsWith('/finish') ? finishPlan(work, quizzes, input, now) :
         p.endsWith('/settings') ? updateSettings(work, quizzes, input, now) : summary(work, quizzes, now);
       commit(work); sendJSON(res, 200, out);

@@ -2,7 +2,7 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const {listen}=require('../../root-universe/server.cjs');
 const pw=require(process.env.TFL_PLAYWRIGHT||'C:/Users/zeroz/AppData/Local/npm-cache/_npx/9833c18b2d85bc59/node_modules/playwright');
-const out=path.resolve('build/qa/root-universe/fix-20261108');fs.mkdirSync(out,{recursive:true});
+const out=path.resolve(process.env.TFL_ROOT_QA||'build/qa/root-universe/fix-20261108');fs.mkdirSync(out,{recursive:true});
 const result={ok:false,checks:[],screenshots:[],errors:[],isolation:'Read-only dictionary service, fresh browser contexts, all non-GET and external requests blocked.'};
 let server,browser;
 (async()=>{

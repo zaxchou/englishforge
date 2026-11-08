@@ -7,7 +7,7 @@
 .alliance-map .map-node{width:min(260px,calc((100% - 88px)/2));padding:13px 15px;z-index:1}
 .alliance-map .map-node strong{font-size:14px;line-height:1.5}
 .alliance-map .map-node.root strong{font-size:18px}
-.alliance-map .map-node small{max-height:none;overflow:visible;font-size:13px;line-height:1.65;margin-top:5px}
+.alliance-map .map-node small{max-height:none;overflow:visible;font-size:13px;line-height:1.65;margin-top:5px;text-wrap:balance}
 .alliance-map.single-column .map-node{width:calc(100% - 56px);max-width:440px}
 .graph-root-picker{display:flex;align-items:center;gap:12px;margin:14px 0;font-size:13px}
 .graph-root-picker[hidden]{display:none}

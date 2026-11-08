@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 const require = createRequire(import.meta.url);
 const root = fileURLToPath(new URL('../', import.meta.url));
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'tfl-root-dict-'));
-const out = path.join(root, 'build/qa/root-universe/review-20261108');
+const out = path.resolve(process.env.TFL_ROOT_QA || path.join(root, 'build/qa/root-universe/review-20261108'));
 const previews = [];
 let server, base, browser;
 const results = { ok: false, checks: [], errors: [], blocked: [], screenshots: [], records: dir };

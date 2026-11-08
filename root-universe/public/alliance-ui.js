@@ -1,6 +1,6 @@
 'use strict';
 // The reviewed learning projection supplies membership; it does not add historical fact edges.
-let selectedAllianceBranch=null,selectedAllianceRoot=null,alliancePracticeBranch=null,alliancePracticeStage='read';
+let selectedAllianceBranch=null,selectedAllianceRoot=null,alliancePracticeBranch=null,alliancePracticeStage='read',alliancePendingEvents=[];
 const relationLabels={close:'近支词',cognate:'远缘同源',classroom:'课堂关联',unresolved:'关系待核'};
 const memberId=w=>w.query_id||w.sense_id;
 const alliancePracticeContext=branch=>JSON.stringify(['alliance-v1',lookupSense,learning.alliance.id,learning.version,branch]);
@@ -22,14 +22,24 @@ function ensureAlliancePractice(){
   if(practiceKey===alliancePracticeContext(alliancePracticeBranch))return;
   let saved=null;
   try{saved=JSON.parse(localStorage.getItem('root-universe:session')||'null');}catch{}
+  const pending=new Map(alliancePendingEvents.map(e=>[e.id,e]));
+  for(const e of Array.isArray(saved?.pendingEvents)?saved.pendingEvents:[])if(e&&typeof e.id==='string'&&e.word_id&&typeof e.correct==='boolean')pending.set(e.id,e);
+  alliancePendingEvents=[...pending.values()];
   const matches=saved&&saved.query===lookupSense&&saved.alliance===learning.alliance.id&&saved.version===learning.version&&
     learning.alliance.branches.some(b=>b.id===saved.branch)&&saved.key===alliancePracticeContext(saved.branch);
   initializeAlliancePractice(matches?saved.branch:null,'read',matches?saved:null);
-  saveAllianceSession();
+  if(saveAllianceSession())flushAllianceEvents();
+}
+function persistAllianceProgress(change){
+  const before={branch:alliancePracticeBranch,stage:alliancePracticeStage,key:practiceKey,questions,index:qIndex,answers:[...answers],events:[...alliancePendingEvents]};
+  change();
+  if(saveAllianceSession())return true;
+  alliancePracticeBranch=before.branch;alliancePracticeStage=before.stage;practiceKey=before.key;questions=before.questions;qIndex=before.index;answers=before.answers;alliancePendingEvents=before.events;
+  return false;
 }
 function startAlliancePractice(branch,stage='read'){
   if(learningLookup!==lookupSense)return;
-  initializeAlliancePractice(branch,stage);saveAllianceSession();renderAlliancePractice();
+  if(persistAllianceProgress(()=>initializeAlliancePractice(branch,stage))){flushAllianceEvents();renderAlliancePractice();}
 }
 function shuffleAllianceChoices(choices,seed){
   let state=2166136261;
@@ -67,14 +77,17 @@ function completeAllianceHTML(data){
   ${a.branches.map(b=>`<details class="alliance-branch" ${b.id===current?.id?'open':''} data-branch="${esc(b.id)}"><summary><b>${esc(b.title)}</b><small>${esc(b.idea)}</small><span>${b.words.length} 词</span></summary><div class="branch-actions"><button class="link" data-learn-branch="${esc(b.id)}">按小组学习这支 →</button><button class="link" data-map-branch="${esc(b.id)}">看分支图 →</button></div><div class="alliance-words">${b.words.map(w=>`<button class="alliance-word clickable ${memberId(w)===data.query_id?'selected':''}" data-word="${esc(memberId(w))}"><b>${esc(w.word)}</b><span>${esc(w.clue)}</span><small>${esc(relationLabels[w.relation_kind])} · 第${w.lesson}课</small></button>`).join('')}</div></details>`).join('')}
   ${a.excluded.length?`<details class="alliance-branch"><summary><b>课堂对照与未决候选</b><span>${a.excluded.length} 词</span></summary><div class="alliance-excluded">${a.excluded.map(x=>`<div><b>${esc(x.word)}</b><span>${esc(x.reason)}</span></div>`).join('')}</div></details>`:''}</section>`;
 }
+function openAllianceBranch(id){
+  const branch=learning.alliance.branches.find(b=>b.id===id);if(!branch)return;
+  const roots=new Set(branch.words.flatMap(item=>{const ids=reviewedMember(memberId(item)).root_ids;return ids?.length?ids:['@classroom'];}));
+  selectedAllianceBranch=id;selectedAllianceRoot=roots.size===1?[...roots][0]:'@all';
+  rootGraphMode=true;graphFocus='branch:'+learning.alliance.id+':'+id;setView('graph');
+  const focus=Object.keys(activeGraphData.pos).find(key=>nodeById.get(key).branch_id===id);
+  if(focus&&graphFocus!==focus){graphFocus=focus;renderGraph();}
+}
 function bindAllianceActions(root){
   root.querySelectorAll('[data-learn-branch]').forEach(b=>b.onclick=()=>{startAlliancePractice(b.dataset.learnBranch);setView('practice');});
-  root.querySelectorAll('[data-map-branch]').forEach(b=>b.onclick=()=>{
-    selectedAllianceBranch=b.dataset.mapBranch;
-    const branch=learning.alliance.branches.find(x=>x.id===selectedAllianceBranch),roots=new Set(branch.words.flatMap(item=>{const ids=reviewedMember(memberId(item)).root_ids;return ids?.length?ids:['@classroom'];}));
-    selectedAllianceRoot=roots.size===1?[...roots][0]:'@all';
-    rootGraphMode=true;graphFocus='branch:'+learning.alliance.id+':'+selectedAllianceBranch;setView('graph');graphFocus='branch:'+learning.alliance.id+':'+selectedAllianceBranch;renderGraph();
-  });
+  root.querySelectorAll('[data-map-branch]').forEach(b=>b.onclick=()=>openAllianceBranch(b.dataset.mapBranch));
 }
 function allianceGraphData(){
   const a=learning.alliance,pos={},edges=[],rows=[];
@@ -169,22 +182,37 @@ function allianceQuestions(){
 function evidenceEvents(){
   const events=[];
   try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k.startsWith('root-universe:event:')){const e=JSON.parse(localStorage.getItem(k));if(e&&e.word_id&&typeof e.correct==='boolean')events.push(e);}}}catch{}
+  const ids=new Set(events.map(e=>e.id));
+  for(const e of alliancePendingEvents)if(!ids.has(e.id)){events.push(e);ids.add(e.id);}
   return events;
+}
+function flushAllianceEvents(){
+  if(!alliancePendingEvents.length)return;
+  try{
+    for(const e of alliancePendingEvents)localStorage.setItem('root-universe:event:'+e.id,JSON.stringify(e));
+    const pending=alliancePendingEvents;alliancePendingEvents=[];
+    if(!saveAllianceSession())alliancePendingEvents=pending;
+  }catch{toast('回答和位置已保存，学习统计将在存储恢复后补齐。');}
 }
 function allianceEvidence(version){const events=evidenceEvents().filter(e=>e.version===version&&e.kind==='主动回忆');return {words:new Set(events.map(e=>e.word_id)).size,events};}
 function saveAllianceSession(){
   if(learningLookup!==lookupSense||practiceKey!==alliancePracticeContext(alliancePracticeBranch))return false;
-  try{localStorage.setItem('root-universe:session',JSON.stringify({key:practiceKey,query:lookupSense,alliance:learning.alliance.id,branch:alliancePracticeBranch,index:qIndex,answers,stage:alliancePracticeStage,version:learning.version,questionSet:allianceQuestionSet()}));return true;}
-  catch{toast('学习位置未能保存，请保持此页打开后重试。');return false;}
+  try{
+    let saved=null;try{saved=JSON.parse(localStorage.getItem('root-universe:session')||'null');}catch{}
+    const pending=new Map(alliancePendingEvents.map(e=>[e.id,e]));
+    for(const e of Array.isArray(saved?.pendingEvents)?saved.pendingEvents:[])if(e&&typeof e.id==='string'&&e.word_id&&typeof e.correct==='boolean'&&!pending.has(e.id))pending.set(e.id,e);
+    const events=[...pending.values()].filter(e=>!localStorage.getItem('root-universe:event:'+e.id));
+    localStorage.setItem('root-universe:session',JSON.stringify({key:practiceKey,query:lookupSense,alliance:learning.alliance.id,branch:alliancePracticeBranch,index:qIndex,answers,stage:alliancePracticeStage,version:learning.version,questionSet:allianceQuestionSet(),pendingEvents:events}));
+    alliancePendingEvents=events;return true;
+  }catch{toast('学习位置未能保存，请保持此页打开后重试。');return false;}
 }
 function recordAllianceAnswer(value){
   if(learningLookup!==lookupSense||practiceKey!==alliancePracticeContext(alliancePracticeBranch)||alliancePracticeStage!=='quiz')return;
   const q=questions[qIndex];if(!q||answers[qIndex]!==undefined||typeof value!=='string'||(!q.input&&!q.choices.includes(value)))return;
   const correct=q.input?value.trim().toLowerCase()===q.answer.toLowerCase():value===q.answer;
   const event={id:crypto.randomUUID(),word_id:q.word_id,question_id:q.id,query_id:lookupSense,alliance_id:learning.alliance.id,branch_id:alliancePracticeBranch,context:practiceKey,version:learning.version,kind:q.kind,answer:value,correct,at:Date.now()};
-  try{localStorage.setItem('root-universe:event:'+event.id,JSON.stringify(event));}
-  catch{toast('这次回答未保存，请重试。');return;}
-  answers[qIndex]=value;saveAllianceSession();renderPractice();
+  if(!persistAllianceProgress(()=>{answers[qIndex]=value;alliancePendingEvents.push(event);}))return;
+  flushAllianceEvents();renderPractice();
 }
 function renderAlliancePractice(){
   if(learningLookup!==lookupSense)return renderPractice();
@@ -194,21 +222,21 @@ function renderAlliancePractice(){
   $('#practice-aside').innerHTML=`<h3>选择语义分支</h3>${a.branches.map(branch=>`<button class="branch-pick ${branch.id===b.id?'active':''}" data-pick-branch="${esc(branch.id)}"><b>${esc(branch.title)}</b><small>${branch.words.length} 词</small></button>`).join('')}<p class="practice-storage-note">学习记录保存在此浏览器，可刷新接续。</p>`;
   $('#practice-aside').querySelectorAll('[data-pick-branch]').forEach(btn=>btn.onclick=()=>startAlliancePractice(btn.dataset.pickBranch));
   if(alliancePracticeStage==='read'){
-    card.innerHTML=`<div class="practice-meta"><span>${esc(a.title)}</span><span>${b.words.length}词</span></div><h2 class="question">${esc(b.title)}</h2><p class="question-hint">${esc(b.idea)}</p><div class="lesson-words">${b.words.map(item=>{const w=reviewedMember(memberId(item));return `<article><div><b>${esc(w.word)}</b><span>${esc(w.meaning)}</span></div><p>${esc(w.clue&&w.clue!==w.meaning?w.clue:(w.explanation&&w.explanation!==w.meaning?w.explanation:'本课记忆条目：释义见上。'))}</p>${w.example?`<p class="lesson-example">${esc(w.example.en)}</p><small>${esc(w.example.zh)}</small>`:''}<button class="link" data-open-word="${esc(memberId(w))}">回看词条 →</button></article>`;}).join('')}</div><div class="practice-actions"><span class="question-hint">看懂后，遮住解释试着回忆。</span><button class="primary" id="begin-branch">开始逐词回忆 →</button></div>`;
+    card.innerHTML=`<div class="practice-meta"><span>${esc(a.title)}</span><span>${b.words.length}词</span></div><h2 class="question">${esc(b.title)}</h2><p class="question-hint">${esc(b.idea)}</p><div class="lesson-words">${b.words.map(item=>{const w=reviewedMember(memberId(item));return `<article><div><b>${esc(w.word)}</b><span>${esc(w.meaning)}</span></div><p>${esc(w.clue&&w.clue!==w.meaning?w.clue:(w.explanation&&w.explanation!==w.meaning?w.explanation:'本课记忆条目：释义见上。'))}</p>${w.example?`<p class="lesson-example">${esc(w.example.en)}</p><small>${esc(w.example.zh)}</small>`:''}<button class="link" data-open-word="${esc(memberId(w))}">回看词条 →</button></article>`;}).join('')}</div><div class="practice-actions"><span class="question-hint">看懂后，遮住解释试着回忆。</span><button class="primary" id="begin-branch">${qIndex>=questions.length?'回看本轮结果 →':qIndex||answers.length?'继续逐词回忆 →':'开始逐词回忆 →'}</button></div>`;
     card.querySelectorAll('[data-open-word]').forEach(btn=>btn.onclick=async()=>{lookupSense=btn.dataset.openWord;await renderWord();setView('lookup');});
-    $('#begin-branch').onclick=()=>startAlliancePractice(b.id,'quiz');return;
+    $('#begin-branch').onclick=()=>{if(persistAllianceProgress(()=>{alliancePracticeStage='quiz';}))renderAlliancePractice();};return;
   }
   if(qIndex>=questions.length){
     const events=allianceEvidence(learning.version).events,good=answers.filter((v,i)=>questions[i].input?v?.trim().toLowerCase()===questions[i].answer.toLowerCase():v===questions[i].answer).length;
     const next=a.branches[a.branches.indexOf(b)+1];
     card.innerHTML=`<div class="finish"><div class="roundcheck">✓</div><h2>这一分支已练完</h2><p>${b.words.length}词 · 本轮${questions.length}题 · 首次答对${good}题</p><p>每个词的回答分别保存；这不代表整个联盟已经掌握。</p><div class="finish-actions">${next?`<button class="primary" id="next-branch">下一支：${esc(next.title)}</button>`:''}<button class="secondary" id="restart">再回忆一遍</button><button class="link" id="finish-family">回看联盟</button></div></div>`;
     if(next)$('#next-branch').onclick=()=>startAlliancePractice(next.id);
-    $('#restart').onclick=()=>startAlliancePractice(b.id,'quiz');$('#finish-family').onclick=()=>{selectedAllianceBranch=b.id;graphFocus='branch:'+a.id+':'+b.id;setView('graph');};return;
+    $('#restart').onclick=()=>startAlliancePractice(b.id,'quiz');$('#finish-family').onclick=()=>openAllianceBranch(b.id);return;
   }
   const q=questions[qIndex],selected=answers[qIndex],judged=selected!==undefined,correct=judged&&(q.input?selected.trim().toLowerCase()===q.answer.toLowerCase():selected===q.answer);
   card.innerHTML=`<div class="practice-meta"><span>${esc(b.title)}</span><span>${qIndex+1} / ${questions.length}</span></div><div class="progress"><i class="progress-fill"></i></div><div class="q-type">${esc(q.kind)}</div><h2 class="question">${esc(q.q)}</h2><p class="question-hint">${esc(q.hint)}</p>${q.input?`<form id="recall-form"><label class="recall-label" for="recall-answer">你的答案</label><input id="recall-answer" autocomplete="off" autocapitalize="none" spellcheck="false" value="${esc(selected||'')}" ${judged?'disabled':''}><button class="secondary" ${judged?'disabled':''}>检查答案</button></form>`:`<div class="answers">${q.choices.map((v,i)=>`<button class="answer ${judged&&v===q.answer?'correct':''} ${judged&&v===selected&&!correct?'wrong':''}" data-answer="${esc(v)}" ${judged?'disabled':''}><span class="letter">${'ABC'[i]}</span><span>${esc(v)}</span></button>`).join('')}</div>`}${judged?`<div class="feedback ${correct?'':'wrong'}"><h3>${correct?'答对了':'正确答案：'+esc(q.answer)}</h3><p>${esc(q.why)}</p></div>`:''}<div class="practice-actions"><button class="link" id="read-again">回看本支讲解</button><button class="primary" id="next-q" ${judged?'':'disabled'}>${qIndex===questions.length-1?'完成本支':'下一题 →'}</button></div>`;
   card.querySelector('.progress-fill').style.width=(qIndex+(judged?1:0))/questions.length*100+'%';
   card.querySelectorAll('[data-answer]').forEach(btn=>btn.onclick=()=>recordAllianceAnswer(btn.dataset.answer));
   const form=$('#recall-form');if(form)form.onsubmit=e=>{e.preventDefault();const v=$('#recall-answer').value.trim();if(v)recordAllianceAnswer(v);};
-  $('#next-q').onclick=()=>{qIndex++;saveAllianceSession();renderPractice();};$('#read-again').onclick=()=>{alliancePracticeStage='read';saveAllianceSession();renderPractice();};
+  $('#next-q').onclick=()=>{if(persistAllianceProgress(()=>{qIndex++;}))renderPractice();};$('#read-again').onclick=()=>{if(persistAllianceProgress(()=>{alliancePracticeStage='read';}))renderPractice();};
 }

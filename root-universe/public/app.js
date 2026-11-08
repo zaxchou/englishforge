@@ -25,7 +25,7 @@ function humanLocator(locator){
 let G=null,nodeById=new Map(),view='lookup';
 let lookupSense=null,graphFocus=null,trail=[],graphFamily=null;
 let learning=null,learningLookup=null,lookupSequence=0,rootGraphMode=false;
-let graphStatus='loading',lookupStatus='idle',activeGraphData=null,graphLayoutWidth=0;
+let graphStatus='loading',lookupStatus='idle',activeGraphData=null,graphLayoutWidth=0,searchIntent=0;
 function updateNavigation(){
   document.querySelectorAll('[data-view]').forEach(b=>{b.disabled=graphStatus!=='ready'||(b.dataset.view!=='lookup'&&lookupStatus!=='ready');});
   $('#search').disabled=graphStatus!=='ready';
@@ -136,6 +136,7 @@ function showLookupState(){
   $('#retry-word').onclick=()=>renderWord();
 }
 function renderUnknown(){
+  ++lookupSequence;++searchIntent;++suggestSeq;$('#suggestions').hidden=true;
   lookupStatus='unknown';learning=null;learningLookup=null;displayLookupView();updateNavigation();
   $('#word-content').innerHTML='<div class="notice-empty"><h2>这个词还未收录</h2><p>目前只收录已通过独立来源复核的词族。可以先看看已收录的词。</p><button class="secondary" id="reset-word">查看已收录的词</button></div>';
   $('#reset-word').onclick=()=>{lookupSense=defaultSense();renderWord();};
@@ -145,7 +146,8 @@ function defaultSense(){
   return (all.find(n=>n.label==='predict')||all[0]).id;
 }
 async function renderWord(){
-  const n=nodeById.get(lookupSense),sequence=++lookupSequence,previousContext=JSON.stringify([learningLookup,learning?.alliance?.id||'',learning?.version||'']);
+  const n=nodeById.get(lookupSense),sequence=++lookupSequence,intent=++searchIntent,previousContext=JSON.stringify([learningLookup,learning?.alliance?.id||'',learning?.version||'']);
+  ++suggestSeq;$('#suggestions').hidden=true;
   learningLookup=null;lookupStatus='loading';
   const practiceCard=$('#practice-card');if(practiceCard)practiceCard.innerHTML='<p class="question-hint">正在读取当前词的学习档案…</p>';
   if(graphStatus!=='ready'){renderDown();return;}
@@ -171,7 +173,7 @@ async function renderWord(){
   }
   if(view==='practice')renderPractice();
   $('#word-content').removeAttribute('aria-busy');
-  $('#search').value=n.label;address();
+  if(intent===searchIntent)$('#search').value=n.label;address();
   if(n.type==='learning_word'){const head=nodeById.get(n.headword_id);$('#word-content').innerHTML=`<div class="lookup-grid"><article><div class="word-entry"><div class="word-title"><h2>${esc(n.label)}</h2></div><div class="translation">${esc(data.word.meaning)}</div><div class="tiny-tags"><span class="tag green">${esc(learning.alliance.title)}</span><span class="tag">第${esc(String(learning.word.lesson))}课</span><span class="tag green">课程词</span></div></div>${rootLearningHTML(data)}</article></div>`;
     document.querySelectorAll('#word-content [data-word]').forEach(b=>b.onclick=()=>{lookupSense=b.dataset.word;renderWord();});
     if($('#root-panorama'))$('#root-panorama').onclick=()=>{graphFocus=lookupSense;rootGraphMode=true;trail=[];setView('graph');};
@@ -470,7 +472,7 @@ function renderPractice(){
 let suggestSeq=0;
 async function searchWords(){
   const val=$('#search').value.trim().toLowerCase();
-  const seq=++suggestSeq;
+  const seq=++suggestSeq;++searchIntent;
   if(!val){$('#suggestions').hidden=true;return;}
   try{
     const result=await api('/api/search?q='+encodeURIComponent(val));
@@ -489,7 +491,9 @@ $('#search-form').onsubmit=e=>{
   e.preventDefault();
   const val=$('#search').value.trim().toLowerCase();
   if(!val)return;
+  const intent=++searchIntent;
   api('/api/search?q='+encodeURIComponent(val)).then(result=>{
+    if(intent!==searchIntent)return;
     let hit=null;
     for(const h of result.results){
       const exact=h.display.toLowerCase()===val;
@@ -498,7 +502,7 @@ $('#search-form').onsubmit=e=>{
     }
     if(hit){lookupSense=hit;$('#suggestions').hidden=true;renderWord();}
     else renderUnknown();
-  }).catch(()=>toast('暂时无法读取，请重试。'));
+  }).catch(()=>{if(intent===searchIntent)toast('暂时无法读取，请重试。');});
 };
 document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>setView(b.dataset.view));
 updateNavigation();

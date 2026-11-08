@@ -1,5 +1,5 @@
 const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),net=require('node:net'),{spawn}=require('node:child_process'),assert=require('node:assert/strict');
-const root=path.resolve(__dirname,'..'),dir=fs.mkdtempSync(path.join(os.tmpdir(),'tfl-root-browser-')),out=path.join(root,'build/qa/root-universe/fix-20261107');fs.mkdirSync(out,{recursive:true});
+const root=path.resolve(__dirname,'..'),dir=fs.mkdtempSync(path.join(os.tmpdir(),'tfl-root-browser-')),out=path.resolve(process.env.TFL_ROOT_QA||path.join(root,'build/qa/root-universe/fix-20261107'));fs.mkdirSync(out,{recursive:true});
 const result={ok:false,checks:[],errors:[],blocked:[],screenshots:[],records:dir};let server,browser,activePage;
 async function run(){
  fs.writeFileSync(path.join(dir,'generated-quizzes.json'),JSON.stringify({items:{'ndf-01-01':{v:2,course:'ndf-01',lessonNo:1,src:'official',questions:[{id:'q1',stem:'fixture',options:{A:'yes',B:'no'},answer:'A'}]}}}));

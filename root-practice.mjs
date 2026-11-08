@@ -69,6 +69,23 @@ export function createRootPractice(directory, io = fs) {
     if (lessons.has(n)) return lessons.get(n);
     const id = 'cfcm-' + String(n).padStart(2, '0'), profile = data.versions.find(x => x.name === id);
     if (!profile) { lessons.set(n, null); return null; }
+    const result = project(profile, n);
+    lessons.set(n, result); return result;
+  }
+  // Read only a hash-verified published revision, never a client supplied question body.
+  function lessonVersion(n, version) {
+    if (!Number.isInteger(n) || n < 1 || n > 36 || !/^[a-f0-9]{64}$/.test(version || '')) return null;
+    const id = 'cfcm-' + String(n).padStart(2, '0');
+    try {
+      const bytes = io.readFileSync(path.join(directory, id, 'versions', version, 'entry.json'));
+      if (hash(bytes) !== version) return null;
+      const entry = JSON.parse(bytes);
+      if (entry.id !== id || entry.schema_version !== '1.1.0' || !entry.alliance) return null;
+      return project({ entry, version }, n);
+    } catch { return null; }
+  }
+  function project(profile, n) {
+    const id = 'cfcm-' + String(n).padStart(2, '0');
     const { entry: e, version } = profile, full = new Map(e.words.map(w => [w.id, w]));
     const quiz = { v: 2, src: 'root', course: 'cfcm-01', lessonNo: n, at: 0, contentVersion: version, questions: [] };
     const branches = [];
@@ -97,7 +114,7 @@ export function createRootPractice(directory, io = fs) {
       }
     }
     const result = { ok: true, lesson: n, lessonId: 'cfcm-01-' + String(n).padStart(2, '0'), id, version, title: e.alliance.title, branches, quiz };
-    lessons.set(n, result); return result;
+    return result;
   }
   function quizzes() {
     const data = load(), out = {};
@@ -107,5 +124,5 @@ export function createRootPractice(directory, io = fs) {
     }
     return out;
   }
-  return { load, rootMap, lesson, quizzes };
+  return { load, rootMap, lesson, lessonVersion, quizzes };
 }
