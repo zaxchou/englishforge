@@ -99,9 +99,9 @@
   },
   "0040": {
    "reviewed": "2026-11-08",
-   "reason": "勘误 try→ask + couple→couple of(双引擎无偏置 ASR); 固化生产锚点防重建漂移(2026-11-08)",
+   "reason": "勘误 try→ask + couple→couple of + ask you a favor→for a favor(三处双引擎无偏置 ASR); 固化生产锚点(2026-11-08)",
    "audioSha256": "8efc2bbf54d123818aba6ad679f0a6989df19a7c9616931661ae472b2fe15d2c",
-   "dialogueSha256": "f35aa0231dca1dd5d6139ac55ff67a0cc63d62dcc4206e1fc1a171ff5e0efced",
+   "dialogueSha256": "8450cc20817b8d38208365cfd7402de016f54b48f72304aa83549fb23bf30b2f",
    "bounds": [
     [
      8.96,
