@@ -38,6 +38,10 @@
     [
      "This is a nineteen sixty-nine",
      "This is an nineteen sixty-nine"
+    ],
+    [
+     "be a airhead",
+     "be an airhead"
     ]
    ],
    "note": "原音 an nineteen(双引擎), a→an"
@@ -403,6 +407,10 @@
     [
      "inthe",
      "in the"
+    ],
+    [
+     "Lots of people live",
+     "A lot of people live"
     ]
    ],
    "note": "PDF 丢空格(通用)"
@@ -415,6 +423,527 @@
     ]
    ],
    "note": "PDF 丢空格"
+  },
+  "0008": {
+   "replacements": [
+    [
+     "Ana Ferris",
+     "Anna Faris"
+    ]
+   ],
+   "note": "官方拼写(原音 Anna Faris, 双引擎)"
+  },
+  "0010": {
+   "replacements": [
+    [
+     "How do you intend to drive sales",
+     "How do you plan to drive sales"
+    ],
+    [
+     "Anybody else have a better plan",
+     "Anyone else have a better plan"
+    ],
+    [
+     "twofor-one",
+     "two-for-one"
+    ],
+    [
+     "Anybody else have",
+     "Anyone else have"
+    ]
+   ],
+   "note": "原音 plan/anyone(双引擎); twofor-one 为 PDF 粘连(同期 dlg0 本就写作 two-for-one)"
+  },
+  "0014": {
+   "replacements": [
+    [
+     "Mr. Corlone",
+     "Mr. Corleone"
+    ],
+    [
+     "Anything for you, Charlie!",
+     "Anything for you, Johnny!"
+    ],
+    [
+     "Get outa here",
+     "Get out of here"
+    ],
+    [
+     "Mr. Corlone",
+     "Mr. Corleone"
+    ],
+    [
+     "Anything for you, Charlie!",
+     "Anything for you, Johnny!"
+    ],
+    [
+     "Get outa here",
+     "Get out of here"
+    ]
+   ],
+   "note": "Corlone/Charlie 为官方对教父梗的错拼(原音 Corleone/Johnny); outa 为 PDF 拼法"
+  },
+  "0030": {
+   "replacements": [
+    [
+     "don't want go over",
+     "don't want to go over"
+    ]
+   ],
+   "note": "官方漏 to(双引擎)"
+  },
+  "0041": {
+   "replacements": [
+    [
+     "Two hosts, one podcast, coming",
+     "Two hosts, one podcast. EnglishPod. Coming"
+    ],
+    [
+     "Two hosts,one podcast,coming",
+     "Two hosts,one podcast. EnglishPod. Coming"
+    ]
+   ],
+   "note": "原音频里主持人说了 EnglishPod(双引擎)"
+  },
+  "0044": {
+   "replacements": [
+    [
+     "I barely even get out of bed",
+     "I barely even got out of bed"
+    ],
+    [
+     "a fire on Byron Street",
+     "a fire in Byron Street"
+    ]
+   ],
+   "note": "原音 got/in(双引擎)"
+  },
+  "0045": {
+   "replacements": [
+    [
+     "I've ruined everything",
+     "I ruined everything"
+    ]
+   ],
+   "note": "原音 I ruined(双引擎)"
+  },
+  "0052": {
+   "replacements": [
+    [
+     "to be the same as the first",
+     "to be the same size as the first"
+    ]
+   ],
+   "note": "官方漏 size(双引擎)"
+  },
+  "0064": {
+   "replacements": [
+    [
+     "I sat behind you every day in class",
+     "I sat behind you in science class"
+    ]
+   ],
+   "note": "原音 in science class(双引擎)"
+  },
+  "0069": {
+   "replacements": [
+    [
+     "scrambled eggs eggs",
+     "scrambled eggs"
+    ]
+   ],
+   "note": "官方重复词(原音只说一次)"
+  },
+  "0077": {
+   "replacements": [
+    [
+     "Rikknen",
+     "Raikkonen"
+    ]
+   ],
+   "note": "F1 车手 Räikkönen 官方错拼, 原音同; 用 ASCII 拼法便于输入"
+  },
+  "0094": {
+   "replacements": [
+    [
+     "creation of matter an imbalance",
+     "creation of matter is an imbalance"
+    ]
+   ],
+   "note": "官方漏 is(双引擎)"
+  },
+  "0118": {
+   "replacements": [
+    [
+     "Lets get this",
+     "Let's get this"
+    ],
+    [
+     "What going on in here",
+     "What is going on in here"
+    ],
+    [
+     "change this yucky diaper",
+     "change his yucky diaper"
+    ],
+    [
+     "Lets getthis icky diaperoff you",
+     "Let's get this icky diaper off you"
+    ],
+    [
+     "Hold stillwhile I changethis yucky diaper",
+     "Hold still while I change his yucky diaper"
+    ],
+    [
+     "What goingon in here",
+     "What is going on in here"
+    ]
+   ],
+   "note": "Lets→Let's, 漏 is(双引擎), this→his(原音)"
+  },
+  "0132": {
+   "replacements": [
+    [
+     "supposed to get to school",
+     "supposed to go to school"
+    ]
+   ],
+   "note": "原音 go to school(双引擎)"
+  },
+  "0133": {
+   "replacements": [
+    [
+     "and its all set",
+     "and it's all set"
+    ]
+   ],
+   "note": "its→it's(语法)"
+  },
+  "0138": {
+   "replacements": [
+    [
+     "I'll take the compact. Agent: Alright.",
+     "I'll take the compact. Alright."
+    ],
+    [
+     "compact.Agent: Alright",
+     "compact. Alright"
+    ]
+   ],
+   "note": "逐字稿说话人标签残留, 音频不含"
+  },
+  "0139": {
+   "replacements": [
+    [
+     "they can move one space",
+     "it can move one space"
+    ]
+   ],
+   "note": "原音 it(双引擎)"
+  },
+  "0143": {
+   "replacements": [
+    [
+     "very fine need",
+     "very fine meat"
+    ]
+   ],
+   "note": "官方错词(熟食语境, 原音 meat)"
+  },
+  "0180": {
+   "replacements": [
+    [
+     "to laugh and sing",
+     "to ride and sing"
+    ]
+   ],
+   "note": "Jingle Bells 原歌词 ride and sing, 原音同(双引擎)"
+  },
+  "0197": {
+   "replacements": [
+    [
+     "If my grandpa has a heart attack",
+     "If my grandpa had a heart attack"
+    ],
+    [
+     "If there is an accident",
+     "If there was an accident"
+    ],
+    [
+     "If a robber breaks into the house",
+     "If a robber broke into the house"
+    ]
+   ],
+   "note": "假设语境用过去时, 原音三句均为过去时(双引擎)"
+  },
+  "0209": {
+   "replacements": [
+    [
+     "so too faced",
+     "so two-faced"
+    ]
+   ],
+   "note": "官方错拼 two-faced"
+  },
+  "0214": {
+   "replacements": [
+    [
+     "wellbalanced",
+     "well-balanced"
+    ]
+   ],
+   "note": "PDF 粘连"
+  },
+  "0225": {
+   "replacements": [
+    [
+     "back in the slam,",
+     "back in the slammer,"
+    ],
+    [
+     "we're dependent on you man",
+     "we're depending on you, man"
+    ]
+   ],
+   "note": "原音 slammer/depending(双引擎)"
+  },
+  "0229": {
+   "replacements": [
+    [
+     "my son. Salesgirl: Sure thing",
+     "my son. Sure thing"
+    ],
+    [
+     "these sneakers? Jacob: Mom?",
+     "these sneakers? Mom?"
+    ],
+    [
+     "called? Salesgirl: They're",
+     "called? They're"
+    ],
+    [
+     "adults. Jacob: Oooo,",
+     "adults. Oooo,"
+    ],
+    [
+     "son.Salesgirl: Sure thing",
+     "son. Sure thing"
+    ],
+    [
+     "sneakers? Jacob: Mom?",
+     "sneakers? Mom?"
+    ],
+    [
+     "called? Salesgirl: They're",
+     "called? They're"
+    ],
+    [
+     "adults. Jacob: Oooo",
+     "adults. Oooo"
+    ]
+   ],
+   "note": "逐字稿说话人标签残留, 音频不含"
+  },
+  "0242": {
+   "replacements": [
+    [
+     "the stretch for that active",
+     "the stretch for that octave"
+    ]
+   ],
+   "note": "官方错词(声乐语境, 原音 octave)"
+  },
+  "0246": {
+   "replacements": [
+    [
+     "towards the front of the train",
+     "towards the end of the train"
+    ]
+   ],
+   "note": "原音 end(双引擎)"
+  },
+  "0250": {
+   "replacements": [
+    [
+     "your work in academic background",
+     "your work and academic background"
+    ],
+    [
+     "as I mentioned before, and someone",
+     "as I mentioned before, I am someone"
+    ],
+    [
+     "before,and someone who needs",
+     "before, I am someone who needs"
+    ],
+    [
+     "work inacademic background",
+     "work and academic background"
+    ]
+   ],
+   "note": "PDF 粘连/原音 I am(双引擎)"
+  },
+  "0256": {
+   "replacements": [
+    [
+     "important point, is it?",
+     "important point, isn't it?"
+    ],
+    [
+     "point,is it?",
+     "point,isn't it?"
+    ]
+   ],
+   "note": "反义疑问句, 原音 isn't it(双引擎)"
+  },
+  "0270": {
+   "replacements": [
+    [
+     "all tailored made",
+     "all tailor-made"
+    ]
+   ],
+   "note": "官方错拼 tailor-made"
+  },
+  "0292": {
+   "replacements": [
+    [
+     "Is this the projector working yet",
+     "Is the projector working yet"
+    ]
+   ],
+   "note": "官方多 this(双引擎未听到)"
+  },
+  "0298": {
+   "replacements": [
+    [
+     "Yes, Sidemit, this is",
+     "Yes, I admit, this is"
+    ]
+   ],
+   "note": "官方把 I admit 错拼成人名 Sidemit(原音 I admit)"
+  },
+  "0315": {
+   "replacements": [
+    [
+     "due to working weeks",
+     "due two working weeks"
+    ],
+    [
+     "dueto working weeks",
+     "due two working weeks"
+    ]
+   ],
+   "note": "to→two(原音与语法)"
+  },
+  "0318": {
+   "replacements": [
+    [
+     "the whole is office",
+     "the whole office"
+    ],
+    [
+     "your allergic to cats",
+     "you're allergic to cats"
+    ]
+   ],
+   "note": "PDF 残句/your→you're(原音 you are)"
+  },
+  "0320": {
+   "replacements": [
+    [
+     "fat cat! Mindy: Umm",
+     "fat cat! Umm"
+    ],
+    [
+     "cat!Mindy: Umm",
+     "cat! Umm"
+    ]
+   ],
+   "note": "逐字稿说话人标签残留"
+  },
+  "0325": {
+   "replacements": [
+    [
+     "should go.Anyway",
+     "should go. Anyway"
+    ],
+    [
+     "I hope. 505 505 Michelle: For sure.",
+     "I hope. For sure."
+    ],
+    [
+     "go.Anyway",
+     "go. Anyway"
+    ],
+    [
+     "I hope.505 505 Michelle: For sure.",
+     "I hope. For sure."
+    ]
+   ],
+   "note": "PDF 丢空格+残留电话号/说话人标签"
+  },
+  "0337": {
+   "replacements": [
+    [
+     "a riddle jolly elf",
+     "a right jolly old elf"
+    ]
+   ],
+   "note": "《Twas the Night Before Christmas》原诗句, 官方错拼(原音 right jolly old elf)"
+  },
+  "0339": {
+   "replacements": [
+    [
+     "Well Allen is a great student",
+     "Well Alan is a great student"
+    ]
+   ],
+   "note": "名字拼写(原音 Alan)"
+  },
+  "0341": {
+   "replacements": [
+    [
+     "This was a lot easier",
+     "This is a lot easier"
+    ]
+   ],
+   "note": "原音 is(双引擎)"
+  },
+  "0342": {
+   "replacements": [
+    [
+     "your drivers license",
+     "your driver's license"
+    ],
+    [
+     "that you a resident",
+     "that you are a resident"
+    ]
+   ],
+   "note": "drivers→driver's; 漏 are(双引擎)"
+  },
+  "0343": {
+   "replacements": [
+    [
+     "squid mussels",
+     "squid, mussels"
+    ],
+    [
+     "fillets of salmon",
+     "fillet of salmon"
+    ]
+   ],
+   "note": "官方漏逗号/单复数(原音 fillet)"
+  },
+  "0364": {
+   "replacements": [
+    [
+     "I wanther to come",
+     "I want her to come"
+    ]
+   ],
+   "note": "PDF 粘连"
   }
  }
 }
