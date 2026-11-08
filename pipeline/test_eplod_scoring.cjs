@@ -61,7 +61,8 @@ test('normalization retains spelling, number readings, fillers, slang, accents a
     ["around 6\u20191\u201d", 'around six one'],
     ["around 6' 1\"", 'around six one'],
     ["He's really good looking.", 'He is really good looking.'],
-    ["What's wrong? Here's the plan.", 'What is wrong? Here is the plan.']
+    ["What's wrong? Here's the plan.", 'What is wrong? Here is the plan.'],
+    ['Geeze! Jeez! Jeeze!', 'Geez! Geez! Geez!']
   ]) {
     assert.deepEqual(E.normTokens(a), E.normTokens(b), a);
     assert.equal(E.lcsAcc(a, b), 1);
