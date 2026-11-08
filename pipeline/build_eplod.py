@@ -590,6 +590,24 @@ def ai_lang(data, batch=45, jobs=("dg", "pb")):
 
 def apply_errata(data):
     ep = int(data.get("ep", 0))
+    if ep == 40:
+        # 2026-11-08 勘误: dialogue#3 官方文本 "Do you wanna try Sean instead?" 与原音不符——
+        # 双引擎无偏置 ASR(qwen3-asr-flash + faster-whisper)一致听到 "ask Sean instead"。
+        # 官方 PDF 与逐字稿同源同错, 讲解段引用句一并递归修正; 中文"找Sean试试"同步改"问"。
+        def correct40(value):
+            if isinstance(value, str):
+                return (value.replace("Try Sean instead", "Ask Sean instead")
+                             .replace("try Sean instead", "ask Sean instead")
+                             .replace("找Sean试试", "去问问Sean"))
+            if isinstance(value, list):
+                return [correct40(x) for x in value]
+            if isinstance(value, dict):
+                return {k: correct40(v) for k, v in value.items()}
+            return value
+        corrected = correct40(data)
+        data.clear()
+        data.update(corrected)
+        return data
     if ep == 39:
         # 2026-11-07 勘误: dialogue#0 官方文本 "So, how how did it go?" 多一个 how——
         # 双引擎无偏置 ASR(qwen3-asr-flash + faster-whisper 词级)一致只有单个 how。覆盖正文/词块例句/意群。
