@@ -2,7 +2,7 @@
   'use strict';
   const copy=x=>x===undefined?undefined:JSON.parse(JSON.stringify(x));
   const object=x=>x&&typeof x==='object'&&!Array.isArray(x);
-  const SCORING_VERSION=7;
+  const SCORING_VERSION=8;
   /* 判分归一分词(r19): 官方文本的 "5:58" 分词成 [5,58], ASR/用户输入是 [five,fifty,eight],
      形状不同会白扣分——数字 token 统一展开成读法单词; oh 与 zero 互通(两侧同变换, 只增匹配不改错配)。 */
   const NUM1={0:'zero',1:'one',2:'two',3:'three',4:'four',5:'five',6:'six',7:'seven',8:'eight',9:'nine',10:'ten',11:'eleven',12:'twelve',13:'thirteen',14:'fourteen',15:'fifteen',16:'sixteen',17:'seventeen',18:'eighteen',19:'nineteen',20:'twenty'};   /* 20 曾缺表, expandNum 兜底成 "20" 配不上 twenty(r2 2026-10-30) */
@@ -125,29 +125,50 @@
   function fuzzyEqual(a,b){
     return a!==b&&NAME_ALIASES.some(group=>group.includes(a)&&group.includes(b));
   }
+  /* 复合词分写等价(r8 2026-11-09): 官方 "voice mail" vs ASR/用户 "voicemail"——相邻两 token
+     拼接等于另一侧单 token 即互配(双向)。护栏: 拼接≥5 字符且 pair 首词非虚词/非前缀语素
+     (挡 to+get↔together / a+lone↔alone / re+sign↔resign 这类真词误并; over/anti/out 等
+     是合法复合词首, 不挡, overhead/antiparticles 案例依赖它们)。两侧同变换, 只增匹配不改错配。 */
+  const COMPOUND_BLOCK=new Set(['to','a','i','of','in','on','for','and','or','is','it','be','by','at','as','we','he','she','you','they','do','go','so','no','if','me','my','us','an','am','are','was','were','has','have','had','the','that','this','with','from','but','not','oh','ok','re','un','de','dis','pre','non']);
+  function compoundOK(w,merged){return !COMPOUND_BLOCK.has(w)&&w.length>=2&&merged.length>=5;}
   function scoreTokens(official,mine,fuzzy=false){
-    const a=normTokens(official),b=normTokens(mine),n=a.length;
-    const dp=Array.from({length:n+1},()=>new Array(b.length+1).fill(0));
-    for(let i=1;i<=n;i++)for(let j=1;j<=b.length;j++)dp[i][j]=a[i-1]===b[j-1]?dp[i-1][j-1]+1:Math.max(dp[i-1][j],dp[i][j-1]);
-    const marks=new Array(n).fill(false),matched=new Array(b.length).fill(false),pairs=[];
-    let hit=dp[n][b.length],i=n,j=b.length;
+    const a=normTokens(official),b=normTokens(mine),n=a.length,m=b.length;
+    /* 前缀 dp[i][j]=LCS(a[0..i-1],b[0..j-1]), 含复合词 2↔1 合并分支(官方对计 2 分) */
+    const dp=Array.from({length:n+1},()=>new Array(m+1).fill(0));
+    for(let i=1;i<=n;i++)for(let j=1;j<=m;j++){
+      let best=Math.max(dp[i-1][j],dp[i][j-1]);
+      if(a[i-1]===b[j-1])best=Math.max(best,dp[i-1][j-1]+1);
+      if(i>=2&&compoundOK(a[i-2],a[i-2]+a[i-1])&&a[i-2]+a[i-1]===b[j-1])best=Math.max(best,dp[i-2][j-1]+2);
+      if(j>=2&&compoundOK(b[j-2],b[j-2]+b[j-1])&&b[j-2]+b[j-1]===a[i-1])best=Math.max(best,dp[i-1][j-2]+1);
+      dp[i][j]=best;
+    }
+    const marks=new Array(n).fill(false),matched=new Array(m).fill(false),pairs=[];
+    /* 后向回溯, 与旧实现同优先级: 先单匹配(重复 token 归属语义不变), 再合并 span, 再跳 */
+    let i=n,j=m;
     while(i>0&&j>0){
-      if(a[i-1]===b[j-1]){marks[i-1]=true;matched[j-1]=true;pairs.push([i-1,j-1]);i--;j--;}
-      else if(dp[i-1][j]>=dp[i][j-1])i--;
-      else j--;
+      if(a[i-1]===b[j-1]){marks[i-1]=true;matched[j-1]=true;pairs.push([i-1,j-1]);i--;j--;continue;}
+      if(i>=2&&compoundOK(a[i-2],a[i-2]+a[i-1])&&a[i-2]+a[i-1]===b[j-1]){
+        marks[i-2]=true;marks[i-1]=true;matched[j-1]=true;pairs.push([i-2,j-1],[i-1,j-1]);i-=2;j--;continue;
+      }
+      if(j>=2&&compoundOK(b[j-2],b[j-2]+b[j-1])&&b[j-2]+b[j-1]===a[i-1]){
+        marks[i-1]=true;matched[j-2]=true;matched[j-1]=true;pairs.push([i-1,j-2],[i-1,j-1]);i--;j-=2;continue;
+      }
+      if(dp[i-1][j]>=dp[i][j-1])i--;else j--;
     }
     pairs.reverse();
     if(fuzzy){
       const ou=[],bu=[];
       for(let k=0;k<n;k++)if(!marks[k])ou.push(k);
-      for(let k=0;k<b.length;k++)if(!matched[k])bu.push(k);
+      for(let k=0;k<m;k++)if(!matched[k])bu.push(k);
       let k=0;
       for(const oi of ou){
         for(let t=k;t<Math.min(bu.length,k+4);t++){
-          if(fuzzyEqual(a[oi],b[bu[t]])){marks[oi]=true;matched[bu[t]]=true;pairs.push([oi,bu[t]]);hit++;bu.splice(t,1);k=t;break;}
+          if(fuzzyEqual(a[oi],b[bu[t]])){marks[oi]=true;matched[bu[t]]=true;pairs.push([oi,bu[t]]);bu.splice(t,1);k=t;break;}
         }
       }
     }
+    /* 命中分以官方侧 marks 为准(含 fuzzy 赦免; 合并等价 pair 计 2 个官方 token) */
+    const hit=marks.reduce((s,v)=>s+(v?1:0),0);
     return {acc:n?hit/n:0,marks,matched,pairs,extras:b.filter((_,k)=>!matched[k]).slice(0,12)};
   }
   function lcsAccFuzzy(official,mine){return scoreTokens(official,mine,true).acc;}
@@ -235,11 +256,9 @@
     return {changed:changes.length,changes,skipped};
   }
   function lcsAcc(official,mine){
-    const a=normTokens(official),b=normTokens(mine);
-    if(!a.length)return 0;
-    const dp=Array(b.length+1).fill(0);
-    for(const w of a){let prev=0;for(let j=1;j<=b.length;j++){const old=dp[j];dp[j]=w===b[j-1]?prev+1:Math.max(dp[j],dp[j-1]);prev=old;}}
-    return dp[b.length]/a.length;
+    /* r8: 委托 scoreTokens(含复合词合并等价), 与整篇/语音判分同一口径 */
+    const a=normTokens(official);
+    return a.length?scoreTokens(official,mine).acc:0;
   }
   const time=value=>Number.isFinite(Number(value))?Number(value):0;
   const identity=value=>typeof value==='string'?value:'';

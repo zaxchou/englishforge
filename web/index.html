@@ -3945,36 +3945,12 @@ function epStepsUpdate(){
   epWholeUpdate();   // 逐句背诵通过数变化 → 整篇背诵解锁态随之刷新
 }
 
-/* ---- 听写 diff: 词级 LCS, 返回逐词对错与多写词 ---- */
+/* ---- 听写 diff: 词级 LCS(含复合词分写等价), 返回逐词对错与多写词 ---- */
 function epDiff(official,mine,fuzzy){
-  const T=s=>EplodRecords.normTokens(s);
-  const o=T(official),m=T(mine);
-  const n=o.length,mm=m.length;
-  const dp=Array.from({length:n+1},()=>new Array(mm+1).fill(0));
-  for(let i=1;i<=n;i++)for(let j=1;j<=mm;j++)dp[i][j]=o[i-1]===m[j-1]?dp[i-1][j-1]+1:Math.max(dp[i-1][j],dp[i][j-1]);
-  const marks=new Array(n).fill(false),extra=new Array(mm).fill(false);
-  let i=n,j=mm;
-  while(i>0&&j>0){
-    if(o[i-1]===m[j-1]){marks[i-1]=true;extra[j-1]=true;i--;j--;}
-    else if(dp[i-1][j]>=dp[i][j-1])i--;
-    else j--;
-  }
-  let hit=dp[n][mm];
-  if(fuzzy){
-    /* 语音路径(r6): 未匹配词对里「人名走音级」近似(Julianne/Julian, McNealy/McLean)算对 */
-    const ou=[],bu=[];
-    for(let k=0;k<n;k++)if(!marks[k])ou.push(k);
-    for(let k=0;k<mm;k++)if(!extra[k])bu.push(k);
-    let k=0;
-    for(const oi of ou){
-      for(let t=k;t<Math.min(bu.length,k+4);t++){
-        if(EplodRecords.fuzzyEqual(o[oi],m[bu[t]])){marks[oi]=true;extra[bu[t]]=true;hit++;bu.splice(t,1);k=t;break;}
-      }
-    }
-  }
-  const extras=[];
-  for(let k=0;k<mm;k++)if(!extra[k])extras.push(m[k]);
-  return {acc:n?hit/n:0,marks,extras:extras.slice(0,12)};
+  /* r8: 判分统一走 EplodRecords.scoreTokens(复合词合并等价+姓名赦免同一口径),
+     本函数只保留展示所需的 acc/marks/extras 形状。 */
+  const r=EplodRecords.scoreTokens(official,mine,!!fuzzy);
+  return {acc:r.acc,marks:r.marks,extras:r.extras};
 }
 
 /* ---- 四步训练(用户定案 2026-10-25: 听写+背诵都只对对话, 讲解只听不背):
