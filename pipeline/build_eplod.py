@@ -591,13 +591,15 @@ def ai_lang(data, batch=45, jobs=("dg", "pb")):
 def apply_errata(data):
     ep = int(data.get("ep", 0))
     if ep == 40:
-        # 2026-11-08 勘误: dialogue#3 官方文本 "Do you wanna try Sean instead?" 与原音不符——
-        # 双引擎无偏置 ASR(qwen3-asr-flash + faster-whisper)一致听到 "ask Sean instead"。
-        # 官方 PDF 与逐字稿同源同错, 讲解段引用句一并递归修正; 中文"找Sean试试"同步改"问"。
+        # 2026-11-08 勘误: 官方文本两处与原音不符(双引擎无偏置 ASR qwen3-asr-flash + faster-whisper 一致):
+        # ① dialogue#3 "Do you wanna try Sean instead?" → 原音 "ask Sean instead"(官方 PDF 与逐字稿同源同错, 讲解引用句一并修正);
+        # ② dialogue#5 "a couple minutes" → 原音 "a couple of minutes"。中文"找Sean试试"同步改"问"。
         def correct40(value):
             if isinstance(value, str):
                 return (value.replace("Try Sean instead", "Ask Sean instead")
                              .replace("try Sean instead", "ask Sean instead")
+                             .replace("a couple minutes", "a couple of minutes")
+                             .replace("A couple minutes", "A couple of minutes")
                              .replace("找Sean试试", "去问问Sean"))
             if isinstance(value, list):
                 return [correct40(x) for x in value]

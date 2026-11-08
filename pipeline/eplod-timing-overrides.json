@@ -99,9 +99,9 @@
   },
   "0040": {
    "reviewed": "2026-11-08",
-   "reason": "勘误 try Sean→ask Sean(双引擎无偏置 ASR 一致); 固化生产锚点防重建漂移(2026-11-08)",
+   "reason": "勘误 try→ask + couple→couple of(双引擎无偏置 ASR); 固化生产锚点防重建漂移(2026-11-08)",
    "audioSha256": "8efc2bbf54d123818aba6ad679f0a6989df19a7c9616931661ae472b2fe15d2c",
-   "dialogueSha256": "0770184b8128fbffc153ecfa04ef6f5355f460fcfcd2c8fa581420d9137bf0ab",
+   "dialogueSha256": "f35aa0231dca1dd5d6139ac55ff67a0cc63d62dcc4206e1fc1a171ff5e0efced",
    "bounds": [
     [
      8.96,
