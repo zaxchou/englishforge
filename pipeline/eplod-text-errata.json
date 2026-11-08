@@ -1,0 +1,420 @@
+{
+ "version": 1,
+ "note": "全库文本勘误表(2026-11-08 全库审计产物)。每期一组字符串替换, apply_errata 在解析/重用/落盘前递归应用(正文/词块例句/意群/讲解引用/中文)。来源: whisper+qwen 双引擎无偏置 ASR 与官方文本逐句比对(见 build/qa/eplod-text-audit/)。",
+ "episodes": {
+  "0047": {
+   "replacements": [
+    [
+     "timesfor",
+     "times for"
+    ]
+   ],
+   "note": "PDF 抽取丢空格"
+  },
+  "0059": {
+   "replacements": [
+    [
+     "what would your role in the company",
+     "what would be your role in the company"
+    ]
+   ],
+   "note": "官方漏 be(双引擎同向)"
+  },
+  "0104": {
+   "replacements": [
+    [
+     "shinning",
+     "shining"
+    ],
+    [
+     "gnarley",
+     "gnarly"
+    ]
+   ],
+   "note": "官方拼写错误"
+  },
+  "0114": {
+   "replacements": [
+    [
+     "This is a nineteen sixty-nine",
+     "This is an nineteen sixty-nine"
+    ]
+   ],
+   "note": "原音 an nineteen(双引擎), a→an"
+  },
+  "0123": {
+   "replacements": [
+    [
+     "Your such a playa",
+     "You're such a player"
+    ]
+   ],
+   "note": "原音 you are such a player(双引擎); Your/you're 与 playa/player 均官方错"
+  },
+  "0150": {
+   "replacements": [
+    [
+     "mosquitos",
+     "mosquitoes"
+    ]
+   ],
+   "note": "标准拼写(原音同词)"
+  },
+  "0157": {
+   "replacements": [
+    [
+     "I'mgoing next doorI heard",
+     "I'm going next door. I heard"
+    ]
+   ],
+   "note": "PDF 丢空格"
+  },
+  "0158": {
+   "replacements": [
+    [
+     "Soul's Dayand All Saint's Day",
+     "Souls' Day and All Saints' Day"
+    ],
+    [
+     "That'sscary",
+     "That's scary"
+    ]
+   ],
+   "note": "PDF 丢空格+所有格规范(原音 souls day and saints day)"
+  },
+  "0159": {
+   "replacements": [
+    [
+     "whatthe occasion",
+     "what the occasion"
+    ]
+   ],
+   "note": "PDF 丢空格"
+  },
+  "0160": {
+   "replacements": [
+    [
+     "onthe web",
+     "on the web"
+    ]
+   ],
+   "note": "PDF 丢空格"
+  },
+  "0162": {
+   "replacements": [
+    [
+     "Veteran's Day",
+     "Veterans Day"
+    ]
+   ],
+   "note": "官方拼写规范(原音 veterans day)"
+  },
+  "0163": {
+   "replacements": [
+    [
+     "ofthe",
+     "of the"
+    ],
+    [
+     "inthe",
+     "in the"
+    ]
+   ],
+   "note": "PDF 丢空格(通用替换)"
+  },
+  "0165": {
+   "replacements": [
+    [
+     "ofthe",
+     "of the"
+    ],
+    [
+     "inthe",
+     "in the"
+    ],
+    [
+     "scorein",
+     "score in"
+    ]
+   ],
+   "note": "PDF 丢空格(通用替换)"
+  },
+  "0166": {
+   "replacements": [
+    [
+     "cosmetic surgeryYou look amazing",
+     "cosmetic surgery. You look amazing"
+    ]
+   ],
+   "note": "PDF 丢空格"
+  },
+  "0167": {
+   "replacements": [
+    [
+     "let go ofthe clutch",
+     "let go of the clutch"
+    ],
+    [
+     "step onthe clutch",
+     "step on the clutch"
+    ]
+   ],
+   "note": "PDF 丢空格"
+  },
+  "0169": {
+   "replacements": [
+    [
+     "This isthe best amusement park inthe world",
+     "This is the best amusement park in the world"
+    ]
+   ],
+   "note": "PDF 丢空格"
+  },
+  "0172": {
+   "replacements": [
+    [
+     "end ofthe week",
+     "end of the week"
+    ]
+   ],
+   "note": "PDF 丢空格"
+  },
+  "0173": {
+   "replacements": [
+    [
+     "Yes thats correct",
+     "Yes, that's correct"
+    ],
+    [
+     "this isthe main reason",
+     "this is the main reason"
+    ],
+    [
+     "come tothe right place",
+     "come to the right place"
+    ],
+    [
+     "money onthe most",
+     "money on the most"
+    ]
+   ],
+   "note": "PDF 丢空格+thats→that's(原音 that is)"
+  },
+  "0175": {
+   "replacements": [
+    [
+     "going tothe gym",
+     "going to the gym"
+    ]
+   ],
+   "note": "PDF 丢空格"
+  },
+  "0176": {
+   "replacements": [
+    [
+     "paythe",
+     "pay the"
+    ],
+    [
+     "furnace inthe center ofthe living room",
+     "furnace in the center of the living room"
+    ],
+    [
+     "原文拼写为 paythe,保留原样。",
+     "指支付家庭开销。"
+    ]
+   ],
+   "note": "PDF 丢空格"
+  },
+  "0178": {
+   "replacements": [
+    [
+     "go tothe mall",
+     "go to the mall"
+    ]
+   ],
+   "note": "PDF 丢空格"
+  },
+  "0202": {
+   "replacements": [
+    [
+     "for isthe second building",
+     "for is the second building"
+    ]
+   ],
+   "note": "PDF 丢空格"
+  },
+  "0212": {
+   "replacements": [
+    [
+     "inthe",
+     "in the"
+    ],
+    [
+     "ofthe",
+     "of the"
+    ],
+    [
+     "tothe",
+     "to the"
+    ]
+   ],
+   "note": "PDF 丢空格(通用)"
+  },
+  "0226": {
+   "replacements": [
+    [
+     "lights on inthe house",
+     "lights on in the house"
+    ]
+   ],
+   "note": "PDF 丢空格"
+  },
+  "0230": {
+   "replacements": [
+    [
+     "are inthe dry season",
+     "are in the dry season"
+    ]
+   ],
+   "note": "PDF 丢空格"
+  },
+  "0293": {
+   "replacements": [
+    [
+     "are inthe semi-soft category",
+     "are in the semi-soft category"
+    ]
+   ],
+   "note": "PDF 丢空格"
+  },
+  "0301": {
+   "replacements": [
+    [
+     "inthe",
+     "in the"
+    ],
+    [
+     "tothe",
+     "to the"
+    ]
+   ],
+   "note": "PDF 丢空格(通用)"
+  },
+  "0309": {
+   "replacements": [
+    [
+     "element inthe Hindu religion",
+     "element in the Hindu religion"
+    ],
+    [
+     "can havesome chicken tikka masalawhich is",
+     "can have some chicken tikka masala which is"
+    ]
+   ],
+   "note": "PDF 丢空格"
+  },
+  "0312": {
+   "replacements": [
+    [
+     "embarrasing",
+     "embarrassing"
+    ]
+   ],
+   "note": "官方拼写错误"
+  },
+  "0314": {
+   "replacements": [
+    [
+     "This isthe operator",
+     "This is the operator"
+    ]
+   ],
+   "note": "PDF 丢空格"
+  },
+  "0321": {
+   "replacements": [
+    [
+     "is onthe menu tonight",
+     "is on the menu tonight"
+    ]
+   ],
+   "note": "PDF 丢空格"
+  },
+  "0324": {
+   "replacements": [
+    [
+     "Once inthe New World",
+     "Once in the New World"
+    ]
+   ],
+   "note": "PDF 丢空格"
+  },
+  "0338": {
+   "replacements": [
+    [
+     "put it inthe oven",
+     "put it in the oven"
+    ]
+   ],
+   "note": "PDF 丢空格"
+  },
+  "0345": {
+   "replacements": [
+    [
+     "go tothe gym",
+     "go to the gym"
+    ],
+    [
+     "depending onthe areas",
+     "depending on the areas"
+    ]
+   ],
+   "note": "PDF 丢空格"
+  },
+  "0347": {
+   "replacements": [
+    [
+     "travellers cheques",
+     "traveler's checks"
+    ]
+   ],
+   "note": "官方英式拼写+旧式分写, 原音 traveler's checks(双引擎)"
+  },
+  "0360": {
+   "replacements": [
+    [
+     "sold onthe black market",
+     "sold on the black market"
+    ]
+   ],
+   "note": "PDF 丢空格"
+  },
+  "0363": {
+   "replacements": [
+    [
+     "isso",
+     "is so"
+    ],
+    [
+     "andthe",
+     "and the"
+    ],
+    [
+     "inthe",
+     "in the"
+    ]
+   ],
+   "note": "PDF 丢空格(通用)"
+  },
+  "0170": {
+   "replacements": [
+    [
+     "andthe woman",
+     "and the woman"
+    ]
+   ],
+   "note": "PDF 丢空格"
+  }
+ }
+}

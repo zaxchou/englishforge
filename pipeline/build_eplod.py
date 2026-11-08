@@ -39,6 +39,7 @@ BUILD_EP = ROOT / "build" / "eplod"
 CATALOG = ROOT / "build" / "courses" / "eplod-catalog.json"
 CHUNK_BANK = ROOT / "build" / "vocab" / "eplod-chunks.json"
 TIMING_OVERRIDES = Path(__file__).with_name("eplod-timing-overrides.json")
+TEXT_ERRATA = json.loads(Path(__file__).with_name("eplod-text-errata.json").read_text(encoding="utf-8"))
 
 
 def apply_timing_overrides(data, audio_path, overrides_path=TIMING_OVERRIDES):
@@ -590,6 +591,24 @@ def ai_lang(data, batch=45, jobs=("dg", "pb")):
 
 def apply_errata(data):
     ep = int(data.get("ep", 0))
+    # 数据驱动勘误表(pipeline/eplod-text-errata.json): 全库审计(2026-11-08)产出的
+    # PDF 丢空格/官方拼写等机械修正, 每期一组 [from,to] 递归替换。
+    entry = TEXT_ERRATA.get("episodes", {}).get(f"{ep:04d}")
+    if entry:
+        reps = entry.get("replacements", []) if isinstance(entry, dict) else entry
+        def correct_table(value):
+            if isinstance(value, str):
+                for a, b in reps:
+                    value = value.replace(a, b)
+                return value
+            if isinstance(value, list):
+                return [correct_table(x) for x in value]
+            if isinstance(value, dict):
+                return {k: correct_table(v) for k, v in value.items()}
+            return value
+        corrected = correct_table(data)
+        data.clear()
+        data.update(corrected)
     if ep == 40:
         # 2026-11-08 勘误: 官方文本三处与原音不符(双引擎无偏置 ASR qwen3-asr-flash + faster-whisper 一致):
         # ① dialogue#3 "Do you wanna try Sean instead?" → 原音 "ask Sean instead"(官方 PDF 与逐字稿同源同错, 讲解引用句一并修正);
