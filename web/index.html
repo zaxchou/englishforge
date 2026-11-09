@@ -360,7 +360,7 @@ details.ai-tsec[open] summary{margin-bottom:8px}
 <script src="course-plan-ui.js?v=20261107r8"></script>
 <script src="root-practice-ui.js?v=e3203ffa489d"></script>
 <script src="speaking-ui.js?v=20261106r6"></script>
-<script src="lesson-vocab-ui.js?v=20261109r4"></script>
+<script src="lesson-vocab-ui.js?v=20261109r5"></script>
 <script>
 'use strict';
 /* ============================================================
@@ -3199,8 +3199,17 @@ function mountVocab(){
   try{vbMigrateQueue();}catch(e){VB.err=e.message;} vbLoadBank(); vbRender(); vbFlushQueue();
 }
 if($('lv-entry-go')) $('lv-entry-go').onclick=()=>nav('vocab/lesson/cfcm-01-01');
+function lvActive(){ return !!(window.LV&&window.LV.isActive&&window.LV.isActive()); }
+function vbSuspendForLesson(){
+  if(VB_WAKE){clearTimeout(VB_WAKE);VB_WAKE=null;}
+  if(VB_TICK){clearInterval(VB_TICK);VB_TICK=null;}
+  if(VB_QUEUE_T){clearTimeout(VB_QUEUE_T);VB_QUEUE_T=null;}
+  if(VB_AUDIO){try{VB_AUDIO.onerror=null;VB_AUDIO.pause();VB_AUDIO=null;}catch(e){}}
+  try{window.speechSynthesis?.cancel();}catch(e){}
+}
+window.vbSuspendForLesson=vbSuspendForLesson;
 function vbRender(){
-  const body=$('vb-body'); if(!body||!document.querySelector('#v-vocab.on')) return;
+  const body=$('vb-body'); if(!body||!document.querySelector('#v-vocab.on')||lvActive()) return;
   clearTimeout(VB_WAKE);VB_WAKE=null;
   if(VB.loading){ body.innerHTML='<div class="card" style="padding:28px;text-align:center;color:var(--t2)">正在读取词库…</div>'; return; }
   if(!VB.bank){
@@ -3343,13 +3352,13 @@ async function vbFlushQueue(){
   }
 }
 function vbScheduleWake(){
-  if(document.hidden||!document.querySelector('#v-vocab.on'))return;
+  if(lvActive()||document.hidden||!document.querySelector('#v-vocab.on'))return;
   let wait=60000;
   for(const st of Object.values(vbState()))if(st.due>Date.now())wait=Math.min(wait,st.due-Date.now());
   VB_WAKE=setTimeout(()=>{VB_WAKE=null;vbRender();},Math.max(100,wait));
 }
 function vbStudyGate(){
-  const on=!!document.querySelector('#v-vocab.on')&&!!VB.cur&&!document.hidden;
+  const on=!!document.querySelector('#v-vocab.on')&&!!VB.cur&&!document.hidden&&!lvActive();
   if(on&&!VB_TICK) VB_TICK=setInterval(()=>{if(!VB.cur||!document.querySelector('#v-vocab.on')||document.hidden){vbStudyGate();return;}studyTick(1);if((REC.study.total||0)%5===0)recSave();},1000);
   else if(!on&&VB_TICK){clearInterval(VB_TICK);VB_TICK=null;}
 }

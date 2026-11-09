@@ -18,5 +18,8 @@ t.ctx.REC.vocab.affix.due=Date.now()-1;[...t.timers.values()][0].fn();assert.equ
 // Learning history survives reviewing the same cards today; absent history remains unknown.
 t=setup();const today=t.run('vbDay()'),yesterday=new Date(Date.parse(today+'T00:00:00Z')-86400000).toISOString().slice(0,10);t.ctx.REC.vocabDays={[today]:{grades:2,introduced:1},[yesterday]:{grades:1,introduced:1}};t.ctx.REC.vocab={affix:{at:Date.now(),born:Date.now(),due:Date.now()+1000,s:0}};assert.equal(t.run('vbCounts().streak'),2);assert.equal(t.run('vbCounts().newToday'),1);
 let spoken=0;t.ctx.spoken=()=>spoken++;t.run('vbSpeak=()=>spoken();VB.cur=VB.order[0];vbRender();VB.hint=true;vbRender();VB.revealed=true;vbRender()');assert.equal(spoken,1);
-console.log('PASS actual client: script syntax, durable inflight queue, concurrent append, flush lock, reload, stale snapshot, quota failure, 805-entry migration, due wake, study stop, streak, single autoplay');
+// Lesson view active: old vocab render/wake/study timer must stay out of the way.
+t=setup();t.ctx.window.LV={isActive:()=>true};t.run('VB.bank={};VB.order=[{w:"affix",k:"affix"}];VB.cur=VB.order[0]');t.run('vbRender()');assert.equal(t.body.innerHTML,'');t.run('vbStudyGate()');assert.equal(t.intervals.size,0);const wakes=t.timers.size;t.run('vbScheduleWake()');assert.equal(t.timers.size,wakes);
+t.ctx.window.LV={isActive:()=>false};t.run('vbRender()');assert.ok(t.body.innerHTML.length>0);
+console.log('PASS actual client: script syntax, durable inflight queue, concurrent append, flush lock, reload, stale snapshot, quota failure, 805-entry migration, due wake, study stop, streak, single autoplay, lesson guard blocks old vocab render/timer/wake');
 })().catch(e=>{console.error(e);process.exitCode=1});

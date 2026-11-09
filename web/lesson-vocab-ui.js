@@ -2,7 +2,7 @@
 (function(){
   const LESSON='cfcm-01-01';
   const q=id=>document.getElementById(id);
-  let token=0, active=false, cards=null, lesson=null, session=null, busy=false, uni=false, err='', audio=null;
+  let token=0, active=false, cards=null, lesson=null, session=null, busy=false, uni=false, err='', audio=null, pending=null;
   const byKey=new Map();
 
   const eventId=()=>'lv-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8);
@@ -52,6 +52,7 @@
       + '<button class="lv-btn pri" type="button" data-lv="know"'+(busy?' disabled':'')+'>认识</button>'
       + '<button class="lv-btn" type="button" data-lv="again"'+(busy?' disabled':'')+'>不认识</button></div>'
       + '<p class="lv-hint">认识＝不看提示能想起意思 · 只有眼熟请点不认识</p>'
+      + (busy?'<p class="lv-hint" role="status">保存中…</p>':'')
       + (err?'<p class="lv-err" role="alert">'+esc(err)+'</p>':'')
       + '</div>';
   }
@@ -83,6 +84,7 @@
       + '<div class="lv-sect">'+uniBtn+'</div>'
       + ex
       + '<button class="lv-continue" type="button" data-lv="continue"'+(busy?' disabled':'')+'>继续 · 稍后再认一次</button>'
+      + (busy?'<p class="lv-hint" role="status">保存中…</p>':'')
       + (err?'<p class="lv-err" role="alert">'+esc(err)+'</p>':'')
       + '</div>';
   }
@@ -101,6 +103,7 @@
       + '<p class="lv-due">'+(overdue?'新认的词已在 <b>'+due+'</b> 到期 · 到背单词里复习即可。':'新认的词约 <b>'+due+'</b> 到期 · 到期时仍先只见英文，想不起来再看卡。')+'</p>'
       + '<div class="lv-row"><button class="lv-ghost" type="button" data-lv="restart"'+(busy?' disabled':'')+'>再练一遍</button>'
       + '<button class="lv-ghost" type="button" data-lv="back">返回背单词</button></div>'
+      + (busy?'<p class="lv-hint" role="status">保存中…</p>':'')
       + (err?'<p class="lv-err" role="alert">'+esc(err)+'</p>':'')+'</div>';
   }
 
@@ -130,17 +133,30 @@
     });
   }
 
+  async function resync(){
+    try{
+      const r=await api('/api/vocab/lesson',{signal:AbortSignal.timeout(10000)});
+      if(r.session){ session=r.session; lesson=r.lesson||lesson; uni=false; err=''; }
+    }catch(e){}
+  }
   async function grade(action){
     if(!session||!session.current) return;
     const t=token, key=session.current;
+    if(!pending||pending.key!==key||pending.action!==action) pending={id:eventId(),key,action};
+    const id=pending.id;
     busy=true; err='';
     render();
     try{
       const res=await api('/api/vocab/lesson/grade',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({lessonId:LESSON,id:eventId(),key,action})});
+        body:JSON.stringify({lessonId:LESSON,id,key,action}),signal:AbortSignal.timeout(15000)});
       if(t!==token) return;
-      session=res.session; uni=false;
-    }catch(e){ if(t===token) err=e.message||'保存失败，请重试'; }
+      session=res.session; pending=null; uni=false;
+    }catch(e){
+      if(t!==token) return;
+      const msg=e.message||'保存失败，请重试';
+      if(/not current word|already completed|lesson not started/.test(msg)){ await resync(); if(t!==token) return; pending=null; }
+      else err=msg;
+    }
     finally{ if(t===token){ busy=false; render(); } }
   }
 
@@ -156,7 +172,8 @@
   }
 
   async function open(id){
-    const t=++token; active=true; busy=false; uni=false; err=''; session=null;
+    const t=++token; active=true; busy=false; uni=false; err=''; session=null; pending=null;
+    try{window.vbSuspendForLesson&&vbSuspendForLesson();}catch(e){}
     q('lv-entry')?.setAttribute('hidden','');
     const body=q('vb-body');
     if(body) body.innerHTML='<div class="lv-loading">正在读取第一课词卡…</div>';
