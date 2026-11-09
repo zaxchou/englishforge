@@ -2,7 +2,7 @@
   'use strict';
   const copy=x=>x===undefined?undefined:JSON.parse(JSON.stringify(x));
   const object=x=>x&&typeof x==='object'&&!Array.isArray(x);
-  const SCORING_VERSION=9;
+  const SCORING_VERSION=10;
   /* 判分归一分词(r19): 官方文本的 "5:58" 分词成 [5,58], ASR/用户输入是 [five,fifty,eight],
      形状不同会白扣分——数字 token 统一展开成读法单词; oh 与 zero 互通(两侧同变换, 只增匹配不改错配)。 */
   const NUM1={0:'zero',1:'one',2:'two',3:'three',4:'four',5:'five',6:'six',7:'seven',8:'eight',9:'nine',10:'ten',11:'eleven',12:'twelve',13:'thirteen',14:'fourteen',15:'fifteen',16:'sixteen',17:'seventeen',18:'eighteen',19:'nineteen',20:'twenty'};   /* 20 曾缺表, expandNum 兜底成 "20" 配不上 twenty(r2 2026-10-30) */
@@ -134,6 +134,10 @@
      用户 "redo" 是同词异写; resign(辞职)与 re-sign(再签)这类真异义词不在表内, 仍保持区分。 */
   const RE_MERGES=new Set(['redo','redecorating','redecorate','reemphasize','retake','rerun','rebook','reorder','reenter','repaint','rewrite','reread','replay','recheck','reapply','rebuild','reload','reopen','restart','reuse','remix','recast','reconnect','recreate','reassemble']);
   function compoundOK(w,merged){return RE_MERGES.has(merged)||(!COMPOUND_BLOCK.has(w)&&w.length>=2&&merged.length>=5);}
+  /* 单复数容差(r10 2026-11-09): 官方 "some things" 拼接 somethings 与 ASR "something" 只差词尾 s
+     (语音上不可分, 用户背诵实测案例)。仅用于 2↔1 合并匹配; 单 token 对单 token 的复数差异
+     (customer/customers, 0016 钉死的判据)不放宽。 */
+  function mergeEqual(concat,single){return concat===single||(single.length>=5&&concat===single+'s');}
   function scoreTokens(official,mine,fuzzy=false){
     const a=normTokens(official),b=normTokens(mine),n=a.length,m=b.length;
     /* 前缀 dp[i][j]=LCS(a[0..i-1],b[0..j-1]), 含复合词 2↔1 合并分支(官方对计 2 分) */
@@ -141,8 +145,8 @@
     for(let i=1;i<=n;i++)for(let j=1;j<=m;j++){
       let best=Math.max(dp[i-1][j],dp[i][j-1]);
       if(a[i-1]===b[j-1])best=Math.max(best,dp[i-1][j-1]+1);
-      if(i>=2&&compoundOK(a[i-2],a[i-2]+a[i-1])&&a[i-2]+a[i-1]===b[j-1])best=Math.max(best,dp[i-2][j-1]+2);
-      if(j>=2&&compoundOK(b[j-2],b[j-2]+b[j-1])&&b[j-2]+b[j-1]===a[i-1])best=Math.max(best,dp[i-1][j-2]+1);
+      if(i>=2&&compoundOK(a[i-2],a[i-2]+a[i-1])&&mergeEqual(a[i-2]+a[i-1],b[j-1]))best=Math.max(best,dp[i-2][j-1]+2);
+      if(j>=2&&compoundOK(b[j-2],b[j-2]+b[j-1])&&mergeEqual(b[j-2]+b[j-1],a[i-1]))best=Math.max(best,dp[i-1][j-2]+1);
       dp[i][j]=best;
     }
     const marks=new Array(n).fill(false),matched=new Array(m).fill(false),pairs=[];
@@ -150,10 +154,10 @@
     let i=n,j=m;
     while(i>0&&j>0){
       if(a[i-1]===b[j-1]){marks[i-1]=true;matched[j-1]=true;pairs.push([i-1,j-1]);i--;j--;continue;}
-      if(i>=2&&compoundOK(a[i-2],a[i-2]+a[i-1])&&a[i-2]+a[i-1]===b[j-1]){
+      if(i>=2&&compoundOK(a[i-2],a[i-2]+a[i-1])&&mergeEqual(a[i-2]+a[i-1],b[j-1])){
         marks[i-2]=true;marks[i-1]=true;matched[j-1]=true;pairs.push([i-2,j-1],[i-1,j-1]);i-=2;j--;continue;
       }
-      if(j>=2&&compoundOK(b[j-2],b[j-2]+b[j-1])&&b[j-2]+b[j-1]===a[i-1]){
+      if(j>=2&&compoundOK(b[j-2],b[j-2]+b[j-1])&&mergeEqual(b[j-2]+b[j-1],a[i-1])){
         marks[i-1]=true;matched[j-2]=true;matched[j-1]=true;pairs.push([i-1,j-2],[i-1,j-1]);i--;j-=2;continue;
       }
       if(dp[i-1][j]>=dp[i][j-1])i--;else j--;

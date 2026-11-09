@@ -247,6 +247,18 @@ test('r9: hyphenated re- compounds equal their joined forms while true homograph
   assert.ok(E.lcsAcc('please resign the form', 'please re-sign the form') < 1, 'reverse distinction holds too');
 });
 
+test('r10: plural tolerance applies only to 2↔1 compound merges, never to single-token plural pairs', () => {
+  // 用户整篇背诵实测: 官方 some things vs ASR something(语音不可分)
+  const score = E.scoreTokens('But some things were just beyond my control.', 'but something was just beyond my control.', true);
+  assert.equal(score.acc, 7 / 8, 'the plural-differing merge matches; were/was stays a real miss');
+  assert.deepEqual(score.marks, [true, true, true, false, true, true, true, true]);
+  assert.equal(E.lcsAcc('some things happen', 'something happen'), 1, 'plural-differing merge matches');
+  assert.ok(E.lcsAcc('some things happen', 'something happens') < 1, 'single-token verb plural still counts');
+  // 单 token 对单 token 的复数差异(0016 判据)依旧不算对
+  assert.ok(E.lcsAcc('the customer is here', 'the customers is here') < 1);
+  assert.ok(E.lcsAcc('my friends call me', 'my friend call me') < 1);
+});
+
 test('compound rescoring upgrades version-2 evidence without changing stamps and stays idempotent', () => {
   const old = whole('compound-whole', 15, 'You may be farsighted.', .6,
     {scoringVersion: 2, per: [{i: 0, acc: .6}], extra: ['farsighted']});
