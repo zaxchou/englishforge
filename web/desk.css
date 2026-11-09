@@ -2500,8 +2500,18 @@ html.sb-min .nav-label{display:none!important}   /* 收缩侧栏只留图标 */
 .wp-head>div{flex:1;min-width:0}
 .wp-head b{display:block;font-size:14px;color:var(--t1)}
 .wp-head span{display:block;margin-top:2px;font-size:12px;color:var(--t2);line-height:1.5}
-.wp-head .wp-head-btns{flex:none;display:flex;gap:8px;align-items:center}
+.wp-head .wp-head-btns{flex:none;display:flex;gap:10px;align-items:center;margin-left:auto}
 .wp-head button{flex:none}
+@media (max-width:640px){
+  /* 窄屏: 按钮组独占一行右对齐, 不挤文字 */
+  .wp-head{flex-wrap:wrap;row-gap:10px}
+  .wp-head .wp-head-btns{margin-left:0;width:100%;justify-content:flex-end}
+}
+/* 入口卡按钮(r12 2026-11-09): 次级=描边小按钮, 主=品牌绿; 同高同圆角, 右对齐成组 */
+.wp-head .wp-head-btns button{height:32px;padding:0 14px;border-radius:9px;font-size:12.5px;line-height:1;white-space:nowrap;cursor:pointer}
+.wp-head .wp-head-btns .wp-hb{border:1px solid var(--line);background:var(--card,#fff);color:var(--t2)}
+.wp-head .wp-head-btns .wp-hb:hover{border-color:var(--t3);color:var(--t1)}
+.wp-head .wp-head-btns .wp-go{border:0}
 .wp-live{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .wp-live b{font-size:14px;color:var(--bad)}
 .wp-live b.ing{color:var(--acc)}

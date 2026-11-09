@@ -8,7 +8,7 @@
 <link rel="icon" type="image/png" sizes="96x96" href="/assets/brand/t-dot-v1/t-dot-96.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/assets/brand/t-dot-v1/t-dot-180.png">
 <title>TOEFL Lab · 托福自学练习</title>
-<link rel="stylesheet" href="desk.css?v=20261109r11">
+<link rel="stylesheet" href="desk.css?v=20261109r12">
 <link rel="stylesheet" href="lesson-vocab.css?v=20261109r4">
 <style>
 /* 应用层补充样式（视觉基线在 desk.css，不改它的既有规则） */
@@ -4556,13 +4556,13 @@ function epWholeUpdate(){
     bestTotal=EplodRecords.wholeReport(st.d.dialogue.map(x=>x.text).join(' '),best.text,best.dur,src).total;
   }
   host.hidden=false;
-  host.innerHTML='<div class="wp-head"><div><b>整篇背诵 · 最后一遍</b><span>'
-    +(passed?'<i>已通过 · 历史最好 '+Math.round(best.acc*100)+'%'+(bestTotal!=null?' · 总分 '+bestTotal:'')+'</i>'+(Number.isFinite(best.dur)?' · <i>用时 '+fmtDur(Math.round(best.dur))+'</i>':'')
+  host.innerHTML='<div class="wp-head"><div><b>整篇背诵</b><span>'
+    +(passed?'<i>已通过 · 词准 '+Math.round(best.acc*100)+'%'+(bestTotal!=null?' · 总分 '+bestTotal:'')+'</i>'+(Number.isFinite(best.dur)?' · <i>'+fmtDur(Math.round(best.dur))+'</i>':'')
       :ready?'前两遍已完成。脱稿整篇背一次（全程无提示），总词准 90% 通过并盖当日章。'
       :'逐句背诵 '+rdN+'/'+st.d.dialogue.length+' 通过后解锁。')+'</span></div>'
     +'<div class="wp-head-btns">'
-    +(bestHasText?'<button id="ep-whole-history" title="回看历史最好一次背诵的完整结果">查看上次成绩'+(bestTotal!=null?' · '+bestTotal+' 分':'')+'</button>':'')
-    +'<button class="pri" id="ep-whole-go"'+(ready&&!st.wpPending?'':' disabled')+'>整篇背诵 →</button></div></div>';
+    +(bestHasText?'<button class="wp-hb" id="ep-whole-history" title="回看历史最好一次的完整成绩">上次成绩</button>':'')
+    +'<button class="pri wp-go" id="ep-whole-go"'+(ready&&!st.wpPending?'':' disabled')+'>整篇背诵 →</button></div></div>';
   const b=host.querySelector('#ep-whole-go');if(b)b.onclick=()=>epWholeToggle();
   const hb=host.querySelector('#ep-whole-history');
   if(hb)hb.onclick=()=>{st.wpTake={phase:'result',result:best,history:true};epWholeUpdate();};
