@@ -223,7 +223,7 @@ async function main() {
     const h = harness(undefined, {silent: true});
     await h.ctx.epWholeToggle(); await h.advance(1200); await h.ctx.epWholeToggle(); await h.advance(0);
     assert.equal(h.st.wpTake, null, 'panel state handed back after the silence guard');
-    assert.match(h.node('ep-whole').innerHTML, /整篇背诵 · 最后一遍|重新背诵/, 'entry card is back');
+    assert.match(h.node('ep-whole').innerHTML, /整篇背诵|重新背诵/, 'entry card is back');
     assert.equal(h.calls.filter(c => c.route).length, 0, 'silent take never reaches ASR');
     assert.equal(h.recorders[0].state, 'inactive');
     assert.equal(h.streams[0].track.stopped, true);

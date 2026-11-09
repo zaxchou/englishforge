@@ -3903,7 +3903,16 @@ function epWire(){
     if(e.target&&/^(INPUT|SELECT|TEXTAREA|AUDIO|BUTTON|SUMMARY)$/.test(e.target.tagName))return;
     if(e.target&&e.target.isContentEditable)return;
     const a2=$('ep-audio');if(!a2)return;
-    if(e.key===' '){e.preventDefault();epTogglePlayback();}
+    /* 2026-11-09 用户要求: 朗读模式下空格=开始/停止录音(其它模式仍是播放/暂停); Esc=取消本次录音 */
+    if(e.key==='Escape'){
+      if(st.recording||st.recPending){e.preventDefault();epCancelRecording(st);epNote('已取消本次录音，不会上传判分。',st);}
+      return;
+    }
+    if(e.key===' '){
+      const vcard=st.tab==='train'?$('ep-blist')?.querySelector('.ep-bcard'):null;
+      if(vcard&&vcard.dataset.mode==='voice'){e.preventDefault();epRecToggle(st.ai,vcard);}
+      else{e.preventDefault();epTogglePlayback();}
+    }
     else if(st.tab==='train'&&e.key==='ArrowLeft'){e.preventDefault();epGo(st.ai-1,true);}
     else if(st.tab==='train'&&e.key==='ArrowRight'){e.preventDefault();epGo(st.ai+1,true);}
     else if(e.key==='z'||e.key==='Z'){e.preventDefault();epStartPlayback(epPlaybackTarget());}
@@ -4229,6 +4238,7 @@ function epBlockCard(i){
       +(asr
         ?'<div class="vrow"><button class="ep-rec" data-i="'+i+'">'+epRecLabel()+'</button>'
           +'<button class="ep-rec-cancel" data-i="'+i+'" title="取消本次录音，不上传判分" aria-label="取消本次录音" hidden>取消</button></div>'
+          +'<p class="ep-kbd-hint">空格 开始/停止 · Esc 取消本次录音</p>'
         :'<p class="ep-note">朗读背诵需要转写服务（未配置 ASR），请用默写。</p>')
       +'<div class="dr">'+epVoiceFeedback(st,i)+'</div></div>'
     +'<div class="bbody btype" style="display:'+(mode==='type'?'':'none')+'">'
@@ -4362,7 +4372,9 @@ function epWireCard(card){
   /* 三练法切换: 听写 / 朗读 / 默写 */
   card.querySelectorAll('.bmode button').forEach(b=>b.onclick=()=>{
     if((st.amode[i]||st.lastMode)!==b.dataset.m){epCancelRecording(st);epStopOriginal(st);epStopReplay();}
-    st.amode[i]=b.dataset.m;st.lastMode=b.dataset.m;card.dataset.mode=b.dataset.m;
+    /* 2026-11-09 用户要求: 练习方式全课一次切换(点朗读=整课朗读, 点听写=整课听写),
+       不再逐句设置; 其它句的 amode 覆盖一并清掉, 内容/草稿不动 */
+    st.amode={};st.amode[i]=b.dataset.m;st.lastMode=b.dataset.m;card.dataset.mode=b.dataset.m;
     card.querySelectorAll('.bmode button').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-pressed',String(x===b));});
     card.querySelector('.bdict').style.display=b.dataset.m==='dict'?'':'none';
     card.querySelector('.bvoice').style.display=b.dataset.m==='voice'?'':'none';
