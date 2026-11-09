@@ -215,6 +215,38 @@ test('confirmed sighted compounds match hyphenated forms and preserve original f
   }
 });
 
+test('r8: compound written-form equivalence matches split and joined spellings in both directions', () => {
+  for (const [official, mine] of [
+    ['activate my voice mail service', 'activate my voicemail service'],
+    ['his Polio, Tetanus and chickenpox shots are done', 'his Polio, Tetanus and chicken pox shots are done'],
+    ["it's time now for the tie-breaker round", "it's time now for the tiebreaker round"],
+    ['the over head bin', 'the overhead bin'],
+    ['particles and anti-particles', 'particles and antiparticles'],
+    ['adventurous, outgoing and easy-going', 'adventurous, outgoing and easygoing']
+  ]) {
+    assert.equal(E.lcsAcc(official, mine), 1, official);
+    assert.equal(E.lcsAcc(mine, official), 1, 'symmetric: ' + official);
+  }
+  // 护栏: 虚词开头的真词拼接不得误并
+  assert.ok(E.lcsAcc('I want to get coffee', 'I want together coffee') < 1, 'to+get must not merge into together');
+  assert.ok(E.lcsAcc('we did it together', 'we did it to get') < 1, 'reverse direction is guarded too');
+  assert.ok(E.lcsAcc('look ahead', 'look a head') < 1, 'a+head must not merge into ahead');
+  assert.ok(E.lcsAcc('I have fifteen dollars', 'I have fifty dollars') < 1);
+});
+
+test('r9: hyphenated re- compounds equal their joined forms while true homograph verbs stay distinct', () => {
+  for (const [official, mine] of [
+    ['so I had to re-do the pictures', 'so I had to redo the pictures'],
+    ['they were re-decorating the room', 'they were redecorating the room'],
+    ['let me re-emphasize that', 'let me reemphasize that']
+  ]) {
+    assert.equal(E.lcsAcc(official, mine), 1, official);
+    assert.equal(E.lcsAcc(mine, official), 1, 'symmetric: ' + official);
+  }
+  assert.ok(E.lcsAcc('please re-sign the form', 'please resign the form') < 1, 'resign (quit) stays distinct from re-sign');
+  assert.ok(E.lcsAcc('please resign the form', 'please re-sign the form') < 1, 'reverse distinction holds too');
+});
+
 test('compound rescoring upgrades version-2 evidence without changing stamps and stays idempotent', () => {
   const old = whole('compound-whole', 15, 'You may be farsighted.', .6,
     {scoringVersion: 2, per: [{i: 0, acc: .6}], extra: ['farsighted']});
