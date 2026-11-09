@@ -2504,6 +2504,7 @@ html.sb-min .nav-label{display:none!important}   /* 收缩侧栏只留图标 */
 .wp-head button{flex:none}
 /* 朗读键盘提示(2026-11-09): 空格开始/停止, Esc 取消 */
 .ep-kbd-hint{margin:6px 0 0;font-size:11.5px;color:var(--t3)}
+.wp-live .ep-kbd-hint{display:block;margin-top:4px}
 .ep-kbd-hint kbd{padding:0 4px;border:1px solid var(--line);border-radius:4px;font-size:11px}
 @media (max-width:640px){
   /* 窄屏: 按钮组独占一行右对齐, 不挤文字 */

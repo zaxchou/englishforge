@@ -8,7 +8,7 @@
 <link rel="icon" type="image/png" sizes="96x96" href="/assets/brand/t-dot-v1/t-dot-96.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/assets/brand/t-dot-v1/t-dot-180.png">
 <title>TOEFL Lab · 托福自学练习</title>
-<link rel="stylesheet" href="desk.css?v=20261109r12">
+<link rel="stylesheet" href="desk.css?v=20261109r13">
 <link rel="stylesheet" href="lesson-vocab.css?v=20261109r4">
 <style>
 /* 应用层补充样式（视觉基线在 desk.css，不改它的既有规则） */
@@ -3899,9 +3899,32 @@ function epWire(){
   /* 键盘: 空格播放/暂停 · Z 重听 · X 循环 · C 揭示 */
   if(EP.keyHandler)document.removeEventListener('keydown',EP.keyHandler);
   EP.keyHandler=e=>{
-    if(!EP.st||epWholeLocked(EP.st)||!document.querySelector('#v-course.on'))return;
+    if(!EP.st||!document.querySelector('#v-course.on'))return;
     if(e.target&&/^(INPUT|SELECT|TEXTAREA|AUDIO|BUTTON|SUMMARY)$/.test(e.target.tagName))return;
     if(e.target&&e.target.isContentEditable)return;
+    const st=EP.st;
+    /* 整篇背诵会话(2026-11-09 用户要求): 空格=开始/结束(结果页=重背一次, 失败页=重新背诵),
+       Esc=取消本次录音/收起结果(不是重背)。单句朗读的快捷仍在下方各分支。 */
+    const w=st.wpTake;
+    if(st.wpPending||(w&&['rec','processing','result','error'].includes(w.phase))){
+      if(e.key==='Escape'){
+        e.preventDefault();
+        if(w&&(w.phase==='result'||w.phase==='error')){st.wpTake=null;epWholeUpdate();}
+        else if(w&&w.phase==='processing'){/* 转写中不可取消, 等结果 */}
+        else{epCancelRecording(st);epWholeUpdate();epNote('已取消本次录音，不会上传判分。',st);}
+        return;
+      }
+      if(e.key===' '||e.code==='Space'){
+        e.preventDefault();
+        if(st.wpPending||!w||w.phase==='processing')return;
+        if(w.phase==='result'){st.wpTake=null;epWholeToggle();return;}
+        if(w.phase==='error'){st.wpTake=null;epWholeUpdate();return;}
+        epWholeToggle();   /* rec: 停止并检测 */
+        return;
+      }
+      return;
+    }
+    if(epWholeLocked(st))return;
     const a2=$('ep-audio');if(!a2)return;
     /* 2026-11-09 用户要求: 朗读模式下空格=开始/停止录音(其它模式仍是播放/暂停); Esc=取消本次录音 */
     if(e.key==='Escape'){
@@ -4582,7 +4605,7 @@ function epWholeUpdate(){
 function epWholeLive(host,st){
   const t=st.wpTake;host.hidden=false;
   if(t.phase==='rec'){
-    host.innerHTML='<div class="wp-live"><b class="ing"><span class="wp-dot"></span>背诵中</b><span class="rt">0:00</span><span class="lv"><i></i></span><button class="pri" id="ep-whole-stop">停止并检测</button><button id="ep-whole-cancel">取消</button><p>脱稿背完整课对话，停止后检测整篇。</p></div>';
+    host.innerHTML='<div class="wp-live"><b class="ing"><span class="wp-dot"></span>背诵中</b><span class="rt">0:00</span><span class="lv"><i></i></span><button class="pri" id="ep-whole-stop">停止并检测</button><button id="ep-whole-cancel">取消</button><p>脱稿背完整课对话，停止后检测整篇。<span class="ep-kbd-hint">空格 停止 · Esc 取消本次录音</span></p></div>';
     host.querySelector('#ep-whole-stop').onclick=()=>epWholeToggle();
     host.querySelector('#ep-whole-cancel').onclick=()=>{epCancelRecording(st);epWholeUpdate();};
     host.querySelector('#ep-whole-stop').focus?.();
@@ -4623,6 +4646,7 @@ function epWholeLive(host,st){
     +'<div class="wp-per">'+r.per.map(p=>'<span class="'+(p.acc>=.9?'ok':'weak')+'" title="'+esc(st.d.dialogue[p.i].text)+'">#'+(p.i+1)+' '+Math.round(p.acc*100)+'%</span>').join('')+'</div>'
     +(sentBlocks?'<p class="wp-detail-note">这几句没完全对上：原文红波浪为未匹配词，识别红波浪为多出或替换的词。<span>逐句归属按相邻命中位置估算；识别也可能有偏差，请结合录音核对。多出词沿用原规则，不另扣分。</span></p>'+sentBlocks:'')
     +'<div class="wp-advise">'+epWholeAdvice(st,r,r.dur).map(x=>'<p>'+esc(x)+'</p>').join('')+'</div>'
+    +'<p class="ep-kbd-hint">空格 重背一次 · Esc 收起</p>'
     +'<div class="wp-actions"><button class="pri" id="ep-whole-again">重背一次</button><button id="ep-whole-close">收起</button></div></div>';
   host.querySelector('#ep-whole-again').onclick=()=>{st.wpTake=null;epWholeToggle();};
   host.querySelector('#ep-whole-close').onclick=()=>{st.wpTake=null;epWholeUpdate();};
