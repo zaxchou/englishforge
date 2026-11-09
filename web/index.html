@@ -8,7 +8,7 @@
 <link rel="icon" type="image/png" sizes="96x96" href="/assets/brand/t-dot-v1/t-dot-96.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/assets/brand/t-dot-v1/t-dot-180.png">
 <title>TOEFL Lab · 托福自学练习</title>
-<link rel="stylesheet" href="desk.css?v=20261109r13">
+<link rel="stylesheet" href="desk.css?v=20261109r14">
 <link rel="stylesheet" href="lesson-vocab.css?v=20261109r4">
 <style>
 /* 应用层补充样式（视觉基线在 desk.css，不改它的既有规则） */
@@ -3900,20 +3900,29 @@ function epWire(){
   if(EP.keyHandler)document.removeEventListener('keydown',EP.keyHandler);
   EP.keyHandler=e=>{
     if(!EP.st||!document.querySelector('#v-course.on'))return;
-    if(e.target&&/^(INPUT|SELECT|TEXTAREA|AUDIO|BUTTON|SUMMARY)$/.test(e.target.tagName))return;
+    /* 输入类目标不接管任何键(听写里空格/字母正常输入) */
+    if(e.target&&/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName))return;
     if(e.target&&e.target.isContentEditable)return;
     const st=EP.st;
-    /* 整篇背诵会话(2026-11-09 用户要求): 空格=开始/结束(结果页=重背一次, 失败页=重新背诵),
-       Esc=取消本次录音/收起结果(不是重背)。单句朗读的快捷仍在下方各分支。 */
+    /* Esc 必须早于 BUTTON 守卫: 录音开始后焦点在「停止/录音」按钮上(代码主动 focus),
+       BUTTON 提前 return 会让 Esc 失效(2026-11-09 自查发现)。整篇与单句都在这里统一取消。 */
+    if(e.key==='Escape'){
+      const w0=st.wpTake;
+      if(st.wpPending||(w0&&['rec','processing','result','error'].includes(w0.phase))){
+        e.preventDefault();
+        if(w0&&(w0.phase==='result'||w0.phase==='error')){st.wpTake=null;epWholeUpdate();}
+        else if(w0&&w0.phase==='processing'){/* 转写中不可取消, 等结果 */}
+        else{epCancelRecording(st);epWholeUpdate();epNote('已取消本次录音，不会上传判分。',st);}
+      }else if(st.recording||st.recPending){
+        e.preventDefault();epCancelRecording(st);epNote('已取消本次录音，不会上传判分。',st);
+      }
+      return;
+    }
+    /* 其余按键交给聚焦控件原生处理(按钮空格=点击等), 避免双触发 */
+    if(e.target&&/^(BUTTON|SUMMARY|AUDIO)$/.test(e.target.tagName))return;
+    /* 整篇背诵会话(2026-11-09 用户要求): 空格=开始/结束(结果页=重背一次, 失败页=重新背诵) */
     const w=st.wpTake;
     if(st.wpPending||(w&&['rec','processing','result','error'].includes(w.phase))){
-      if(e.key==='Escape'){
-        e.preventDefault();
-        if(w&&(w.phase==='result'||w.phase==='error')){st.wpTake=null;epWholeUpdate();}
-        else if(w&&w.phase==='processing'){/* 转写中不可取消, 等结果 */}
-        else{epCancelRecording(st);epWholeUpdate();epNote('已取消本次录音，不会上传判分。',st);}
-        return;
-      }
       if(e.key===' '||e.code==='Space'){
         e.preventDefault();
         if(st.wpPending||!w||w.phase==='processing')return;
@@ -3926,11 +3935,7 @@ function epWire(){
     }
     if(epWholeLocked(st))return;
     const a2=$('ep-audio');if(!a2)return;
-    /* 2026-11-09 用户要求: 朗读模式下空格=开始/停止录音(其它模式仍是播放/暂停); Esc=取消本次录音 */
-    if(e.key==='Escape'){
-      if(st.recording||st.recPending){e.preventDefault();epCancelRecording(st);epNote('已取消本次录音，不会上传判分。',st);}
-      return;
-    }
+    /* 单句朗读: 空格=开始/停止录音(其它模式仍是播放/暂停) */
     if(e.key===' '){
       const vcard=st.tab==='train'?$('ep-blist')?.querySelector('.ep-bcard'):null;
       if(vcard&&vcard.dataset.mode==='voice'){e.preventDefault();epRecToggle(st.ai,vcard);}
@@ -4585,7 +4590,7 @@ function epWholeUpdate(){
   /* 历史最好也给出总分(r11): 用 best 自带的 text/dur 现场计算, 与最新一次口径一致 */
   const bestHasText=!!(best&&typeof best.text==='string'&&best.text.trim());
   let bestTotal=null;
-  if(passed&&bestHasText){
+  if(bestHasText){
     const anch=st.d.dialogue.every(x=>Number.isFinite(x.t0)&&Number.isFinite(x.t1)&&x.t1>x.t0);
     const src=anch?st.d.dialogue.reduce((s,x)=>s+(x.t1-x.t0),0):0;
     bestTotal=EplodRecords.wholeReport(st.d.dialogue.map(x=>x.text).join(' '),best.text,best.dur,src).total;
