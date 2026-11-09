@@ -1,0 +1,91 @@
+/* 第一课课程认读（#/vocab/lesson/cfcm-01-01）。沿用 desk.css 变量与既有组件习惯。 */
+#v-vocab [hidden]{display:none!important}
+#v-vocab .lv-entry{display:flex;align-items:center;gap:14px;flex-wrap:wrap;border:1px solid var(--line);border-radius:var(--rs);background:var(--card);padding:14px 18px;margin:0 0 16px}
+#v-vocab .lv-entry .l{flex:1;min-width:180px}
+#v-vocab .lv-entry b{display:block;font-size:15px;font-weight:600}
+#v-vocab .lv-entry span{display:block;font-size:12.5px;color:var(--t2);margin-top:3px}
+#v-vocab .lv-entry button{min-height:38px;padding:0 16px;border:1px solid var(--acc);background:var(--acc);color:#fff;border-radius:9px;font-size:13.5px}
+#v-vocab .lv-entry button:hover{background:#274a3a}
+
+#v-vocab .lv-wrap{max-width:720px;margin:0 auto}
+#v-vocab .lv-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap}
+#v-vocab .lv-head h3{margin:0;font-size:17px;font-weight:600;letter-spacing:-.2px}
+#v-vocab .lv-head .meta{font-size:12.5px;color:var(--t2);margin-top:4px}
+#v-vocab .lv-head .meta b{color:var(--t1);font-weight:600}
+#v-vocab .lv-exit{min-height:34px;padding:0 12px;border:1px solid var(--line2);background:var(--card);border-radius:99px;color:var(--t2);font-size:12.5px}
+#v-vocab .lv-exit:hover{background:var(--sunk);color:var(--t1)}
+#v-vocab .lv-progress{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:16px 0 18px}
+#v-vocab .lv-track{flex:1 1 160px;height:6px;border-radius:99px;background:var(--sunk);overflow:hidden;min-width:120px}
+#v-vocab .lv-track i{display:block;height:100%;background:var(--acc);border-radius:99px;transition:width .25s ease}
+#v-vocab .lv-count{font-size:12px;color:var(--t2);font-variant-numeric:tabular-nums;white-space:nowrap}
+#v-vocab .lv-count b{color:var(--t1);font-weight:600}
+
+#v-vocab .lv-card{border:1px solid var(--line);border-radius:var(--r);background:var(--card);padding:26px 26px 22px}
+#v-vocab .lv-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;color:var(--t3)}
+#v-vocab .lv-tag{font-size:11px;padding:2px 8px;border-radius:6px;background:var(--okbg,#eef5ef);color:var(--ok,#226b4b);font-weight:600}
+#v-vocab .lv-tag.re{background:#fbeee8;color:#9a4a2b}
+#v-vocab .lv-wordrow{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin:10px 0 2px}
+#v-vocab .lv-word{font-family:Georgia,"SimSun",serif;font-size:clamp(32px,7vw,44px);line-height:1.15;letter-spacing:-.5px;word-break:break-word}
+#v-vocab .lv-speak{width:40px;height:40px;border:1px solid var(--line);background:var(--sunk);border-radius:50%;color:var(--t2);font-size:13px;flex:none;align-self:center}
+#v-vocab .lv-speak:hover{color:var(--t1);border-color:var(--line2)}
+#v-vocab .lv-ipa{font-size:13px;color:var(--t3);min-height:18px}
+#v-vocab .lv-choices{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:22px}
+#v-vocab .lv-btn{min-height:46px;border-radius:11px;border:1px solid var(--line2);background:var(--card);font-size:15px;color:var(--t1)}
+#v-vocab .lv-btn:hover{background:var(--sunk)}
+#v-vocab .lv-btn.pri{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:500}
+#v-vocab .lv-btn.pri:hover{background:#274a3a}
+#v-vocab .lv-btn[disabled]{opacity:.55;cursor:default}
+#v-vocab .lv-hint{font-size:12px;color:var(--t3);text-align:center;margin:10px 0 0;line-height:1.7}
+#v-vocab .lv-err{margin:12px 0 0;padding:9px 12px;border-radius:8px;background:var(--badbg,#fcf0e9);color:var(--bad,#9a3f35);font-size:12.5px}
+
+#v-vocab .lv-sect{margin-top:16px}
+#v-vocab .lv-label{font-size:11px;letter-spacing:.06em;color:var(--t3);margin-bottom:5px}
+#v-vocab .lv-def{font-size:15px;line-height:1.8;color:var(--t1)}
+#v-vocab .lv-note{border:1px solid color-mix(in srgb,var(--ok,#226b4b) 22%,#fff);background:var(--okbg,#eef5ef);border-radius:10px;padding:12px 14px}
+#v-vocab .lv-note .nl{font-size:11px;letter-spacing:.05em;color:var(--ok,#226b4b);margin-bottom:4px}
+#v-vocab .lv-note p{margin:0;font-size:14px;line-height:1.85;color:#22392c}
+#v-vocab .lv-empty{font-size:13px;color:var(--t3);line-height:1.7}
+#v-vocab .lv-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+#v-vocab .lv-ghost{min-height:38px;padding:0 13px;border:1px solid var(--line2);border-radius:9px;background:var(--card);font-size:13px;color:#35473c}
+#v-vocab .lv-ghost:hover{background:var(--sunk)}
+#v-vocab .lv-uni{margin-top:10px;border:1px solid var(--line);border-radius:10px;background:var(--sunk);padding:13px 14px}
+#v-vocab .lv-uni .uhead{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--t3);letter-spacing:.05em}
+#v-vocab .lv-uni .rootline{font-size:13px;color:var(--t2);line-height:1.75;margin-top:7px}
+#v-vocab .lv-uni .rootline b{color:var(--t1)}
+#v-vocab .lv-uni .explain{font-size:13px;line-height:1.8;color:#33403a;border-left:2px solid color-mix(in srgb,var(--ok,#226b4b) 35%,#fff);padding-left:10px;margin-top:8px}
+#v-vocab .lv-uni .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+#v-vocab .lv-uni .chips span{font-size:12px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--t2)}
+#v-vocab .lv-uni .mini{font-size:11.5px;color:var(--t3);line-height:1.7;margin-top:8px}
+#v-vocab details.lv-ex{border-top:1px solid var(--line);margin-top:14px;padding-top:10px}
+#v-vocab details.lv-ex summary{font-size:12.5px;color:var(--t2);cursor:pointer;list-style:none;padding:6px 0}
+#v-vocab details.lv-ex summary::-webkit-details-marker{display:none}
+#v-vocab details.lv-ex summary::before{content:"+ ";color:var(--t3)}
+#v-vocab details.lv-ex[open] summary::before{content:"− "}
+#v-vocab details.lv-ex p{margin:8px 0 0;font-size:13.5px;line-height:1.75;color:#3a4640}
+#v-vocab details.lv-ex .zh{font-size:12.5px;color:var(--t3)}
+#v-vocab .lv-continue{width:100%;margin-top:18px;min-height:46px;border-radius:11px;border:1px solid var(--acc);background:var(--acc);color:#fff;font-size:14.5px;font-weight:500}
+#v-vocab .lv-continue:hover{background:#274a3a}
+
+#v-vocab .lv-done{text-align:center;padding:22px 8px}
+#v-vocab .lv-done .ok{width:54px;height:54px;border-radius:50%;background:var(--okbg,#eef5ef);color:var(--ok,#226b4b);display:grid;place-items:center;margin:0 auto 14px;font-size:26px}
+#v-vocab .lv-done h3{margin:0;font-size:21px;font-weight:600}
+#v-vocab .lv-done .lead{font-size:13px;color:var(--t2);margin:7px 0 18px}
+#v-vocab .lv-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden;text-align:left}
+#v-vocab .lv-stats div{background:var(--card);padding:12px 14px}
+#v-vocab .lv-stats span{display:block;font-size:11px;color:var(--t3)}
+#v-vocab .lv-stats b{display:block;font-size:20px;font-weight:500;margin-top:2px;font-variant-numeric:tabular-nums}
+#v-vocab .lv-due{font-size:12.5px;color:var(--t2);background:var(--sunk);border-radius:9px;padding:10px 13px;margin:14px 0 0;text-align:left}
+#v-vocab .lv-due b{color:var(--t1)}
+#v-vocab .lv-done .lv-row{justify-content:center;margin-top:16px}
+#v-vocab .lv-loading{padding:36px;text-align:center;color:var(--t2);font-size:13.5px}
+
+@media(max-width:700px){
+  #v-vocab .lv-card{padding:20px 16px 18px}
+  #v-vocab .lv-choices{grid-template-columns:1fr;gap:8px}
+  #v-vocab .lv-stats{grid-template-columns:1fr}
+  #v-vocab .lv-head h3{font-size:16px}
+  #v-vocab .lv-track{flex:1 1 100%}
+  #v-vocab .lv-count{flex:1 1 100%}
+  #v-vocab .lv-ghost{min-height:42px}
+  #v-vocab .lv-speak{width:42px;height:42px}
+}

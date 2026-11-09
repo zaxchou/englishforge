@@ -9,6 +9,7 @@
 <link rel="apple-touch-icon" sizes="180x180" href="/assets/brand/t-dot-v1/t-dot-180.png">
 <title>TOEFL Lab · 托福自学练习</title>
 <link rel="stylesheet" href="desk.css?v=20261107r10">
+<link rel="stylesheet" href="lesson-vocab.css?v=20261109r4">
 <style>
 /* 应用层补充样式（视觉基线在 desk.css，不改它的既有规则） */
 /* 单词与字符格保持同一行；焦点、已填、判题状态沿用研读桌配色。 */
@@ -293,6 +294,7 @@ details.ai-tsec[open] summary{margin-bottom:8px}
 <div class="view" id="v-vocab">
   <div class="bhead"><h2 class="pt">背单词</h2><span class="ct" id="vb-ct"></span></div>
   <p class="sub">万词班词库 · SM-2 间隔重复：到期优先，新词按词根批次推进，评分即调度</p>
+  <div class="lv-entry" id="lv-entry"><div class="l"><b>第01课 · 全词认读</b><span>176 词 · 正面只给英文，认识 / 不认识；不认识看老师讲解，当天再认</span></div><button id="lv-entry-go" type="button">开始认读</button></div>
   <div id="vb-body"><div class="card" style="padding:28px;text-align:center;color:var(--t2)">正在读取词库…</div></div>
 </div>
 
@@ -358,6 +360,7 @@ details.ai-tsec[open] summary{margin-bottom:8px}
 <script src="course-plan-ui.js?v=20261107r8"></script>
 <script src="root-practice-ui.js?v=e3203ffa489d"></script>
 <script src="speaking-ui.js?v=20261106r6"></script>
+<script src="lesson-vocab-ui.js?v=20261109r4"></script>
 <script>
 'use strict';
 /* ============================================================
@@ -1131,6 +1134,7 @@ function go(v){
   }
   if(!isTask) {checkpointCourse(true);lastNav=v; if(TICK) {TACC=usedSec();QACC=qUsedSec();clearInterval(TICK);TICK=null;} STU=false; $('d-audio').pause();const cv=$('cs-video');if(cv)cv.pause();document.querySelectorAll('.ai-audio').forEach(a=>a.pause());} else if(S && !TICK && !T_PAUSED) tStart();
   if(v!=='course'&&GQ_TICK){clearInterval(GQ_TICK);GQ_TICK=null;}   /* 离开课程页: 课后练计时即停(回到同节 quiz 相位会自动重开) */
+  if(v!=='vocab'&&window.LV)LV.leave();
   if(v!=='vocab'&&VB_TICK){clearInterval(VB_TICK);VB_TICK=null;}   /* 离开背单词页: 秒表即停 */
   if(v!=='vocab'&&VB_WAKE){clearTimeout(VB_WAKE);VB_WAKE=null;}
   if(v!=='vocab'&&VB_AUDIO){try{VB_AUDIO.pause();window.speechSynthesis?.cancel();}catch(e){}}
@@ -1160,6 +1164,7 @@ function go(v){
   gqStudyGate();
   window.scrollTo(0,0);
 }
+let VB_LESSON_REQ=null;
 function nav(v){
   const h='#/'+v;
   // 同 hash 也要手动路由（做题会话占位 #/do 时返回，hash 必有变化；
@@ -1179,6 +1184,11 @@ function route(){
     FE.id=parts[1]?decodeURIComponent(parts[1]):'ndf-01-final';
     FE.runId=parts[2]==='run'&&parts[3]?decodeURIComponent(parts[3]):null;
     go('final');return;
+  }
+  if(v==='vocab'){
+    const parts=h.split('/');
+    VB_LESSON_REQ=parts[1]==='lesson'?(parts[2]?decodeURIComponent(parts[2]):'cfcm-01-01'):null;
+    go('vocab');return;
   }
   if(['home','course','eplod','exam','stats','vocab'].includes(v)){
     if(v==='drill'&&arg&&SUBN[arg]) drillTab(arg);
@@ -3177,13 +3187,18 @@ function vbPick(){
   best=null;
   for(const c of VB.order){ const st=V[c.k]; if(st&&st.s===99&&Number(st.due)<=now&&(!best||st.due<best.st.due)) best={c,st}; }
   if(best) return best;                                          // 2) 已毕业到期(最久未复习优先)
-  const quota=(REC.vocabCfg&&Number(REC.vocabCfg.daily))||0;
+  const quota=(REC.vocabCfg&&REC.vocabCfg.daily!=null)?Number(REC.vocabCfg.daily):20;
   if(vbCounts().newToday<quota){
     for(const c of VB.order) if(!V[c.k]) return {c, st:null};    // 3) 新词(词库顺序=课序→词根批序)
   }
   return null;
 }
-function mountVocab(){ try{vbMigrateQueue();}catch(e){VB.err=e.message;} vbLoadBank(); vbRender(); vbFlushQueue(); }
+function mountVocab(){
+  if(VB_LESSON_REQ){ const id=VB_LESSON_REQ; VB_LESSON_REQ=null; if(window.LV) return LV.open(id); }
+  if(window.LV) LV.leave();
+  try{vbMigrateQueue();}catch(e){VB.err=e.message;} vbLoadBank(); vbRender(); vbFlushQueue();
+}
+if($('lv-entry-go')) $('lv-entry-go').onclick=()=>nav('vocab/lesson/cfcm-01-01');
 function vbRender(){
   const body=$('vb-body'); if(!body||!document.querySelector('#v-vocab.on')) return;
   clearTimeout(VB_WAKE);VB_WAKE=null;
@@ -5007,6 +5022,9 @@ function renderCourseMain(){
       <div id="cs-mat-practice" style="display:none">    ${cur&&cur.practice?`<div class="cs-act"><div class="l"><span class="k">看完练</span><b>${esc(cur.practice.label)}</b>
       <span class="why">${esc(cur.why||'')}</span></div>
       <button class="pri" id="cs-goquiz">练这组 →</button></div>`:''}
+    ${c.id==='cfcm-01'&&l.id==='cfcm-01-01'?`<div class="card gq-card" style="margin-top:16px">
+      <div class="phead"><div class="l"><b>本课认读 · 认识 / 不认识</b></div><button class="pri" id="cs-go-lesson-vocab">过本课单词</button></div>
+      <p class="gq-note" style="padding:0 20px 16px">正面只给英文；不认识时看基本义和老师讲解，当天再认，首次认出约 3 天后再见。</p></div>`:''}
     ${c.id==='cfcm-01'?`<div class="card gq-card rp-card" style="margin-top:16px">
       <div class="phead"><div class="l"><b>词根巩固 · 看完就串一组记</b></div><div class="r" id="rp-meta"></div></div>
       <div id="rp-body"><p class="gq-note">正在读取本节词根联盟…</p></div></div>`:''}
@@ -5023,6 +5041,7 @@ function renderCourseMain(){
   const v=$('cs-video');
   if(p&&p.wt===undefined&&p.pos) p.wt=Math.floor(p.pos);   // 存量课: 已看进度作观看秒数下限
   courseWatchTarget=l.id;
+  const lvGo=$('cs-go-lesson-vocab'); if(lvGo) lvGo.onclick=()=>nav('vocab/lesson/cfcm-01-01');
   wireGenQuiz(c, l);   // 课后练(仅 GEN_COURSE)
   if (window.SPK) { SPK.leave(); if (c.id === 'ndf-07') SPK.wire(c, l); }   // 口语课后练(仅 ndf-07)
   wireScriptTab(c,l);
