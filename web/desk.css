@@ -2500,6 +2500,7 @@ html.sb-min .nav-label{display:none!important}   /* 收缩侧栏只留图标 */
 .wp-head>div{flex:1;min-width:0}
 .wp-head b{display:block;font-size:14px;color:var(--t1)}
 .wp-head span{display:block;margin-top:2px;font-size:12px;color:var(--t2);line-height:1.5}
+.wp-head .wp-head-btns{flex:none;display:flex;gap:8px;align-items:center}
 .wp-head button{flex:none}
 .wp-live{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .wp-live b{font-size:14px;color:var(--bad)}

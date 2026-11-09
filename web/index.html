@@ -4548,8 +4548,9 @@ function epWholeUpdate(){
   const drill=st.p.drill,ready=epRdPassed(st),best=drill.wp?.best,passed=Number(best?.acc)>=.9;
   const rdN=st.d.dialogue.filter((_,i)=>drill.rd?.[i]?.acc>=.9).length;
   /* 历史最好也给出总分(r11): 用 best 自带的 text/dur 现场计算, 与最新一次口径一致 */
+  const bestHasText=!!(best&&typeof best.text==='string'&&best.text.trim());
   let bestTotal=null;
-  if(passed&&best&&typeof best.text==='string'&&best.text.trim()){
+  if(passed&&bestHasText){
     const anch=st.d.dialogue.every(x=>Number.isFinite(x.t0)&&Number.isFinite(x.t1)&&x.t1>x.t0);
     const src=anch?st.d.dialogue.reduce((s,x)=>s+(x.t1-x.t0),0):0;
     bestTotal=EplodRecords.wholeReport(st.d.dialogue.map(x=>x.text).join(' '),best.text,best.dur,src).total;
@@ -4559,8 +4560,12 @@ function epWholeUpdate(){
     +(passed?'<i>已通过 · 历史最好 '+Math.round(best.acc*100)+'%'+(bestTotal!=null?' · 总分 '+bestTotal:'')+'</i>'+(Number.isFinite(best.dur)?' · <i>用时 '+fmtDur(Math.round(best.dur))+'</i>':'')
       :ready?'前两遍已完成。脱稿整篇背一次（全程无提示），总词准 90% 通过并盖当日章。'
       :'逐句背诵 '+rdN+'/'+st.d.dialogue.length+' 通过后解锁。')+'</span></div>'
-    +'<button class="pri" id="ep-whole-go"'+(ready&&!st.wpPending?'':' disabled')+'>整篇背诵 →</button></div>';
+    +'<div class="wp-head-btns">'
+    +(bestHasText?'<button id="ep-whole-history" title="回看历史最好一次背诵的完整结果">查看上次成绩'+(bestTotal!=null?' · '+bestTotal+' 分':'')+'</button>':'')
+    +'<button class="pri" id="ep-whole-go"'+(ready&&!st.wpPending?'':' disabled')+'>整篇背诵 →</button></div></div>';
   const b=host.querySelector('#ep-whole-go');if(b)b.onclick=()=>epWholeToggle();
+  const hb=host.querySelector('#ep-whole-history');
+  if(hb)hb.onclick=()=>{st.wpTake={phase:'result',result:best,history:true};epWholeUpdate();};
 }
 function epWholeLive(host,st){
   const t=st.wpTake;host.hidden=false;
@@ -4599,7 +4604,7 @@ function epWholeLive(host,st){
       +'<div class="wline"><b>原文</b>'+words+'</div>'
       +'<div class="mine"><b>识别</b>'+mine+'</div></div>';
   }).join('');
-  host.innerHTML='<div class="wp-result'+(r.acc>=.9?' pass':'')+'"><div class="wp-hero"><b>'+(r.acc>=.9?'✓ 整篇通过':'整篇词准 '+Math.round(r.acc*100)+'%')+'</b><span>通过线 90%'+(Number.isFinite(r.dur)?' · 用时 '+fmtDur(Math.round(r.dur)):'')+'</span></div>'
+  host.innerHTML='<div class="wp-result'+(r.acc>=.9?' pass':'')+'"><div class="wp-hero"><b>'+(r.acc>=.9?'✓ 整篇通过':'整篇词准 '+Math.round(r.acc*100)+'%')+'</b><span>通过线 90%'+(Number.isFinite(r.dur)?' · 用时 '+fmtDur(Math.round(r.dur)):'')+(t.history?' · 历史回看':'')+'</span></div>'
     +'<div class="wp-score"><div class="tot"><b>'+rep.total+'</b><span>总分</span></div><div class="bars">'
     +scoreRow('准确度',rep.accuracy)+scoreRow('语速',rep.speed)+scoreRow('流畅度',rep.fluency)
     +'</div></div>'

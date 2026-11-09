@@ -117,6 +117,9 @@ test('index.html 接线: 入口卡/取消钩子/刷新点/版本号在位', () =
   assert.match(html, /epWholeUpdate\(\);\s*\/\/ 逐句背诵通过数变化/);
   assert.match(html, /st\.wpPending\){st\.wpPending\.cancelled=true/);
   assert.match(html, /整篇过=当天这一遍盖满/);
+  assert.match(html, /id="ep-whole-history"/, '历史成绩回看入口在位');
+  assert.match(html, /phase:'result',result:best,history:true/, '历史回看复用结果页渲染');
+  assert.match(html, /历史回看/, '结果页标注历史回看');
   assert.match(html, /eplod-records\.js\?v=\d+/);
   assert.match(html, /desk\.css\?v=\d{8}r\d+/);   /* 只断言缓存击穿在位, 不钉具体版本号(升级不必改测试) */
   // 2026-11-04 用户反馈: 录音中可直接取消(不上传), 有结果时原文只出现一次
