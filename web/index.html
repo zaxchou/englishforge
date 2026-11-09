@@ -8,7 +8,7 @@
 <link rel="icon" type="image/png" sizes="96x96" href="/assets/brand/t-dot-v1/t-dot-96.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/assets/brand/t-dot-v1/t-dot-180.png">
 <title>TOEFL Lab · 托福自学练习</title>
-<link rel="stylesheet" href="desk.css?v=20261107r10">
+<link rel="stylesheet" href="desk.css?v=20261109r11">
 <link rel="stylesheet" href="lesson-vocab.css?v=20261109r4">
 <style>
 /* 应用层补充样式（视觉基线在 desk.css，不改它的既有规则） */
@@ -355,7 +355,7 @@ details.ai-tsec[open] summary{margin-bottom:8px}
 
 </div>
 
-<script src="eplod-records.js?v=18"></script>
+<script src="eplod-records.js?v=19"></script>
 <script src="course-plan-model.js?v=20261029r8"></script>
 <script src="course-plan-ui.js?v=20261107r8"></script>
 <script src="root-practice-ui.js?v=e3203ffa489d"></script>
@@ -4547,9 +4547,16 @@ function epWholeUpdate(){
   if(st.wpTake)return epWholeLive(host,st);
   const drill=st.p.drill,ready=epRdPassed(st),best=drill.wp?.best,passed=Number(best?.acc)>=.9;
   const rdN=st.d.dialogue.filter((_,i)=>drill.rd?.[i]?.acc>=.9).length;
+  /* 历史最好也给出总分(r11): 用 best 自带的 text/dur 现场计算, 与最新一次口径一致 */
+  let bestTotal=null;
+  if(passed&&best&&typeof best.text==='string'&&best.text.trim()){
+    const anch=st.d.dialogue.every(x=>Number.isFinite(x.t0)&&Number.isFinite(x.t1)&&x.t1>x.t0);
+    const src=anch?st.d.dialogue.reduce((s,x)=>s+(x.t1-x.t0),0):0;
+    bestTotal=EplodRecords.wholeReport(st.d.dialogue.map(x=>x.text).join(' '),best.text,best.dur,src).total;
+  }
   host.hidden=false;
   host.innerHTML='<div class="wp-head"><div><b>整篇背诵 · 最后一遍</b><span>'
-    +(passed?'<i>已通过 · 历史最好 '+Math.round(best.acc*100)+'%</i>'+(Number.isFinite(best.dur)?' · <i>用时 '+fmtDur(Math.round(best.dur))+'</i>':'')
+    +(passed?'<i>已通过 · 历史最好 '+Math.round(best.acc*100)+'%'+(bestTotal!=null?' · 总分 '+bestTotal:'')+'</i>'+(Number.isFinite(best.dur)?' · <i>用时 '+fmtDur(Math.round(best.dur))+'</i>':'')
       :ready?'前两遍已完成。脱稿整篇背一次（全程无提示），总词准 90% 通过并盖当日章。'
       :'逐句背诵 '+rdN+'/'+st.d.dialogue.length+' 通过后解锁。')+'</span></div>'
     +'<button class="pri" id="ep-whole-go"'+(ready&&!st.wpPending?'':' disabled')+'>整篇背诵 →</button></div>';
@@ -4574,6 +4581,15 @@ function epWholeLive(host,st){
   }
   const r=t.result;
   const det=epWholeDetail(st,r);
+  /* 整篇总分(r11 2026-11-09 用户要求): 展示层实时计算, 不改存储 */
+  const wholeAnchored=st.d.dialogue.every(x=>Number.isFinite(x.t0)&&Number.isFinite(x.t1)&&x.t1>x.t0);
+  const wholeSrcDur=wholeAnchored?st.d.dialogue.reduce((s,x)=>s+(x.t1-x.t0),0):0;
+  const rep=EplodRecords.wholeReport(st.d.dialogue.map(x=>x.text).join(' '),r.text||'',r.dur,wholeSrcDur);
+  const scoreRow=(label,val)=>{
+    if(val==null)return '<div class="row"><span>'+label+'</span><i class="na">本期无原音锚点</i><b>—</b></div>';
+    const tone=val>=85?'ok':val>=70?'mid':'low';
+    return '<div class="row"><span>'+label+'</span><i><em class="'+tone+'" style="width:'+val+'%"></em></i><b>'+val+'</b></div>';
+  };
   const sentBlocks=det.clean?'':det.sents.filter(s=>s.miss||s.extras.length).map(s=>{
     const words=s.words.map(w=>w.word?'<span class="'+(w.ok?'ok':'miss')+'">'+esc(w.t)+'</span>':esc(w.t)).join('');
     const mine=s.mine.some(m=>m.word)?s.mine.map(m=>m.word?'<span class="'+(m.ok?'ok':'extra')+'">'+esc(m.t)+'</span>':esc(m.t)).join('')
@@ -4584,6 +4600,9 @@ function epWholeLive(host,st){
       +'<div class="mine"><b>识别</b>'+mine+'</div></div>';
   }).join('');
   host.innerHTML='<div class="wp-result'+(r.acc>=.9?' pass':'')+'"><div class="wp-hero"><b>'+(r.acc>=.9?'✓ 整篇通过':'整篇词准 '+Math.round(r.acc*100)+'%')+'</b><span>通过线 90%'+(Number.isFinite(r.dur)?' · 用时 '+fmtDur(Math.round(r.dur)):'')+'</span></div>'
+    +'<div class="wp-score"><div class="tot"><b>'+rep.total+'</b><span>总分</span></div><div class="bars">'
+    +scoreRow('准确度',rep.accuracy)+scoreRow('语速',rep.speed)+scoreRow('流畅度',rep.fluency)
+    +'</div></div>'
     +'<div class="wp-per">'+r.per.map(p=>'<span class="'+(p.acc>=.9?'ok':'weak')+'" title="'+esc(st.d.dialogue[p.i].text)+'">#'+(p.i+1)+' '+Math.round(p.acc*100)+'%</span>').join('')+'</div>'
     +(sentBlocks?'<p class="wp-detail-note">这几句没完全对上：原文红波浪为未匹配词，识别红波浪为多出或替换的词。<span>逐句归属按相邻命中位置估算；识别也可能有偏差，请结合录音核对。多出词沿用原规则，不另扣分。</span></p>'+sentBlocks:'')
     +'<div class="wp-advise">'+epWholeAdvice(st,r,r.dur).map(x=>'<p>'+esc(x)+'</p>').join('')+'</div>'

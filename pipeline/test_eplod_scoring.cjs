@@ -259,6 +259,28 @@ test('r10: plural tolerance applies only to 2↔1 compound merges, never to sing
   assert.ok(E.lcsAcc('my friends call me', 'my friend call me') < 1);
 });
 
+test('r11: whole-recite report gives accuracy, speed, fluency and a total', () => {
+  const official = 'I know, and I apologize for the delay. But some things were just beyond my control.';
+  const perfect = E.wholeReport(official, official, 19, 19);
+  assert.deepEqual(perfect, {accuracy: 100, speed: 100, fluency: 100, total: 100});
+  // 完美内容但拖沓 + 语气词/复读: 准确与语速流畅分开扣
+  const sluggish = E.wholeReport(official, official + ' uh and uh the the end', 38, 19);
+  assert.equal(sluggish.accuracy, 100, 'content stays clean');
+  assert.ok(sluggish.speed < 60, 'dragging docks speed');
+  assert.ok(sluggish.fluency < 100, 'fillers and repeats dock fluency');
+  assert.ok(sluggish.total < perfect.total);
+  // 无原音锚点: speed 为 null, 总分改用准确 65 + 流畅 35 权重
+  const noSrc = E.wholeReport(official, official, 19, 0);
+  assert.equal(noSrc.speed, null);
+  assert.equal(noSrc.total, 100);
+  // 内容错词进入准确度(多出词不扣准确度, 与既有判分口径一致)
+  const content = E.wholeReport(official, official.replace('control', 'banana'), 19, 19);
+  assert.ok(content.accuracy < 100);
+  assert.equal(E.wholeReport(official, official + ' banana', 19, 19).accuracy, 100);
+  // 速度下限 50, 流畅度下限 50
+  assert.equal(E.wholeReport(official, official, 60, 19).speed, 50);
+});
+
 test('compound rescoring upgrades version-2 evidence without changing stamps and stays idempotent', () => {
   const old = whole('compound-whole', 15, 'You may be farsighted.', .6,
     {scoringVersion: 2, per: [{i: 0, acc: .6}], extra: ['farsighted']});

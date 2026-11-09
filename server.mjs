@@ -1092,6 +1092,36 @@ function epAsrLooksForeign(text) {
 // Date.now().toString(36) + '-' + a random base36 suffix; no path or URL metacharacters.
 const EPLOD_TAKE_ID = /^[a-z0-9]{1,16}-[a-z0-9]{1,32}$/;
 const EPLOD_RECORDING_FILE = /^eplod-\d{4}-\d{1,2}(?:-[a-z0-9]{1,16}-[a-z0-9]{1,32})?\.[\w]+$/;
+/* 录音只保留「成绩对应、可回听」的那一份(2026-11-09 用户要求): 其余 take 只是磁盘垃圾。
+   保护策略: 被 records 里 rd[*].rec 引用的文件永不删; 新写入的给 1 小时宽限(客户端尚未来得及落库);
+   启动时 + 每 6 小时扫一遍。 */
+function recReferencedFiles() {
+  const keep = new Set();
+  try {
+    for (const lesson of Object.values(RECORDS?.course || {})) {
+      const rd = lesson && lesson.drill && lesson.drill.rd;
+      if (!rd || typeof rd !== 'object') continue;
+      for (const row of Object.values(rd)) if (row && typeof row.rec === 'string') keep.add(row.rec);
+    }
+  } catch { /* records 结构异常时不清理, 宁可多留 */ }
+  return keep;
+}
+function cleanupRecordings(graceMs = 3600000) {
+  let removed = 0;
+  try {
+    if (!fs.existsSync(RECORDING_DIR)) return 0;
+    const keep = recReferencedFiles(), now = Date.now();
+    for (const f of fs.readdirSync(RECORDING_DIR)) {
+      if (!EPLOD_RECORDING_FILE.test(f) || keep.has(f)) continue;
+      try {
+        const st = fs.statSync(path.join(RECORDING_DIR, f));
+        if (now - st.mtimeMs < graceMs) continue;
+        fs.unlinkSync(path.join(RECORDING_DIR, f)); removed++;
+      } catch { /* 单个文件失败不影响其它 */ }
+    }
+  } catch { /* 目录不可读时跳过 */ }
+  return removed;
+}
 function ttsWavParse(buf) {
   if (buf.length < 44 || buf.toString('ascii', 0, 4) !== 'RIFF' || buf.toString('ascii', 8, 12) !== 'WAVE') throw new Error('NOT_A_WAV');
   let off = 12, fmt = null, dataBytes = 0, headerBytes = 44, hasData = false;
@@ -1747,6 +1777,15 @@ if(repairedSpeed){
   recordsSave(repaired);RECORDS=repaired;
   console.log('[eplod] verified legacy same-speed results:',repairedSpeed);
 }
+/* 录音清理(2026-11-09): 只留可回听的那份; 启动扫一遍 + 每 6 小时一次 */
+{
+  const cleaned = cleanupRecordings();
+  if (cleaned) console.log('[eplod] pruned orphan recordings:', cleaned);
+  setInterval(() => {
+    const n = cleanupRecordings();
+    if (n) console.log('[eplod] pruned orphan recordings:', n);
+  }, 6 * 3600 * 1000).unref?.();
+}
 const COURSE_PLAN=createCoursePlanHandler({records:()=>RECORDS,setRecords:x=>{RECORDS=x;},save:recordsSave,quizzes:coursePlanQuizzes,
   rootQuizVersion:(lid,v)=>/^cfcm-01-\d{2}$/.test(lid)?ROOT_PRACTICE.lessonVersion(Number(lid.slice(-2)),v)?.quiz:null,
   gradeRootWord:rootGradeWord,now:()=>Date.now()});
@@ -1950,7 +1989,8 @@ const handler = async (req, res) => {
           if (!hasTakeId || e.code !== 'EEXIST') throw e;
         }
         if (hasTakeId) {
-          // 每句保留最新两份 take(当前 + 上一份, 兜住归档乱序): 其余清理; 无 takeId 的 legacy 名不动, 磁盘有界
+          // 归档时保留最新两份 take(当前 + 上一份, 兜住乱序): 更旧的交给周期清扫;
+          // 清扫只留 records 引用(可回听)的那份, 稳态每句 1 份(2026-11-09 用户要求)。
           const prefix = `eplod-${ep}-${ix}-`;
           try {
             const stale = fs.readdirSync(RECORDING_DIR)

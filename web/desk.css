@@ -2511,6 +2511,21 @@ html.sb-min .nav-label{display:none!important}   /* 收缩侧栏只留图标 */
 .wp-result .wp-hero b{display:block;font-size:16px;color:var(--t1)}
 .wp-result.pass .wp-hero b{color:var(--acc)}
 .wp-hero span{font-size:12px;color:var(--t3)}
+/* 整篇总分卡(r11): 左总分 + 右三条分项 */
+.wp-score{display:flex;gap:16px;align-items:center;margin-top:12px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card,#fff)}
+.wp-score .tot{flex:none;display:flex;flex-direction:column;align-items:center;min-width:56px}
+.wp-score .tot b{font-size:30px;line-height:1.05;color:var(--t1);font-variant-numeric:tabular-nums}
+.wp-score .tot span{font-size:11px;color:var(--t3);margin-top:2px}
+.wp-score .bars{flex:1;display:flex;flex-direction:column;gap:6px}
+.wp-score .row{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--t2)}
+.wp-score .row span{flex:none;width:42px}
+.wp-score .row i{flex:1;height:6px;border-radius:3px;background:var(--line);overflow:hidden;display:block}
+.wp-score .row i em{display:block;height:100%;border-radius:3px;background:var(--acc)}
+.wp-score .row i em.mid{background:#d9a441}
+.wp-score .row i em.low{background:#c2703f}
+.wp-score .row i .na{font-style:normal}
+.wp-score .row b{flex:none;width:30px;text-align:right;font-variant-numeric:tabular-nums;color:var(--t1)}
+.wp-score .row i.na{position:static;background:none;height:auto;color:var(--t3);font-size:11px}
 .wp-per{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
 .wp-per span{font-size:11.5px;padding:2px 8px;border-radius:10px;font-variant-numeric:tabular-nums}
 .wp-per .ok{background:var(--accbg);color:#305540}

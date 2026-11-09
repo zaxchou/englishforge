@@ -179,6 +179,30 @@
     return {acc:n?hit/n:0,marks,matched,pairs,extras:b.filter((_,k)=>!matched[k]).slice(0,12)};
   }
   function lcsAccFuzzy(official,mine){return scoreTokens(official,mine,true).acc;}
+  /* 整篇背诵评分(r11 2026-11-09 用户要求): 一次背诵给出可跟踪的总分。
+     准确度=词准(fuzzy 口径, 与人名走音赦免一致); 语速=用时/原音, 1.15x 以内满分,
+     之后线性扣分(语音背诵只会慢不会快, 拖沓才是扣分项); 流畅度=语气词+相邻重复
+     ("the the")密度事件, 每 100 官方词 3 个事件扣 1 分, 下限 50。
+     总分=准确 50% + 语速 25% + 流畅 25%(无原音锚点时按准确 65% + 流畅 35%)。
+     纯展示计算, 不改存储, 不会和历史存档的 acc 产生漂移。 */
+  function wholeReport(official, transcript, dur, srcDur){
+    const a=normTokens(official), b=normTokens(transcript);
+    const accuracy=Math.round(scoreTokens(official,transcript,true).acc*100);
+    let speed=null;
+    if(a.length&&Number.isFinite(dur)&&dur>0&&Number.isFinite(srcDur)&&srcDur>0){
+      const ratio=dur/srcDur;
+      speed=Math.round(Math.max(50,Math.min(100,100-Math.max(0,ratio-1.15)*100)));
+    }
+    let events=0;
+    for(let k=0;k<b.length;k++){
+      if(FILLER.test(b[k])){events++;continue;}
+      if(k>0&&b[k-1]===b[k])events++;
+    }
+    const density=a.length?events/a.length*100:0;
+    const fluency=Math.round(Math.max(50,Math.min(100,100-3*density)));
+    const total=speed==null?Math.round(accuracy*.65+fluency*.35):Math.round(accuracy*.5+speed*.25+fluency*.25);
+    return {accuracy,speed,fluency,total};
+  }
   /* 兼容旧调用方的计数返回值; 新调用方可用 repairVoiceScores 获取逐字段审计。 */
   function repairVoiceFuzzyScores(records,loadDialogue){return repairVoiceScores(records,loadDialogue).changed;}
   /* 只重算有本次原始转写的显式结果。rd.acc 是没有 best 转写的历史聚合, 不能从 latest
@@ -567,7 +591,7 @@
     }
     return changed;
   }
-  const api={SCORING_VERSION,mergeDrill,mergeLesson,reconcile,saveAttempt,speedPassed,repairSpeedScores,repairOkayScores,repairNumberScores,repairSpellingScores,repairFillerScores,repairVoiceScores,repairVoiceFuzzyScores,repairSlangScores,scoreTokens,lcsAcc,lcsAccFuzzy,fuzzyEqual,tokenSegments,normTokens,usSpelling,coverProgress};
+  const api={SCORING_VERSION,mergeDrill,mergeLesson,reconcile,saveAttempt,speedPassed,repairSpeedScores,repairOkayScores,repairNumberScores,repairSpellingScores,repairFillerScores,repairVoiceScores,repairVoiceFuzzyScores,repairSlangScores,scoreTokens,lcsAcc,lcsAccFuzzy,fuzzyEqual,tokenSegments,normTokens,usSpelling,coverProgress,wholeReport};
   if(typeof module==='object'&&module.exports)module.exports=api;
   else root.EplodRecords=api;
 })(typeof globalThis==='object'?globalThis:this);
