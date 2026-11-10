@@ -58,6 +58,10 @@ const c2k=ev();c2k.key='cross';c2k.action='know';
 r=await call('/api/vocab/lesson/grade',c2k);
 assert.equal(r.status,200);assert.equal(r.data.wrote,true);assert.equal(r.data.st.i,1440);assert.equal(r.data.st.e,2.5);assert.ok(Math.abs(r.data.st.due-Date.now()-1440*60000)<60000);
 snap=(await call('/api/records')).data;assert.ok(snap.vocabEvents[c2k.id],'全局账本应登记新词次日');
+// —— 跨端点事件 id 不可重放：旧端点用过的 id 不能进课级
+snap=(await call('/api/records')).data;
+assert.equal((await call('/api/vocab/grade',{id:'legacy-cross0001',word:'fixated',rating:3,at:Date.now()})).status,200);
+assert.equal((await call('/api/vocab/lesson/grade',{lessonId:'cfcm-01-01',id:'legacy-cross0001',key:'affix',action:'know'})).status,409);
 // —— 非当前词拒绝
 assert.equal((await call('/api/vocab/lesson/grade',{...ev(),key:'affix',action:'know'})).status,409);
 // 普通快照不能覆盖课级会话

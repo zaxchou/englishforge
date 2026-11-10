@@ -2535,6 +2535,8 @@ const handler = async (req, res) => {
           if (prior.key !== key || prior.action !== action) return sendJSON(res, 409, { error: 'event id reused with different payload' });
           return sendJSON(res, 200, { ok: true, duplicate: true, session: LessonVocab.publicSession(session), revision: RECORDS.revision });
         }
+        // 全局事件账本已用过该 id（旧端点或上一轮课级）→ 拒绝，避免跨端点重放改调度
+        if (Object.hasOwn(RECORDS.vocabEvents || {}, eventId)) return sendJSON(res, 409, { error: 'event id already used' });
         const existing = Object.hasOwn(RECORDS.vocab || {}, key) ? RECORDS.vocab[key] : null;
         if (existing && !vocabStateValid(existing)) return sendJSON(res, 409, { error: '已有调度异常，记录已保留，请导出并检查' });
         const now = Date.now();

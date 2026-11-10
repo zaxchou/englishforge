@@ -37,9 +37,9 @@
         }
       }
     }catch(e){}
-    timeMark=document.hidden?null:Date.now();
+    timeMark=(document.hidden||doneShown)?null:Date.now();
   }
-  function onVis(){ if(document.hidden) settleTime(); else if(active) timeMark=Date.now(); }
+  function onVis(){ if(document.hidden) settleTime(); else if(active&&!doneShown) timeMark=Date.now(); }
 
   function shell(inner){
     const review=session&&session.phase==='review';
@@ -111,7 +111,7 @@
     const ex=c.example
       ? '<details class="lv-ex"><summary>例句</summary><p>'+esc(c.example)+'</p>'+(c.exampleZh?'<p class="zh">'+esc(c.exampleZh)+'</p>':'')+'</details>':'';
     return '<div class="lv-card">'
-      + '<div class="lv-meta"><span class="lv-tag re">学习中</span><span>第 '+c.group+' 组 · '+esc(c.groupLabel)+'</span></div>'
+      + '<div class="lv-meta"><span class="lv-tag re">'+(session.rechecked&&session.rechecked[c.key]?'再确认':'学习中')+'</span><span>第 '+c.group+' 组 · '+esc(c.groupLabel)+'</span></div>'
       + '<div class="lv-wordrow"><span class="lv-word">'+esc(c.word)+'</span>'+speakBtn()+'</div>'
       + '<div class="lv-ipa">'+esc(c.ipa||'')+'</div>'
       + '<div class="lv-sect"><div class="lv-label">基本义</div><div class="lv-def">'+esc(c.def)+'</div></div>'
