@@ -360,7 +360,7 @@ details.ai-tsec[open] summary{margin-bottom:8px}
 <script src="course-plan-ui.js?v=20261107r8"></script>
 <script src="root-practice-ui.js?v=e3203ffa489d"></script>
 <script src="speaking-ui.js?v=20261106r6"></script>
-<script src="lesson-vocab-ui.js?v=20261109r8"></script>
+<script src="lesson-vocab-ui.js?v=20261109r9"></script>
 <script>
 'use strict';
 /* ============================================================
@@ -3206,8 +3206,14 @@ async function refreshLessonBanner(){
   try{
     const d=await api('/api/vocab/lesson',{signal:AbortSignal.timeout(8000)});
     const rv=d.review||{};
-    const done=!!(d.session&&d.session.completedAt);
-    if(rv.due>0){
+    const sess=d.session||null;
+    const done=!!(sess&&sess.completedAt);
+    if(sess&&!done){
+      title.textContent='第01课 · 继续认读 '+(sess.doneCount||0)+'/'+(d.lesson?.total||176);
+      sub.textContent='还剩 '+(sess.remaining||0)+' 词 · 到期词会在本轮结束后单独复习'
+        +(rv.due?('（已有 '+rv.due+' 词到期）'):'');
+      btn.textContent='继续认读';
+    }else if(rv.due>0 && done){
       title.textContent='第01课 · 今天 '+rv.due+' 词待再认';
       sub.textContent='到期词只走这一轮：两按钮 + 老师讲解，认出即延长间隔';
       btn.textContent='开始再认';
