@@ -294,7 +294,7 @@ details.ai-tsec[open] summary{margin-bottom:8px}
 <div class="view" id="v-vocab">
   <div class="bhead"><h2 class="pt">背单词</h2><span class="ct" id="vb-ct"></span></div>
   <p class="sub">万词班词库 · SM-2 间隔重复：到期优先，新词按词根批次推进，评分即调度</p>
-  <div class="lv-entry" id="lv-entry"><div class="l"><b>第01课 · 全词认读</b><span>176 词 · 正面只给英文，认识 / 不认识；不认识看老师讲解，当天再认</span></div><button id="lv-entry-go" type="button">开始认读</button></div>
+  <div class="lv-entry" id="lv-entry"><div class="l"><b id="lv-entry-title">第01课 · 全词认读</b><span id="lv-entry-sub">176 词 · 正面只给英文，认识 / 不认识；不认识看老师讲解，当天再认</span></div><button id="lv-entry-go" type="button">开始认读</button></div>
   <div id="vb-body"><div class="card" style="padding:28px;text-align:center;color:var(--t2)">正在读取词库…</div></div>
 </div>
 
@@ -360,7 +360,7 @@ details.ai-tsec[open] summary{margin-bottom:8px}
 <script src="course-plan-ui.js?v=20261107r8"></script>
 <script src="root-practice-ui.js?v=e3203ffa489d"></script>
 <script src="speaking-ui.js?v=20261106r6"></script>
-<script src="lesson-vocab-ui.js?v=20261109r7"></script>
+<script src="lesson-vocab-ui.js?v=20261109r8"></script>
 <script>
 'use strict';
 /* ============================================================
@@ -3196,9 +3196,29 @@ function vbPick(){
 function mountVocab(){
   if(VB_LESSON_REQ){ const id=VB_LESSON_REQ; VB_LESSON_REQ=null; if(window.LV) return LV.open(id); }
   if(window.LV) LV.leave();
-  try{vbMigrateQueue();}catch(e){VB.err=e.message;} vbLoadBank(); vbRender(); vbFlushQueue();
+  try{vbMigrateQueue();}catch(e){VB.err=e.message;} vbLoadBank(); vbRender(); vbFlushQueue(); refreshLessonBanner();
 }
 if($('lv-entry-go')) $('lv-entry-go').onclick=()=>nav('vocab/lesson/cfcm-01-01');
+/* 横幅按课级复习概览显示“今天该做什么”（复习轮入口） */
+async function refreshLessonBanner(){
+  const title=$('lv-entry-title'), sub=$('lv-entry-sub'), btn=$('lv-entry-go');
+  if(!title||!sub||!btn) return;
+  try{
+    const d=await api('/api/vocab/lesson',{signal:AbortSignal.timeout(8000)});
+    const rv=d.review||{};
+    const done=!!(d.session&&d.session.completedAt);
+    if(rv.due>0){
+      title.textContent='第01课 · 今天 '+rv.due+' 词待再认';
+      sub.textContent='到期词只走这一轮：两按钮 + 老师讲解，认出即延长间隔';
+      btn.textContent='开始再认';
+    }else{
+      title.textContent='第01课 · 全词认读';
+      sub.textContent='176 词 · 正面只给英文，认识 / 不认识；不认识看老师讲解，当天再认'
+        +((done&&rv.tomorrow)?(' · 明天还有 '+rv.tomorrow+' 词到期'):'');
+      btn.textContent='开始认读';
+    }
+  }catch(e){}
+}
 function lvActive(){ return !!(window.LV&&window.LV.isActive&&window.LV.isActive()); }
 function vbSuspendForLesson(){
   if(VB_WAKE){clearTimeout(VB_WAKE);VB_WAKE=null;}

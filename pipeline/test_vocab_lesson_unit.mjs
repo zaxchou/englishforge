@@ -52,6 +52,20 @@ const cont = (s, index, vocab, key) => LV.applyAction({ session: s, index, vocab
   assert.equal(v2.c.e, 2.3);
 }
 
+// —— R2.2-1：到期旧词看卡两次后认出，仍是遗忘（1 天、ease-0.2），不被拉长
+{
+  const { index, session, vocab } = fresh(['a', 'b', 'c']);
+  vocab.a = { e: 2.5, i: 100, s: 99, r: 2, n: 1, born: NOW - DAY, due: NOW - 1000 };
+  again(session, index, 'a'); cont(session, index, vocab, 'a');
+  know(session, index, vocab, 'b');
+  know(session, index, vocab, 'c');
+  again(session, index, 'a'); cont(session, index, vocab, 'a');   // tries=2
+  know(session, index, vocab, 'a');
+  assert.equal(vocab.a.i, LV.RELEARN_INTERVAL_MIN);
+  assert.equal(vocab.a.e, 2.3);
+  assert.ok(session.rechecked.a === 1);
+}
+
 // —— 未到期 + tries0 认出：不写（不变量 3）
 {
   const { index, session, vocab } = fresh(['a']);

@@ -85,5 +85,20 @@ assert.ok(fin.completedAt);assert.equal(fin.remaining,0);assert.ok(fin.nextDueAt
 assert.equal(fin.history[0].tries.affix,1);assert.equal(fin.history[0].tries.cross,1);
 // 完成后无到期 → start 原样返回
 r=await call('/api/vocab/lesson/start',{lessonId:'cfcm-01-01'});assert.equal(r.data.resumed,true);
-console.log('PASS lesson vocab: 176 cards, resume, non-due freeze, due extend, initial 3d, seen-card next-day, continue insert@10, global ledger, idempotent replay, payload conflict, current guard, snapshot isolation, restart persistence, lapse on seen-card existing, round-end recheck, archive tries + nextDueAt');
+// 完成页元信息：复习概览 + 难词（R2.4-4）
+r=await call('/api/vocab/lesson');assert.equal(r.data.review.due,0);assert.ok(r.data.review.tomorrow>=1);
+assert.ok(Array.isArray(r.data.hardWords)&&r.data.hardWords.length>=1&&r.data.hardWords[0].tries>=1);
+// 人为把一个词改成已到期（停服改 fixture）→ 进课即开复习轮（R2.2-2 服务端）
+await stop();
+const rf=path.join(dir,'records.json');const rec=JSON.parse(fs.readFileSync(rf,'utf8'));
+rec.vocab.cross={...rec.vocab.cross,due:Date.now()-1000};
+fs.writeFileSync(rf,JSON.stringify(rec));
+await start();
+r=await call('/api/vocab/lesson');assert.ok(r.data.review.due>=1);
+r=await call('/api/vocab/lesson/start',{lessonId:'cfcm-01-01'});
+assert.equal(r.data.resumed,false);assert.equal(r.data.session.phase,'review');assert.equal(r.data.session.remaining,r.data.review.due);
+r=await call('/api/vocab/lesson/grade',{...ev(),key:'cross',action:'know'});
+assert.equal(r.status,200);assert.equal(r.data.wrote,true);assert.ok(r.data.st.due>Date.now());
+r=await call('/api/vocab/lesson');assert.ok(r.data.session.completedAt,'复习轮应完成');
+console.log('PASS lesson vocab: 176 cards, resume, non-due freeze, due extend, initial 3d, seen-card next-day, continue insert@10, global ledger, idempotent replay, payload conflict, current guard, snapshot isolation, restart persistence, lapse on seen-card existing, round-end recheck, archive tries + nextDueAt, review metadata + auto review round');
 })().catch(e=>{console.error(e);process.exitCode=1}).finally(()=>server?.kill());

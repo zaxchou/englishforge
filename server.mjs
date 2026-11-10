@@ -1030,6 +1030,27 @@ function lessonIndex() {
   }
   return LESSON_INDEX;
 }
+/* 课级复习概览：到期/24 小时内到期数量 + 上一轮看卡最多的词（给横幅与完成页） */
+function lessonReviewInfo(index, vocab) {
+  const now = Date.now();
+  let due = 0, tomorrow = 0;
+  for (const k of index.byKey.keys()) {
+    const st = vocab && vocab[k];
+    if (!st) continue;
+    if (Number(st.due) <= now) due++;
+    else if (Number(st.due) <= now + 86400000) tomorrow++;
+  }
+  return { due, tomorrow };
+}
+function lessonHardWords(index, session) {
+  const last = session && (session.history || []).at(-1);
+  if (!last || !last.tries) return [];
+  return Object.entries(last.tries)
+    .filter(([, n]) => Number(n) > 0)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6)
+    .map(([k, n]) => ({ key: k, word: (index.byKey.get(k) || {}).word || k, tries: n }));
+}
 let VOCAB_BANK = null, VOCAB_INDEX = null, VOCAB_BANK_RAW = null, VOCAB_BANK_GZ = null;
 /* 词根学习档案投影（只读）: 已发布 1.1.0 学习档案 → 背单词卡片的词根拆解/记忆线索/例句 + 词典入口 */
 let ROOT_MAP = null, ROOT_MAP_RAW = null, ROOT_MAP_GZ = null, ROOT_MAP_TOKEN = null;
@@ -2487,7 +2508,8 @@ const handler = async (req, res) => {
       try {
         const index = lessonIndex();
         const s = (RECORDS.vocabLesson || {})[index.lessonId] || null;
-        return sendJSON(res, 200, { ok: true, lesson: LESSON_META, session: LessonVocab.publicSession(s) });
+        return sendJSON(res, 200, { ok: true, lesson: LESSON_META, session: LessonVocab.publicSession(s),
+          review: lessonReviewInfo(index, RECORDS.vocab), hardWords: lessonHardWords(index, s) });
       } catch (e) { return sendJSON(res, 503, { error: '第一课词卡未就绪: ' + e.message }); }
     }
     if (p === '/api/vocab/lesson/start') {
@@ -2502,7 +2524,7 @@ const handler = async (req, res) => {
         const now = Date.now(), restart = inc.restart === true;
         const existing = (RECORDS.vocabLesson || {})[index.lessonId] || null;
         const plan = LessonVocab.planStart(existing, index, RECORDS.vocab, now, randomUUID(), restart);
-        if (plan.resumed) return sendJSON(res, 200, { ok: true, resumed: true, lesson: LESSON_META, session: LessonVocab.publicSession(plan.session) });
+        if (plan.resumed) return sendJSON(res, 200, { ok: true, resumed: true, lesson: LESSON_META, session: LessonVocab.publicSession(plan.session), review: lessonReviewInfo(index, RECORDS.vocab) });
         const next = JSON.parse(JSON.stringify(RECORDS));
         next.vocabLesson ||= {};
         next.vocabLesson[index.lessonId] = plan.session;
@@ -2510,7 +2532,7 @@ const handler = async (req, res) => {
         next.saved_at = new Date(now).toISOString();
         try { recordsSave(next); } catch (e) { console.error('[lesson-vocab]', e.message); return sendJSON(res, 503, { error: 'records not persisted' }); }
         RECORDS = next;
-        return sendJSON(res, 200, { ok: true, resumed: false, lesson: LESSON_META, session: LessonVocab.publicSession(next.vocabLesson[index.lessonId]) });
+        return sendJSON(res, 200, { ok: true, resumed: false, lesson: LESSON_META, session: LessonVocab.publicSession(next.vocabLesson[index.lessonId]), review: lessonReviewInfo(index, next.vocab) });
       } catch (e) { return sendJSON(res, e.status || 500, { error: e.message }); }
     }
     if (p === '/api/vocab/lesson/grade') {
@@ -2562,7 +2584,7 @@ const handler = async (req, res) => {
         next.saved_at = new Date(now).toISOString();
         try { recordsSave(next); } catch (e) { console.error('[lesson-vocab]', e.message); return sendJSON(res, 503, { error: 'records not persisted' }); }
         RECORDS = next;
-        return sendJSON(res, 200, { ok: true, duplicate: false, session: LessonVocab.publicSession(work), st: result.st, wrote: result.wrote, vocabDays: next.vocabDays, revision: next.revision });
+        return sendJSON(res, 200, { ok: true, duplicate: false, session: LessonVocab.publicSession(work), st: result.st, wrote: result.wrote, vocabDays: next.vocabDays, review: lessonReviewInfo(index, next.vocab), revision: next.revision });
       } catch (e) { return sendJSON(res, e.status || 500, { error: e.message }); }
     }
 

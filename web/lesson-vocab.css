@@ -97,3 +97,7 @@
 #v-vocab .lv-kbd{font-size:10.5px;border:1px solid var(--line2);border-radius:4px;padding:0 4px;color:var(--t3);margin-left:4px}
 #v-vocab .lv-btn.pri .lv-kbd{color:#fff;border-color:rgba(255,255,255,.4)}
 @media (max-width:700px){ #v-vocab .lv-confirm .lv-btn{min-height:46px} }
+
+#v-vocab .lv-hard{margin-top:14px;text-align:left}
+#v-vocab .lv-hard .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+#v-vocab .lv-hard .chips span{font-size:12px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;background:var(--sunk);color:var(--t2)}

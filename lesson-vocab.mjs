@@ -129,7 +129,7 @@ export function applyAction({ session, index, vocab, key, action, now, nextExist
     if (!existing) {
       st = preTries === 0 ? initialKnown(now) : relearnKnown(now);
       introduced = true;
-    } else if (preTries === 1 && !inRecheck) {
+    } else if (preTries >= 1 && !inRecheck) {   // 看卡任意多次后认出都是遗忘（R2.2-1）
       st = lapsedKnown(existing, now);            // 看卡后认出 = 遗忘信号（C1）
     } else if (existing.due <= now) {
       st = nextExisting(existing, now);           // 到期正常成功

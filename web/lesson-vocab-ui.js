@@ -2,7 +2,7 @@
    评分语义（2026-11-10 审计修正）：认识→先核对词义再结算；看卡后认出由服务端按遗忘处理。 */
 (function(){
   const LESSON='cfcm-01-01';
-  const CONFIRM_MS=1500;
+  const CONFIRM_MS=2500;
   const q=id=>document.getElementById(id);
   let token=0, active=false, cards=null, lesson=null, session=null, busy=false, uni=false, err='', audio=null;
   let pending=null, confirming=false, confirmTimer=null, timeMark=null, doneShown=false;
@@ -24,6 +24,13 @@
       a.onerror=fallback;
       a.play().catch(fallback);
     }catch(e){ try{vbSpeakLocal(card.word);}catch(_){} }
+  }
+
+  function applyMeta(res){
+    if(!res) return;
+    if(res.lesson) lesson={title:res.lesson.title,total:res.lesson.total,noted:res.lesson.noted,review:lesson&&lesson.review,hardWords:lesson&&lesson.hardWords};
+    if(res.review) lesson={...lesson,review:res.review};
+    if(res.hardWords) lesson={...lesson,hardWords:res.hardWords};
   }
 
   /* 学习时长：进页计时，离开/完成/隐藏时一次性结算（避免高频全量快照） */
@@ -140,7 +147,9 @@
       + '<div class="lv-stats"><div><span>全词</span><b>'+total+'</b></div>'
       + '<div><span>直接认出</span><b>'+first+'</b></div>'
       + '<div><span>看卡后认出</span><b>'+later+'</b></div></div>'
-      + '<p class="lv-due">'+dueLine+'</p>'
+      + '<p class="lv-due">'+dueLine+(lesson&&lesson.review&&lesson.review.tomorrow?' · 明天还有 <b>'+lesson.review.tomorrow+'</b> 词到期': '')+'</p>'
+      + ((lesson&&(lesson.hardWords||[]).length)?'<div class="lv-hard"><div class="lv-label">本轮看卡最多的词</div><div class="chips">'
+        +lesson.hardWords.map(x=>'<span>'+esc(x.word)+' ×'+x.tries+'</span>').join('')+'</div></div>':'')
       + '<div class="lv-row">'+(review?'':'<button class="lv-ghost" type="button" data-lv="restart"'+(busy?' disabled':'')+'>再练一遍</button>')
       + '<button class="lv-ghost" type="button" data-lv="back">返回背单词</button></div>'
       + (busy?'<p class="lv-hint" role="status">保存中…</p>':'')
@@ -181,7 +190,9 @@
     confirming=true; err='';
     render();
     if(confirmTimer) clearTimeout(confirmTimer);
-    confirmTimer=setTimeout(()=>{ if(confirming&&active){ confirming=false; grade('know'); } },CONFIRM_MS);
+    const cur=session.current;
+    const auto=session.phase!=='review'&&!(session.rechecked&&session.rechecked[cur]);
+    if(auto) confirmTimer=setTimeout(()=>{ if(confirming&&active){ confirming=false; grade('know'); } },CONFIRM_MS);
   }
   function proceed(){
     if(!confirming) return;
@@ -228,7 +239,7 @@
         body:JSON.stringify({lessonId:LESSON,id,key,action}),signal:AbortSignal.timeout(15000)});
       if(t!==token) return;
       session=res.session; pending=null; uni=false;
-      mergeVocabAck(key,res);
+      mergeVocabAck(key,res); applyMeta(res);
     }catch(e){
       if(t!==token) return;
       const msg=(e&&e.message)||'保存失败，请重试';
@@ -277,12 +288,12 @@
       }
       const meta=await api('/api/vocab/lesson',{signal:AbortSignal.timeout(10000)});
       if(t!==token) return;
-      lesson=meta.lesson||lesson; session=meta.session;
-      if(!session){
+      lesson=meta.lesson||lesson; session=meta.session; applyMeta(meta);
+      if(!session||session.completedAt){
         const st=await api('/api/vocab/lesson/start',{method:'POST',headers:{'Content-Type':'application/json'},
           body:JSON.stringify({lessonId:id||LESSON}),signal:AbortSignal.timeout(15000)});
         if(t!==token) return;
-        session=st.session; lesson=st.lesson||lesson;
+        session=st.session; lesson=st.lesson||lesson; applyMeta(st);
       }
       render();
     }catch(e){
