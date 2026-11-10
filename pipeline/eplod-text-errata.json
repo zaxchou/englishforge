@@ -944,6 +944,15 @@
     ]
    ],
    "note": "PDF 粘连"
+  },
+  "0043": {
+   "replacements": [
+    [
+     "do you you plan",
+     "do you plan"
+    ]
+   ],
+   "note": "官方 PDF 重复词(原音单 you, qwen+whisper 双引擎一致); 覆盖正文/词块例句/意群(2026-11-10)"
   }
  }
 }
