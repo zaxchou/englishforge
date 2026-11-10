@@ -1061,9 +1061,11 @@ function lessonSummaries() {
   for (const id of lessonIds()) {
     const index = lessonIndexFor(id);
     const session = (RECORDS.vocabLesson || {})[id] || null;
-    const pub = LessonVocab.publicSession(session);
+    const reviewSession = (RECORDS.vocabLessonReview || {})[id] || null;
+    const brief = s => s ? { phase: s.phase, doneCount: s.doneCount, remaining: s.remaining, completedAt: s.completedAt, current: s.current } : null;
     out.push({ ...lessonMeta(id),
-      session: pub ? { phase: pub.phase, doneCount: pub.doneCount, remaining: pub.remaining, completedAt: pub.completedAt, current: pub.current } : null,
+      session: brief(LessonVocab.publicSession(session)),
+      reviewSession: brief(LessonVocab.publicSession(reviewSession)),
       review: lessonReviewInfo(index, RECORDS.vocab) });
   }
   return out;
@@ -1750,6 +1752,7 @@ function nextRecords(incoming) {
   next.vocabEvents = RECORDS.vocabEvents || {};
   next.vocabDays = RECORDS.vocabDays || {};
   next.vocabLesson = RECORDS.vocabLesson || {};   // 课级认读会话只由专用端点写
+  next.vocabLessonReview = RECORDS.vocabLessonReview || {};   // 课级复习轮会话（与认读轮并存）
   next.vocabCfg = (incoming.vocabCfg && typeof incoming.vocabCfg === 'object' && !Array.isArray(incoming.vocabCfg) && Number.isFinite(Number(incoming.vocabCfg.daily)))
     ? { daily: Math.min(200, Math.max(0, Math.round(Number(incoming.vocabCfg.daily)))) }
     : (RECORDS.vocabCfg || { daily: 20 });
@@ -2553,8 +2556,11 @@ const handler = async (req, res) => {
         if (!id) return sendJSON(res, 503, { error: '没有可用的课程词卡' });
         const index = lessonIndexFor(id);
         const s = (RECORDS.vocabLesson || {})[id] || null;
+        const rv = (RECORDS.vocabLessonReview || {})[id] || null;
         return sendJSON(res, 200, { ok: true, lesson: lessonMeta(id), session: LessonVocab.publicSession(s),
-          review: lessonReviewInfo(index, RECORDS.vocab), hardWords: lessonHardWords(index, s), keys: lessonKeys() });
+          reviewSession: LessonVocab.publicSession(rv),
+          review: lessonReviewInfo(index, RECORDS.vocab),
+          hardWords: lessonHardWords(index, (rv && !rv.completedAt) ? rv : s), keys: lessonKeys() });
       } catch (e) { return sendJSON(res, e.status || 503, { error: '课程词卡未就绪: ' + e.message }); }
     }
     if (p === '/api/vocab/lesson/start') {
@@ -2567,18 +2573,40 @@ const handler = async (req, res) => {
         const id = inc.lessonId || defaultLessonId();
         if (!id) return sendJSON(res, 400, { error: 'unknown lesson' });
         const index = lessonIndexFor(id);
+        const slot = inc.slot === 'review' ? 'review' : 'first';
         const now = Date.now(), restart = inc.restart === true;
-        const existing = (RECORDS.vocabLesson || {})[id] || null;
-        const plan = LessonVocab.planStart(existing, index, RECORDS.vocab, now, randomUUID(), restart);
-        if (plan.resumed) return sendJSON(res, 200, { ok: true, resumed: true, lesson: lessonMeta(id), session: LessonVocab.publicSession(plan.session), review: lessonReviewInfo(index, RECORDS.vocab) });
+        const first = (RECORDS.vocabLesson || {})[id] || null;
+        const review = (RECORDS.vocabLessonReview || {})[id] || null;
+        const dueNow = lessonReviewInfo(index, RECORDS.vocab).due;
+        const respond = (session, slot, extra = {}) => sendJSON(res, 200, { ok: true, lesson: lessonMeta(id), slot,
+          session: LessonVocab.publicSession(session), review: lessonReviewInfo(index, RECORDS.vocab),
+          hardWords: lessonHardWords(index, session), ...extra });
+        if (!restart && review && !review.completedAt) return respond(review, 'review', { resumed: true });
+        if (!restart && dueNow > 0) {
+          const fresh = LessonVocab.createReviewSession(index, RECORDS.vocab, now, randomUUID());
+          if (fresh) {
+            const next = JSON.parse(JSON.stringify(RECORDS));
+            next.vocabLessonReview ||= {};
+            next.vocabLessonReview[id] = fresh;
+            next.revision = (RECORDS.revision || 0) + 1;
+            next.saved_at = new Date(now).toISOString();
+            try { recordsSave(next); } catch (e) { console.error('[lesson-vocab]', e.message); return sendJSON(res, 503, { error: 'records not persisted' }); }
+            RECORDS = next;
+            return respond(fresh, 'review', { resumed: false });
+          }
+        }
+        if (!restart && first && !first.completedAt) return respond(first, 'first', { resumed: true });
+        if (!restart && first && first.completedAt) return respond(first, 'first', { resumed: true });
+        const fresh = LessonVocab.newSession(index, now, randomUUID());
+        if (first && first.history) fresh.history = first.history.slice(-4);
         const next = JSON.parse(JSON.stringify(RECORDS));
         next.vocabLesson ||= {};
-        next.vocabLesson[id] = plan.session;
+        next.vocabLesson[id] = fresh;
         next.revision = (RECORDS.revision || 0) + 1;
         next.saved_at = new Date(now).toISOString();
         try { recordsSave(next); } catch (e) { console.error('[lesson-vocab]', e.message); return sendJSON(res, 503, { error: 'records not persisted' }); }
         RECORDS = next;
-        return sendJSON(res, 200, { ok: true, resumed: false, lesson: lessonMeta(id), session: LessonVocab.publicSession(next.vocabLesson[id]), review: lessonReviewInfo(index, next.vocab) });
+        return respond(fresh, 'first', { resumed: false });
       } catch (e) { return sendJSON(res, e.status || 500, { error: e.message }); }
     }
     if (p === '/api/vocab/lesson/grade') {
@@ -2591,18 +2619,19 @@ const handler = async (req, res) => {
         const id = inc.lessonId || defaultLessonId();
         if (!id) return sendJSON(res, 400, { error: 'unknown lesson' });
         const index = lessonIndexFor(id);
+        const slot = inc.slot === 'review' ? 'review' : 'first';
         const eventId = inc.id;
         if (typeof eventId !== 'string' || !/^[\w-]{8,100}$/.test(eventId) || ['__proto__','constructor','prototype'].includes(eventId)) return sendJSON(res, 400, { error: 'invalid event id' });
         const key = LessonVocab.norm(inc.key);
         if (!key || key.length > 60) return sendJSON(res, 400, { error: 'word required' });
         const action = inc.action;
         if (!['know', 'again', 'continue'].includes(action)) return sendJSON(res, 400, { error: 'invalid action' });
-        const session = (RECORDS.vocabLesson || {})[id];
+        const session = (slot === 'review' ? (RECORDS.vocabLessonReview || {}) : (RECORDS.vocabLesson || {}))[id];
         if (!session) return sendJSON(res, 409, { error: 'lesson not started' });
         const prior = (session.events || {})[eventId];
         if (prior) {
           if (prior.key !== key || prior.action !== action) return sendJSON(res, 409, { error: 'event id reused with different payload' });
-          return sendJSON(res, 200, { ok: true, duplicate: true, session: LessonVocab.publicSession(session), revision: RECORDS.revision });
+          return sendJSON(res, 200, { ok: true, duplicate: true, slot, session: LessonVocab.publicSession(session), revision: RECORDS.revision });
         }
         // 全局事件账本已用过该 id（旧端点或上一轮课级）→ 拒绝，避免跨端点重放改调度
         if (Object.hasOwn(RECORDS.vocabEvents || {}, eventId)) return sendJSON(res, 409, { error: 'event id already used' });
@@ -2610,7 +2639,7 @@ const handler = async (req, res) => {
         if (existing && !vocabStateValid(existing)) return sendJSON(res, 409, { error: '已有调度异常，记录已保留，请导出并检查' });
         const now = Date.now();
         const next = JSON.parse(JSON.stringify(RECORDS));
-        const work = next.vocabLesson[id];
+        const work = (slot === 'review' ? (next.vocabLessonReview || {}) : next.vocabLesson)[id];
         next.vocab ||= {};
         const result = LessonVocab.applyAction({
           session: work, index, vocab: next.vocab, key, action, now,
@@ -2630,7 +2659,7 @@ const handler = async (req, res) => {
         next.saved_at = new Date(now).toISOString();
         try { recordsSave(next); } catch (e) { console.error('[lesson-vocab]', e.message); return sendJSON(res, 503, { error: 'records not persisted' }); }
         RECORDS = next;
-        return sendJSON(res, 200, { ok: true, duplicate: false, session: LessonVocab.publicSession(work), st: result.st, wrote: result.wrote, vocabDays: next.vocabDays, review: lessonReviewInfo(index, next.vocab), revision: next.revision });
+        return sendJSON(res, 200, { ok: true, duplicate: false, slot, session: LessonVocab.publicSession(work), st: result.st, wrote: result.wrote, vocabDays: next.vocabDays, review: lessonReviewInfo(index, next.vocab), revision: next.revision });
       } catch (e) { return sendJSON(res, e.status || 500, { error: e.message }); }
     }
 

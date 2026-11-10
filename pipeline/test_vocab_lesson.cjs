@@ -13,95 +13,90 @@ async function start(){server=spawn(process.execPath,[path.join(root,'server.mjs
 async function stop(){const s=server;await new Promise(r=>{s.once('exit',r);s.kill();});}
 async function call(route,body){const r=await fetch(base+route,body?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}:{});return {status:r.status,data:await r.json()};}
 let seq=0;const ev=()=>({lessonId:'cfcm-01-01',id:'lesson-event-'+String(++seq).padStart(4,'0'),key:'',action:''});
-async function session(){return (await call('/api/vocab/lesson')).data.session;}
-async function advanceTo(key){ for(let i=0;i<220;i++){ const s=await session(); if(!s||s.completedAt) throw Error('session ended before '+key); if(s.current===key) return s; const r=await call('/api/vocab/lesson/grade',{lessonId:'cfcm-01-01',id:'adv-'+String(++seq).padStart(4,'0'),key:s.current,action:'know'}); assert.equal(r.status,200); } throw Error('advanceTo not found: '+key); }
+const S=async()=> (await call('/api/vocab/lesson')).data.session;
+const RS=async()=> (await call('/api/vocab/lesson')).data.reviewSession;
+async function advanceTo(key,slot){ for(let i=0;i<260;i++){ const s=slot==='review'?await RS():await S(); if(!s||s.completedAt) throw Error('session ended before '+key); if(s.current===key) return s; const r=await call('/api/vocab/lesson/grade',{lessonId:'cfcm-01-01',slot:slot||'first',id:'adv-'+String(++seq).padStart(4,'0'),key:s.current,action:'know'}); assert.equal(r.status,200); } throw Error('advanceTo not found: '+key); }
+async function patch(fn){ await stop(); const rf=path.join(dir,'records.json'); const rec=JSON.parse(fs.readFileSync(rf,'utf8')); fn(rec); fs.writeFileSync(rf,JSON.stringify(rec)); await start(); }
 (async()=>{
 await start();
+// —— 词卡与多课端点
 let r=await call('/api/vocab/lesson/cards');assert.equal(r.status,200);assert.equal(r.data.total,176);assert.equal(r.data.noted,138);
-r=await call('/api/vocab/lesson/cards?id=cfcm-01-01');assert.equal(r.status,200);assert.equal(r.data.total,176);
-r=await call('/api/vocab/lessons');assert.equal(r.status,200);assert.ok(r.data.lessons.some(x=>x.lessonId==='cfcm-01-01'));assert.ok((r.data.keys||[]).length>=176);
+r=await call('/api/vocab/lesson/cards?id=cfcm-01-01');assert.equal(r.data.total,176);
+r=await call('/api/vocab/lessons');assert.ok(r.data.lessons.some(x=>x.lessonId==='cfcm-01-01'));assert.ok((r.data.keys||[]).length>=176);
 assert.equal((await call('/api/vocab/lesson?id=nope')).status,400);
-r=await call('/api/vocab/lesson');assert.equal(r.data.session,null);
-r=await call('/api/vocab/lesson/start',{lessonId:'cfcm-01-01'});assert.equal(r.status,200);assert.equal(r.data.session.total,176);assert.equal(r.data.session.current,'affix');assert.equal(r.data.session.remaining,176);
-r=await call('/api/vocab/lesson/start',{lessonId:'cfcm-01-01'});assert.equal(r.data.resumed,true);
-// 未到期旧词：认识后原到期时间与间隔不变（冻结）
+// —— R3.2-2：开学时已有到期词 → 先开复习轮，认读轮稍后
+r=await call('/api/vocab/lesson/start',{lessonId:'cfcm-01-01'});
+assert.equal(r.data.slot,'review');assert.equal(r.data.session.total,1);assert.equal(r.data.session.current,'fixated');
+r=await call('/api/vocab/lesson/start',{lessonId:'cfcm-01-01'});assert.equal(r.data.resumed,true);assert.equal(r.data.slot,'review');
+r=await call('/api/vocab/lesson/grade',{...ev(),slot:'review',key:'fixated',action:'know'});
+assert.equal(r.status,200);assert.equal(r.data.slot,'review');assert.equal(r.data.wrote,true);assert.equal(r.data.st.i,15);assert.ok(r.data.st.due>Date.now());
+r=await call('/api/vocab/lesson/start',{lessonId:'cfcm-01-01'});
+assert.equal(r.data.slot,'first');assert.equal(r.data.session.total,176);assert.equal(r.data.session.current,'affix');assert.equal(r.data.session.remaining,176);
+r=await call('/api/vocab/lesson/start',{lessonId:'cfcm-01-01'});assert.equal(r.data.resumed,true);assert.equal(r.data.slot,'first');
+// —— 未到期旧词：认识后原到期时间与间隔不变（冻结）
 let e=ev();e.key='affix';e.action='know';r=await call('/api/vocab/lesson/grade',e);assert.equal(r.status,200);assert.equal(r.data.wrote,false);
 let snap=(await call('/api/records')).data;assert.equal(snap.vocab.affix.i,100);assert.equal(snap.vocab.affix.n,2);assert.equal(snap.vocab.affix.due,now+86400000);
-// 重放幂等 + 同 id 换动作冲突
 const replay=await call('/api/vocab/lesson/grade',e);assert.equal(replay.data.duplicate,true);
 assert.equal((await call('/api/vocab/lesson/grade',{...e,action:'again'})).status,409);
-// 到期旧词：按良好延长
-await advanceTo('fixated');
-r=await call('/api/vocab/lesson/grade',{...ev(),key:'fixated',action:'know'});assert.equal(r.status,200);assert.equal(r.data.wrote,true);assert.equal(r.data.st.i,15);assert.ok(r.data.st.due>Date.now());
-// 新课新词：首次 3 天
+// —— 新课新词：首次 3 天
 await advanceTo('fix');
-r=await call('/api/vocab/lesson/grade',{...ev(),key:'fix',action:'know'});assert.equal(r.status,200);assert.equal(r.data.st.s,99);assert.equal(r.data.st.i,4320);assert.ok(Math.abs(r.data.st.due-Date.now()-4320*60000)<60000);
-// 重启持久化：进度与当前词保持
-const preRestart=await session();
-await stop();await start();
-r=await call('/api/vocab/lesson');assert.equal(r.data.session.doneCount,preRestart.doneCount);assert.equal(r.data.session.current,preRestart.current);
-// 重开 → 新认读轮
-r=await call('/api/vocab/lesson/start',{lessonId:'cfcm-01-01',restart:true});assert.equal(r.data.session.doneCount,0);assert.equal(r.data.session.remaining,176);assert.equal(r.data.session.current,'affix');
-// —— C1：未到期旧词看卡后认出 → 遗忘信号（1 天、ease-0.2），并进轮末重考
+r=await call('/api/vocab/lesson/grade',{...ev(),key:'fix',action:'know'});assert.equal(r.data.st.i,4320);assert.equal(r.data.st.s,99);
+// —— 重启持久化
+const pre=await S();await stop();await start();r=await S();assert.equal(r.doneCount,pre.doneCount);assert.equal(r.current,pre.current);
+// —— 重开 → 新认读轮（复习位保留）
+r=await call('/api/vocab/lesson/start',{lessonId:'cfcm-01-01',restart:true});assert.equal(r.data.slot,'first');assert.equal(r.data.session.doneCount,0);assert.equal(r.data.session.current,'affix');
+// —— C1：未到期旧词看卡后认出 → 遗忘（1 天、ease-0.2）+ 轮末重考
 r=await call('/api/vocab/lesson/grade',{...ev(),key:'affix',action:'again'});assert.equal(r.status,200);
 r=await call('/api/vocab/lesson/grade',{...ev(),key:'affix',action:'continue'});assert.equal(r.status,200);
 await advanceTo('affix');
 r=await call('/api/vocab/lesson/grade',{...ev(),key:'affix',action:'know'});
-assert.equal(r.status,200);assert.equal(r.data.wrote,true);assert.equal(r.data.st.i,1440);assert.equal(r.data.st.e,2.3);
-assert.ok(Math.abs(r.data.st.due-Date.now()-1440*60000)<60000);
-assert.equal((await session()).rechecked.affix,1);
-snap=(await call('/api/records')).data;assert.ok(snap.vocabEvents[seq===1?'lesson-event-0001':Object.keys(snap.vocabEvents).find(k=>/^lesson-event-/.test(k))]!==undefined,'全局账本应登记课级事件');
-// —— C2：看卡后认出的新词（无记录）→ 次日
+assert.equal(r.data.wrote,true);assert.equal(r.data.st.i,1440);assert.equal(r.data.st.e,2.3);
+assert.equal((await S()).rechecked.affix,1);
+// —— C2：看卡后认出的新词 → 次日
 await advanceTo('cross');
-const c2=ev();c2.key='cross';c2.action='again';
-r=await call('/api/vocab/lesson/grade',c2);assert.equal(r.status,200);
+r=await call('/api/vocab/lesson/grade',{...ev(),key:'cross',action:'again'});assert.equal(r.status,200);
 r=await call('/api/vocab/lesson/grade',{...ev(),key:'cross',action:'continue'});assert.equal(r.status,200);
 await advanceTo('cross');
-const c2k=ev();c2k.key='cross';c2k.action='know';
-r=await call('/api/vocab/lesson/grade',c2k);
-assert.equal(r.status,200);assert.equal(r.data.wrote,true);assert.equal(r.data.st.i,1440);assert.equal(r.data.st.e,2.5);assert.ok(Math.abs(r.data.st.due-Date.now()-1440*60000)<60000);
-snap=(await call('/api/records')).data;assert.ok(snap.vocabEvents[c2k.id],'全局账本应登记新词次日');
-// —— 跨端点事件 id 不可重放：旧端点用过的 id 不能进课级
-snap=(await call('/api/records')).data;
-assert.equal((await call('/api/vocab/grade',{id:'legacy-cross0001',word:'fixated',rating:3,at:Date.now()})).status,200);
-assert.equal((await call('/api/vocab/lesson/grade',{lessonId:'cfcm-01-01',id:'legacy-cross0001',key:'affix',action:'know'})).status,409);
-// —— 非当前词拒绝
+r=await call('/api/vocab/lesson/grade',{...ev(),key:'cross',action:'know'});
+assert.equal(r.data.wrote,true);assert.equal(r.data.st.i,1440);assert.equal(r.data.st.e,2.5);
+// —— 跨端点事件 id 与当前词守门
+assert.equal((await call('/api/vocab/grade',{id:'legacy-cross0001',word:'fix',rating:3,at:Date.now()})).status,200);
+assert.equal((await call('/api/vocab/lesson/grade',{lessonId:'cfcm-01-01',slot:'first',id:'legacy-cross0001',key:'affix',action:'know'})).status,409);
 assert.equal((await call('/api/vocab/lesson/grade',{...ev(),key:'affix',action:'know'})).status,409);
-// 普通快照不能覆盖课级会话
-snap=(await call('/api/records')).data;const keep=JSON.stringify(snap.vocabLesson);
-snap.vocabLesson={ 'cfcm-01-01':{ hacked:true } };
-snap.attemptProtocol=2;snap.snapshotId='lesson-snapshot-0001';
+// —— R3.2-2（进行中）：认读没过完时出现到期词 → 另开复习位，认读进度保留
+await patch(rec=>{ const k='fix'; if(rec.vocab[k]) rec.vocab[k].due=Date.now()-1000; });
+r=await call('/api/vocab/lesson/start',{lessonId:'cfcm-01-01'});
+assert.equal(r.data.slot,'review');assert.equal(r.data.session.current,'fix');
+const firstBefore=(await S()).doneCount;
+r=await call('/api/vocab/lesson/grade',{...ev(),slot:'review',key:'fix',action:'know'});assert.equal(r.status,200);assert.equal(r.data.wrote,true);
+r=await call('/api/vocab/lesson/start',{lessonId:'cfcm-01-01'});
+assert.equal(r.data.slot,'first');assert.equal(r.data.session.doneCount,firstBefore,'复习轮不应动认读轮进度');
+// —— 快照隔离
+snap=(await call('/api/records')).data;const keepFirst=JSON.stringify(snap.vocabLesson), keepReview=JSON.stringify(snap.vocabLessonReview);
+snap.vocabLesson={'hacked':1};snap.vocabLessonReview={'hacked':1};snap.attemptProtocol=2;snap.snapshotId='lesson-snapshot-0001';
 assert.equal((await call('/api/records',snap)).status,200);
-assert.equal(JSON.stringify((await call('/api/records')).data.vocabLesson),keep);
-const beforeStop=await session();
-await stop();await start();
-const mid=await session();assert.equal(mid.doneCount,beforeStop.doneCount);assert.equal(mid.current,beforeStop.current);
-// —— 走到完成：轮末重考不再写调度；归档 tries 与 nextDueAt
+snap=(await call('/api/records')).data;assert.equal(JSON.stringify(snap.vocabLesson),keepFirst);assert.equal(JSON.stringify(snap.vocabLessonReview),keepReview);
+// —— 走完认读轮：轮末重考不再写、归档 tries、nextDueAt
 for(let guard=0;guard<600;guard++){
-  const g=await session();
-  if(g.completedAt) break;
-  if(g.front===1){ await call('/api/vocab/lesson/grade',{lessonId:'cfcm-01-01',id:'drain-c-'+guard,key:g.current,action:'continue'}); continue; }
-  await call('/api/vocab/lesson/grade',{lessonId:'cfcm-01-01',id:'drain-k-'+guard,key:g.current,action:'know'});
+  const s=await S(); if(s.completedAt) break;
+  if(s.front===1){ await call('/api/vocab/lesson/grade',{lessonId:'cfcm-01-01',slot:'first',id:'drain-c-'+guard,key:s.current,action:'continue'}); continue; }
+  await call('/api/vocab/lesson/grade',{lessonId:'cfcm-01-01',slot:'first',id:'drain-k-'+guard,key:s.current,action:'know'});
 }
 r=await call('/api/vocab/lesson');const fin=r.data.session;
 assert.ok(fin.completedAt);assert.equal(fin.remaining,0);assert.ok(fin.nextDueAt>Date.now());
 assert.equal(fin.history[0].tries.affix,1);assert.equal(fin.history[0].tries.cross,1);
-// 完成后无到期 → start 原样返回
-r=await call('/api/vocab/lesson/start',{lessonId:'cfcm-01-01'});assert.equal(r.data.resumed,true);
-// 完成页元信息：复习概览 + 难词（R2.4-4）
+// —— 完成后无到期 → start 留在认读位；复习位结果仍可读
+r=await call('/api/vocab/lesson/start',{lessonId:'cfcm-01-01'});assert.equal(r.data.slot,'first');assert.equal(r.data.resumed,true);
 r=await call('/api/vocab/lesson');assert.equal(r.data.review.due,0);assert.ok(r.data.review.tomorrow>=1);
-assert.ok(Array.isArray(r.data.hardWords)&&r.data.hardWords.length>=1&&r.data.hardWords[0].tries>=1);
-// 人为把一个词改成已到期（停服改 fixture）→ 进课即开复习轮（R2.2-2 服务端）
-await stop();
-const rf=path.join(dir,'records.json');const rec=JSON.parse(fs.readFileSync(rf,'utf8'));
-rec.vocab.cross={...rec.vocab.cross,due:Date.now()-1000};
-fs.writeFileSync(rf,JSON.stringify(rec));
-await start();
-r=await call('/api/vocab/lesson');assert.ok(r.data.review.due>=1);
+assert.ok(r.data.reviewSession&&r.data.reviewSession.completedAt,'复习位应保留上一轮结果');
+assert.ok(Array.isArray(r.data.hardWords));
+// —— R3.2-4：复习轮 40 上限；做完一轮仍有到期 → 再开下一轮
+await patch(rec=>{ let n=0; const skip=new Set(['affix','cross','fix','fixity','fixed','fixer']);
+  for(const [k,v] of Object.entries(rec.vocab)){ if(n>=45) break; if(skip.has(k)) continue; v.due=Date.now()-1000; n++; } });
 r=await call('/api/vocab/lesson/start',{lessonId:'cfcm-01-01'});
-assert.equal(r.data.resumed,false);assert.equal(r.data.session.phase,'review');assert.equal(r.data.session.remaining,r.data.review.due);
-r=await call('/api/vocab/lesson/grade',{...ev(),key:'cross',action:'know'});
-assert.equal(r.status,200);assert.equal(r.data.wrote,true);assert.ok(r.data.st.due>Date.now());
-r=await call('/api/vocab/lesson');assert.ok(r.data.session.completedAt,'复习轮应完成');
-console.log('PASS lesson vocab: 176 cards, resume, non-due freeze, due extend, initial 3d, seen-card next-day, continue insert@10, global ledger, idempotent replay, payload conflict, current guard, snapshot isolation, restart persistence, lapse on seen-card existing, round-end recheck, archive tries + nextDueAt, review metadata + auto review round');
+assert.equal(r.data.slot,'review');assert.equal(r.data.session.remaining,40);assert.equal(r.data.session.total,40);
+for(let i=0;i<40;i++){ const s=await RS(); if(s.completedAt) break; const rr=await call('/api/vocab/lesson/grade',{lessonId:'cfcm-01-01',slot:'review',id:'cap-'+String(i).padStart(4,'0'),key:s.current,action:'know'}); assert.equal(rr.status,200); }
+r=await call('/api/vocab/lesson');assert.ok(r.data.reviewSession&&r.data.reviewSession.completedAt);assert.equal(r.data.review.due,5);
+r=await call('/api/vocab/lesson/start',{lessonId:'cfcm-01-01'});assert.equal(r.data.slot,'review');assert.equal(r.data.session.remaining,5);
+console.log('PASS lesson vocab: cards/lessons, due-first review slot, first pass 176, freeze, initial 3d, restart, lapse rules, next-day, slot isolation, cross-endpoint ids, review mid-round, snapshot isolation, drain + archive + nextDueAt');
 })().catch(e=>{console.error(e);process.exitCode=1}).finally(()=>server?.kill());

@@ -113,3 +113,6 @@
 #v-vocab .lv-rg .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
 #v-vocab .lv-rg .chips span{font-size:12px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;background:var(--sunk);color:var(--t2)}
 #v-vocab .lvbadge{margin-left:6px;white-space:nowrap}
+
+#v-vocab .lv-rgw{font-size:12.5px;color:var(--t2);padding:4px 0;line-height:1.6}
+#v-vocab .lv-rgw b{color:var(--t1);font-weight:600;margin-right:2px}

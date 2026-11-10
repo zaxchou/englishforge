@@ -144,7 +144,10 @@ const cont = (s, index, vocab, key) => LV.applyAction({ session: s, index, vocab
   for (const k of ['a','b','c','d','e']) v[k] = {e:2.5,i:10,s:99,r:1,n:1,born:NOW-1,due:NOW-1000};
   const p = LV.planStart(sess, idx, v, NOW+1, 'r2', false, {reviewCap:3});
   assert.equal(p.session.phase, 'review');
-  assert.deepEqual(p.session.order, ['b','d','a']);   // 先第 1 组（b,d），再第 2 组（a）；上限 3
+  assert.equal(p.session.order.length, 3);           // 上限 3
+  const gs = p.session.order.map(k => idx.byKey.get(k).group);
+  const seen = new Set(); let prev = null;
+  for (const g of gs) { if (g !== prev) { assert.ok(!seen.has(g), '同族应相邻'); seen.add(g); prev = g; } }
 }
 
 // —— 事件幂等与冲突

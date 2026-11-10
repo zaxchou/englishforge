@@ -21,5 +21,8 @@ let spoken=0;t.ctx.spoken=()=>spoken++;t.run('vbSpeak=()=>spoken();VB.cur=VB.ord
 // Lesson view active: old vocab render/wake/study timer must stay out of the way.
 t=setup();t.ctx.window.LV={isActive:()=>true};t.run('VB.bank={};VB.order=[{w:"affix",k:"affix"}];VB.cur=VB.order[0]');t.run('vbRender()');assert.equal(t.body.innerHTML,'');t.run('vbStudyGate()');assert.equal(t.intervals.size,0);const wakes=t.timers.size;t.run('vbScheduleWake()');assert.equal(t.timers.size,wakes);
 t.ctx.window.LV={isActive:()=>false};t.run('vbRender()');assert.ok(t.body.innerHTML.length>0);
-console.log('PASS actual client: script syntax, durable inflight queue, concurrent append, flush lock, reload, stale snapshot, quota failure, 805-entry migration, due wake, study stop, streak, single autoplay, lesson guard blocks old vocab render/timer/wake');
+// R3.2-1: EnglishPod 新词块不受万词班上课状态限制；未上课的万词班词不发
+t=setup();t.run('REC.vocabCfg={daily:20};LV_LESSON_KEYS=new Set(["affix"]);VB.order=[{w:"futureword",k:"futureword",kind:null,lesson:2},{w:"chunkword",k:"chunkword",kind:"eplod",lesson:999}]');
+assert.equal(t.run('vbPick()').c.w,'chunkword');
+console.log('PASS actual client: script syntax, durable inflight queue, concurrent append, flush lock, reload, stale snapshot, quota failure, 805-entry migration, due wake, study stop, streak, single autoplay, lesson guard blocks old vocab render/timer/wake, eplod chunks bypass watch gate');
 })().catch(e=>{console.error(e);process.exitCode=1});

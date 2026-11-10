@@ -61,25 +61,35 @@ export function publicSession(s) {
 
 /* start 语义：有未完成会话→续做；已完成→若有到期词则开复习轮，否则原样返回；
    restart→强制新认读轮（保留最近历史）。 */
+/* 复习轮：同族相邻（先词根线索），族与族之间打乱；单轮上限防洪峰。 */
+export function createReviewSession(index, vocab, now, roundId, opts = {}) {
+  const due = dueKeys(index, vocab, now);
+  if (!due.length) return null;
+  const cap = Math.max(1, Math.min(200, Number(opts.reviewCap) || REVIEW_CAP));
+  const byGroup = new Map();
+  for (const k of due) {
+    const g = Number((index.byKey.get(k) || {}).group || 0);
+    if (!byGroup.has(g)) byGroup.set(g, []);
+    byGroup.get(g).push(k);
+  }
+  for (const list of byGroup.values()) list.sort((a, b) => Number(vocab[a].due) - Number(vocab[b].due));
+  const order = [];
+  for (const g of shuffle([...byGroup.keys()])) order.push(...byGroup.get(g));
+  const picked = order.slice(0, cap);
+  const fresh = newSession(index, now, roundId);
+  fresh.phase = 'review';
+  fresh.order = picked.slice();
+  fresh.queue = picked.slice();
+  return fresh;
+}
+
 export function planStart(existing, index, vocab, now, roundId, restart, opts = {}) {
   if (existing && !restart) {
     if (!existing.completedAt) return { session: existing, resumed: true };
-    const due = dueKeys(index, vocab, now);
-    if (!due.length) return { session: existing, resumed: true };
-    // 按词根组同族相邻（复习时先给词根线索），组内按到期先后；单轮上限防洪峰
-    const cap = Math.max(1, Math.min(200, Number(opts.reviewCap) || REVIEW_CAP));
-    due.sort((a, b) => {
-      const ga = Number((index.byKey.get(a) || {}).group || 0);
-      const gb = Number((index.byKey.get(b) || {}).group || 0);
-      return ga - gb || Number(vocab[a].due) - Number(vocab[b].due);
-    });
-    const picked = due.slice(0, cap);
-    const fresh = newSession(index, now, roundId);
-    fresh.phase = 'review';
-    fresh.order = picked.slice();
-    fresh.queue = picked.slice();
-    if (existing.history) fresh.history = existing.history.slice(-4);
-    return { session: fresh, resumed: false };
+    const review = createReviewSession(index, vocab, now, roundId, opts);
+    if (!review) return { session: existing, resumed: true };
+    if (existing.history) review.history = existing.history.slice(-4);
+    return { session: review, resumed: false };
   }
   const fresh = newSession(index, now, roundId);
   if (existing && existing.history) fresh.history = existing.history.slice(-4);
