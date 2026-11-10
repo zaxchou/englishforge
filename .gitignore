@@ -6,7 +6,8 @@ build/
 docs/
 records/
 releases/
-skills/
+skills/*
+!skills/cfcm-lesson-flow/
 deploy/production/
 deploy/seed-records.json
 
