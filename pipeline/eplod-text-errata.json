@@ -541,6 +541,10 @@
     [
      "I sat behind you every day in class",
      "I sat behind you in science class"
+    ],
+    [
+     "What do do you mean",
+     "What do you mean"
     ]
    ],
    "note": "原音 in science class(双引擎)"
@@ -953,6 +957,55 @@
     ]
    ],
    "note": "官方 PDF 重复词(原音单 you, qwen+whisper 双引擎一致); 覆盖正文/词块例句/意群(2026-11-10)"
+  },
+  "0032": {
+   "replacements": [
+    [
+     "I can can help",
+     "I can help"
+    ],
+    [
+     "What What features",
+     "What features"
+    ]
+   ],
+   "note": "官方重复词(原音单 can/What, qwen 无偏置确认)"
+  },
+  "0153": {
+   "replacements": [
+    [
+     "able to home",
+     "able to go home"
+    ]
+   ],
+   "note": "官方漏 go(原音 able to go home)"
+  },
+  "0213": {
+   "replacements": [
+    [
+     "you have to to arrange",
+     "you have to arrange"
+    ]
+   ],
+   "note": "官方重复词(原音单 to)"
+  },
+  "0217": {
+   "replacements": [
+    [
+     "happy to to rate my time",
+     "happy to donate my time"
+    ]
+   ],
+   "note": "官方 'to to rate' 重复且错词; 原音 qwen=donate(whisper 近音 make), 语义 donate one's time to a good cause"
+  },
+  "0269": {
+   "replacements": [
+    [
+     "the best best tasting",
+     "the best tasting"
+    ]
+   ],
+   "note": "官方重复词(原音单 best)"
   }
  }
 }
