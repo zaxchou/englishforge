@@ -101,3 +101,15 @@
 #v-vocab .lv-hard{margin-top:14px;text-align:left}
 #v-vocab .lv-hard .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
 #v-vocab .lv-hard .chips span{font-size:12px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;background:var(--sunk);color:var(--t2)}
+
+#v-vocab .lv-break{text-align:center;padding-top:30px;padding-bottom:28px}
+#v-vocab .lv-break h3{margin:6px 0 8px;font-size:20px;font-weight:600}
+#v-vocab .lv-recall{margin-top:16px;text-align:left;border-top:1px solid var(--line);padding-top:12px}
+#v-vocab .lv-rg{border-bottom:1px solid var(--line);padding:8px 0}
+#v-vocab .lv-rg summary{cursor:pointer;font-size:13px;color:var(--t2);list-style:none;padding:4px 0}
+#v-vocab .lv-rg summary::-webkit-details-marker{display:none}
+#v-vocab .lv-rg summary::before{content:"+ ";color:var(--t3)}
+#v-vocab .lv-rg[open] summary::before{content:"− "}
+#v-vocab .lv-rg .chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+#v-vocab .lv-rg .chips span{font-size:12px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;background:var(--sunk);color:var(--t2)}
+#v-vocab .lvbadge{margin-left:6px;white-space:nowrap}

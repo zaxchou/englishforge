@@ -9,7 +9,7 @@
 <link rel="apple-touch-icon" sizes="180x180" href="/assets/brand/t-dot-v1/t-dot-180.png">
 <title>TOEFL Lab · 托福自学练习</title>
 <link rel="stylesheet" href="desk.css?v=20261109r14">
-<link rel="stylesheet" href="lesson-vocab.css?v=20261109r6">
+<link rel="stylesheet" href="lesson-vocab.css?v=20261110r1">
 <style>
 /* 应用层补充样式（视觉基线在 desk.css，不改它的既有规则） */
 /* 单词与字符格保持同一行；焦点、已填、判题状态沿用研读桌配色。 */
@@ -360,7 +360,7 @@ details.ai-tsec[open] summary{margin-bottom:8px}
 <script src="course-plan-ui.js?v=20261107r8"></script>
 <script src="root-practice-ui.js?v=e3203ffa489d"></script>
 <script src="speaking-ui.js?v=20261106r6"></script>
-<script src="lesson-vocab-ui.js?v=20261109r9"></script>
+<script src="lesson-vocab-ui.js?v=20261110r1"></script>
 <script>
 'use strict';
 /* ============================================================
@@ -3083,6 +3083,7 @@ function gqConsumeRedo(lessonId) {
 /* ---------- 背单词（万词班词库 · SM-2 间隔重复, beizitie 同参数） ---------- */
 const VB = { bank:null, order:null, cur:null, revealed:false, hint:false, loading:false, err:'', rootMap:{} };
 let VB_TICK=null, VB_QUEUE_T=null, VB_WAKE=null, VB_FLUSHING=false, VB_SPOKEN=null;
+let LV_LESSONS=null, LV_LESSON_KEYS=new Set(), LV_BANNER_LESSON='cfcm-01-01';
 const VB_QKEY='tfl-vb-queue', VB_PREFIX='tfl-vb-event:';
 const VB_ACK={}, VB_DAYS={}, VB_SEEN=new Set();
 function vbKey(s){ return String(s||'').toLowerCase().replace(/\s+/g,''); }
@@ -3115,6 +3116,7 @@ async function vbLoadBank(){
     VB.order=[];
     for(const b of VB.bank.batches) for(const w of b.words) VB.order.push({w:w.w, ipa:w.ipa, def:w.def, sen:w.sen, senZh:w.senZh, lesson:w.lesson, k:vbKey(w.w), root:b.root, gloss:b.gloss, batch:b.id, kind:b.kind||null});
     vbFlushQueue();
+    loadLVLessons();
   }catch(e){ VB.err='词库读取失败'; }
   VB.loading=false; vbRender();
   /* 词根学习档案投影(独立请求, 失败静默 = 卡片不升级): 命中词显示词根拆解与词典入口 */
@@ -3162,8 +3164,9 @@ function vbCounts(){
   const now=Date.now(), today=vbDay(), state=vbState();
   let learn=0,due=0,newToday=0,total=0;
   const days={}; for(const [day,stats] of Object.entries({...REC.vocabDays,...VB_DAYS}))if(stats.grades>0)days[day]=1;
-  for(const st of Object.values(state)){
+  for(const [k,st] of Object.entries(state)){
     total++; if(st.born&&vbDay(st.born)===today)newToday++;
+    if(LV_LESSON_KEYS.has(k)) continue;               // 课级词只在课程复习轮出现
     if(Number(st.due||0)<=now){st.s===99?due++:learn++;}
   }
   let pendingNew=0;const seen=new Set([...Object.keys(REC.vocab||{}),...Object.keys(VB_ACK)]);
@@ -3182,14 +3185,15 @@ function vbCounts(){
 function vbPick(){
   const now=Date.now(), V=vbState();
   let best=null;
-  for(const c of VB.order){ const st=V[c.k]; if(st&&st.s!==-1&&st.s!==99&&Number(st.due)<=now&&(!best||st.due<best.st.due)) best={c,st}; }
+  const own=k=>LV_LESSON_KEYS.has(k);
+  for(const c of VB.order){ if(own(c.k))continue; const st=V[c.k]; if(st&&st.s!==-1&&st.s!==99&&Number(st.due)<=now&&(!best||st.due<best.st.due)) best={c,st}; }
   if(best) return best;                                          // 1) 学习阶梯到期(分钟级, 当场回收)
   best=null;
-  for(const c of VB.order){ const st=V[c.k]; if(st&&st.s===99&&Number(st.due)<=now&&(!best||st.due<best.st.due)) best={c,st}; }
+  for(const c of VB.order){ if(own(c.k))continue; const st=V[c.k]; if(st&&st.s===99&&Number(st.due)<=now&&(!best||st.due<best.st.due)) best={c,st}; }
   if(best) return best;                                          // 2) 已毕业到期(最久未复习优先)
   const quota=(REC.vocabCfg&&REC.vocabCfg.daily!=null)?Number(REC.vocabCfg.daily):20;
   if(vbCounts().newToday<quota){
-    for(const c of VB.order) if(!V[c.k]) return {c, st:null};    // 3) 新词(词库顺序=课序→词根批序)
+    for(const c of VB.order) if(!V[c.k]&&!own(c.k)&&(c.kind==='chunk'||lessonWatched(c.lesson))) return {c, st:null};    // 3) 新词：只发已上课的词
   }
   return null;
 }
@@ -3198,32 +3202,50 @@ function mountVocab(){
   if(window.LV) LV.leave();
   try{vbMigrateQueue();}catch(e){VB.err=e.message;} vbLoadBank(); vbRender(); vbFlushQueue(); refreshLessonBanner();
 }
-if($('lv-entry-go')) $('lv-entry-go').onclick=()=>nav('vocab/lesson/cfcm-01-01');
+async function loadLVLessons(force){
+  if(LV_LESSONS&&!force) return LV_LESSONS;
+  try{
+    const d=await api('/api/vocab/lessons',{signal:AbortSignal.timeout(8000)});
+    LV_LESSONS=d.lessons||[];
+    LV_LESSON_KEYS=new Set(d.keys||[]);
+    refreshLessonBanner();
+    if(document.querySelector('#v-course.on')&&document.querySelector('#cs-nav')) renderCourseNav();
+  }catch(e){}
+  return LV_LESSONS;
+}
+if($('lv-entry-go')) $('lv-entry-go').onclick=()=>nav('vocab/lesson/'+encodeURIComponent(LV_BANNER_LESSON||'cfcm-01-01'));
 /* 横幅按课级复习概览显示“今天该做什么”（复习轮入口） */
 async function refreshLessonBanner(){
   const title=$('lv-entry-title'), sub=$('lv-entry-sub'), btn=$('lv-entry-go');
   if(!title||!sub||!btn) return;
-  try{
-    const d=await api('/api/vocab/lesson',{signal:AbortSignal.timeout(8000)});
-    const rv=d.review||{};
-    const sess=d.session||null;
-    const done=!!(sess&&sess.completedAt);
-    if(sess&&!done){
-      title.textContent='第01课 · 继续认读 '+(sess.doneCount||0)+'/'+(d.lesson?.total||176);
-      sub.textContent='还剩 '+(sess.remaining||0)+' 词 · 到期词会在本轮结束后单独复习'
-        +(rv.due?('（已有 '+rv.due+' 词到期）'):'');
-      btn.textContent='继续认读';
-    }else if(rv.due>0 && done){
-      title.textContent='第01课 · 今天 '+rv.due+' 词待再认';
-      sub.textContent='到期词只走这一轮：两按钮 + 老师讲解，认出即延长间隔';
-      btn.textContent='开始再认';
-    }else{
-      title.textContent='第01课 · 全词认读';
-      sub.textContent='176 词 · 正面只给英文，认识 / 不认识；不认识看老师讲解，当天再认'
-        +((done&&rv.tomorrow)?(' · 明天还有 '+rv.tomorrow+' 词到期'):'');
-      btn.textContent='开始认读';
-    }
-  }catch(e){}
+  const list=await loadLVLessons();
+  if(!list||!list.length) return;
+  const pick=list.find(x=>x.session&&!x.session.completedAt)
+    || list.find(x=>x.review&&x.review.due>0)
+    || list[0];
+  LV_BANNER_LESSON=pick.lessonId;
+  const short=pick.title||pick.lessonId;
+  const sess=pick.session, rv=pick.review||{};
+  if(sess&&!sess.completedAt){
+    title.textContent=short+' · 继续认读 '+sess.doneCount+'/'+pick.total;
+    sub.textContent='还剩 '+sess.remaining+' 词 · 到期词会在本轮结束后单独复习'
+      +(rv.due?('（已有 '+rv.due+' 词到期）'):'');
+    btn.textContent='继续认读';
+  }else if(rv.due>0){
+    title.textContent=short+' · 今天 '+rv.due+' 词待再认';
+    sub.textContent='到期词只走这一轮：两按钮 + 老师讲解，认出即延长间隔';
+    btn.textContent='开始再认';
+  }else{
+    title.textContent=short;
+    sub.textContent=pick.total+' 词 · 正面只给英文，认识 / 不认识；不认识看老师讲解，当天再认'
+      +((sess&&rv.tomorrow)?(' · 明天还有 '+rv.tomorrow+' 词到期'):'');
+    btn.textContent=sess?'查看认读':'开始认读';
+  }
+}
+function lessonWatched(n){
+  if(!n) return true;
+  const id='cfcm-01-'+String(n).padStart(2,'0');
+  return !!(REC.course&&REC.course[id]&&REC.course[id].done);
 }
 function lvActive(){ return !!(window.LV&&window.LV.isActive&&window.LV.isActive()); }
 function vbSuspendForLesson(){
@@ -3512,6 +3534,24 @@ function spkNavRefresh(){
     .catch(()=>{});
 }
 window.spkNavRefresh=spkNavRefresh;
+function decorateCourseNav(el,c){
+  if(!el||!c||c.kind==='eplod') return;
+  if(!LV_LESSONS){ loadLVLessons(); return; }
+  const byId={}; for(const x of LV_LESSONS) byId[x.lessonId]=x;
+  el.querySelectorAll('.cli[data-ix]').forEach(row=>{
+    const ix=Number(row.getAttribute('data-ix'));
+    const l=(c.lessons||[])[ix]; if(!l) return;
+    const lv=byId[l.id]; if(!lv) return;
+    let text='';
+    if(lv.session&&!lv.session.completedAt) text='认读 '+lv.session.doneCount+'/'+lv.total;
+    else if(lv.session&&lv.review&&lv.review.due>0) text='再认 '+lv.review.due;
+    else if(lv.session&&lv.session.completedAt) text='✓ 已认完';
+    if(!text) return;
+    if(row.querySelector('.lvbadge')) return;
+    const lt=row.querySelector('.lt');
+    if(lt) lt.insertAdjacentHTML('afterend','<span class="lmk lvbadge">'+text+'</span>');
+  });
+}
 function renderCourseNav(){
   updateCourseCount();
   const series=(COURSES&&COURSES.series)||[];
@@ -3594,6 +3634,7 @@ function renderCourseNav(){
     });}
   }
   const el=$('cs-nav'); el.innerHTML=h;
+  decorateCourseNav(el,c);
   const sel=el.querySelector('#cs-course'); if(sel)sel.onchange=e=>openCourse(e.target.value);
   if(c&&c.kind==='eplod'){
     const qin=el.querySelector('#ep-q');

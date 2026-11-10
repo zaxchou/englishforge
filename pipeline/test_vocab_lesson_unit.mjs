@@ -134,6 +134,19 @@ const cont = (s, index, vocab, key) => LV.applyAction({ session: s, index, vocab
   assert.ok(p2.session.history.length >= 1);
 }
 
+// —— 复习轮：同族相邻 + 单轮上限
+{
+  const idx = LV.indexCards({lessonId:'t',title:'t',total:5,cards:[
+    {key:'a',word:'a',group:2},{key:'b',word:'b',group:1},{key:'c',word:'c',group:2},
+    {key:'d',word:'d',group:1},{key:'e',word:'e',group:3}]});
+  const sess = LV.newSession(idx, NOW, 'r0'); sess.completedAt = NOW - 1000;
+  const v = {};
+  for (const k of ['a','b','c','d','e']) v[k] = {e:2.5,i:10,s:99,r:1,n:1,born:NOW-1,due:NOW-1000};
+  const p = LV.planStart(sess, idx, v, NOW+1, 'r2', false, {reviewCap:3});
+  assert.equal(p.session.phase, 'review');
+  assert.deepEqual(p.session.order, ['b','d','a']);   // 先第 1 组（b,d），再第 2 组（a）；上限 3
+}
+
 // —— 事件幂等与冲突
 {
   const { index, session, vocab } = fresh(['a']);

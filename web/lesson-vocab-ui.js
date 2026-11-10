@@ -1,7 +1,7 @@
 /* 第一课课程认读界面。数据与服务端会话来自 /api/vocab/lesson*，不写 localStorage 进度。
    评分语义（2026-11-10 审计修正）：认识→先核对词义再结算；看卡后认出由服务端按遗忘处理。 */
 (function(){
-  const LESSON='cfcm-01-01';
+  let lessonId='cfcm-01-01';
   const CONFIRM_MS=2500;
   const q=id=>document.getElementById(id);
   let token=0, active=false, cards=null, lesson=null, session=null, busy=false, uni=false, err='', audio=null;
@@ -131,6 +131,23 @@
       + '</div>';
   }
 
+  function recallPanel(){
+    if(!cards||!cards.length) return '';
+    const groups=new Map();
+    for(const c of cards){
+      const g=Number(c.group)||0;
+      if(!groups.has(g)) groups.set(g,{label:c.groupLabel||('第'+g+'组'),root:c.rootLabel||'',words:[]});
+      groups.get(g).words.push(c);
+    }
+    let h='<div class="lv-recall"><div class="lv-label">词根族回忆</div>'
+      +'<p class="lv-empty">先看词根，回想这一族里有哪几个词、各是什么意思，再展开核对。</p>';
+    for(const [g,info] of [...groups].sort((a,b)=>a[0]-b[0])){
+      h+='<details class="lv-rg"><summary>'+esc(info.label)+(info.root?(' · '+esc(info.root)):'')+'</summary>'
+        +'<div class="chips">'+info.words.map(x=>'<span>'+esc(x.word)+'</span>').join('')+'</div></details>';
+    }
+    return h+'</div>';
+  }
+
   function done(){
     if(!doneShown){ doneShown=true; settleTime(); }
     const s=session, total=s.total||0, first=s.summary&&s.summary.first||0, later=s.summary&&s.summary.later||0;
@@ -147,6 +164,7 @@
       + '<div class="lv-stats"><div><span>全词</span><b>'+total+'</b></div>'
       + '<div><span>直接认出</span><b>'+first+'</b></div>'
       + '<div><span>看卡后认出</span><b>'+later+'</b></div></div>'
+      + recallPanel()
       + '<p class="lv-due">'+dueLine+(lesson&&lesson.review&&lesson.review.tomorrow?' · 明天还有 <b>'+lesson.review.tomorrow+'</b> 词到期': '')+'</p>'
       + ((lesson&&(lesson.hardWords||[]).length)?'<div class="lv-hard"><div class="lv-label">本轮看卡最多的词</div><div class="chips">'
         +lesson.hardWords.map(x=>'<span>'+esc(x.word)+' ×'+x.tries+'</span>').join('')+'</div></div>':'')
@@ -156,12 +174,31 @@
       + (err?'<p class="lv-err" role="alert">'+esc(err)+'</p>':'')+'</div>';
   }
 
+  const SEG_SIZE=60, SEG_COUNT=3;
+  function segDue(){
+    if(!session||session.completedAt||session.front===1) return 0;
+    if(session.phase==='review') return 0;
+    const seg=Math.floor((session.doneCount||0)/SEG_SIZE);
+    if(seg<1||seg>=SEG_COUNT) return 0;
+    try{ if(localStorage.getItem('tfl-lv-seg:'+session.roundId+':'+seg)) return 0; }catch(e){}
+    return seg;
+  }
+  function breakCard(seg){
+    return '<div class="lv-card lv-break">'
+      + '<div class="lv-label">第 '+(seg+1)+' / '+SEG_COUNT+' 段</div>'
+      + '<h3>这一段过完了</h3>'
+      + '<p class="lv-empty">已认 '+(session.doneCount||0)+' / '+(session.total||176)+' 词。可以继续下一段，也可以今天先到这里——进度已保存。</p>'
+      + '<div class="lv-choices"><button class="lv-btn" type="button" data-lv="seg-exit">今天先到这里</button>'
+      + '<button class="lv-btn pri" type="button" data-lv="seg-continue">继续下一段</button></div></div>';
+  }
   function render(){
     const body=q('vb-body');
     if(!body||!active||!document.querySelector('#v-vocab.on')) return;
     const ct=q('vb-ct'); if(ct&&lesson) ct.textContent='第01课 · '+(session?(session.doneCount||0):0)+' / '+(lesson.total||176);
     if(!session){ body.innerHTML=shell('<div class="lv-loading">正在读取课级进度…</div>'); wire(); return; }
     if(session.completedAt){ body.innerHTML=shell(done()); wire(); return; }
+    const seg=segDue();
+    if(seg){ body.innerHTML=shell(breakCard(seg)); wire(); return; }
     const c=byKey.get(session.current);
     if(!c){ body.innerHTML=shell('<div class="lv-loading">词卡数据缺少当前词，请重试。</div>'); wire(); return; }
     body.innerHTML=shell(session.front===1?detail(c):front(c));
@@ -177,6 +214,8 @@
         if(act==='uni'){ uni=!uni; render(); }
         else if(act==='back'){ leave(); location.hash='#/vocab'; }
         else if(act==='restart'){ if(!busy) restart(); }
+        else if(act==='seg-continue'){ try{localStorage.setItem('tfl-lv-seg:'+session.roundId+':'+segDue(),'1');}catch(e){} render(); }
+        else if(act==='seg-exit'){ leave(); location.hash='#/vocab'; }
         else if(act==='know'){ if(!busy&&!confirming) startConfirm(); }
         else if(act==='proceed'){ if(confirming) proceed(); }
         else if(act==='wrong'){ if(confirming) markWrong(); }
@@ -236,7 +275,7 @@
     render();
     try{
       const res=await api('/api/vocab/lesson/grade',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({lessonId:LESSON,id,key,action}),signal:AbortSignal.timeout(15000)});
+        body:JSON.stringify({lessonId,id,key,action}),signal:AbortSignal.timeout(15000)});
       if(t!==token) return;
       session=res.session; pending=null; uni=false;
       mergeVocabAck(key,res); applyMeta(res);
@@ -258,7 +297,7 @@
     render();
     try{
       const res=await api('/api/vocab/lesson/start',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({lessonId:LESSON,restart:true}),signal:AbortSignal.timeout(15000)});
+        body:JSON.stringify({lessonId,restart:true}),signal:AbortSignal.timeout(15000)});
       if(t!==token) return;
       session=res.session; lesson=res.lesson||lesson; uni=false; pending=null;
     }catch(e){
@@ -271,6 +310,7 @@
 
   async function open(id){
     const t=++token; active=true; busy=false; uni=false; err=''; session=null; pending=null;
+    if(id) lessonId=id;
     confirming=false; if(confirmTimer){clearTimeout(confirmTimer);confirmTimer=null;}
     doneShown=false;
     try{window.vbSuspendForLesson&&vbSuspendForLesson();}catch(e){}
@@ -281,17 +321,17 @@
     if(body) body.innerHTML='<div class="lv-loading">正在读取第一课词卡…</div>';
     try{
       if(!cards){
-        const data=await api('/api/vocab/lesson/cards',{signal:AbortSignal.timeout(20000)});
+        const data=await api('/api/vocab/lesson/cards?id='+encodeURIComponent(lessonId),{signal:AbortSignal.timeout(20000)});
         if(t!==token) return;
         cards=data.cards; byKey.clear(); cards.forEach(c=>byKey.set(c.key,c));
         lesson={title:data.title,total:data.total,noted:data.noted};
       }
-      const meta=await api('/api/vocab/lesson',{signal:AbortSignal.timeout(10000)});
+      const meta=await api('/api/vocab/lesson?id='+encodeURIComponent(lessonId),{signal:AbortSignal.timeout(10000)});
       if(t!==token) return;
       lesson=meta.lesson||lesson; session=meta.session; applyMeta(meta);
       if(!session||session.completedAt){
         const st=await api('/api/vocab/lesson/start',{method:'POST',headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({lessonId:id||LESSON}),signal:AbortSignal.timeout(15000)});
+          body:JSON.stringify({lessonId}),signal:AbortSignal.timeout(15000)});
         if(t!==token) return;
         session=st.session; lesson=st.lesson||lesson; applyMeta(st);
       }

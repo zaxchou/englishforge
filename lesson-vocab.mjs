@@ -7,6 +7,7 @@
 export const LESSON_ID = 'cfcm-01-01';
 export const FIRST_INTERVAL_MIN = 3 * 24 * 60;   // 首次认出约 3 天（用户定的策略）
 export const RELEARN_INTERVAL_MIN = 24 * 60;     // 看卡后认出：次日再确认
+export const REVIEW_CAP = 40;                   // 单个复习轮最多处理多少到期词（防 176 词同日洪峰）
 const ACTIONS = new Set(['know', 'again', 'continue']);
 
 export const norm = s => String(s || '').toLowerCase().replace(/\s+/g, '');
@@ -60,15 +61,23 @@ export function publicSession(s) {
 
 /* start 语义：有未完成会话→续做；已完成→若有到期词则开复习轮，否则原样返回；
    restart→强制新认读轮（保留最近历史）。 */
-export function planStart(existing, index, vocab, now, roundId, restart) {
+export function planStart(existing, index, vocab, now, roundId, restart, opts = {}) {
   if (existing && !restart) {
     if (!existing.completedAt) return { session: existing, resumed: true };
     const due = dueKeys(index, vocab, now);
     if (!due.length) return { session: existing, resumed: true };
+    // 按词根组同族相邻（复习时先给词根线索），组内按到期先后；单轮上限防洪峰
+    const cap = Math.max(1, Math.min(200, Number(opts.reviewCap) || REVIEW_CAP));
+    due.sort((a, b) => {
+      const ga = Number((index.byKey.get(a) || {}).group || 0);
+      const gb = Number((index.byKey.get(b) || {}).group || 0);
+      return ga - gb || Number(vocab[a].due) - Number(vocab[b].due);
+    });
+    const picked = due.slice(0, cap);
     const fresh = newSession(index, now, roundId);
     fresh.phase = 'review';
-    fresh.order = due.slice();
-    fresh.queue = shuffle(due.slice());
+    fresh.order = picked.slice();
+    fresh.queue = picked.slice();
     if (existing.history) fresh.history = existing.history.slice(-4);
     return { session: fresh, resumed: false };
   }

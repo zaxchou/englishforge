@@ -1020,15 +1020,53 @@ async function aiExplainGen(qidStr, course, mk, no, force) {
    状态存 records.vocab（词键 → {e,i,s,r,due,n,at,born}）, 判分走 /api/vocab/grade 增量直写(r56 模式)。 */
 const VOCAB_BANK_FILE = path.join(BUILD_DIR, 'vocab', 'cfcm-words.json');
 const EPLOD_CHUNKS_FILE = path.join(BUILD_DIR, 'vocab', 'eplod-chunks.json');
-const LESSON_CARDS_FILE = path.join(BUILD_DIR, 'vocab', 'cfcm-01-01-cards.json');
-let LESSON_INDEX = null, LESSON_META = null, LESSON_CARDS_RAW = null, LESSON_CARDS_GZ = null;
-function lessonIndex() {
-  if (!LESSON_INDEX) {
-    const payload = JSON.parse(fs.readFileSync(LESSON_CARDS_FILE, 'utf8'));
-    LESSON_INDEX = LessonVocab.indexCards(payload);
-    LESSON_META = { lessonId: payload.lessonId, title: payload.title, total: payload.total, noted: payload.noted, source: payload.source || null };
+/* 课级词卡：build/vocab/*-cards.json，每个文件一课；启动时扫描，多课并存。 */
+const LESSON_CARDS_DIR = path.join(BUILD_DIR, 'vocab');
+let LESSON_INDEXES = null, LESSON_METAS = null, LESSON_KEY_SET = null;
+const LESSON_CARDS_CACHE = new Map();
+function loadLessonIndexes() {
+  if (LESSON_INDEXES) return;
+  LESSON_INDEXES = new Map(); LESSON_METAS = new Map(); LESSON_KEY_SET = new Set();
+  let files = [];
+  try { files = fs.readdirSync(LESSON_CARDS_DIR).filter(n => /-cards\.json$/.test(n)).sort(); } catch (e) { files = []; }
+  for (const f of files) {
+    try {
+      const payload = JSON.parse(fs.readFileSync(path.join(LESSON_CARDS_DIR, f), 'utf8'));
+      if (!payload.lessonId || !Array.isArray(payload.cards) || !payload.cards.length) continue;
+      const index = LessonVocab.indexCards(payload);
+      LESSON_INDEXES.set(payload.lessonId, index);
+      LESSON_METAS.set(payload.lessonId, { lessonId: payload.lessonId, title: payload.title, total: payload.total, noted: payload.noted, source: payload.source || null });
+      for (const k of index.byKey.keys()) LESSON_KEY_SET.add(k);
+    } catch (e) { console.error('[lesson-cards]', f, e.message); }
   }
-  return LESSON_INDEX;
+  if (!LESSON_INDEXES.size) console.error('[lesson-cards] no *-cards.json under', LESSON_CARDS_DIR);
+}
+function lessonIds() { loadLessonIndexes(); return [...LESSON_INDEXES.keys()]; }
+function defaultLessonId() { const ids = lessonIds(); return ids.includes('cfcm-01-01') ? 'cfcm-01-01' : (ids[0] || null); }
+function lessonIndexFor(id) { loadLessonIndexes(); const index = LESSON_INDEXES.get(id); if (!index) throw LessonVocab.httpError(400, 'unknown lesson'); return index; }
+function lessonMeta(id) { loadLessonIndexes(); return LESSON_METAS.get(id) || null; }
+function lessonKeys() { loadLessonIndexes(); return [...LESSON_KEY_SET]; }
+function lessonCardsPayload(id) {
+  const index = lessonIndexFor(id);
+  let entry = LESSON_CARDS_CACHE.get(id);
+  if (!entry) {
+    const raw = JSON.stringify({ ok: true, ...lessonMeta(id), cards: index.cards });
+    entry = { raw, gz: zlib.gzipSync(Buffer.from(raw)) };
+    LESSON_CARDS_CACHE.set(id, entry);
+  }
+  return entry;
+}
+function lessonSummaries() {
+  const out = [];
+  for (const id of lessonIds()) {
+    const index = lessonIndexFor(id);
+    const session = (RECORDS.vocabLesson || {})[id] || null;
+    const pub = LessonVocab.publicSession(session);
+    out.push({ ...lessonMeta(id),
+      session: pub ? { phase: pub.phase, doneCount: pub.doneCount, remaining: pub.remaining, completedAt: pub.completedAt, current: pub.current } : null,
+      review: lessonReviewInfo(index, RECORDS.vocab) });
+  }
+  return out;
 }
 /* 课级复习概览：到期/24 小时内到期数量 + 上一轮看卡最多的词（给横幅与完成页） */
 function lessonReviewInfo(index, vocab) {
@@ -2489,28 +2527,35 @@ const handler = async (req, res) => {
       } catch (e) { return sendJSON(res, 500, { error: '课后巩固读取失败: ' + e.message }); }
     }
 
-    /* ---- API: 课程驱动认读（第一课全词, 课级会话 + 同一 records 事务） ---- */
+    /* ---- API: 课程驱动认读（多课词卡 + 课级会话 + 同一 records 事务） ---- */
+    if (p === '/api/vocab/lessons') {
+      if (req.method !== 'GET') return sendJSON(res, 405, { error: 'method' });
+      try { return sendJSON(res, 200, { ok: true, lessons: lessonSummaries(), keys: lessonKeys() }); }
+      catch (e) { return sendJSON(res, 503, { error: '课程词卡未就绪: ' + e.message }); }
+    }
     if (p === '/api/vocab/lesson/cards') {
       if (req.method !== 'GET') return sendJSON(res, 405, { error: 'method' });
       try {
-        const index = lessonIndex();
-        if (!LESSON_CARDS_RAW) {
-          LESSON_CARDS_RAW = JSON.stringify({ ok: true, ...LESSON_META, cards: index.cards });
-          LESSON_CARDS_GZ = zlib.gzipSync(Buffer.from(LESSON_CARDS_RAW));
-        }
+        const q = new URL(req.url, 'http://x').searchParams;
+        const id = q.get('id') || defaultLessonId();
+        if (!id) return sendJSON(res, 503, { error: '没有可用的课程词卡' });
+        const entry = lessonCardsPayload(id);
         const gz = String(req.headers['accept-encoding'] || '').includes('gzip');
         res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', ...(gz ? { 'Content-Encoding': 'gzip' } : {}), 'Cache-Control': 'no-store' });
-        return res.end(gz ? LESSON_CARDS_GZ : LESSON_CARDS_RAW);
-      } catch (e) { return sendJSON(res, 503, { error: '第一课词卡未就绪: ' + e.message }); }
+        return res.end(gz ? entry.gz : entry.raw);
+      } catch (e) { return sendJSON(res, e.status || 503, { error: '课程词卡未就绪: ' + e.message }); }
     }
     if (p === '/api/vocab/lesson') {
       if (req.method !== 'GET') return sendJSON(res, 405, { error: 'method' });
       try {
-        const index = lessonIndex();
-        const s = (RECORDS.vocabLesson || {})[index.lessonId] || null;
-        return sendJSON(res, 200, { ok: true, lesson: LESSON_META, session: LessonVocab.publicSession(s),
-          review: lessonReviewInfo(index, RECORDS.vocab), hardWords: lessonHardWords(index, s) });
-      } catch (e) { return sendJSON(res, 503, { error: '第一课词卡未就绪: ' + e.message }); }
+        const q = new URL(req.url, 'http://x').searchParams;
+        const id = q.get('id') || defaultLessonId();
+        if (!id) return sendJSON(res, 503, { error: '没有可用的课程词卡' });
+        const index = lessonIndexFor(id);
+        const s = (RECORDS.vocabLesson || {})[id] || null;
+        return sendJSON(res, 200, { ok: true, lesson: lessonMeta(id), session: LessonVocab.publicSession(s),
+          review: lessonReviewInfo(index, RECORDS.vocab), hardWords: lessonHardWords(index, s), keys: lessonKeys() });
+      } catch (e) { return sendJSON(res, e.status || 503, { error: '课程词卡未就绪: ' + e.message }); }
     }
     if (p === '/api/vocab/lesson/start') {
       if (req.method !== 'POST') return sendJSON(res, 405, { error: 'method' });
@@ -2519,20 +2564,21 @@ const handler = async (req, res) => {
       if (!(req.headers['content-type'] || '').toLowerCase().startsWith('application/json')) return sendJSON(res, 415, { error: 'application/json required' });
       let inc; try { inc = JSON.parse((await readBody(req)).toString('utf8') || '{}'); } catch { return sendJSON(res, 400, { error: 'bad json' }); }
       try {
-        const index = lessonIndex();
-        if (inc.lessonId && inc.lessonId !== index.lessonId) return sendJSON(res, 400, { error: 'unknown lesson' });
+        const id = inc.lessonId || defaultLessonId();
+        if (!id) return sendJSON(res, 400, { error: 'unknown lesson' });
+        const index = lessonIndexFor(id);
         const now = Date.now(), restart = inc.restart === true;
-        const existing = (RECORDS.vocabLesson || {})[index.lessonId] || null;
+        const existing = (RECORDS.vocabLesson || {})[id] || null;
         const plan = LessonVocab.planStart(existing, index, RECORDS.vocab, now, randomUUID(), restart);
-        if (plan.resumed) return sendJSON(res, 200, { ok: true, resumed: true, lesson: LESSON_META, session: LessonVocab.publicSession(plan.session), review: lessonReviewInfo(index, RECORDS.vocab) });
+        if (plan.resumed) return sendJSON(res, 200, { ok: true, resumed: true, lesson: lessonMeta(id), session: LessonVocab.publicSession(plan.session), review: lessonReviewInfo(index, RECORDS.vocab) });
         const next = JSON.parse(JSON.stringify(RECORDS));
         next.vocabLesson ||= {};
-        next.vocabLesson[index.lessonId] = plan.session;
+        next.vocabLesson[id] = plan.session;
         next.revision = (RECORDS.revision || 0) + 1;
         next.saved_at = new Date(now).toISOString();
         try { recordsSave(next); } catch (e) { console.error('[lesson-vocab]', e.message); return sendJSON(res, 503, { error: 'records not persisted' }); }
         RECORDS = next;
-        return sendJSON(res, 200, { ok: true, resumed: false, lesson: LESSON_META, session: LessonVocab.publicSession(next.vocabLesson[index.lessonId]), review: lessonReviewInfo(index, next.vocab) });
+        return sendJSON(res, 200, { ok: true, resumed: false, lesson: lessonMeta(id), session: LessonVocab.publicSession(next.vocabLesson[id]), review: lessonReviewInfo(index, next.vocab) });
       } catch (e) { return sendJSON(res, e.status || 500, { error: e.message }); }
     }
     if (p === '/api/vocab/lesson/grade') {
@@ -2542,15 +2588,16 @@ const handler = async (req, res) => {
       if (!(req.headers['content-type'] || '').toLowerCase().startsWith('application/json')) return sendJSON(res, 415, { error: 'application/json required' });
       let inc; try { inc = JSON.parse((await readBody(req)).toString('utf8') || '{}'); } catch { return sendJSON(res, 400, { error: 'bad json' }); }
       try {
-        const index = lessonIndex();
-        if (inc.lessonId && inc.lessonId !== index.lessonId) return sendJSON(res, 400, { error: 'unknown lesson' });
+        const id = inc.lessonId || defaultLessonId();
+        if (!id) return sendJSON(res, 400, { error: 'unknown lesson' });
+        const index = lessonIndexFor(id);
         const eventId = inc.id;
         if (typeof eventId !== 'string' || !/^[\w-]{8,100}$/.test(eventId) || ['__proto__','constructor','prototype'].includes(eventId)) return sendJSON(res, 400, { error: 'invalid event id' });
         const key = LessonVocab.norm(inc.key);
         if (!key || key.length > 60) return sendJSON(res, 400, { error: 'word required' });
         const action = inc.action;
         if (!['know', 'again', 'continue'].includes(action)) return sendJSON(res, 400, { error: 'invalid action' });
-        const session = (RECORDS.vocabLesson || {})[index.lessonId];
+        const session = (RECORDS.vocabLesson || {})[id];
         if (!session) return sendJSON(res, 409, { error: 'lesson not started' });
         const prior = (session.events || {})[eventId];
         if (prior) {
@@ -2563,7 +2610,7 @@ const handler = async (req, res) => {
         if (existing && !vocabStateValid(existing)) return sendJSON(res, 409, { error: '已有调度异常，记录已保留，请导出并检查' });
         const now = Date.now();
         const next = JSON.parse(JSON.stringify(RECORDS));
-        const work = next.vocabLesson[index.lessonId];
+        const work = next.vocabLesson[id];
         next.vocab ||= {};
         const result = LessonVocab.applyAction({
           session: work, index, vocab: next.vocab, key, action, now,
@@ -2576,7 +2623,6 @@ const handler = async (req, res) => {
           const day = new Date(now + 8 * 3600000).toISOString().slice(0, 10);
           const daily = next.vocabDays[day] ||= { grades: 0, introduced: 0 };
           daily.grades++; if (result.introduced) daily.introduced++;
-          // 全局事件账本同步登记（审计 C6：课级评分不再只有会话内账本）
           next.vocabEvents ||= {};
           next.vocabEvents[eventId] = { fingerprint: JSON.stringify([key, 'lesson', result.introduced ? 'introduced' : (work.tries[key] ? 'relearn' : 'review')]), key, at: now, introduced: !!result.introduced };
         }

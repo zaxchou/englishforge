@@ -18,6 +18,9 @@ async function advanceTo(key){ for(let i=0;i<220;i++){ const s=await session(); 
 (async()=>{
 await start();
 let r=await call('/api/vocab/lesson/cards');assert.equal(r.status,200);assert.equal(r.data.total,176);assert.equal(r.data.noted,138);
+r=await call('/api/vocab/lesson/cards?id=cfcm-01-01');assert.equal(r.status,200);assert.equal(r.data.total,176);
+r=await call('/api/vocab/lessons');assert.equal(r.status,200);assert.ok(r.data.lessons.some(x=>x.lessonId==='cfcm-01-01'));assert.ok((r.data.keys||[]).length>=176);
+assert.equal((await call('/api/vocab/lesson?id=nope')).status,400);
 r=await call('/api/vocab/lesson');assert.equal(r.data.session,null);
 r=await call('/api/vocab/lesson/start',{lessonId:'cfcm-01-01'});assert.equal(r.status,200);assert.equal(r.data.session.total,176);assert.equal(r.data.session.current,'affix');assert.equal(r.data.session.remaining,176);
 r=await call('/api/vocab/lesson/start',{lessonId:'cfcm-01-01'});assert.equal(r.data.resumed,true);
