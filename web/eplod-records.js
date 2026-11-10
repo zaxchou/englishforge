@@ -2,7 +2,7 @@
   'use strict';
   const copy=x=>x===undefined?undefined:JSON.parse(JSON.stringify(x));
   const object=x=>x&&typeof x==='object'&&!Array.isArray(x);
-  const SCORING_VERSION=10;
+  const SCORING_VERSION=11;
   /* 判分归一分词(r19): 官方文本的 "5:58" 分词成 [5,58], ASR/用户输入是 [five,fifty,eight],
      形状不同会白扣分——数字 token 统一展开成读法单词; oh 与 zero 互通(两侧同变换, 只增匹配不改错配)。 */
   const NUM1={0:'zero',1:'one',2:'two',3:'three',4:'four',5:'five',6:'six',7:'seven',8:'eight',9:'nine',10:'ten',11:'eleven',12:'twelve',13:'thirteen',14:'fourteen',15:'fifteen',16:'sixteen',17:'seventeen',18:'eighteen',19:'nineteen',20:'twenty'};   /* 20 曾缺表, expandNum 兜底成 "20" 配不上 twenty(r2 2026-10-30) */
@@ -77,6 +77,16 @@
        单词, 两侧同变换只增匹配; o'clock 等非数字后缀不匹配。弯引号已在折叠层归一。 */
     const feet=bare.match(/^(\d{1,2})'(\d{1,2})$/);
     if(feet){const spoken=[];expandNum(parseInt(feet[1],10),spoken);expandNum(parseInt(feet[2],10),spoken);return spoken;}
+    /* 字母+数字代码(r12 2026-11-10): B2/H1B/F1 签证代码官方写字母数字连写, ASR/用户读作
+       "B two"/"H one B"。以字母开头且含数字的 token 按段展开(字母段保留 + 数字段读法),
+       两侧同变换只增匹配; 数字开头的序数 1st/3rd 不在此列(保持原样)。 */
+    const alnum=bare.match(/^([a-z]+)(\d+)([a-z]*)$/);
+    if(alnum&&/[a-z]/.test(alnum[1])){
+      const spoken=[alnum[1]];
+      expandNum(parseInt(alnum[2],10),spoken);
+      if(alnum[3])spoken.push(alnum[3]);
+      if(spoken.every(t=>typeof t==='string'))return spoken;
+    }
     if(Object.hasOwn(SLANG,w))return SLANG[w].slice();
     if(!bare)return out;
     if(Object.hasOwn(CONTRACTIONS,bare))return CONTRACTIONS[bare].slice();

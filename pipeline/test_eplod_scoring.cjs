@@ -259,6 +259,20 @@ test('r10: plural tolerance applies only to 2↔1 compound merges, never to sing
   assert.ok(E.lcsAcc('my friends call me', 'my friend call me') < 1);
 });
 
+test('r12: letter+digit codes read as letters plus number words, ordinals stay glued', () => {
+  for (const [official, spoken] of [
+    ['applying for a B2 visa', 'applying for a B two visa'],
+    ['an H1B visa holder', 'an H one B visa holder'],
+    ['on an F1 student visa', 'on an F one student visa']
+  ]) {
+    assert.equal(E.lcsAcc(official, spoken), 1, official);
+    assert.equal(E.lcsAcc(spoken, official), 1, 'symmetric: ' + official);
+  }
+  assert.deepEqual(E.normTokens('the 1st of every month'), ['the', '1st', 'of', 'every', 'month'], 'ordinals keep their form');
+  assert.ok(E.lcsAcc('a B2 visa', 'a B3 visa') < 1, 'different codes stay different');
+  assert.equal(E.lcsAcc('your mp3 player', 'your mp3 player'), 1);
+});
+
 test('r11: whole-recite report gives accuracy, speed, fluency and a total', () => {
   const official = 'I know, and I apologize for the delay. But some things were just beyond my control.';
   const perfect = E.wholeReport(official, official, 19, 19);
