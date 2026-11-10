@@ -45,7 +45,7 @@ def main():
     lesson = args.lesson.strip()
     if not re.fullmatch(r'cfcm-\d+-\d+', lesson):
         parser.error('--lesson must look like cfcm-01-01')
-    course = lesson.rsplit('-', 1)[0]
+    course = 'cfcm-' + lesson.rsplit('-', 1)[1]   # 词根投影按课建：cfcm-01-02 → learning/cfcm-02
     lesson_no = lesson.rsplit('-', 1)[1]
     learning = Path(args.learning) if args.learning else ROOT / f'build/root-universe/learning/{course}/current.json'
     out = Path(args.out) if args.out else ROOT / f'build/vocab/{lesson}-cards.json'
