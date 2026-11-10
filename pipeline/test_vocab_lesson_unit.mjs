@@ -150,6 +150,22 @@ const cont = (s, index, vocab, key) => LV.applyAction({ session: s, index, vocab
   for (const g of gs) { if (g !== prev) { assert.ok(!seen.has(g), '同族应相邻'); seen.add(g); prev = g; } }
 }
 
+// —— R4.2-5：到期量超过单轮上限时按族内最早到期时间取，最久未复习的族不会被连续漏掉
+{
+  const cards = [], v = {};
+  for (let g = 1; g <= 6; g++) for (let j = 0; j < 2; j++) {
+    const k = 'g' + g + 'w' + j;
+    cards.push({ key: k, word: k, group: g });
+    v[k] = { e: 2.5, i: 10, s: 99, r: 1, n: 1, born: NOW - 1, due: NOW - 1000 - g * 60000 };
+  }
+  const idx = LV.indexCards({ lessonId: 't', title: 't', total: cards.length, cards });
+  const sess = LV.newSession(idx, NOW, 'r0'); sess.completedAt = NOW - 1000;
+  const p = LV.planStart(sess, idx, v, NOW + 1, 'r2', false, { reviewCap: 4 });
+  assert.equal(p.session.order.length, 4);
+  const fams = [...new Set(p.session.order.map(k => idx.byKey.get(k).group))];
+  assert.deepEqual(fams, [6, 5], '族 6 最久到期；上限只截掉后面的族');
+}
+
 // —— 事件幂等与冲突
 {
   const { index, session, vocab } = fresh(['a']);
@@ -158,4 +174,4 @@ const cont = (s, index, vocab, key) => LV.applyAction({ session: s, index, vocab
   assert.throws(() => LV.acceptEvent(session, 'ev-1', 'a', 'again', NOW), /event id reused/);
 }
 
-console.log('PASS lesson unit: new-word 3d/relearn, lapse on seen-card (due & not-due), not-due freeze, insert@10 + shuffled round-end recheck + archive + nextDueAt, recheck-fail no double penalty, planStart review/restart, event idempotency');
+console.log('PASS lesson unit: new-word 3d/relearn, lapse on seen-card (due & not-due), not-due freeze, insert@10 + shuffled round-end recheck + archive + nextDueAt, recheck-fail no double penalty, planStart review/restart (oldest family first under cap), event idempotency');

@@ -4,7 +4,8 @@
   const CONFIRM_MS=2500;
   const q=id=>document.getElementById(id);
   let token=0, active=false, lessonId='cfcm-01-01', slot='first';
-  let cardsByLesson=new Map(), lesson=null, session=null, reviewInfo=null, hardWords=[];
+  let cardsByLesson=new Map(), lesson=null, session=null, reviewInfo=null, firstInfo=null;
+  let hardWords={first:[],review:[]};
   let busy=false, uni=false, err='', audio=null;
   let pending=null, confirming=false, confirmTimer=null, timeMark=null, doneShown=false;
   const byKey=new Map();
@@ -133,6 +134,20 @@
     return h+'</div>';
   }
 
+  /* 本轮看卡最多的词：结束前带着老师讲解再看一眼 */
+  function hardPanel(){
+    const list=hardWords[(session&&session.phase==='review')?'review':'first']||[];
+    if(!list.length) return '';
+    let h='<div class="lv-hard"><div class="lv-label">本轮看卡最多的词</div>';
+    for(const w of list){
+      h+='<div class="lv-hw"><div class="lvl"><b>'+esc(w.word)+'</b>'
+        +(w.def?'<span>'+esc(w.def)+'</span>':'')
+        +'<span class="n">'+esc(w.tries)+' 次</span></div>'
+        +(w.note?'<p>'+esc(w.note)+'</p>':'')+'</div>';
+    }
+    return h+'</div>';
+  }
+
   function done(){
     if(!doneShown){ doneShown=true; settleTime(); }
     const s=session, total=s.total||0, first=s.summary&&s.summary.first||0, later=s.summary&&s.summary.later||0;
@@ -143,16 +158,20 @@
     const dueLine=overdue?'这批词的复习时间已到 · 背单词页会出现它们。'
       :(review?'最近的到期日在 <b>'+due+'</b> · 届时仍先只见英文，想不起来再看卡。':'新认的词约 <b>'+due+'</b> 到期 · 到期时仍先只见英文，想不起来再看卡。');
     const remainDue=(reviewInfo&&reviewInfo.due)||0;
+    /* 复习做完但本课认读还没过完 → 直接给认读入口，不必退回横幅 */
+    const firstLeft=(firstInfo&&!firstInfo.completedAt)?(firstInfo.remaining||0):0;
     return '<div class="lv-card lv-done">'
       + '<div class="ok">✓</div><h3>'+(review?'本轮复习完成':'本课认读完成')+'</h3>'
       + '<p class="lead">'+(review?'这轮到期的词都过了一遍。':'本课 '+total+' 个词都在只看英文时点过认识。')+'</p>'
       + '<div class="lv-stats"><div><span>全词</span><b>'+total+'</b></div>'
       + '<div><span>直接认出</span><b>'+first+'</b></div>'
       + '<div><span>看卡后认出</span><b>'+later+'</b></div></div>'
+      + hardPanel()
       + recallPanel()
       + '<p class="lv-due">'+dueLine+((reviewInfo&&reviewInfo.tomorrow)?' · 明天还有 <b>'+reviewInfo.tomorrow+'</b> 词到期':'')+'</p>'
       + '<div class="lv-row">'
       + (remainDue>0?'<button class="lv-btn pri" type="button" data-lv="next-review"'+(busy?' disabled':'')+'>继续再认（还剩 '+remainDue+' 词）</button>':'')
+      + (firstLeft>0?'<button class="lv-btn'+(remainDue>0?'':' pri')+'" type="button" data-lv="next-first"'+(busy?' disabled':'')+'>继续认读（还剩 '+firstLeft+' 词）</button>':'')
       + (review?'':'<button class="lv-ghost" type="button" data-lv="restart"'+(busy?' disabled':'')+'>再练一遍</button>')
       + '<button class="lv-ghost" type="button" data-lv="back">返回背单词</button></div>'
       + (busy?'<p class="lv-hint" role="status">保存中…</p>':'')
@@ -183,7 +202,7 @@
   }
   function breakCard(seg){
     return '<div class="lv-card lv-break">'
-      + '<div class="lv-label">第 '+(seg+1)+' / 3 段</div><h3>这一段过完了</h3>'
+      + '<div class="lv-label">第 '+seg+' / 3 段</div><h3>这一段过完了</h3>'
       + '<p class="lv-empty">已认 '+(session.doneCount||0)+' / '+(session.total||0)+' 词。可以继续下一段，也可以今天先到这里——进度已保存。</p>'
       + '<div class="lv-choices"><button class="lv-btn" type="button" data-lv="seg-exit">今天先到这里</button>'
       + '<button class="lv-btn pri" type="button" data-lv="seg-continue">继续下一段</button></div></div>';
@@ -213,6 +232,7 @@
         else if(act==='back'){ leave(); location.hash='#/vocab'; }
         else if(act==='restart'){ if(!busy) restart(); }
         else if(act==='next-review'){ if(!busy) nextReview(); }
+        else if(act==='next-first'){ if(!busy) continueFirst(); }
         else if(act==='know'){ if(!busy&&!confirming) startConfirm(); }
         else if(act==='proceed'){ if(confirming) proceed(); }
         else if(act==='wrong'){ if(confirming) markWrong(); }
@@ -238,9 +258,10 @@
     if(!res) return;
     if(res.lesson) lesson=res.lesson;
     if(res.review) reviewInfo=res.review;
-    if(res.hardWords) hardWords=res.hardWords;
     if(res.slot) slot=res.slot;
     else if(res.session&&res.session.phase) slot=res.session.phase==='review'?'review':'first';
+    if(res.hardWords) hardWords[slot]=res.hardWords;
+    if(res.firstSession!==undefined) firstInfo=res.firstSession;
   }
 
   async function resync(){
@@ -248,7 +269,9 @@
       const r=await api('/api/vocab/lesson?id='+encodeURIComponent(lessonId),{signal:AbortSignal.timeout(10000)});
       if(r.lesson) lesson=r.lesson;
       if(r.review) reviewInfo=r.review;
-      if(r.hardWords) hardWords=r.hardWords;
+      if(r.hardWords) hardWords.first=r.hardWords;
+      if(r.reviewHardWords) hardWords.review=r.reviewHardWords;
+      if(r.firstSession!==undefined) firstInfo=r.firstSession;
       const pick=slot==='review'?r.reviewSession:r.session;
       if(pick) session=pick;
       return true;
@@ -297,6 +320,18 @@
       if(t!==token) return;
       session=res.session; applyMeta(res); pending=null; uni=false; doneShown=false;
     }catch(e){ if(t===token) err=(e&&e.message)||'无法开始下一轮'; }
+    finally{ if(t===token){ busy=false; render(); } }
+  }
+
+  /* 复习轮结束、认读还没过完：直接回到认读位（服务端显式 slot，跳过到期优先） */
+  async function continueFirst(){
+    const t=token; busy=true; err=''; render();
+    try{
+      const res=await api('/api/vocab/lesson/start',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({lessonId,slot:'first'}),signal:AbortSignal.timeout(15000)});
+      if(t!==token) return;
+      session=res.session; applyMeta(res); pending=null; uni=false; doneShown=false;
+    }catch(e){ if(t===token) err=(e&&e.message)||'无法继续认读'; }
     finally{ if(t===token){ busy=false; render(); } }
   }
 

@@ -9,7 +9,7 @@
 <link rel="apple-touch-icon" sizes="180x180" href="/assets/brand/t-dot-v1/t-dot-180.png">
 <title>TOEFL Lab · 托福自学练习</title>
 <link rel="stylesheet" href="desk.css?v=20261109r14">
-<link rel="stylesheet" href="lesson-vocab.css?v=20261110r2">
+<link rel="stylesheet" href="lesson-vocab.css?v=20261110r3">
 <style>
 /* 应用层补充样式（视觉基线在 desk.css，不改它的既有规则） */
 /* 单词与字符格保持同一行；焦点、已填、判题状态沿用研读桌配色。 */
@@ -360,7 +360,7 @@ details.ai-tsec[open] summary{margin-bottom:8px}
 <script src="course-plan-ui.js?v=20261107r8"></script>
 <script src="root-practice-ui.js?v=e3203ffa489d"></script>
 <script src="speaking-ui.js?v=20261106r6"></script>
-<script src="lesson-vocab-ui.js?v=20261110r3"></script>
+<script src="lesson-vocab-ui.js?v=20261110r4"></script>
 <script>
 'use strict';
 /* ============================================================
@@ -3227,13 +3227,14 @@ async function refreshLessonBanner(){
   LV_BANNER_LESSON=pick.lessonId;
   const short=pick.title||pick.lessonId;
   const sess=pick.session, rsess=pick.reviewSession, rv=pick.review||{};
+  const firstLeft=(sess&&!sess.completedAt)?(' · 之后继续认读（还剩 '+sess.remaining+' 词）'):'';
   if(rsess&&!rsess.completedAt){
     title.textContent=short+' · 继续再认（还剩 '+rsess.remaining+' 词）';
-    sub.textContent='到期词只走这一轮：两按钮 + 老师讲解，认出即延长间隔';
+    sub.textContent='到期词只走这一轮：两按钮 + 老师讲解，认出即延长间隔'+firstLeft;
     btn.textContent='继续再认';
   }else if(rv.due>0){
     title.textContent=short+' · 今天 '+rv.due+' 词待再认';
-    sub.textContent='到期词只走这一轮：两按钮 + 老师讲解，认出即延长间隔';
+    sub.textContent='到期词只走这一轮：两按钮 + 老师讲解，认出即延长间隔'+firstLeft;
     btn.textContent='开始再认';
   }else if(sess&&!sess.completedAt){
     title.textContent=short+' · 继续认读 '+sess.doneCount+'/'+pick.total;

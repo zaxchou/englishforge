@@ -1044,6 +1044,11 @@ function loadLessonIndexes() {
 function lessonIds() { loadLessonIndexes(); return [...LESSON_INDEXES.keys()]; }
 function defaultLessonId() { const ids = lessonIds(); return ids.includes('cfcm-01-01') ? 'cfcm-01-01' : (ids[0] || null); }
 function lessonIndexFor(id) { loadLessonIndexes(); const index = LESSON_INDEXES.get(id); if (!index) throw LessonVocab.httpError(400, 'unknown lesson'); return index; }
+/* 另一会话位的进度摘要：复习完成页要据此给出「继续认读（还剩 N 词）」 */
+function sessionBrief(s) {
+  const pub = LessonVocab.publicSession(s);
+  return pub ? { phase: pub.phase, doneCount: pub.doneCount, remaining: pub.remaining, completedAt: pub.completedAt } : null;
+}
 function lessonMeta(id) { loadLessonIndexes(); return LESSON_METAS.get(id) || null; }
 function lessonKeys() { loadLessonIndexes(); return [...LESSON_KEY_SET]; }
 function lessonCardsPayload(id) {
@@ -1062,10 +1067,10 @@ function lessonSummaries() {
     const index = lessonIndexFor(id);
     const session = (RECORDS.vocabLesson || {})[id] || null;
     const reviewSession = (RECORDS.vocabLessonReview || {})[id] || null;
-    const brief = s => s ? { phase: s.phase, doneCount: s.doneCount, remaining: s.remaining, completedAt: s.completedAt, current: s.current } : null;
+    const brief = s => { const pub = LessonVocab.publicSession(s); return pub ? { ...sessionBrief(s), current: pub.current } : null; };
     out.push({ ...lessonMeta(id),
-      session: brief(LessonVocab.publicSession(session)),
-      reviewSession: brief(LessonVocab.publicSession(reviewSession)),
+      session: brief(session),
+      reviewSession: brief(reviewSession),
       review: lessonReviewInfo(index, RECORDS.vocab) });
   }
   return out;
@@ -1089,7 +1094,10 @@ function lessonHardWords(index, session) {
     .filter(([, n]) => Number(n) > 0)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 6)
-    .map(([k, n]) => ({ key: k, word: (index.byKey.get(k) || {}).word || k, tries: n }));
+    .map(([k, n]) => {
+      const c = index.byKey.get(k) || {};
+      return { key: k, word: c.word || k, def: c.def || '', note: c.note || '', tries: n };
+    });
 }
 let VOCAB_BANK = null, VOCAB_INDEX = null, VOCAB_BANK_RAW = null, VOCAB_BANK_GZ = null;
 /* 词根学习档案投影（只读）: 已发布 1.1.0 学习档案 → 背单词卡片的词根拆解/记忆线索/例句 + 词典入口 */
@@ -2559,8 +2567,11 @@ const handler = async (req, res) => {
         const rv = (RECORDS.vocabLessonReview || {})[id] || null;
         return sendJSON(res, 200, { ok: true, lesson: lessonMeta(id), session: LessonVocab.publicSession(s),
           reviewSession: LessonVocab.publicSession(rv),
+          firstSession: sessionBrief(s),
           review: lessonReviewInfo(index, RECORDS.vocab),
-          hardWords: lessonHardWords(index, (rv && !rv.completedAt) ? rv : s), keys: lessonKeys() });
+          hardWords: lessonHardWords(index, s),           // 认读位：完成页“看卡最多的词”
+          reviewHardWords: lessonHardWords(index, rv),    // 复习位：复习完成页各看自己那轮
+          keys: lessonKeys() });
       } catch (e) { return sendJSON(res, e.status || 503, { error: '课程词卡未就绪: ' + e.message }); }
     }
     if (p === '/api/vocab/lesson/start') {
@@ -2574,15 +2585,18 @@ const handler = async (req, res) => {
         if (!id) return sendJSON(res, 400, { error: 'unknown lesson' });
         const index = lessonIndexFor(id);
         const slot = inc.slot === 'review' ? 'review' : 'first';
+        /* 显式 slot=first 来自完成页“继续认读”按钮：跳过到期优先的默认顺序 */
+        const wantFirst = inc.slot === 'first';
         const now = Date.now(), restart = inc.restart === true;
         const first = (RECORDS.vocabLesson || {})[id] || null;
         const review = (RECORDS.vocabLessonReview || {})[id] || null;
         const dueNow = lessonReviewInfo(index, RECORDS.vocab).due;
         const respond = (session, slot, extra = {}) => sendJSON(res, 200, { ok: true, lesson: lessonMeta(id), slot,
           session: LessonVocab.publicSession(session), review: lessonReviewInfo(index, RECORDS.vocab),
+          firstSession: sessionBrief((RECORDS.vocabLesson || {})[id] || null),
           hardWords: lessonHardWords(index, session), ...extra });
-        if (!restart && review && !review.completedAt) return respond(review, 'review', { resumed: true });
-        if (!restart && dueNow > 0) {
+        if (!restart && !wantFirst && review && !review.completedAt) return respond(review, 'review', { resumed: true });
+        if (!restart && !wantFirst && dueNow > 0) {
           const fresh = LessonVocab.createReviewSession(index, RECORDS.vocab, now, randomUUID());
           if (fresh) {
             const next = JSON.parse(JSON.stringify(RECORDS));
@@ -2659,7 +2673,8 @@ const handler = async (req, res) => {
         next.saved_at = new Date(now).toISOString();
         try { recordsSave(next); } catch (e) { console.error('[lesson-vocab]', e.message); return sendJSON(res, 503, { error: 'records not persisted' }); }
         RECORDS = next;
-        return sendJSON(res, 200, { ok: true, duplicate: false, slot, session: LessonVocab.publicSession(work), st: result.st, wrote: result.wrote, vocabDays: next.vocabDays, review: lessonReviewInfo(index, next.vocab), revision: next.revision });
+        return sendJSON(res, 200, { ok: true, duplicate: false, slot, session: LessonVocab.publicSession(work), st: result.st, wrote: result.wrote, vocabDays: next.vocabDays, review: lessonReviewInfo(index, next.vocab),
+          firstSession: sessionBrief((next.vocabLesson || {})[id] || null), hardWords: lessonHardWords(index, work), revision: next.revision });
       } catch (e) { return sendJSON(res, e.status || 500, { error: e.message }); }
     }
 

@@ -61,7 +61,9 @@ export function publicSession(s) {
 
 /* start 语义：有未完成会话→续做；已完成→若有到期词则开复习轮，否则原样返回；
    restart→强制新认读轮（保留最近历史）。 */
-/* 复习轮：同族相邻（先词根线索），族与族之间打乱；单轮上限防洪峰。 */
+/* 复习轮：同族相邻（先词根线索）；族按族内最早到期时间排序（最久未复习的先走，
+   到期量超过单轮上限也不会让同一族连续几轮被截掉），同一时刻到期的族随机排序。
+   单轮上限只管条数，防洪峰。 */
 export function createReviewSession(index, vocab, now, roundId, opts = {}) {
   const due = dueKeys(index, vocab, now);
   if (!due.length) return null;
@@ -72,9 +74,14 @@ export function createReviewSession(index, vocab, now, roundId, opts = {}) {
     if (!byGroup.has(g)) byGroup.set(g, []);
     byGroup.get(g).push(k);
   }
-  for (const list of byGroup.values()) list.sort((a, b) => Number(vocab[a].due) - Number(vocab[b].due));
+  const blocks = [];
+  for (const [g, list] of byGroup) {
+    list.sort((a, b) => Number(vocab[a].due) - Number(vocab[b].due));
+    blocks.push({ list, due: Number(vocab[list[0]].due), tie: Math.random() });
+  }
+  blocks.sort((a, b) => a.due - b.due || a.tie - b.tie);
   const order = [];
-  for (const g of shuffle([...byGroup.keys()])) order.push(...byGroup.get(g));
+  for (const b of blocks) order.push(...b.list);
   const picked = order.slice(0, cap);
   const fresh = newSession(index, now, roundId);
   fresh.phase = 'review';

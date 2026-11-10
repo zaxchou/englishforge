@@ -65,6 +65,13 @@ assert.equal((await call('/api/vocab/lesson/grade',{lessonId:'cfcm-01-01',slot:'
 assert.equal((await call('/api/vocab/lesson/grade',{...ev(),key:'affix',action:'know'})).status,409);
 // —— R3.2-2（进行中）：认读没过完时出现到期词 → 另开复习位，认读进度保留
 await patch(rec=>{ const k='fix'; if(rec.vocab[k]) rec.vocab[k].due=Date.now()-1000; });
+// —— R4.2-3：显式 slot=first 跳过到期优先（复习完成页的「继续认读」按钮）
+const firstAtPatch=(await S()).doneCount;
+r=await call('/api/vocab/lesson/start',{lessonId:'cfcm-01-01',slot:'first'});
+assert.equal(r.data.slot,'first');assert.equal(r.data.session.doneCount,firstAtPatch);assert.ok(r.data.session.current);
+assert.equal(r.data.firstSession.doneCount,firstAtPatch);
+r=await call('/api/vocab/lesson');
+assert.ok(r.data.firstSession&&!r.data.firstSession.completedAt&&r.data.firstSession.remaining>0);
 r=await call('/api/vocab/lesson/start',{lessonId:'cfcm-01-01'});
 assert.equal(r.data.slot,'review');assert.equal(r.data.session.current,'fix');
 const firstBefore=(await S()).doneCount;
@@ -77,13 +84,23 @@ snap.vocabLesson={'hacked':1};snap.vocabLessonReview={'hacked':1};snap.attemptPr
 assert.equal((await call('/api/records',snap)).status,200);
 snap=(await call('/api/records')).data;assert.equal(JSON.stringify(snap.vocabLesson),keepFirst);assert.equal(JSON.stringify(snap.vocabLessonReview),keepReview);
 // —— 走完认读轮：轮末重考不再写、归档 tries、nextDueAt
+let lastGrade=null;
 for(let guard=0;guard<600;guard++){
   const s=await S(); if(s.completedAt) break;
-  if(s.front===1){ await call('/api/vocab/lesson/grade',{lessonId:'cfcm-01-01',slot:'first',id:'drain-c-'+guard,key:s.current,action:'continue'}); continue; }
-  await call('/api/vocab/lesson/grade',{lessonId:'cfcm-01-01',slot:'first',id:'drain-k-'+guard,key:s.current,action:'know'});
+  if(s.front===1){ lastGrade=await call('/api/vocab/lesson/grade',{lessonId:'cfcm-01-01',slot:'first',id:'drain-c-'+guard,key:s.current,action:'continue'}); continue; }
+  lastGrade=await call('/api/vocab/lesson/grade',{lessonId:'cfcm-01-01',slot:'first',id:'drain-k-'+guard,key:s.current,action:'know'});
 }
 r=await call('/api/vocab/lesson');const fin=r.data.session;
 assert.ok(fin.completedAt);assert.equal(fin.remaining,0);assert.ok(fin.nextDueAt>Date.now());
+// —— R4.2-2：完成页「看卡最多的词」带词义与老师讲解（GET 与 grade 响应都要有）
+assert.ok(r.data.hardWords.length>0);assert.ok(Array.isArray(r.data.reviewHardWords));
+for(const h of r.data.hardWords){ assert.ok(h.word);assert.equal(typeof h.def,'string');assert.equal(typeof h.note,'string');assert.ok(h.tries>=1); }
+assert.ok(lastGrade&&Array.isArray(lastGrade.data.hardWords)&&lastGrade.data.hardWords.length>0,'grade 响应应带 hardWords');
+// —— 有会话后课程概览仍可读（横幅/徽标依赖；曾因重复 publicSession 崩）
+r=await call('/api/vocab/lessons');
+const l0=(r.data.lessons||[]).find(x=>x.lessonId==='cfcm-01-01');
+assert.ok(l0&&l0.session&&l0.session.doneCount>0&&l0.session.remaining===0);
+assert.ok(l0.reviewSession===null||typeof l0.reviewSession==='object');
 assert.equal(fin.history[0].tries.affix,1);assert.equal(fin.history[0].tries.cross,1);
 // —— 完成后无到期 → start 留在认读位；复习位结果仍可读
 r=await call('/api/vocab/lesson/start',{lessonId:'cfcm-01-01'});assert.equal(r.data.slot,'first');assert.equal(r.data.resumed,true);
@@ -98,5 +115,5 @@ assert.equal(r.data.slot,'review');assert.equal(r.data.session.remaining,40);ass
 for(let i=0;i<40;i++){ const s=await RS(); if(s.completedAt) break; const rr=await call('/api/vocab/lesson/grade',{lessonId:'cfcm-01-01',slot:'review',id:'cap-'+String(i).padStart(4,'0'),key:s.current,action:'know'}); assert.equal(rr.status,200); }
 r=await call('/api/vocab/lesson');assert.ok(r.data.reviewSession&&r.data.reviewSession.completedAt);assert.equal(r.data.review.due,5);
 r=await call('/api/vocab/lesson/start',{lessonId:'cfcm-01-01'});assert.equal(r.data.slot,'review');assert.equal(r.data.session.remaining,5);
-console.log('PASS lesson vocab: cards/lessons, due-first review slot, first pass 176, freeze, initial 3d, restart, lapse rules, next-day, slot isolation, cross-endpoint ids, review mid-round, snapshot isolation, drain + archive + nextDueAt');
+console.log('PASS lesson vocab: cards/lessons, due-first review slot, first pass 176, freeze, initial 3d, restart, lapse rules, next-day, slot isolation, cross-endpoint ids, review mid-round, explicit first slot, hardWords payload, snapshot isolation, drain + archive + nextDueAt');
 })().catch(e=>{console.error(e);process.exitCode=1}).finally(()=>server?.kill());
