@@ -1006,6 +1006,24 @@
     ]
    ],
    "note": "官方重复词(原音单 best)"
+  },
+  "0151": {
+   "replacements": [
+    [
+     "up to my neck and work",
+     "up to my neck in work"
+    ],
+    [
+     "anthroclass",
+     "anthro class"
+    ],
+    [
+     "sick and tired of daw- What?",
+     "sick and tired of Darwin, Darwin, Darwin! What?"
+    ]
+   ],
+   "forceAudioDialogue": true,
+   "note": "印刷文本与配音为两套不同措辞(逐句重合 0.29-0.80), 用户定案改用音频转写文本; 标题/分级仍取印刷版(2026-11-10)"
   }
  }
 }

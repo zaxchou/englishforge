@@ -876,6 +876,11 @@ def run_episode(ep, do_chunks=True, do_apply=True, dg_lang_only=False, keep_ai=T
                 "title": f"Episode {int(ep)}", "code": "EP", "dialogue": [], "keyvocab": [], "suppvocab": []}
     data["ep"] = int(ep)
     apply_errata(data)
+    # 期级开关(2026-11-10): 印刷文本与配音是两套措辞的期(0151 案例)标 forceAudioDialogue,
+    # 丢弃印刷对话, 走 whisper 转写路径; 标题/分级/词表仍取印刷版。
+    if TEXT_ERRATA.get("episodes", {}).get(ep, {}).get("forceAudioDialogue"):
+        data["dialogue"] = []
+        src_note = "whisper转写"
     data["dialogueSrc"] = src_note
     log(f"    {data['level']} - {data['title']} ({data['code']}) [{src_note}]  对话 {len(data['dialogue'])} 句  词表 {len(data['keyvocab'])}+{len(data['suppvocab'])}")
 
@@ -929,6 +934,39 @@ def run_episode(ep, do_chunks=True, do_apply=True, dg_lang_only=False, keep_ai=T
                 if x["text"].strip():
                     data["dialogue"].append({"spk": "", "text": clean_text(x["text"]), "t0": x["t0"], "t1": x["t1"]})
             log(f"    对话(whisper 转写): {len(data['dialogue'])} 句")
+        if data.get("dialogue") and TEXT_ERRATA.get("episodes", {}).get(ep, {}).get("forceAudioDialogue"):
+            # 音频转写路径(2026-11-10): whisper 分段常把一个句子切碎("write."/"Same here."单独成行),
+            # 按句合并到句末标点, 取首段 t0 / 末段 t1; 合并后才有成句文本可生成词块。
+            merged = []
+            for seg in data["dialogue"]:
+                cur = seg["text"].strip()
+                short = len(cur.split()) < 2
+                if merged and (short or not merged[-1]["text"].rstrip().endswith((".", "?", "!"))):
+                    merged[-1]["text"] = (merged[-1]["text"].rstrip() + " " + cur).strip()
+                    merged[-1]["t1"] = seg.get("t1", merged[-1].get("t1"))
+                else:
+                    merged.append({"spk": "", "text": cur, "t0": seg.get("t0"), "t1": seg.get("t1")})
+            # whisper 分段可能整段无标点(一次吞进多句): 按句末标点再切, 时间按字数比例插值
+            import re as _re
+            out = []
+            for line in merged:
+                parts = [x.strip() for x in _re.split(r"(?<=[.!?])\s+", line["text"]) if x.strip()]
+                while len(parts) > 1 and len(parts[-1].split()) < 2 and not parts[-1].endswith((".", "?", "!")):
+                    tail = parts.pop()
+                    parts[-1] = parts[-1].rstrip() + " " + tail
+                t0l, t1l = line.get("t0"), line.get("t1")
+                if len(parts) <= 1 or t0l is None or t1l is None:
+                    out.append(line)
+                    continue
+                total = sum(len(x) for x in parts) or 1
+                acc = 0.0
+                for part in parts:
+                    a = t0l + (t1l - t0l) * acc / total
+                    acc += len(part)
+                    b = t0l + (t1l - t0l) * acc / total
+                    out.append({"spk": "", "text": part, "t0": round(a, 2), "t1": round(b, 2)})
+            data["dialogue"] = out
+            log(f"    对话合并/切句后 {len(out)} 句")
 
     log("    whisper: 讲解转写/对齐")
     segs_pb = whisper_segments(pb)
