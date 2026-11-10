@@ -1,8 +1,11 @@
-/* 第一课课程认读界面。数据与服务端会话来自 /api/vocab/lesson*，不写 localStorage 进度。 */
+/* 第一课课程认读界面。数据与服务端会话来自 /api/vocab/lesson*，不写 localStorage 进度。
+   评分语义（2026-11-10 审计修正）：认识→先核对词义再结算；看卡后认出由服务端按遗忘处理。 */
 (function(){
   const LESSON='cfcm-01-01';
+  const CONFIRM_MS=1500;
   const q=id=>document.getElementById(id);
-  let token=0, active=false, cards=null, lesson=null, session=null, busy=false, uni=false, err='', audio=null, pending=null;
+  let token=0, active=false, cards=null, lesson=null, session=null, busy=false, uni=false, err='', audio=null;
+  let pending=null, confirming=false, confirmTimer=null, timeMark=null, doneShown=false;
   const byKey=new Map();
 
   const eventId=()=>'lv-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8);
@@ -23,10 +26,26 @@
     }catch(e){ try{vbSpeakLocal(card.word);}catch(_){} }
   }
 
+  /* 学习时长：进页计时，离开/完成/隐藏时一次性结算（避免高频全量快照） */
+  function settleTime(){
+    try{
+      if(timeMark && !document.hidden){
+        const sec=Math.round((Date.now()-timeMark)/1000);
+        if(sec>=1 && typeof studyTick==='function'){
+          studyTick(sec);
+          if(sec>=5 && typeof recSave==='function') recSave();
+        }
+      }
+    }catch(e){}
+    timeMark=document.hidden?null:Date.now();
+  }
+  function onVis(){ if(document.hidden) settleTime(); else if(active) timeMark=Date.now(); }
+
   function shell(inner){
+    const review=session&&session.phase==='review';
     return '<div class="lv-wrap">'
-      + '<div class="lv-head"><div><h3>'+(lesson?esc(lesson.title):'第01课')+'</h3>'
-      + '<div class="meta">本课 <b>'+(lesson?lesson.total:176)+'</b> 词 · 已整理 <b>'+(lesson?lesson.noted:138)+'</b> 条老师讲解</div></div>'
+      + '<div class="lv-head"><div><h3>'+(lesson?esc(lesson.title):'第01课')+(review?' · 复习轮':'')+'</h3>'
+      + '<div class="meta">'+(review?'本轮到期的词，认出即延长间隔；想不起来看卡，当天再认':'本课 <b>'+(lesson?lesson.total:176)+'</b> 词 · 已整理 <b>'+(lesson?lesson.noted:138)+'</b> 条老师讲解')+'</div></div>'
       + '<button class="lv-exit" id="lv-exit">返回背单词</button></div>'
       + progress()
       + inner + '</div>';
@@ -35,22 +54,39 @@
   function progress(){
     if(!session) return '';
     const done=session.doneCount||0, total=session.total||1;
-    const again=session.again||0;
     return '<div class="lv-progress"><div class="lv-track"><i style="width:'+Math.round(done/total*100)+'%"></i></div>'
-      + '<span class="lv-count">已认 <b>'+done+'</b> / '+total+' · 待再认 <b>'+again+'</b></span></div>';
+      + '<span class="lv-count">已认 <b>'+done+'</b> / '+total+' · 待再认 <b>'+(session.again||0)+'</b></span></div>';
   }
 
+  function cardTag(c){
+    if(session.rechecked&&session.rechecked[c.key]) return '<span class="lv-tag re">再确认</span>';
+    const known=!!((window.REC&&REC.vocab&&REC.vocab[c.key])||(session.phase==='review'));
+    return '<span class="lv-tag'+(known?' re':'')+'">'+(known?'复习':'新词')+'</span>';
+  }
+
+  function speakBtn(){ return '<button class="lv-speak" id="lv-speak" type="button" aria-label="播放发音"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6.5 8.5H3v7h3.5L11 19Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18 6a8.5 8.5 0 0 1 0 12"/></svg></button>'; }
+
   function front(c){
-    const re=session.front===1;
+    if(confirming){
+      return '<div class="lv-card">'
+        + '<div class="lv-meta">'+cardTag(c)+'<span>第 '+c.group+' 组 · '+esc(c.groupLabel)+'</span></div>'
+        + '<div class="lv-wordrow"><span class="lv-word">'+esc(c.word)+'</span>'+speakBtn()+'</div>'
+        + '<div class="lv-ipa">'+esc(c.ipa||'')+'</div>'
+        + '<div class="lv-sect"><div class="lv-label">你想起的意思对吗？</div><div class="lv-def">'+esc(c.def)+'</div></div>'
+        + '<div class="lv-choices">'
+        + '<button class="lv-btn" type="button" data-lv="wrong">其实记错了</button>'
+        + '<button class="lv-btn pri" type="button" data-lv="proceed">记对了 · 继续</button></div>'
+        + '<div class="lv-cfbar"><i></i></div>'
+        + (err?'<p class="lv-err" role="alert">'+esc(err)+'</p>':'')
+        + '</div>';
+    }
     return '<div class="lv-card">'
-      + '<div class="lv-meta"><span class="lv-tag'+(re?' re':'')+'">'+(re?'再认一次':'新词')+'</span>'
-      + '<span>第 '+c.group+' 组 · '+esc(c.groupLabel)+'</span></div>'
-      + '<div class="lv-wordrow"><span class="lv-word">'+esc(c.word)+'</span>'
-      + '<button class="lv-speak" id="lv-speak" type="button" aria-label="播放发音"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6.5 8.5H3v7h3.5L11 19Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18 6a8.5 8.5 0 0 1 0 12"/></svg></button></div>'
+      + '<div class="lv-meta">'+cardTag(c)+'<span>第 '+c.group+' 组 · '+esc(c.groupLabel)+'</span></div>'
+      + '<div class="lv-wordrow"><span class="lv-word">'+esc(c.word)+'</span>'+speakBtn()+'</div>'
       + '<div class="lv-ipa">'+esc(c.ipa||'')+'</div>'
       + '<div class="lv-choices">'
-      + '<button class="lv-btn pri" type="button" data-lv="know"'+(busy?' disabled':'')+'>认识</button>'
-      + '<button class="lv-btn" type="button" data-lv="again"'+(busy?' disabled':'')+'>不认识</button></div>'
+      + '<button class="lv-btn pri" type="button" data-lv="know"'+(busy?' disabled':'')+'>认识 <span class="lv-kbd">1</span></button>'
+      + '<button class="lv-btn" type="button" data-lv="again"'+(busy?' disabled':'')+'>不认识 <span class="lv-kbd">2</span></button></div>'
       + '<p class="lv-hint">认识＝不看提示能想起意思 · 只有眼熟请点不认识</p>'
       + (busy?'<p class="lv-hint" role="status">保存中…</p>':'')
       + (err?'<p class="lv-err" role="alert">'+esc(err)+'</p>':'')
@@ -76,32 +112,36 @@
       ? '<details class="lv-ex"><summary>例句</summary><p>'+esc(c.example)+'</p>'+(c.exampleZh?'<p class="zh">'+esc(c.exampleZh)+'</p>':'')+'</details>':'';
     return '<div class="lv-card">'
       + '<div class="lv-meta"><span class="lv-tag re">学习中</span><span>第 '+c.group+' 组 · '+esc(c.groupLabel)+'</span></div>'
-      + '<div class="lv-wordrow"><span class="lv-word">'+esc(c.word)+'</span>'
-      + '<button class="lv-speak" id="lv-speak" type="button" aria-label="播放发音"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6.5 8.5H3v7h3.5L11 19Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18 6a8.5 8.5 0 0 1 0 12"/></svg></button></div>'
+      + '<div class="lv-wordrow"><span class="lv-word">'+esc(c.word)+'</span>'+speakBtn()+'</div>'
       + '<div class="lv-ipa">'+esc(c.ipa||'')+'</div>'
       + '<div class="lv-sect"><div class="lv-label">基本义</div><div class="lv-def">'+esc(c.def)+'</div></div>'
       + '<div class="lv-sect">'+note+'</div>'
       + '<div class="lv-sect">'+uniBtn+'</div>'
       + ex
-      + '<button class="lv-continue" type="button" data-lv="continue"'+(busy?' disabled':'')+'>继续 · 稍后再认一次</button>'
+      + '<button class="lv-continue" type="button" data-lv="continue"'+(busy?' disabled':'')+'>继续 · 稍后再认一次 <span class="lv-kbd">Enter</span></button>'
       + (busy?'<p class="lv-hint" role="status">保存中…</p>':'')
       + (err?'<p class="lv-err" role="alert">'+esc(err)+'</p>':'')
       + '</div>';
   }
 
   function done(){
-    const s=session, total=s.total||0, first=s.summary?.first||0, later=s.summary?.later||0;
-    const base=s.completedAt||now(), d=new Date(base+3*864e5);
+    if(!doneShown){ doneShown=true; settleTime(); }
+    const s=session, total=s.total||0, first=s.summary&&s.summary.first||0, later=s.summary&&s.summary.later||0;
+    const review=s.phase==='review';
+    const base=s.nextDueAt||(now()+3*864e5), d=new Date(base);
     const due=(d.getMonth()+1)+' 月 '+d.getDate()+' 日';
-    const overdue=d.getTime()<now();
+    const overdue=base<now();
+    const dueLine=overdue
+      ? '这批词的复习时间已到 · 背单词页会出现它们。'
+      : (review?'最近的到期日在 <b>'+due+'</b> · 届时仍先只见英文，想不起来再看卡。':'新认的词约 <b>'+due+'</b> 到期 · 到期时仍先只见英文，想不起来再看卡。');
     return '<div class="lv-card lv-done">'
-      + '<div class="ok">✓</div><h3>本课认读完成</h3>'
-      + '<p class="lead">本课 '+total+' 个词都在只看英文时点过认识。</p>'
+      + '<div class="ok">✓</div><h3>'+(review?'本轮复习完成':'本课认读完成')+'</h3>'
+      + '<p class="lead">'+(review?'这轮到期的词都过了一遍。':'本课 '+total+' 个词都在只看英文时点过认识。')+'</p>'
       + '<div class="lv-stats"><div><span>全词</span><b>'+total+'</b></div>'
-      + '<div><span>首次就认出</span><b>'+first+'</b></div>'
+      + '<div><span>直接认出</span><b>'+first+'</b></div>'
       + '<div><span>看卡后认出</span><b>'+later+'</b></div></div>'
-      + '<p class="lv-due">'+(overdue?'新认的词已在 <b>'+due+'</b> 到期 · 到背单词里复习即可。':'新认的词约 <b>'+due+'</b> 到期 · 到期时仍先只见英文，想不起来再看卡。')+'</p>'
-      + '<div class="lv-row"><button class="lv-ghost" type="button" data-lv="restart"'+(busy?' disabled':'')+'>再练一遍</button>'
+      + '<p class="lv-due">'+dueLine+'</p>'
+      + '<div class="lv-row">'+(review?'':'<button class="lv-ghost" type="button" data-lv="restart"'+(busy?' disabled':'')+'>再练一遍</button>')
       + '<button class="lv-ghost" type="button" data-lv="back">返回背单词</button></div>'
       + (busy?'<p class="lv-hint" role="status">保存中…</p>':'')
       + (err?'<p class="lv-err" role="alert">'+esc(err)+'</p>':'')+'</div>';
@@ -111,7 +151,7 @@
     const body=q('vb-body');
     if(!body||!active||!document.querySelector('#v-vocab.on')) return;
     const ct=q('vb-ct'); if(ct&&lesson) ct.textContent='第01课 · '+(session?(session.doneCount||0):0)+' / '+(lesson.total||176);
-    if(!session){ body.innerHTML=shell('<div class="lv-loading">正在读取课级进度…</div>'); return; }
+    if(!session){ body.innerHTML=shell('<div class="lv-loading">正在读取课级进度…</div>'); wire(); return; }
     if(session.completedAt){ body.innerHTML=shell(done()); wire(); return; }
     const c=byKey.get(session.current);
     if(!c){ body.innerHTML=shell('<div class="lv-loading">词卡数据缺少当前词，请重试。</div>'); wire(); return; }
@@ -121,24 +161,61 @@
 
   function wire(){
     const exit=q('lv-exit'); if(exit) exit.onclick=()=>{ leave(); location.hash='#/vocab'; };
-    const sp=q('lv-speak'); if(sp) sp.onclick=()=>speak(byKey.get(session?.current));
+    const sp=q('lv-speak'); if(sp) sp.onclick=()=>speak(byKey.get(session&&session.current));
     q('vb-body')?.querySelectorAll('[data-lv]').forEach(b=>{
       const act=b.getAttribute('data-lv');
       b.onclick=()=>{
         if(act==='uni'){ uni=!uni; render(); }
         else if(act==='back'){ leave(); location.hash='#/vocab'; }
         else if(act==='restart'){ if(!busy) restart(); }
-        else if(['know','again','continue'].includes(act)){ if(!busy) grade(act); }
+        else if(act==='know'){ if(!busy&&!confirming) startConfirm(); }
+        else if(act==='proceed'){ if(confirming) proceed(); }
+        else if(act==='wrong'){ if(confirming) markWrong(); }
+        else if(act==='again'||act==='continue'){ if(!busy) grade(act); }
       };
     });
+  }
+
+  function startConfirm(){
+    if(!session||!session.current) return;
+    confirming=true; err='';
+    render();
+    if(confirmTimer) clearTimeout(confirmTimer);
+    confirmTimer=setTimeout(()=>{ if(confirming&&active){ confirming=false; grade('know'); } },CONFIRM_MS);
+  }
+  function proceed(){
+    if(!confirming) return;
+    if(confirmTimer){clearTimeout(confirmTimer);confirmTimer=null;}
+    confirming=false;
+    grade('know');
+  }
+  function markWrong(){
+    if(!confirming) return;
+    if(confirmTimer){clearTimeout(confirmTimer);confirmTimer=null;}
+    confirming=false;
+    grade('again');
   }
 
   async function resync(){
     try{
       const r=await api('/api/vocab/lesson',{signal:AbortSignal.timeout(10000)});
-      if(r.session){ session=r.session; lesson=r.lesson||lesson; uni=false; err=''; }
+      if(r.session){ session=r.session; lesson=r.lesson||lesson; uni=false; }
+      return true;
+    }catch(e){ return false; }
+  }
+
+  function mergeVocabAck(key,res){
+    try{
+      if(res.st&&window.REC){
+        REC.vocab=REC.vocab||{};
+        const newer=(typeof vbNewer==='function')?vbNewer(res.st,REC.vocab[key]):true;
+        if(newer) REC.vocab[key]=res.st;
+        if(typeof VB_ACK!=='undefined'&&VB_ACK) VB_ACK[key]=res.st;
+      }
+      if(res.vocabDays&&window.REC) REC.vocabDays=res.vocabDays;
     }catch(e){}
   }
+
   async function grade(action){
     if(!session||!session.current) return;
     const t=token, key=session.current;
@@ -151,29 +228,43 @@
         body:JSON.stringify({lessonId:LESSON,id,key,action}),signal:AbortSignal.timeout(15000)});
       if(t!==token) return;
       session=res.session; pending=null; uni=false;
+      mergeVocabAck(key,res);
     }catch(e){
       if(t!==token) return;
-      const msg=e.message||'保存失败，请重试';
-      if(/not current word|already completed|lesson not started/.test(msg)){ await resync(); if(t!==token) return; pending=null; }
+      const msg=(e&&e.message)||'保存失败，请重试';
+      const ok=await resync(); if(t!==token) return;
+      const cur=session&&session.current;
+      const applied=cur!==key || (action==='again'&&cur===key&&session.front===1);
+      if(ok&&applied){ pending=null; err=''; }   // 服务端已生效（含超时后到达），按新状态继续
       else err=msg;
     }
     finally{ if(t===token){ busy=false; render(); } }
   }
 
   async function restart(){
-    const t=token; busy=true; err=''; render();
+    const t=token; busy=true; err=''; confirming=false;
+    if(confirmTimer){clearTimeout(confirmTimer);confirmTimer=null;}
+    render();
     try{
       const res=await api('/api/vocab/lesson/start',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({lessonId:LESSON,restart:true})});
+        body:JSON.stringify({lessonId:LESSON,restart:true}),signal:AbortSignal.timeout(15000)});
       if(t!==token) return;
-      session=res.session; lesson=res.lesson||lesson; uni=false;
-    }catch(e){ if(t===token) err=e.message||'无法重新开始'; }
+      session=res.session; lesson=res.lesson||lesson; uni=false; pending=null;
+    }catch(e){
+      if(t!==token) return;
+      const ok=await resync(); if(t!==token) return;
+      err=ok?'':((e&&e.message)||'无法重新开始');
+    }
     finally{ if(t===token){ busy=false; render(); } }
   }
 
   async function open(id){
     const t=++token; active=true; busy=false; uni=false; err=''; session=null; pending=null;
+    confirming=false; if(confirmTimer){clearTimeout(confirmTimer);confirmTimer=null;}
+    doneShown=false;
     try{window.vbSuspendForLesson&&vbSuspendForLesson();}catch(e){}
+    timeMark=Date.now();
+    document.addEventListener('visibilitychange',onVis);
     q('lv-entry')?.setAttribute('hidden','');
     const body=q('vb-body');
     if(body) body.innerHTML='<div class="lv-loading">正在读取第一课词卡…</div>';
@@ -189,23 +280,43 @@
       lesson=meta.lesson||lesson; session=meta.session;
       if(!session){
         const st=await api('/api/vocab/lesson/start',{method:'POST',headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({lessonId:id||LESSON})});
+          body:JSON.stringify({lessonId:id||LESSON}),signal:AbortSignal.timeout(15000)});
         if(t!==token) return;
         session=st.session; lesson=st.lesson||lesson;
       }
       render();
     }catch(e){
       if(t!==token) return;
-      if(body) body.innerHTML='<div class="lv-loading" role="status">'+esc(e.message||'第一课词卡读取失败')+'<br><button class="lv-ghost" id="lv-retry" style="margin-top:12px">重试</button></div>';
+      if(body) body.innerHTML='<div class="lv-loading" role="status">'+esc((e&&e.message)||'第一课词卡读取失败')+'<br><button class="lv-ghost" id="lv-retry" style="margin-top:12px">重试</button></div>';
       const r=q('lv-retry'); if(r) r.onclick=()=>open(id);
     }
   }
 
   function leave(){
-    active=false; token++; stopAudio();
+    active=false; token++; settleTime();
+    confirming=false; if(confirmTimer){clearTimeout(confirmTimer);confirmTimer=null;}
+    stopAudio();
+    document.removeEventListener('visibilitychange',onVis);
     q('lv-entry')?.removeAttribute('hidden');
     const ct=q('vb-ct'); if(ct) ct.textContent='';
   }
+
+  document.addEventListener('keydown',function(e){
+    if(!active) return;
+    if(e.target&&/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) return;
+    if(confirming){
+      if(e.key==='1'||e.key==='Enter'){ e.preventDefault(); proceed(); }
+      else if(e.key==='2'||e.key==='Escape'){ e.preventDefault(); markWrong(); }
+      return;
+    }
+    if(!session||session.completedAt) return;
+    if(session.front===1){
+      if(e.key==='Enter'||e.key==='1'){ e.preventDefault(); const b=document.querySelector('[data-lv="continue"]'); if(b&&!busy) b.click(); }
+      return;
+    }
+    if(e.key==='1'){ e.preventDefault(); const b=document.querySelector('[data-lv="know"]'); if(b&&!busy&&!confirming) b.click(); }
+    else if(e.key==='2'){ e.preventDefault(); const b=document.querySelector('[data-lv="again"]'); if(b&&!busy) b.click(); }
+  });
 
   window.LV={open,leave,isActive:()=>active};
 })();

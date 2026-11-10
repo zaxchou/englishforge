@@ -2501,10 +2501,11 @@ const handler = async (req, res) => {
         if (inc.lessonId && inc.lessonId !== index.lessonId) return sendJSON(res, 400, { error: 'unknown lesson' });
         const now = Date.now(), restart = inc.restart === true;
         const existing = (RECORDS.vocabLesson || {})[index.lessonId] || null;
-        if (existing && !restart) return sendJSON(res, 200, { ok: true, resumed: true, lesson: LESSON_META, session: LessonVocab.publicSession(existing) });
+        const plan = LessonVocab.planStart(existing, index, RECORDS.vocab, now, randomUUID(), restart);
+        if (plan.resumed) return sendJSON(res, 200, { ok: true, resumed: true, lesson: LESSON_META, session: LessonVocab.publicSession(plan.session) });
         const next = JSON.parse(JSON.stringify(RECORDS));
         next.vocabLesson ||= {};
-        next.vocabLesson[index.lessonId] = LessonVocab.startSession(existing, index, now, randomUUID(), restart);
+        next.vocabLesson[index.lessonId] = plan.session;
         next.revision = (RECORDS.revision || 0) + 1;
         next.saved_at = new Date(now).toISOString();
         try { recordsSave(next); } catch (e) { console.error('[lesson-vocab]', e.message); return sendJSON(res, 503, { error: 'records not persisted' }); }
@@ -2551,12 +2552,15 @@ const handler = async (req, res) => {
           const day = new Date(now + 8 * 3600000).toISOString().slice(0, 10);
           const daily = next.vocabDays[day] ||= { grades: 0, introduced: 0 };
           daily.grades++; if (result.introduced) daily.introduced++;
+          // 全局事件账本同步登记（审计 C6：课级评分不再只有会话内账本）
+          next.vocabEvents ||= {};
+          next.vocabEvents[eventId] = { fingerprint: JSON.stringify([key, 'lesson', result.introduced ? 'introduced' : (work.tries[key] ? 'relearn' : 'review')]), key, at: now, introduced: !!result.introduced };
         }
         next.revision = (RECORDS.revision || 0) + 1;
         next.saved_at = new Date(now).toISOString();
         try { recordsSave(next); } catch (e) { console.error('[lesson-vocab]', e.message); return sendJSON(res, 503, { error: 'records not persisted' }); }
         RECORDS = next;
-        return sendJSON(res, 200, { ok: true, duplicate: false, session: LessonVocab.publicSession(work), st: result.st, wrote: result.wrote, revision: next.revision });
+        return sendJSON(res, 200, { ok: true, duplicate: false, session: LessonVocab.publicSession(work), st: result.st, wrote: result.wrote, vocabDays: next.vocabDays, revision: next.revision });
       } catch (e) { return sendJSON(res, e.status || 500, { error: e.message }); }
     }
 
