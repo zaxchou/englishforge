@@ -52,6 +52,7 @@ export function createRootDict({ project }) {
         return true;
       }
       res.setHeader('Content-Security-Policy', DICT_CSP);
+      res.setHeader('Cache-Control', 'no-store');
       sendFile(req, res, path.join(dir, 'public', 'index.html'));
       return true;
     }

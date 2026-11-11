@@ -81,7 +81,7 @@ function openAllianceBranch(id){
   const branch=learning.alliance.branches.find(b=>b.id===id);if(!branch)return;
   const roots=new Set(branch.words.flatMap(item=>{const ids=reviewedMember(memberId(item)).root_ids;return ids?.length?ids:['@classroom'];}));
   selectedAllianceBranch=id;selectedAllianceRoot=roots.size===1?[...roots][0]:'@all';
-  rootGraphMode=true;graphFocus='branch:'+learning.alliance.id+':'+id;setView('graph');
+  rootGraphMode=true;graphFocus='branch:'+learning.alliance.id+':'+id;showGraphView();
   const focus=Object.keys(activeGraphData.pos).find(key=>nodeById.get(key).branch_id===id);
   if(focus&&graphFocus!==focus){graphFocus=focus;renderGraph();}
 }
@@ -98,7 +98,7 @@ function allianceGraphData(){
   let picker=$('#alliance-root-picker');
   if(!picker){picker=document.createElement('div');picker.id='alliance-root-picker';picker.className='graph-root-picker';$('#graph-modes').after(picker);}
   picker.hidden=groups.length<2;
-  picker.innerHTML='<label for="alliance-root-select">查看词根</label><select id="alliance-root-select">'+groups.map(g=>`<option value="${esc(g.key)}">${esc(g.label)} · ${members.filter(w=>g.key==='@classroom'?!w.root_ids?.length:w.root_ids?.includes(g.key)).length}词</option>`).join('')+'<option value="@all">全部词根 · 分开展示</option></select>';
+  picker.innerHTML='<label for="alliance-root-select">图内分组</label><select id="alliance-root-select">'+groups.map(g=>`<option value="${esc(g.key)}">${esc(g.label)} · ${members.filter(w=>g.key==='@classroom'?!w.root_ids?.length:w.root_ids?.includes(g.key)).length}词</option>`).join('')+'<option value="@all">全部词根 · 分开展示</option></select>';
   const select=$('#alliance-root-select');select.value=selectedAllianceRoot;
   select.onchange=()=>{selectedAllianceRoot=select.value;selectedAllianceBranch=null;graphFocus=groups.find(g=>g.key===selectedAllianceRoot)?.id||'alliance-overview:'+a.id;renderGraph();};
   const matchesGroup=(word,g)=>g.key==='@classroom'?!word.root_ids?.length:word.root_ids?.includes(g.key);

@@ -32,6 +32,10 @@ async function run(){
    if(assets.has(u.pathname))return route.fulfill({status:200,contentType:u.pathname.endsWith('.js')?'text/javascript':u.pathname.endsWith('.css')?'text/css':u.pathname.endsWith('.png')?'image/png':'text/html',body:assets.get(u.pathname)});
    if(u.pathname==='/favicon.ico')return route.fulfill({status:204,body:''});
    if(u.pathname==='/api/graph')return reply(graph);
+   if(u.pathname==='/api/roots'){
+    const roots=profiles.flatMap(p=>p.roots.map(r=>({...r,id:p.alliance.id+':'+r.id,root_id:r.id,entry_id:p.alliance.id,title:p.alliance.title,count:p.members.filter(w=>w.root_ids.includes(r.id)).length,forms:[]})));
+    return reply({results:roots,total:roots.length,truncated:false});
+   }
    if(u.pathname==='/api/learning'){
     const p=profiles.find(p=>p.members.some(w=>w.query_id===u.searchParams.get('id')));
     assert(p,'unknown fixture query');const word=p.members.find(w=>w.query_id===u.searchParams.get('id'));
