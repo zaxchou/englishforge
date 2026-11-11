@@ -28,7 +28,7 @@ const day=n=>new Date(Date.now()+n*864e5).toISOString().slice(0,10);
   const recoveredOnly=coverProgress({recoveredCover:{sentences:nine},stampDays:{}},9,day(0));
   assert.equal(recoveredOnly.nextDue,null,'历史补认无遍1日期不锚定');
 }
-(async()=>{const seed=await(await fetch('http://127.0.0.1:8020/api/records')).json();const browser=await chromium.launch({channel:'msedge',headless:true});const passed=[],errors=[];
+(async()=>{const seed=await(await fetch(base+'/api/records')).json();const browser=await chromium.launch({channel:'msedge',headless:true});const passed=[],errors=[];
 try{
  async function test(name,fn,course={}){
   const context=await browser.newContext({ignoreHTTPSErrors:true,viewport:{width:1440,height:960}});
@@ -37,6 +37,10 @@ try{
    if(r.request().method()==='GET')return r.fulfill({json:stored});
    if(reject){failures++;return r.fulfill({status:503,json:{error:'fixture save failure'}});}
    stored={...r.request().postDataJSON(),revision:(stored.revision||0)+1};return r.fulfill({json:{ok:true,revision:stored.revision}});
+  });
+  await context.route('**/api/course-record/*',r=>{
+   const lessonId=new URL(r.request().url()).pathname.split('/').pop(),lesson=stored.course[lessonId];
+   return r.fulfill({status:lesson?200:404,json:lesson?{ok:true,lessonId,lesson}:{error:'no record'}});
   });
   const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
   try{await page.goto(base+'/#/course/eplod-0002');await page.locator('#ep-tabs').waitFor({timeout:60000});await page.locator('#ep-cov .ep-cover-step').first().waitFor();await page.evaluate(()=>document.fonts.ready);
@@ -75,6 +79,41 @@ try{
   store.reject(false);await p.evaluate(()=>flushRecords());await p.waitForFunction(()=>!recSaving&&!recDirty);assert.deepEqual(store.get().course['eplod-0002'].drill.stampDays[today],nine);
   await p.reload();await p.locator('#ep-cov .ep-cover-step').first().waitFor();assert.equal(await p.locator('#ep-list .cli.on .ep-round.complete').count(),1);assert.equal(await p.locator('#ep-cov .ep-cover-step.complete').count(),1);
  },{'eplod-0002':{drill:{stampDays:{[today]:nine.slice(0,8)}}}});
+ await test('optional fourth stamp preserves graduation, saves and reloads as four stars',async(p,store)=>{
+  assert.equal(await p.locator('#ep-list .cli.on .ep-round.complete').count(),3);
+  assert.equal(await p.locator('#ep-cov .ep-cover-step').count(),4);
+  assert.match(await p.locator('#ep-cov .ep-cover-step.extra').innerText(),/可选/);
+  assert.match(await p.locator('#ep-cov .ep-cover-step.extra').innerText(),/今天 8\/9 句/);
+  assert.equal(await p.locator('#ep-cov .extra.current').count(),0);
+  assert.equal(await p.locator('#ep-cov .ep-cover-summary').innerText(),'3/3 遍');
+  await p.evaluate(()=>epStamp(8));
+  assert.equal(await p.locator('#ep-list .cli.on .ep-round.complete').count(),4);
+  assert.equal(await p.locator('#ep-list .cli.on .ep-nav-caption').innerText(),'四遍完成');
+  assert.match(await p.locator('#ep-cov .ep-cover-summary').innerText(),/4 遍/);
+  await p.evaluate(()=>flushRecords());await p.waitForFunction(()=>!recSaving&&!recDirty);
+  assert.equal(store.get().course['eplod-0002'].done,true);
+  await p.reload();await p.locator('#ep-cov .ep-cover-step').first().waitFor();
+  assert.equal(await p.locator('#ep-cov .ep-cover-step.complete').count(),4);
+  assert.equal(await p.locator('#ep-list .cli.on .ep-round.complete').count(),4);
+  for(const width of [1440,390]){
+   await p.setViewportSize({width,height:width<800?844:900});
+   await p.screenshot({path:path.join(out,'fourth-complete-'+width+'.png')});
+  }
+  await p.evaluate(()=>{REC.course['eplod-0002'].at=Date.now();renderHome();});
+  assert.match(await p.locator('#v-home').innerText(),/★★★★ 四遍完成/);
+ },{'eplod-0002':{done:true,drill:{stampDays:{...days(3),[today]:nine.slice(0,8)}}}});
+ await test('optional fourth step fits desktop and phone without a compulsory reminder',async p=>{
+  for(const width of [1440,1024,390,320]){
+   await p.setViewportSize({width,height:width<800?844:900});
+   const m=await p.locator('#ep-cov').evaluate(el=>({over:document.documentElement.scrollWidth-innerWidth,steps:[...el.querySelectorAll('.ep-cover-step')].map(e=>({w:e.clientWidth,sw:e.scrollWidth,y:Math.round(e.getBoundingClientRect().y)})),animations:[...el.querySelectorAll('.extra svg')].map(e=>getComputedStyle(e).animationName)}));
+   assert.equal(m.over,0,JSON.stringify(m));assert.equal(m.steps.length,4);
+   assert.ok(m.steps.every(x=>x.sw<=x.w+1),JSON.stringify(m));
+   assert.equal(new Set(m.steps.map(x=>x.y)).size,width<=700?2:1);
+   assert.ok(m.animations.every(x=>x==='none'));
+   assert.doesNotMatch(await p.locator('#ep-cov').innerText(),/今天到期|逾期|待第4遍/);
+   await p.screenshot({path:path.join(out,'optional-fourth-'+width+'.png')});
+  }
+ },{'eplod-0002':{done:true,drill:{stampDays:days(3)}}});
  await test('all catalog lessons have true sentence counts; short lessons use their total',async p=>{
   const lessons=await p.evaluate(()=>courseById('eplod-01').lessons.map(l=>({id:l.id,n:l.dialogue_count})));
   assert.equal(lessons.length,364);assert.ok(lessons.every(l=>Number.isInteger(l.n)&&l.n>0));assert.equal(lessons.find(l=>l.id==='eplod-0002').n,9);

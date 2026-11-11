@@ -8,7 +8,7 @@
 <link rel="icon" type="image/png" sizes="96x96" href="/assets/brand/t-dot-v1/t-dot-96.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/assets/brand/t-dot-v1/t-dot-180.png">
 <title>TOEFL Lab · 托福自学练习</title>
-<link rel="stylesheet" href="desk.css?v=20261109r14">
+<link rel="stylesheet" href="desk.css?v=20261111r5">
 <link rel="stylesheet" href="lesson-vocab.css?v=20261110r3">
 <style>
 /* 应用层补充样式（视觉基线在 desk.css，不改它的既有规则） */
@@ -355,7 +355,7 @@ details.ai-tsec[open] summary{margin-bottom:8px}
 
 </div>
 
-<script src="eplod-records.js?v=21"></script>
+<script src="eplod-records.js?v=22"></script>
 <script src="course-plan-model.js?v=20261029r8"></script>
 <script src="course-plan-ui.js?v=20261107r8"></script>
 <script src="root-practice-ui.js?v=e3203ffa489d"></script>
@@ -1413,7 +1413,7 @@ function renderHome(){
     const stars='★'.repeat(cst.completed)+'☆'.repeat(3-cst.completed);
     const watchingE=lastELT>=lastT&&lastELT>=lastVLT;
     const epMd=s=>s?Number(s.slice(5,7))+'/'+Number(s.slice(8,10)):'';
-    const sub=cp.done?'★★★ 三遍完成 · 可回归复习':cst.completed?`覆盖背诵 ${stars} · ${cst.dueToday?'今天该背':'待第'+(cst.completed+1)+'遍'+(cst.nextDue?'（'+epMd(cst.nextDue)+'）':'')}`:(cp.pos>10?('听到 '+fmt(cp.pos)):'☆☆☆ 还没开始背');
+    const sub=cst.completed>=3?(cst.extra?'★★★★ 四遍完成':'★★★ 三遍完成'+(cst.extraDue?' · '+(cst.extraToday?'第四遍可选':epMd(cst.extraDue)+' 起可选第四遍'):'')):cst.completed?`覆盖背诵 ${stars} · ${cst.dueToday?'今天该背':'待第'+(cst.completed+1)+'遍'+(cst.nextDue?'（'+epMd(cst.nextDue)+'）':'')}`:cp.done?'已学过 · 可开始背诵':(cp.pos>10?('听到 '+fmt(cp.pos)):'☆☆☆ 还没开始背');
     ch+=`<div class="cont${watchingE?'':' dim'}"><span class="pill t">EnglishPod</span>
       <div class="ct2"><b>${esc(lessonTitle(lastEL))}</b><span>${esc(sub)}</span></div>
       <button data-go="eplod/${encodeURIComponent(lastEL)}">继续精听 →</button></div>`;
@@ -3475,13 +3475,16 @@ function epCoverState(lesson,total){return EplodRecords.coverProgress(lesson?.dr
 function epWholePassed(drill){return Number.isFinite(drill?.wp?.best?.acc)&&drill.wp.best.acc>=.9;}
 /* 覆盖次数决定实心/空心; 整篇通过后, 目录与详情原位换成金色星形。 */
 function epCoverMarks(state,gold){
-  return [1,2,3].map(k=>'<span class="ep-round'+(gold?' gold':'')+(k<=state.completed?' complete':'')+(k===3&&state.completed===3?' final':'')+(k===state.completed+1?' current':'')+'" role="img" aria-label="第'+k+'遍'+(k<=state.completed?'已完成':'未完成')+(gold?'，整篇背诵已通过':'')+'">'+EP_STAR+'</span>').join('');
+  let h=[1,2,3].map(k=>'<span class="ep-round'+(gold?' gold':'')+(k<=state.completed?' complete':'')+(k===3&&state.completed===3?' final':'')+(k===state.completed+1?' current':'')+'" role="img" aria-label="第'+k+'遍'+(k<=state.completed?'已完成':'未完成')+(gold?'，整篇背诵已通过':'')+'">'+EP_STAR+'</span>').join('');
+  /* 三遍毕业后显示第四星, 可选项不使用催促动效。 */
+  if(state.completed>=3)h+='<span class="ep-round extra'+(gold?' gold':'')+(state.extra?' complete':'')+'" role="img" aria-label="第四遍（可选）'+(state.extra?'已完成':'未完成')+(gold?'，整篇背诵已通过':'')+'">'+EP_STAR+'</span>';
+  return h;
 }
 function epNavCoverHTML(l){
   const lesson=REC.course[l.id];
   const state=epCoverState(lesson,l.dialogue_count??EP.cache[l.ep]?.dialogue.length??0),gold=epWholePassed(lesson?.drill);
-  const label=(state.completed===3?'覆盖背诵三遍完成':state.completed?'覆盖背诵待第 '+(state.completed+1)+' 遍':'覆盖背诵尚未开始')+(gold?'；整篇背诵已通过':'');
-  const caption=state.completed===3?'三遍完成':state.completed?'待第'+(state.completed+1)+'遍':'背诵';
+  const label=(state.completed===3?(state.extra?'覆盖背诵四遍完成':'覆盖背诵三遍完成 · 可选第四遍'):state.completed?'覆盖背诵待第 '+(state.completed+1)+' 遍':'覆盖背诵尚未开始')+(gold?'；整篇背诵已通过':'');
+  const caption=state.completed===3?(state.extra?'四遍完成':'三遍完成'):state.completed?'待第'+(state.completed+1)+'遍':'背诵';
   return '<span class="ep-nav-cover'+(gold?' gold':'')+(state.completed===3?' full':'')+'" title="'+label+'" aria-label="'+label+'"><span class="ep-nav-caption">'+caption+'</span>'+epCoverMarks(state,gold)+'</span>';
 }
 function epNavCoverUpdate(){
@@ -4284,7 +4287,7 @@ function epWireRow(row){
 }
 
 function epCoveredToday(st,i){return (st.p.drill.stampDays?.[epDay()]||[]).includes(i);}
-function epCoverageLabel(st,i){return epCoverState(st.p,st.d.dialogue.length).completed>=3?'三遍完成':epCoveredToday(st,i)?'今日已计入':'今日待练';}
+function epCoverageLabel(st,i){const s4=epCoverState(st.p,st.d.dialogue.length);return s4.completed>=3?(s4.extra?'四遍完成':'三遍完成'):epCoveredToday(st,i)?'今日已计入':'今日待练';}
 function epRowHtml(i){
   const st=EP.st,drill=st.p.drill,u=epItems()[i];
   const acc=drill.dd[i]&&drill.dd[i].acc,rec=drill.rd[i]&&drill.rd[i].acc!=null?drill.rd[i]:null;
@@ -4869,13 +4872,21 @@ function epCoverUpdate(){
         :n?'待复背':'待开始'):'待复背';
     stamps+='<div class="ep-cover-step'+(done?' complete':'')+(current?' current':'')+(k===3&&n===3?' final':'')+'"><span class="ep-round'+(gold?' gold':'')+(done?' complete':'')+(current?' current':'')+(k===3&&n===3?' final':'')+'" role="img" aria-label="第'+k+'遍'+(done?'已完成':'未完成')+(gold?'，整篇背诵已通过':'')+'">'+EP_STAR+'</span><span class="ep-cover-label"><b>'+labels[k-1]+'</b><small>'+detail+'</small></span></div>';
   }
-  const msg=n>=3?'三遍复背已完成'
+  /* 三遍毕业后显示可选第四遍, 完成日期不随后续练习改变。 */
+  if(n>=3){
+    const extraDetail=state.extra?'<time>'+md(state.extraDate)+'</time>':!todayStamped&&todayN?'今天 '+todayN+'/'+need+' 句':state.extraToday?'随时可背':state.extraDue?'<time>'+md(state.extraDue)+'</time>起':'随时可背';
+    stamps+='<div class="ep-cover-step extra'+(state.extra?' complete':'')+'"><span class="ep-round extra'+(gold?' gold':'')+(state.extra?' complete':'')+'" role="img" aria-label="第四遍（可选）'+(state.extra?'已完成':'未完成')+'">'+EP_STAR+'</span><span class="ep-cover-label"><b>第四遍</b><small><span>可选</span><span>'+extraDetail+'</span></small></span></div>';
+  }
+  const msg=n>=3?(state.extra?'四遍已完成 · 已获第四颗星'
+    :state.extraToday?'三遍复背已完成 · 可选背第四遍，再得一颗星'
+    :state.extraDue?'三遍复背已完成 · 建议 '+md(state.extraDue)+' 再背一遍，可得第四颗星'
+    :'三遍复背已完成')
     :todayStamped&&nextDue?'本遍已完成 · 第'+nextDayNo+'天（'+md(nextDue)+'）继续第 '+(n+1)+' 遍，也可提前背'
     :dueToday?'今天到期：朗读或默写 '+need+' 句，完成第 '+(n+1)+' 遍'
     :'朗读或默写 '+need+' 句，完成第 '+(n+1)+' 遍';
-  el.innerHTML='<div class="ep-cover-heading"><h4>覆盖背诵</h4><span class="ep-cover-stars'+(gold?' gold':'')+'" aria-hidden="true">'+epCoverMarks(state,gold)+'</span><span class="ep-cover-summary'+(n===3?' complete':'')+'">'+n+'/3 遍</span>'
+  el.innerHTML='<div class="ep-cover-heading"><h4>覆盖背诵</h4><span class="ep-cover-stars'+(gold?' gold':'')+'" aria-hidden="true">'+epCoverMarks(state,gold)+'</span><span class="ep-cover-summary'+(n===3?' complete':'')+'">'+(state.extra?'4 遍 · 含加练':n+'/3 遍')+'</span>'
     +'<button class="ep-text-button" id="ep-progress-toggle" aria-expanded="false" aria-controls="ep-progress"><svg width="16" height="16" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 15V9m6 6V4m6 11v-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><span>学习明细</span><svg class="ep-progress-chevron" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="m3 4 3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></button></div>'
-    +'<div class="ep-cover-track">'+stamps+'</div><p class="ep-cover-hint">'+msg+'</p>';
+    +'<div class="ep-cover-track'+(n>=3?' has-extra':'')+'">'+stamps+'</div><p class="ep-cover-hint">'+msg+'</p>';
   epSyncProgressToggle();
   epNavCoverUpdate();
   const card=$('ep-blist')?.querySelector('.ep-bcard'),label=card?.querySelector('.ep-card-history [data-k="c"]');if(label)label.textContent=epCoverageLabel(st,+card.dataset.i);

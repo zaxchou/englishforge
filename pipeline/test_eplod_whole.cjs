@@ -98,14 +98,15 @@ test('目录金星: 整篇通过门槛与覆盖次数分别保留', () => {
   vm.runInContext(html.slice(html.indexOf('const EP_STAR='), html.indexOf('function epNavCoverUpdate(')) + ';this.__navCover=epNavCoverHTML;', sandbox);
   const lesson = { id: 'eplod-0023', ep: '0023', dialogue_count: 3 };
   for (const [acc, gold] of [[undefined, false], [.899, false], [.9, true], [.98, true], [NaN, false], [Infinity, false], ['0.98', false]]) {
-    for (let rounds = 0; rounds <= 3; rounds++) {
+    for (let rounds = 0; rounds <= 4; rounds++) {
       const stampDays = Object.fromEntries(Array.from({ length: rounds }, (_, i) => ['2026-10-' + (28 + i), [0, 1, 2]]));
       sandbox.REC.course[lesson.id] = { drill: { stampDays, wp: { best: { acc }, latest: { acc: .4 } } } };
       const output = sandbox.__navCover(lesson);
-      assert.equal((output.match(/class="ep-round gold/g) || []).length, gold ? 3 : 0, '通过后的三颗星原位变金，不受后来失败成绩影响');
-      assert.equal((output.match(/class="ep-round(?: gold)? complete/g) || []).length, rounds, '换色不补填未完成的复背日期');
+      const slots=rounds>=3?4:3;
+      assert.equal((output.match(/class="ep-round[^"]*\bgold\b/g) || []).length, gold ? slots : 0, '通过后所有星位原位变金，不受后来失败成绩影响');
+      assert.equal((output.match(/class="ep-round[^"]*\bcomplete\b/g) || []).length, rounds, '换色不补填未完成的复背日期');
       assert.equal(output.includes('整篇背诵已通过'), gold, '悬浮与无障碍说明对应真实整篇状态');
-      assert.equal((output.match(/role="img"/g) || []).length, 3, '仍只占原来三颗星的位置');
+      assert.equal((output.match(/role="img"/g) || []).length, slots, '三遍毕业后出现可选第四星');
     }
   }
   delete sandbox.REC.course[lesson.id];
