@@ -293,7 +293,7 @@ test('r11: whole-recite report gives accuracy, speed, fluency and a total', () =
   // 完美内容但拖沓 + 语气词/复读: 准确与语速流畅分开扣
   const sluggish = E.wholeReport(official, official + ' uh and uh the the end', 38, 19);
   assert.equal(sluggish.accuracy, 100, 'content stays clean');
-  assert.ok(sluggish.speed < 60, 'dragging docks speed');
+  assert.ok(sluggish.speed < 85 && sluggish.speed > 50, 'dragging docks speed without hitting the floor at 2x');
   assert.ok(sluggish.fluency < 100, 'fillers and repeats dock fluency');
   assert.ok(sluggish.total < perfect.total);
   // 无原音锚点: speed 为 null, 总分改用准确 65 + 流畅 35 权重
@@ -306,6 +306,19 @@ test('r11: whole-recite report gives accuracy, speed, fluency and a total', () =
   assert.equal(E.wholeReport(official, official + ' banana', 19, 19).accuracy, 100);
   // 速度下限 50, 流畅度下限 50
   assert.equal(E.wholeReport(official, official, 60, 19).speed, 50);
+});
+
+test('r22: slow reciters get a finer speed curve instead of a flat 50', () => {
+  const official = 'I know, and I apologize for the delay.';
+  const speedAt = ratio => E.wholeReport(official, official, Math.round(20 * ratio), 20).speed;
+  assert.equal(speedAt(0.8), 100, 'faster than the source is never penalized');
+  assert.equal(speedAt(1.15), 100, 'same-speed band stays full marks');
+  const slow = [1.5, 1.8, 2.0, 2.3, 2.6, 2.9].map(speedAt);
+  assert.deepEqual(slow, [91, 82, 77, 69, 61, 53]);
+  for (let k = 1; k < slow.length; k++) assert.ok(slow[k] < slow[k - 1], 'each extra delay lowers the score');
+  assert.equal(new Set(slow).size, slow.length, 'values stay distinguishable by tenths of a multiple');
+  assert.equal(speedAt(3.0), 50, 'floor only at three times the source length');
+  assert.equal(speedAt(4.2), 50, 'beyond the floor stays at 50');
 });
 
 test('compound rescoring upgrades version-2 evidence without changing stamps and stays idempotent', () => {

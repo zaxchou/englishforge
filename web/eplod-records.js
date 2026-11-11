@@ -226,8 +226,10 @@
     const accuracy=Math.round(scoreTokens(official,transcript,true).acc*100);
     let speed=null;
     if(a.length&&Number.isFinite(dur)&&dur>0&&Number.isFinite(srcDur)&&srcDur>0){
+      /* 语速分(r22 2026-11-11 用户反馈): 旧口径 1.65x 就触底 50, 慢速学习者每次都是 50,
+         看不出进步。改为 1.15x 内满分、线性扣到 3.0x=50, 超出仍封底; 快于原音不扣分。 */
       const ratio=dur/srcDur;
-      speed=Math.round(Math.max(50,Math.min(100,100-Math.max(0,ratio-1.15)*100)));
+      speed=Math.round(Math.min(100,Math.max(50,100-Math.max(0,ratio-1.15)/(3.0-1.15)*50)));
     }
     let events=0;
     for(let k=0;k<b.length;k++){

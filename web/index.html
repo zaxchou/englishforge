@@ -355,7 +355,7 @@ details.ai-tsec[open] summary{margin-bottom:8px}
 
 </div>
 
-<script src="eplod-records.js?v=23"></script>
+<script src="eplod-records.js?v=24"></script>
 <script src="course-plan-model.js?v=20261029r8"></script>
 <script src="course-plan-ui.js?v=20261107r8"></script>
 <script src="root-practice-ui.js?v=e3203ffa489d"></script>
@@ -4708,10 +4708,10 @@ function epWholeLive(host,st){
   const wholeAnchored=st.d.dialogue.every(x=>Number.isFinite(x.t0)&&Number.isFinite(x.t1)&&x.t1>x.t0);
   const wholeSrcDur=wholeAnchored?st.d.dialogue.reduce((s,x)=>s+(x.t1-x.t0),0):0;
   const rep=EplodRecords.wholeReport(st.d.dialogue.map(x=>x.text).join(' '),r.text||'',r.dur,wholeSrcDur);
-  const scoreRow=(label,val)=>{
+  const scoreRow=(label,val,hint)=>{
     if(val==null)return '<div class="row"><span>'+label+'</span><i class="na">本期无原音锚点</i><b>—</b></div>';
     const tone=val>=85?'ok':val>=70?'mid':'low';
-    return '<div class="row"><span>'+label+'</span><i><em class="'+tone+'" style="width:'+val+'%"></em></i><b>'+val+'</b></div>';
+    return '<div class="row"'+(hint?' title="'+esc(hint)+'"':'')+'><span>'+label+'</span><i><em class="'+tone+'" style="width:'+val+'%"></em></i><b>'+val+'</b></div>';
   };
   const sentBlocks=det.clean?'':det.sents.filter(s=>s.miss||s.extras.length).map(s=>{
     const words=s.words.map(w=>w.word?'<span class="'+(w.ok?'ok':'miss')+'">'+esc(w.t)+'</span>':esc(w.t)).join('');
@@ -4722,9 +4722,11 @@ function epWholeLive(host,st){
       +'<div class="wline"><b>原文</b>'+words+'</div>'
       +'<div class="mine"><b>识别</b>'+mine+'</div></div>';
   }).join('');
-  host.innerHTML='<div class="wp-result'+(r.acc>=.9?' pass':'')+'"><div class="wp-hero"><b>'+(r.acc>=.9?'✓ 整篇通过':'整篇词准 '+Math.round(r.acc*100)+'%')+'</b><span>通过线 90%'+(Number.isFinite(r.dur)?' · 用时 '+fmtDur(Math.round(r.dur)):'')+(t.history?' · 历史回看':'')+'</span></div>'
+  const speedRatio=Number.isFinite(r.dur)&&r.dur>0&&wholeSrcDur>0?r.dur/wholeSrcDur:null;
+  const ratioText=speedRatio?'<span style="white-space:nowrap">（用时为原音的 '+speedRatio.toFixed(1)+' 倍）</span>':'';
+  host.innerHTML='<div class="wp-result'+(r.acc>=.9?' pass':'')+'"><div class="wp-hero"><b>'+(r.acc>=.9?'✓ 整篇通过':'整篇词准 '+Math.round(r.acc*100)+'%')+'</b><span>通过线 90%'+(Number.isFinite(r.dur)?' · 用时 '+fmtDur(Math.round(r.dur))+ratioText:'')+(t.history?' · 历史回看':'')+'</span></div>'
     +'<div class="wp-score"><div class="tot"><b>'+rep.total+'</b><span>总分</span></div><div class="bars">'
-    +scoreRow('准确度',rep.accuracy)+scoreRow('语速',rep.speed)+scoreRow('流畅度',rep.fluency)
+    +scoreRow('准确度',rep.accuracy)+scoreRow('语速',rep.speed,'原音 1.15 倍以内满分；3 倍时 50 分，快于原音不扣分')+scoreRow('流畅度',rep.fluency)
     +'</div></div>'
     +'<div class="wp-per">'+r.per.map(p=>'<span class="'+(p.acc>=.9?'ok':'weak')+'" title="'+esc(st.d.dialogue[p.i].text)+'">#'+(p.i+1)+' '+Math.round(p.acc*100)+'%</span>').join('')+'</div>'
     +(sentBlocks?'<p class="wp-detail-note">这几句没完全对上：原文红波浪为未匹配词，识别红波浪为多出或替换的词。<span>逐句归属按相邻命中位置估算；识别也可能有偏差，请结合录音核对。多出词沿用原规则，不另扣分。</span></p>'+sentBlocks:'')
