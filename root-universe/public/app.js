@@ -26,8 +26,11 @@ let G=null,nodeById=new Map(),view='lookup';
 let lookupSense=null,graphFocus=null,trail=[],graphFamily=null;
 let learning=null,learningLookup=null,lookupSequence=0,rootGraphMode=false;
 let graphStatus='loading',lookupStatus='idle',activeGraphData=null,graphLayoutWidth=0,searchIntent=0;
+let rootDirectory=[],exploreRoot=null,rootSequence=0,rootFilterSequence=0,rootSelectionPending=false;
+function invalidateRootFilter(){++rootFilterSequence;clearTimeout(rootFilterTimer);}
+let familySwitchSequence=0;
 function updateNavigation(){
-  document.querySelectorAll('[data-view]').forEach(b=>{b.disabled=graphStatus!=='ready'||(b.dataset.view!=='lookup'&&lookupStatus!=='ready');});
+  document.querySelectorAll('[data-view]').forEach(b=>{b.disabled=graphStatus!=='ready'||(b.dataset.view==='practice'&&lookupStatus!=='ready');});
   $('#search').disabled=graphStatus!=='ready';
   $('#search-form button').disabled=graphStatus!=='ready';
 }
@@ -35,6 +38,8 @@ const roleNames={root:'词根',prefix:'前缀',suffix:'后缀',base:'基词'};
 function address(replace=true){
   const u=new URL(location.href);u.search='';
   if(lookupSense){u.searchParams.set('node',lookupSense);u.searchParams.set('q',nodeById.get(lookupSense)?.label||'');}
+  if(view==='graph'&&exploreRoot)u.searchParams.set('root',exploreRoot.id);
+  else if(view==='graph'&&$('#root-search').value.trim())u.searchParams.set('roots',$('#root-search').value.trim());
   u.searchParams.set('view',view);history[replace?'replaceState':'pushState']({},'',u);
 }
 function learningSources(data,ids){
@@ -99,13 +104,14 @@ function bindSourceTriggers(root){
 }
 function setView(v){
   if(graphStatus!=='ready'){renderDown();return;}
-  if(v!=='lookup'&&lookupStatus!=='ready'){showLookupState();return;}
+  if(v==='practice'&&lookupStatus!=='ready'){showLookupState();return;}
   if(v==='graph'&&view==='lookup'){rootGraphMode=learning?.status==='reviewed';graphFocus=rootGraphMode&&learning.roots?.length?'learning:'+learning.roots[0].id:lookupSense;trail=[];}
+  $('#graph-view .graph-grid').hidden=lookupStatus!=='ready'||rootSelectionPending;
   view=v;address();
   document.querySelectorAll('.view').forEach(el=>el.hidden=el.id!==v+'-view');
   document.querySelectorAll('[data-view]').forEach(b=>{b.classList.toggle('on',b.dataset.view===v);if(b.dataset.view===v)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
   $('#top-context').textContent={lookup:'从一个词，认识一个词族',graph:'点击邻词，沿着关系继续探索',practice:'把一组相近的词，用法分清楚'}[v];
-  if(v==='graph')renderGraph();
+  if(v==='graph'&&lookupStatus==='ready')renderGraph();
   if(v==='practice'){
     if(learningLookup!==lookupSense){renderPractice();return;}
     if(learning?.status==='reviewed'&&learning.alliance?.id&&learning.word.query_id){renderAlliancePractice();window.scrollTo({top:0,behavior:'instant'});return;}
@@ -174,6 +180,7 @@ async function renderWord(){
   if(view==='practice')renderPractice();
   $('#word-content').removeAttribute('aria-busy');
   if(intent===searchIntent)$('#search').value=n.label;address();
+  graphFamily=familyOf(lookupSense)?.id||graphFamily;
   if(n.type==='learning_word'){const head=nodeById.get(n.headword_id);$('#word-content').innerHTML=`<div class="lookup-grid"><article><div class="word-entry"><div class="word-title"><h2>${esc(n.label)}</h2></div><div class="translation">${esc(data.word.meaning)}</div><div class="tiny-tags"><span class="tag green">${esc(learning.alliance.title)}</span><span class="tag">第${esc(String(learning.word.lesson))}课</span><span class="tag green">课程词</span></div></div>${rootLearningHTML(data)}</article></div>`;
     document.querySelectorAll('#word-content [data-word]').forEach(b=>b.onclick=()=>{lookupSense=b.dataset.word;renderWord();});
     if($('#root-panorama'))$('#root-panorama').onclick=()=>{graphFocus=lookupSense;rootGraphMode=true;trail=[];setView('graph');};
@@ -277,9 +284,10 @@ function graphData(){
   return {pos,edges:G.edges.filter(e=>levels.has(e.from_id)&&levels.has(e.to_id))};
 }
 function renderGraph(){
+  if(rootSelectionPending){$('#graph-view .graph-grid').hidden=true;return;}
   if(graphStatus!=='ready'){renderDown();return;}
   if(lookupStatus!=='ready'){showLookupState();return;}
-  const fam=familyOf(graphFocus)||familyOf(lookupSense);
+  const fam=G.families.find(f=>f.id===graphFamily&&f.member_ids.includes(lookupSense))||familyOf(graphFocus)||familyOf(lookupSense);
   let modes=$('#graph-modes');
   if(!modes){modes=document.createElement('div');modes.id='graph-modes';modes.className='graph-modes';$('.graph-toolbar').before(modes);}
   const canRoot=learning?.status==='reviewed'&&fam?.id===familyOf(lookupSense)?.id;
@@ -318,7 +326,7 @@ function focusWord(id){
 function renderGraphDetail(){
   if(rootGraphMode&&learning?.status==='reviewed'&&learning.alliance?.id&&learning.word.query_id)return allianceGraphDetail();
   const n=nodeById.get(graphFocus);
-  const fam=familyOf(graphFocus)||familyOf(lookupSense);
+  const fam=G.families.find(f=>f.id===graphFamily&&f.member_ids.includes(lookupSense))||familyOf(graphFocus)||familyOf(lookupSense);
   if(rootGraphMode&&learning?.status==='reviewed'){
     const roots=learning.family_roots||learning.roots,selected=(learning.members||[learning.word]).find(w=>w.sense_id===n.id);
     const relevant=n.type==='learning_root'?roots.filter(r=>'learning:'+r.id===n.id):roots.filter(r=>selected?.root_ids.includes(r.id));
@@ -370,17 +378,62 @@ new ResizeObserver(()=>{
   if(activeGraphData.allianceMode&&graphLayoutWidth!==$('#family-map').clientWidth)renderGraph();else drawLines(activeGraphData);
 }).observe($('#family-map'));
 function buildFamilySwitch(){
-  const fams=G.families.filter(f=>f.member_ids.some(id=>{const n=nodeById.get(id);return n.type==='senses'&&n.language==='en';}));
+  const fams=G.families.filter(f=>f.member_ids.some(id=>{const n=nodeById.get(id);return ['senses','learning_word'].includes(n?.type)&&n.language==='en';}));
   $('#family-switch').innerHTML=fams.map(f=>`<button data-family="${esc(f.id)}">${esc(f.label)}</button>`).join('');
-  document.querySelectorAll('#family-switch button').forEach(b=>b.onclick=()=>{trail=[];rootGraphMode=false;graphFamily=b.dataset.family;graphFocus=defaultFocusOf(b.dataset.family);renderGraph();});
+  document.querySelectorAll('#family-switch button').forEach(b=>b.onclick=async()=>{
+    invalidateRootFilter();const seq=++familySwitchSequence;++rootSequence;
+    exploreRoot=null;rootSelectionPending=true;$('#root-search').value='';fillRootSelect(rootDirectory);$('#root-members').innerHTML='';
+    const family=b.dataset.family;lookupSense=defaultFocusOf(family);
+    await renderWord();if(seq!==familySwitchSequence||lookupStatus!=='ready')return;
+    rootSelectionPending=false;graphFamily=family;trail=[];selectedAllianceBranch=null;selectedAllianceRoot='@all';
+    setView('graph');rootGraphMode=G.families.find(f=>f.id===family)?.learning&&learning?.status==='reviewed';
+    graphFocus=rootGraphMode&&learning?.alliance?.id?'alliance-overview:'+learning.alliance.id:lookupSense;renderGraph();
+  });
 }
 function defaultFocusOf(famId){
   const f=G.families.find(x=>x.id===famId);
-  const senses=f?f.member_ids.map(id=>nodeById.get(id)).filter(n=>n.type==='senses'&&n.language==='en'):[];
+  const senses=f?f.member_ids.map(id=>nodeById.get(id)).filter(n=>['senses','learning_word'].includes(n?.type)&&n.language==='en'):[];
   const head=nodeById.get(famId);
   const ofHead=head?senses.find(s=>s.headword_id===head.id):null;
   return (ofHead||senses[0]||{id:defaultSense()}).id;
 }
+function fillRootSelect(roots){
+  $('#root-select').innerHTML=`<option value="">${roots.length?'请选择词根 · '+roots.length+' 组':'没有匹配的词根'}</option>`+roots.map(r=>`<option value="${esc(r.id)}">${esc(r.label)} · ${esc(r.meaning)} · ${r.count}词 · ${esc(r.title)}</option>`).join('');
+  if(exploreRoot&&roots.some(r=>r.id===exploreRoot.id))$('#root-select').value=exploreRoot.id;
+}
+async function filterRoots(openSingle=false){
+  const seq=++rootFilterSequence,q=$('#root-search').value.trim();
+  try{
+    const data=await api('/api/roots?q='+encodeURIComponent(q));if(seq!==rootFilterSequence)return;
+    fillRootSelect(data.results);
+    $('#root-coverage').textContent=`已收录 ${data.total} 组词根 · 当前匹配 ${data.results.length} 组。覆盖第1–3课及 dict 联盟，后续课程逐步补充。`;
+    if(openSingle&&data.results.length===1)await openRoot(data.results[0].id);
+    else if(openSingle){++rootSequence;exploreRoot=null;rootSelectionPending=true;activeGraphData=null;$('#root-select').value='';$('#graph-view .graph-grid').hidden=true;address();$('#root-members').innerHTML=`<p class="empty-search">${data.results.length?'找到多个词根，请从上方选择。':'该词根暂未收录。可以换一种写法，或清空搜索查看已有词根。'}</p>`;}
+  }catch{if(seq===rootFilterSequence){$('#root-coverage').textContent='词根目录暂时无法读取，请重新搜索。';}}
+}
+async function openRoot(id){
+  if(!id)return;
+  invalidateRootFilter();const seq=++rootSequence;++familySwitchSequence;rootSelectionPending=true;
+  $('#graph-view .graph-grid').hidden=true;
+  $('#root-members').innerHTML='<p class="empty-search" role="status">正在读取词根成员…</p>';
+  try{
+    const r=await api('/api/root?id='+encodeURIComponent(id));if(seq!==rootSequence)return;
+    exploreRoot=r;
+    if(![...$('#root-select').options].some(o=>o.value===id)){fillRootSelect(rootDirectory);$('#root-search').value='';}
+    $('#root-select').value=id;
+    const groups=['close','cognate','classroom','unresolved'];
+    $('#root-members').innerHTML=`<div class="root-member-heading"><h2>${esc(r.label)} <span>${esc(r.meaning)}</span></h2><p>${esc(r.title)} · 已收录 ${r.count} 词，全部列出。关系标签区分近支、远缘同源和课堂关联。</p></div><details class="root-member-list" open><summary>选择相关词 · ${r.count} 词</summary><div class="root-member-scroll">${groups.map(kind=>{const words=r.members.filter(w=>w.relation_kind===kind);return words.length?`<section><h3>${esc(relationLabels[kind])} · ${words.length} 词</h3><div class="root-member-grid">${words.map(w=>`<button class="alliance-word clickable" data-root-word="${esc(w.id)}"><b>${esc(w.word)}</b><span>${esc(w.meaning)}</span><small>${esc(w.branch)}</small></button>`).join('')}</div></section>`:'';}).join('')}</div></details>`;
+    $('#root-members').querySelectorAll('[data-root-word]').forEach(b=>b.onclick=async()=>{invalidateRootFilter();const seq=++rootSequence,id=b.dataset.rootWord;++familySwitchSequence;lookupSense=id;await renderWord();if(seq===rootSequence&&learningLookup===id&&lookupSense===id)setView('lookup');});
+    const first=r.members[0];if(!first)return;
+    lookupSense=first.id;await renderWord();if(seq!==rootSequence||learningLookup!==first.id||lookupStatus!=='ready')return;
+    rootSelectionPending=false;selectedAllianceRoot=r.root_id;selectedAllianceBranch=null;rootGraphMode=true;graphFocus='learning:'+r.root_id;trail=[];
+    setView('graph');graphFocus='learning:'+r.root_id;renderGraph();address();
+  }catch{if(seq===rootSequence){exploreRoot=null;$('#root-members').innerHTML='<p class="empty-search" role="alert">词根成员暂时无法读取，请重新选择。</p>';}}
+}
+$('#root-select').onchange=()=>openRoot($('#root-select').value);
+$('#root-search-form').onsubmit=e=>{e.preventDefault();clearTimeout(rootFilterTimer);filterRoots(true);};
+let rootFilterTimer;
+$('#root-search').oninput=()=>{++rootFilterSequence;clearTimeout(rootFilterTimer);rootFilterTimer=setTimeout(()=>filterRoots(),150);};
 /* ---------- practice ---------- */
 function startPractice(fam){
   if(learningLookup!==lookupSense)return renderPractice();
@@ -470,41 +523,46 @@ function renderPractice(){
 }
 /* ---------- search ---------- */
 let suggestSeq=0;
+function searchResultHTML(result){
+  const roots=result.roots||[],rows=result.results.flatMap(h=>h.senses.map(s=>({id:s.id,word:h.display,zh:s.zh||s.definition_zh||''})));
+  return (roots.length?'<h3 class="search-group-title">词根 · '+roots.length+' 组</h3>'+roots.map(r=>`<button data-pick-root="${esc(r.id)}" type="button"><b>${esc(r.label)}</b><small>${esc(r.meaning)} · ${r.count}词 · ${esc(r.title)}</small></button>`).join(''):'')+
+    (rows.length?'<h3 class="search-group-title">单词</h3>'+rows.map(r=>`<button data-pick="${esc(r.id)}" type="button"><b>${esc(r.word)}</b><small>${esc(r.zh)}</small></button>`).join(''):'')+
+    (result.truncated?'<p class="empty-search">单词匹配较多，当前显示前50条。可继续输入缩小范围；词根内的成员可完整浏览。</p>':'')||'<div class="empty-search">暂未收录匹配的单词或词根。试试其他写法，或到探索词族查看目录。</div>';
+}
+function bindSearchResults(host){
+  host.querySelectorAll('[data-pick]').forEach(b=>b.onclick=()=>{invalidateRootFilter();++rootSequence;++familySwitchSequence;rootSelectionPending=false;exploreRoot=null;$('#root-members').innerHTML='';$('#root-select').value='';lookupSense=b.dataset.pick;$('#suggestions').hidden=true;renderWord();});
+  host.querySelectorAll('[data-pick-root]').forEach(b=>b.onclick=()=>{$('#suggestions').hidden=true;$('#root-search').value='';fillRootSelect(rootDirectory);openRoot(b.dataset.pickRoot);});
+}
 async function searchWords(){
   const val=$('#search').value.trim().toLowerCase();
   const seq=++suggestSeq;++searchIntent;
   if(!val){$('#suggestions').hidden=true;return;}
   try{
-    const result=await api('/api/search?q='+encodeURIComponent(val));
+    const result=await api('/api/search?q='+encodeURIComponent(val)+'&max=50');
     if(seq!==suggestSeq)return;
-    const rows=[];
-    for(const h of result.results)for(const s of h.senses)rows.push({id:s.id,word:h.display,zh:s.zh||s.definition_zh||''});
-    $('#suggestions').hidden=false;
-    $('#suggestions').innerHTML=rows.length?rows.slice(0,7).map(r=>`<button data-pick="${esc(r.id)}" type="button"><b>${esc(r.word)}</b><small>${esc(r.zh)}</small></button>`).join(''):'<div class="empty-search">当前词族还没有匹配的词。</div>';
-    document.querySelectorAll('#suggestions [data-pick]').forEach(b=>b.onclick=()=>{lookupSense=b.dataset.pick;$('#suggestions').hidden=true;renderWord();});
+    $('#suggestions').hidden=false;$('#suggestions').innerHTML=searchResultHTML(result);bindSearchResults($('#suggestions'));
   }catch(e){if(seq===suggestSeq)toast('暂时无法读取，请重试。');}
 }
 $('#search').addEventListener('input',searchWords);
-$('#search').onkeydown=e=>{if(e.key==='Escape')$('#suggestions').hidden=true;};
-document.addEventListener('click',e=>{if(!e.target.closest('.search-area'))$('#suggestions').hidden=true;});
+$('#search').onkeydown=e=>{if(e.key==='Escape'){$('#suggestions').hidden=true;++suggestSeq;}};
+document.addEventListener('click',e=>{if(!e.target.closest('.search-area')){$('#suggestions').hidden=true;++suggestSeq;}});
 $('#search-form').onsubmit=e=>{
   e.preventDefault();
-  const val=$('#search').value.trim().toLowerCase();
-  if(!val)return;
-  const intent=++searchIntent;
-  api('/api/search?q='+encodeURIComponent(val)).then(result=>{
+  const val=$('#search').value.trim().toLowerCase();if(!val)return;
+  invalidateRootFilter();const intent=++searchIntent;++suggestSeq;++lookupSequence;++rootSequence;++familySwitchSequence;
+  rootSelectionPending=false;exploreRoot=null;$('#root-members').innerHTML='';$('#root-select').value='';
+  $('#suggestions').hidden=true;
+  api('/api/search?q='+encodeURIComponent(val)+'&max=50').then(result=>{
     if(intent!==searchIntent)return;
-    let hit=null;
-    for(const h of result.results){
-      const exact=h.display.toLowerCase()===val;
-      const s=(exact?[h]:result.results).flatMap(x=>x.senses);
-      if(s.length){hit=exact?s[0].id:s[0].id;break;}
-    }
-    if(hit){lookupSense=hit;$('#suggestions').hidden=true;renderWord();}
-    else renderUnknown();
+    const exact=result.results.find(h=>h.display.toLowerCase()===val);
+    if(exact&&!(result.roots||[]).length){lookupSense=exact.senses[0].id;renderWord();return;}
+    lookupStatus='search';learning=null;learningLookup=null;displayLookupView();updateNavigation();
+    $('#word-content').removeAttribute('aria-busy');
+    $('#word-content').innerHTML=`<section class="search-results"><h2>“${esc(val)}” 的搜索结果</h2>${searchResultHTML(result)}</section>`;
+    bindSearchResults($('#word-content'));
   }).catch(()=>{if(intent===searchIntent)toast('暂时无法读取，请重试。');});
 };
-document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>setView(b.dataset.view));
+document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{invalidateRootFilter();++rootSequence;++familySwitchSequence;setView(b.dataset.view);});
 updateNavigation();
 (async function boot(){
   try{
@@ -522,8 +580,11 @@ updateNavigation();
   graphFamily=fam?fam.id:G.families[0].id;
   graphFocus=lookupSense;
   buildFamilySwitch();
+  try{const data=await api('/api/roots');rootDirectory=data.results;fillRootSelect(rootDirectory);$('#root-coverage').textContent=`已收录 ${data.total} 组词根 · 覆盖第1–3课及 dict 联盟，后续课程逐步补充。`;}catch{$('#root-coverage').textContent='词根目录暂时无法读取，请重新搜索。';}
   const initial=params.get('view');
   await renderWord();
-  if(['lookup','graph','practice'].includes(initial))setView(initial);
-  window.onpopstate=async()=>{const p=new URLSearchParams(location.search);lookupSense=p.get('node')||defaultSense();graphFocus=lookupSense;await renderWord();setView(p.get('view')||'lookup');};
+  if(initial==='graph'&&params.get('root'))await openRoot(params.get('root'));
+  else if(initial==='graph'&&params.get('roots')){$('#root-search').value=params.get('roots');setView('graph');await filterRoots(true);}
+  else if(['lookup','graph','practice'].includes(initial))setView(initial);
+  window.onpopstate=async()=>{++rootSequence;++familySwitchSequence;const p=new URLSearchParams(location.search);lookupSense=p.get('node')||defaultSense();graphFocus=lookupSense;await renderWord();if(p.get('view')==='graph'&&p.get('root'))await openRoot(p.get('root'));else setView(p.get('view')||'lookup');};
 })();

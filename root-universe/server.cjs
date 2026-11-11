@@ -6,24 +6,7 @@ const ws=require('./workspace.cjs');
 const build=require('./build.cjs');
 const core=require('./core.cjs');
 const learning=require('./learning.cjs');
-function learningGraph(index,base){
-  const g=core.graph(index),ids=new Set(g.nodes.map(n=>n.id));
-  for(const e of learning.load(index,{base}).entries){
-    if(e.schema_version!=='1.1.0')continue;
-    const members=e.words.map(w=>w.query_id);
-    for(const w of e.words)if(!ids.has(w.query_id)){g.nodes.push({id:w.query_id,type:'learning_word',label:w.word,zh:w.meaning,language:'en',course_member:true,evidence_ids:[]});ids.add(w.query_id);}
-    g.families.push({id:'alliance:'+e.id,label:e.alliance.title,member_ids:members,learning:true});
-  }
-  return g;
-}
-function learningSearch(index,q,options){
-  const raw=core.search(index,q,options),max=options.max===undefined?30:options.max,key=String(q).trim().toLowerCase();
-  if(!key)return raw;
-  const heads=new Map(raw.results.map(h=>[h.display.toLowerCase(),h]));
-  for(const w of learning.catalog(index,options))if(w.label.toLowerCase().includes(key)&&!heads.has(w.label.toLowerCase()))heads.set(w.label.toLowerCase(),{id:w.id,display:w.label,lookup_key:w.label.toLowerCase(),senses:[{id:w.id,definition_zh:w.zh}],etymologies:[]});
-  const all=[...heads.values()].sort((a,b)=>(a.display.toLowerCase()===key?0:1)-(b.display.toLowerCase()===key?0:1)||a.display.localeCompare(b.display));
-  return {results:all.slice(0,max),truncated:raw.truncated||all.length>max};
-}
+const discovery=require('./discovery.cjs');
 function createServer({base=ws.ROOT,deskUrl=process.env.TFL_DESK_URL??'https://192.168.31.246:8018/#/home'}={}) {
   ws.controlled(base);
   let desk;
@@ -55,7 +38,7 @@ function createServer({base=ws.ROOT,deskUrl=process.env.TFL_DESK_URL??'https://1
       if(file==='index.html')body=body.toString('utf8').replace(/href="\/#\/home"(?= data-desk-link)/g,()=>`href="${deskHref}"`);
       return send(res,200,body,type);
     }
-    const routes={'/api/health':[],'/api/graph':[],'/api/search':['q','max'],'/api/node':['id'],'/api/neighbors':['id','depth','maxNodes','maxEdges','layer','type','direction'],'/api/source':['id'],'/api/learning':['id']};
+    const routes={'/api/health':[],'/api/graph':[],'/api/search':['q','max'],'/api/roots':['q'],'/api/root':['id'],'/api/node':['id'],'/api/neighbors':['id','depth','maxNodes','maxEdges','layer','type','direction'],'/api/source':['id'],'/api/learning':['id']};
     if(!Object.hasOwn(routes,url.pathname))return send(res,404,{error:'NOT_FOUND'});
     for(const key of url.searchParams.keys()) if(!routes[url.pathname].includes(key)||url.searchParams.getAll(key).length!==1)return send(res,400,{error:'PARAMETER_INVALID'});
     let snapshot;
@@ -64,8 +47,10 @@ function createServer({base=ws.ROOT,deskUrl=process.env.TFL_DESK_URL??'https://1
     try {
       const get=k=>url.searchParams.get(k), number=k=>url.searchParams.has(k)?(/^[0-9]+$/.test(get(k))?Number(get(k)):NaN):undefined;
       if(url.pathname==='/api/health')return send(res,200,{ok:true,version:snapshot.manifest.version,counts:snapshot.manifest.counts});
-      if(url.pathname==='/api/graph')return send(res,200,learningGraph(index,base));
-      if(url.pathname==='/api/search')return send(res,200,learningSearch(index,get('q')||'',{max:number('max'),base}));
+      if(url.pathname==='/api/graph')return send(res,200,discovery.graph(index,{base}));
+      if(url.pathname==='/api/search')return send(res,200,discovery.search(index,get('q')||'',{max:number('max'),base}));
+      if(url.pathname==='/api/roots')return send(res,200,discovery.roots(index,get('q')||'',{base}));
+      if(url.pathname==='/api/root'){const d=discovery.root(index,get('id')||'',{base});return send(res,d?200:404,d||{error:'UNKNOWN_ROOT'});}
       const id=core.inputText(get('id')||'',80);
       if(url.pathname==='/api/learning'){
         let d=learning.query(index,id,{base});

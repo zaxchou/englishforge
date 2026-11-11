@@ -128,7 +128,26 @@ async function clickReturn(page, selector, target) {
   const home = await get('/');
   assert.equal(home.status, 200); assert.match(home.body, /href="\/dict\/"[^>]*rel="noopener"/);
   assert.equal((await json('/api/health')).data.ok, true);
-  results.checks.push('http: canonical 308 preserves search, GET-only, real evidence 200, API/search/fallback and main app');
+  const roots = await json('/dict/api/roots');
+  assert(roots.data.results.length >= 41);
+  assert(roots.data.results.some(r => r.id === 'cfcm-03:Rbio'));
+  const dictRoot = (await json('/dict/api/root?id=dict%3ARdict')).data;
+  assert.equal(dictRoot.members.length, dictRoot.count);
+  assert.equal(dictRoot.truncated, false);
+  assert(dictRoot.members.some(w => w.word === 'condition'));
+  assert(dictRoot.members.some(w => w.word === 'teach'));
+  assert(!dictRoot.members.some(w => w.word === 'digit'), 'different root stays separate');
+  for (const q of ['dict-', 'dic-', '说']) {
+    assert((await json('/dict/api/search?q=' + encodeURIComponent(q))).data.roots.some(r => r.id === 'dict:Rdict'));
+  }
+  const ped = (await json('/dict/api/roots?q=ped')).data.results;
+  assert(ped.some(r => r.root_id === 'RpedFoot') && ped.some(r => r.root_id === 'RpedChild'));
+  assert.equal((await json('/dict/api/roots?q=' + encodeURIComponent('生命'))).data.results.length, 2);
+  assert.equal((await json('/dict/api/root?id=missing')).status, 404);
+  assert.equal((await json('/dict/api/roots?q=%00')).status, 400);
+  assert.equal((await json('/dict/api/roots?q=a&q=b')).status, 400);
+  assert.equal((await get('/dict/api/root?id=dict%3ARdict', { method: 'POST' })).status, 405);
+  results.checks.push('http: canonical redirect, read-only APIs, root aliases/meanings, distinct ped identities, complete membership beyond spelling, existing desk');
 
   // Standalone preview injects an explicit desk address instead of resolving /#/home on port 8036.
   const standalone = require('../root-universe/server.cjs');
@@ -146,11 +165,13 @@ async function clickReturn(page, selector, target) {
   assert.equal((configuredHTML.match(/data-desk-link/g) || []).length, 2);
   assert(configuredHTML.includes('&amp;label=%27quoted%27'), 'HTML attribute is escaped after URL normalization');
   assert(!configuredHTML.includes('href="/#/home" data-desk-link'));
-  results.checks.push('standalone: default NAS desk, TFL_DESK_URL injection, invalid protocol rejection, HTML escaping');
+  assert.deepEqual(await (await fetch(standaloneBase + '/api/roots?q=ped')).json(), (await json('/dict/api/roots?q=ped')).data);
+  assert.deepEqual(await (await fetch(standaloneBase + '/api/root?id=dict%3ARdict')).json(), dictRoot);
+  results.checks.push('standalone: same discovery APIs, default NAS desk, configured return, protocol rejection and escaping');
 
   const pw = require(process.env.TFL_PLAYWRIGHT || 'C:/Users/zeroz/AppData/Local/npm-cache/_npx/9833c18b2d85bc59/node_modules/playwright');
   browser = await pw.chromium.launch({ channel: 'msedge', headless: true });
-  for (const [width, height] of [[1440, 900], [390, 844]]) {
+  for (const [width, height] of [[1440, 900], [390, 844], [320, 740]]) {
     const ctx = await context({ width, height }, [base, standaloneBase]);
     const page = await ctx.newPage(); page.setDefaultTimeout(15000);
     const errors = []; page.on('pageerror', e => errors.push(e.stack || e.message));
@@ -181,6 +202,84 @@ async function clickReturn(page, selector, target) {
     await clickReturn(page, returnSelector, base + '/#/home');
     await page.locator(width <= 700 ? '.mobile-tabs [data-view="graph"]' : '.sidebar [data-view="graph"]').click();
     await page.locator('.map-node').first().waitFor();
+    assert(await page.locator('#root-select option').count() >= 42);
+    await page.locator('#root-select').selectOption('dict:Rdict');
+    await page.waitForFunction(() => document.querySelectorAll('[data-root-word]').length === 73 && new URL(location.href).searchParams.get('root') === 'dict:Rdict');
+    assert.equal(await page.locator('[data-root-word="Ldict:teach"]').count(), 1);
+    assert.equal(await page.locator('[data-root-word="Ldict:condition"]').count(), 1);
+    await page.locator('[data-root-word="Ldict:condition"]').click();
+    await page.waitForFunction(() => document.querySelector('.word-title h2')?.textContent === 'condition');
+    const lookupNav = width <= 700 ? '.mobile-tabs' : '.sidebar';
+    await page.locator('#search').fill('dict-');
+    await page.locator('#search-form button').click();
+    await page.locator('.search-results [data-pick-root="dict:Rdict"]').waitFor();
+    await page.locator('.search-results [data-pick-root="dict:Rdict"]').click();
+    await page.waitForFunction(() => !document.querySelector('#graph-view').hidden && document.querySelectorAll('[data-root-word]').length === 73);
+    await page.reload();
+    await page.waitForFunction(() => new URL(location.href).searchParams.get('root') === 'dict:Rdict' && document.querySelectorAll('[data-root-word]').length === 73 && !document.querySelector('#graph-view').hidden);
+    await page.locator('#root-search').fill('ped');
+    await page.locator('#root-search-form button').click();
+    await page.waitForFunction(() => document.querySelectorAll('#root-select option').length === 3);
+    await page.locator('#root-select').selectOption('cfcm-02:RpedFoot');
+    await page.waitForFunction(() => document.querySelectorAll('[data-root-word]').length === 18 && document.querySelector('#alliance-root-select')?.value === 'RpedFoot');
+    assert.match(await page.locator('#root-members').textContent(), /脚/);
+    await page.locator('#root-search').fill('no-such-root');
+    await page.locator('#root-search-form button').click();
+    await page.waitForFunction(() => document.querySelector('#root-members').textContent.includes('暂未收录'));
+    assert.equal(new URL(page.url()).searchParams.get('root'), null);
+    assert.equal(await page.locator('.graph-grid').isVisible(), false);
+    await page.reload();
+    await page.waitForFunction(() => document.querySelector('#root-members').textContent.includes('暂未收录'));
+    assert.equal(await page.locator('.graph-grid').isVisible(), false);
+    assert.equal(await page.locator('#root-search').inputValue(), 'no-such-root');
+    await page.locator('.family-directory summary').click();
+    for (const n of [1, 2, 3]) {
+      const family = 'alliance:cfcm-0' + n;
+      await page.locator('[data-family="' + family + '"]').click();
+      await page.waitForFunction(id => document.querySelector('#family-switch button.active')?.dataset.family === id && document.querySelector('#alliance-root-select')?.value === '@all', family);
+      assert((await page.locator('#graph-detail').textContent()).includes('第' + n + '课'));
+    }
+    // A pending filter must not reopen its root after the user switches course.
+    let releaseFilter;
+    const filterGate = new Promise(resolve => { releaseFilter = resolve; });
+    await page.route('**/dict/api/roots?q=fix', async route => { await filterGate; await route.continue(); });
+    await page.locator('#root-search').fill('fix');
+    await Promise.all([page.waitForRequest(r => r.url().endsWith('/dict/api/roots?q=fix')), page.locator('#root-search-form button').click()]);
+    await page.locator('[data-family="alliance:cfcm-03"]').click();
+    await page.waitForFunction(() => document.querySelector('#family-switch button.active')?.dataset.family === 'alliance:cfcm-03' && !document.querySelector('#graph-view').hidden);
+    const filterDone = page.waitForResponse(r => r.url().endsWith('/dict/api/roots?q=fix'));
+    releaseFilter();await filterDone;
+    assert((await page.locator('#graph-detail').textContent()).includes('第3课'));
+    await page.unroute('**/dict/api/roots?q=fix');
+    // A slow earlier root selection must not replace a newer one.
+    let releaseRoot;
+    const rootGate = new Promise(resolve => { releaseRoot = resolve; });
+    await page.route('**/dict/api/root?id=cfcm-01%3ARfix', async route => { await rootGate; await route.continue(); });
+    await page.locator('#root-search').fill('');
+    await page.locator('#root-search-form button').click();
+    await page.waitForFunction(() => document.querySelectorAll('#root-select option').length >= 42);
+    await page.locator('#root-select').selectOption('cfcm-01:Rfix');
+    await page.locator('#root-select').selectOption('cfcm-03:Rbio');
+    await page.waitForFunction(() => document.querySelectorAll('[data-root-word]').length === 29 && document.querySelector('#alliance-root-select')?.value === 'Rbio');
+    const rootDone = page.waitForResponse(r => r.url().endsWith('/dict/api/root?id=cfcm-01%3ARfix'));
+    releaseRoot();await rootDone;
+    await page.unroute('**/dict/api/root?id=cfcm-01%3ARfix');
+    assert.match(await page.locator('#root-members h2').textContent(), /bios/);
+    // An old member callback must not switch a newer root view back to lookup.
+    await page.locator('#root-select').selectOption('dict:Rdict');
+    await page.waitForFunction(() => document.querySelectorAll('[data-root-word]').length === 73 && !document.querySelector('#graph-view').hidden);
+    let releaseMember;
+    const memberGate = new Promise(resolve => { releaseMember = resolve; });
+    await page.route('**/dict/api/learning?id=Ldict%3Acondition', async route => { await memberGate; await route.continue(); });
+    await Promise.all([page.waitForRequest(r => r.url().endsWith('/dict/api/learning?id=Ldict%3Acondition')), page.locator('[data-root-word="Ldict:condition"]').click()]);
+    await page.locator(lookupNav + ' [data-view="graph"]').click();
+    await page.locator('#root-select').selectOption('cfcm-03:Rbio');
+    await page.waitForFunction(() => document.querySelector('#alliance-root-select')?.value === 'Rbio' && !document.querySelector('#graph-view').hidden);
+    const memberDone = page.waitForResponse(r => r.url().endsWith('/dict/api/learning?id=Ldict%3Acondition'));
+    releaseMember();await memberDone;
+    await page.unroute('**/dict/api/learning?id=Ldict%3Acondition');
+    assert.equal(await page.locator('#graph-view').isVisible(), true);
+    assert.match(await page.locator('#root-members h2').textContent(), /bios/);
     const overflow = await page.evaluate(() => ({ w: innerWidth, s: document.documentElement.scrollWidth }));
     assert(overflow.s <= overflow.w, JSON.stringify(overflow));
     const shot = path.join(out, 'dict-' + width + '.png');

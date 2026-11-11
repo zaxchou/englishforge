@@ -18,6 +18,7 @@ export function createRootDict({ project }) {
   const build = require(path.join(dir, 'build.cjs'));
   const core = require(path.join(dir, 'core.cjs'));
   const learning = require(path.join(dir, 'learning.cjs'));
+  const discovery = require(path.join(dir, 'discovery.cjs'));
   const base = ws.ROOT;
   ws.controlled(base);
   let snapshot = null, token = null;
@@ -28,29 +29,6 @@ export function createRootDict({ project }) {
       .map(name => { const st = fs.statSync(ws.file(base, `versions/${p.version}/${name}`)); return st.size + ':' + st.mtimeMs; }).join('|');
     if (next !== token) { snapshot = build.current(base); token = next; }
     return snapshot;
-  }
-  function graph() {
-    const index = current().index, g = core.graph(index), ids = new Set(g.nodes.map(n => n.id));
-    for (const e of learning.load(index, { base }).entries) {
-      if (e.schema_version !== '1.1.0') continue;
-      const members = e.words.map(w => w.query_id);
-      for (const w of e.words) if (!ids.has(w.query_id)) {
-        g.nodes.push({ id: w.query_id, type: 'learning_word', label: w.word, zh: w.meaning, language: 'en', course_member: true, evidence_ids: [] });
-        ids.add(w.query_id);
-      }
-      g.families.push({ id: 'alliance:' + e.id, label: e.alliance.title, member_ids: members, learning: true });
-    }
-    return g;
-  }
-  function search(q, options = {}) {
-    const index = current().index, raw = core.search(index, q, options);
-    const max = options.max === undefined ? 30 : options.max, key = String(q).trim().toLowerCase();
-    if (!key) return raw;
-    const heads = new Map(raw.results.map(h => [h.display.toLowerCase(), h]));
-    for (const w of learning.catalog(index, { base })) if (w.label.toLowerCase().includes(key) && !heads.has(w.label.toLowerCase()))
-      heads.set(w.label.toLowerCase(), { id: w.id, display: w.label, lookup_key: w.label.toLowerCase(), senses: [{ id: w.id, definition_zh: w.zh }], etymologies: [] });
-    const all = [...heads.values()].sort((a, b) => (a.display.toLowerCase() === key ? 0 : 1) - (b.display.toLowerCase() === key ? 0 : 1) || a.display.localeCompare(b.display));
-    return { results: all.slice(0, max), truncated: raw.truncated || all.length > max };
   }
   function learningById(id) {
     const index = current().index;
@@ -94,6 +72,8 @@ export function createRootDict({ project }) {
       '/dict/api/health': [],
       '/dict/api/graph': [],
       '/dict/api/search': ['q', 'max'],
+      '/dict/api/roots': ['q'],
+      '/dict/api/root': ['id'],
       '/dict/api/node': ['id'],
       '/dict/api/neighbors': ['id', 'depth', 'maxNodes', 'maxEdges', 'layer', 'type', 'direction'],
       '/dict/api/source': ['id'],
@@ -109,8 +89,10 @@ export function createRootDict({ project }) {
     const number = k => url.searchParams.has(k) ? (/^[0-9]+$/.test(get(k)) ? Number(get(k)) : NaN) : undefined;
     try {
       if (pathname === '/dict/api/health') return sendJSON(res, 200, { ok: true, version: snap.manifest.version, counts: snap.manifest.counts }), true;
-      if (pathname === '/dict/api/graph') return sendJSON(res, 200, graph()), true;
-      if (pathname === '/dict/api/search') return sendJSON(res, 200, search(get('q') || '', { max: number('max'), base })), true;
+      if (pathname === '/dict/api/graph') return sendJSON(res, 200, discovery.graph(index, { base })), true;
+      if (pathname === '/dict/api/search') return sendJSON(res, 200, discovery.search(index, get('q') || '', { max: number('max'), base })), true;
+      if (pathname === '/dict/api/roots') return sendJSON(res, 200, discovery.roots(index, get('q') || '', { base })), true;
+      if (pathname === '/dict/api/root') { const d = discovery.root(index, get('id') || '', { base }); return sendJSON(res, d ? 200 : 404, d || { error: 'UNKNOWN_ROOT' }), true; }
       const id = core.inputText(get('id') || '', 80);
       if (pathname === '/dict/api/learning') { const d = learningById(id); return sendJSON(res, d ? 200 : 404, d || { error: 'UNKNOWN_NODE' }), true; }
       if (!/^P\d{4}:[a-z][a-z0-9_-]*$/.test(id)) throw Error('ID_INVALID');
