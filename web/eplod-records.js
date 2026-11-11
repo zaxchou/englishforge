@@ -2,7 +2,7 @@
   'use strict';
   const copy=x=>x===undefined?undefined:JSON.parse(JSON.stringify(x));
   const object=x=>x&&typeof x==='object'&&!Array.isArray(x);
-  const SCORING_VERSION=11;
+  const SCORING_VERSION=12;
   /* 判分归一分词(r19): 官方文本的 "5:58" 分词成 [5,58], ASR/用户输入是 [five,fifty,eight],
      形状不同会白扣分——数字 token 统一展开成读法单词; oh 与 zero 互通(两侧同变换, 只增匹配不改错配)。 */
   const NUM1={0:'zero',1:'one',2:'two',3:'three',4:'four',5:'five',6:'six',7:'seven',8:'eight',9:'nine',10:'ten',11:'eleven',12:'twelve',13:'thirteen',14:'fourteen',15:'fifteen',16:'sixteen',17:'seventeen',18:'eighteen',19:'nineteen',20:'twenty'};   /* 20 曾缺表, expandNum 兜底成 "20" 配不上 twenty(r2 2026-10-30) */
@@ -12,6 +12,21 @@
     else if(v<100){out.push(NUM10[Math.floor(v/10)]);if(v%10)out.push(NUM1[v%10]);}
     else if(v<1000){out.push(NUM1[Math.floor(v/100)],'hundred');if(v%100)expandNum(v%100,out);}
     else{out.push(NUM1[Math.floor(v/1000)],'thousand');if(v%1000)expandNum(v%1000,out);}
+  }
+  /* 序数读法(r21 2026-11-11): 官方文本写 56th/70th, ASR 与背诵写 fifty sixth/seventieth,
+     形状不同会白扣分——56th 一句曾只剩 82%。与基数展开同一原则: 两侧同变换只增匹配。 */
+  const ORD1={1:'first',2:'second',3:'third',4:'fourth',5:'fifth',6:'sixth',7:'seventh',8:'eighth',9:'ninth',
+    10:'tenth',11:'eleventh',12:'twelfth',13:'thirteenth',14:'fourteenth',15:'fifteenth',16:'sixteenth',
+    17:'seventeenth',18:'eighteenth',19:'nineteenth',20:'twentieth'};
+  const ORD10={2:'twentieth',3:'thirtieth',4:'fortieth',5:'fiftieth',6:'sixtieth',7:'seventieth',8:'eightieth',9:'ninetieth'};
+  function expandOrdinal(v,out){
+    if(v<=20)out.push(ORD1[v]||String(v));
+    else if(v<100){
+      if(v%10===0)out.push(ORD10[Math.floor(v/10)]||String(v));
+      else{out.push(NUM10[Math.floor(v/10)],ORD1[v%10]);}
+    }
+    else if(v<1000){out.push(NUM1[Math.floor(v/100)],v%100?'hundred':'hundredth');if(v%100)expandOrdinal(v%100,out);}
+    else{out.push(NUM1[Math.floor(v/1000)],v%1000?'thousand':'thousandth');if(v%1000)expandOrdinal(v%1000,out);}
   }
   /* 美英拼写互通(r20): 英式变体归一到美式, 与数字展开同一原则——两侧同变换, 只增匹配不改错配。
      变体只走白名单词根, 形近词(called/wise/surprise/hour 等)不是变体, 不动。 */
@@ -77,9 +92,15 @@
        单词, 两侧同变换只增匹配; o'clock 等非数字后缀不匹配。弯引号已在折叠层归一。 */
     const feet=bare.match(/^(\d{1,2})'(\d{1,2})$/);
     if(feet){const spoken=[];expandNum(parseInt(feet[1],10),spoken);expandNum(parseInt(feet[2],10),spoken);return spoken;}
+    const ord=bare.match(/^(\d+)(?:st|nd|rd|th)$/);
+    if(ord){const value=parseInt(ord[1],10);if(value>0){const spoken=[];expandOrdinal(value,spoken);if(spoken.every(t=>typeof t==='string'))return spoken;}}
+    /* 整十年代表达: ASR 把 "the 70th" 写成 "the 70s"(0044 实测); 70s→seventies,
+       与序数 seventieth 在语音赦免里互认。只认 20s–90s, 年份 1970s 不在此列。 */
+    const decade=bare.match(/^([2-9]0)'?s$/);
+    if(decade)return [NUM10[+decade[1][0]].replace(/y$/,'ies')];
     /* 字母+数字代码(r12 2026-11-10): B2/H1B/F1 签证代码官方写字母数字连写, ASR/用户读作
        "B two"/"H one B"。以字母开头且含数字的 token 按段展开(字母段保留 + 数字段读法),
-       两侧同变换只增匹配; 数字开头的序数 1st/3rd 不在此列(保持原样)。 */
+       两侧同变换只增匹配; 数字在前的序数已由上一分支展开。 */
     const alnum=bare.match(/^([a-z]+)(\d+)([a-z]*)$/);
     if(alnum&&/[a-z]/.test(alnum[1])){
       const spoken=[alnum[1]];
@@ -130,10 +151,15 @@
     return segments;
   }
   function normTokens(s){return tokenSegments(s).flatMap(part=>part.tokens);}
-  /* 语音赦免仅限逐项确认的姓名变体。普通数词、内容词、星期名称不走编辑距离或大写猜测。 */
+  /* 语音赦免仅限逐项确认的姓名变体与序数误听。普通数词、内容词、星期名称不走编辑距离或大写猜测。 */
   const NAME_ALIASES=[['julianne','julian'],['mcnealy','mclean']];
+  /* 序数词尾 -tieth 常被 ASR 转写成 -ties(0044 "70th"→"seventies" 实测); 只在语音判分里
+     互认, 默写打字仍要求正确写法。 */
+  const ASR_ORDINAL_ALIASES=[['twenties','twentieth'],['thirties','thirtieth'],['forties','fortieth'],
+    ['fifties','fiftieth'],['sixties','sixtieth'],['seventies','seventieth'],['eighties','eightieth'],['nineties','ninetieth']];
   function fuzzyEqual(a,b){
-    return a!==b&&NAME_ALIASES.some(group=>group.includes(a)&&group.includes(b));
+    return a!==b&&(NAME_ALIASES.some(group=>group.includes(a)&&group.includes(b))||
+      ASR_ORDINAL_ALIASES.some(group=>group.includes(a)&&group.includes(b)));
   }
   /* 复合词分写等价(r8 2026-11-09): 官方 "voice mail" vs ASR/用户 "voicemail"——相邻两 token
      拼接等于另一侧单 token 即互配(双向)。护栏: 拼接≥5 字符且 pair 首词非虚词/非前缀语素

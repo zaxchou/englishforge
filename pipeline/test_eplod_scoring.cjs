@@ -259,7 +259,7 @@ test('r10: plural tolerance applies only to 2↔1 compound merges, never to sing
   assert.ok(E.lcsAcc('my friends call me', 'my friend call me') < 1);
 });
 
-test('r12: letter+digit codes read as letters plus number words, ordinals stay glued', () => {
+test('r12/r21: letter+digit codes read as letters plus number words; ordinal digits read as ordinal words', () => {
   for (const [official, spoken] of [
     ['applying for a B2 visa', 'applying for a B two visa'],
     ['an H1B visa holder', 'an H one B visa holder'],
@@ -268,7 +268,20 @@ test('r12: letter+digit codes read as letters plus number words, ordinals stay g
     assert.equal(E.lcsAcc(official, spoken), 1, official);
     assert.equal(E.lcsAcc(spoken, official), 1, 'symmetric: ' + official);
   }
-  assert.deepEqual(E.normTokens('the 1st of every month'), ['the', '1st', 'of', 'every', 'month'], 'ordinals keep their form');
+  assert.deepEqual(E.normTokens('the 1st of every month'), ['the', 'first', 'of', 'every', 'month'], 'ordinals read as words');
+  assert.deepEqual(E.normTokens('the 56th floor'), ['the', 'fifty', 'sixth', 'floor']);
+  assert.deepEqual(E.normTokens('the 21st'), ['the', 'twenty', 'first']);
+  assert.deepEqual(E.normTokens('the 70th'), ['the', 'seventieth']);
+  assert.deepEqual(E.normTokens('the 100th'), ['the', 'one', 'hundredth']);
+  const official = 'Sir this is the 56th floor! We are on the 70th!';
+  const spoken = 'Sir, this is the fifty sixth floor. We are on the seventies.';
+  const voice = E.scoreTokens(official, spoken, true);
+  assert.equal(voice.acc, 1, '0044: ordinal words plus ASR -ies mishearing');
+  assert.deepEqual(voice.extras, []);
+  assert.ok(E.scoreTokens(official, spoken, false).acc < 1, 'typing still needs a correct written form');
+  assert.equal(E.lcsAcc('We are on the seventieth floor', 'We are on the 70th floor'), 1);
+  assert.deepEqual(E.normTokens('back in the 70s'), ['back', 'in', 'the', 'seventies']);
+  assert.equal(E.scoreTokens('We are on the 70th', 'We are on the 70s', true).acc, 1, 'decade digits equal the ASR-ordinal form');
   assert.ok(E.lcsAcc('a B2 visa', 'a B3 visa') < 1, 'different codes stay different');
   assert.equal(E.lcsAcc('your mp3 player', 'your mp3 player'), 1);
 });
