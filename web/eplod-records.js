@@ -482,7 +482,15 @@
     const dates=need>0?Object.keys(days).filter(day=>count(days[day])>=need).sort():[];
     const recovered=!!drill.recoveredCover;
     const completed=Math.min(3,dates.length+(recovered?1:0));
-    return {total,need,dates,recovered,completed,todayN:count(days[today]),todayStamped:dates.includes(today)};
+    /* 1-3-7 间隔(2026-11-11 用户定案): 遍1=当天, 遍2=第3天(+2日), 遍3=第7天(+6日), 锚定遍1日期;
+       遍1 由历史补认(recovered)而无日期时不锚定, 展示层退化成"待复背"。到期日当天起随时可背。 */
+    let nextDue=null,dueToday=false;
+    if(completed>0&&completed<3&&dates.length){
+      const gap=completed===1?2:6;
+      nextDue=new Date(Date.parse(dates[0]+'T00:00:00Z')+gap*864e5).toISOString().slice(0,10);
+      dueToday=nextDue<=today;
+    }
+    return {total,need,dates,recovered,completed,todayN:count(days[today]),todayStamped:dates.includes(today),nextDue,dueToday};
   }
   function mergeLesson(current,incoming){
     const a=current||{},b=incoming||{};

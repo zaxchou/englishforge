@@ -10,6 +10,24 @@ assert.equal(coverProgress({stampDays:{[today]:[0,1,2]}},3,today).completed,1);
 assert.equal(coverProgress({stampDays:{[today]:[0,0,1,2,9,-1]}},3,today).todayN,3);
 assert.equal(coverProgress({stampDays:{[today]:nine}},0,today).completed,0);
 assert.equal(coverProgress({recoveredCover:{sentences:nine},stampDays:days(3)},9,today).completed,3);
+// r11 1-3-7 日程: 遍1 锚定, 遍2=第3天(+2日), 遍3=第7天(+6日), 迟到即视为到期
+const day=n=>new Date(Date.now()+n*864e5).toISOString().slice(0,10);
+{
+  const one=coverProgress({stampDays:{[day(0)]:nine}},9,day(0));
+  assert.equal(one.completed,1);
+  assert.equal(one.nextDue,day(2),'第3天 = 遍1+2日');
+  assert.equal(one.dueToday,false);
+  const due=coverProgress({stampDays:{[day(-2)]:nine}},9,day(0));
+  assert.equal(due.nextDue,day(0));
+  assert.equal(due.dueToday,true,'到第3天当天可背');
+  const late=coverProgress({stampDays:{[day(-2)]:nine,[day(-1)]:nine}},9,day(0));
+  assert.equal(late.completed,2);
+  assert.equal(late.nextDue,day(4),'第7天 = 遍1+6日');
+  const overdue=coverProgress({stampDays:{[day(-10)]:nine}},9,day(0));
+  assert.equal(overdue.dueToday,true,'迟于日程视为到期');
+  const recoveredOnly=coverProgress({recoveredCover:{sentences:nine},stampDays:{}},9,day(0));
+  assert.equal(recoveredOnly.nextDue,null,'历史补认无遍1日期不锚定');
+}
 (async()=>{const seed=await(await fetch('http://127.0.0.1:8020/api/records')).json();const browser=await chromium.launch({channel:'msedge',headless:true});const passed=[],errors=[];
 try{
  async function test(name,fn,course={}){
@@ -36,7 +54,7 @@ try{
   if(n===3){assert.equal(await row.locator('.ep-round.final').count(),1);assert.equal(await p.locator('#ep-cov .ep-cover-step.final').count(),1);assert.match(await p.locator('#ep-cov').innerText(),/三遍复背已完成/);}
  },{'eplod-0002':{done:true,drill:{stampDays:days(n)}}});
  await test('today stamp waits for tomorrow and historical recognition stays identifiable',async p=>{
-  assert.equal(await p.locator('#ep-cov .complete.ep-cover-step').count(),2);assert.match(await p.locator('#ep-cov').innerText(),/历史补认/);assert.match(await p.locator('#ep-cov').innerText(),/隔天继续第 3 遍/);assert.equal(await p.locator('#ep-list .cli.on .ep-round.complete').count(),2);
+  assert.equal(await p.locator('#ep-cov .complete.ep-cover-step').count(),2);assert.match(await p.locator('#ep-cov').innerText(),/历史补认/);assert.match(await p.locator('#ep-cov').innerText(),/第7天（[0-9]{1,2}\/[0-9]{1,2}）继续第 3 遍/);assert.equal(await p.locator('#ep-list .cli.on .ep-round.complete').count(),2);
  },{'eplod-0002':{drill:{recoveredCover:{sentences:nine,recognizedAt:1},stampDays:{[today]:nine}}}});
  await test('third completed round checks the lesson automatically without manual marking',async(p,store)=>{
   const row=p.locator('#ep-list .cli.on');
