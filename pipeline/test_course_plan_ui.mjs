@@ -60,6 +60,46 @@ test('due badge reflects remaining recommendations and disappears when none',()=
   c.run("CP.data={recommendations:['a','b','c','d','e','f','g','h','i','j']};cpBadgeUpdate()");
   assert.equal(num.textContent,'9+','count caps at 9+');
 });
+test('badge counts every due lesson beyond the daily recommendation and adds EnglishPod passes',()=>{const c=context();
+  const num={textContent:''};
+  const bell={hidden:true,title:'',querySelector:sel=>sel==='#cp-bell-n'?num:null};
+  c.ctx.$=id=>id==='cp-bell'?bell:null;
+  const past=Date.now()-60000;
+  c.run(`CP.data={recommendations:['a'],plans:{
+    a:{lessonId:'a',complete:false,due:${past}},
+    b:{lessonId:'b',complete:false,due:${past}},
+    c:{lessonId:'c',complete:false,due:${past}}}};cpBadgeUpdate()`);
+  assert.equal(num.textContent,'3','three due lessons count even when the daily recommendation is one');
+  assert.match(bell.title,/3 课课后练到期/);
+  c.run(`courseById=()=>({lessons:[{id:'eplod-0001',dialogue_count:2},{id:'eplod-0002',dialogue_count:2}]});
+    EplodRecords={coverProgress:(drill,total,today)=>drill.fake};
+    REC={course:{'eplod-0001':{drill:{fake:{dueToday:true,completed:1,extraToday:false}}},
+                  'eplod-0002':{drill:{fake:{dueToday:false,completed:3,extraToday:true}}}}};
+    epDay=()=>'2026-11-13';cpBadgeUpdate()`);
+  assert.equal(num.textContent,'5','plan due 3 + EP due 1 + EP optional fourth 1');
+  assert.match(bell.title,/1 课覆盖背诵到期/);
+  assert.match(bell.title,/1 课可选第四遍/);
+  c.run("cpBadgeUpdate()");   // idempotent re-render keeps the same count
+  assert.equal(num.textContent,'5');
+});
+test('optional fourth pass shows in the badge but the popup only ever nudges scheduled passes',()=>{const c=context();
+  const html=fs.readFileSync(new URL('../web/index.html',import.meta.url),'utf8');
+  const source=fs.readFileSync(new URL('../web/course-plan-ui.js',import.meta.url),'utf8');
+  assert.match(source,/filter\(x=>x\.kind==='due'\)\s*;?\s*$/m,'popup pool filters out optional passes');
+  assert.match(source,/snooze\['#eplod'\]!==day/,'EnglishPod popup is at most once per day');
+  assert.match(source,/kind==='optional'\).*不限时|第四遍可选（不限时）/,'review center marks the fourth pass optional');
+  assert.doesNotMatch(source,/cpDuePick\([^)]*kind/, 'popup pick never sees optional entries');
+});
+test('badge click opens the single due item directly and the review center for several',()=>{const c=context();
+  let opened=[];c.ctx.nav=h=>opened.push(h);c.ctx.location={hash:''};
+  c.run("courseById=()=>({lessons:[]});REC={course:{}};CP.data={recommendations:['a'],plans:{a:{lessonId:'a',complete:false,due:Date.now()-1}}};cpBadgeGo()");
+  assert.deepEqual(opened,['course/a'],'one due lesson opens it directly');
+  opened=[];
+  c.run("courseById=()=>({lessons:[{id:'eplod-0001',dialogue_count:2}]});EplodRecords={coverProgress:d=>d.fake};REC={course:{'eplod-0001':{drill:{fake:{dueToday:true,completed:1}}}}};CP.data={recommendations:[],plans:{}};cpBadgeGo()");
+  assert.deepEqual(opened,['eplod/eplod-0001'],'single EnglishPod due opens the lesson');
+  c.run("courseById=()=>({lessons:[{id:'eplod-0001',dialogue_count:2},{id:'eplod-0002',dialogue_count:2}]});REC={course:{'eplod-0001':{drill:{fake:{dueToday:true,completed:1}}},'eplod-0002':{drill:{fake:{dueToday:true,completed:1}}}}};cpBadgeGo()");
+  assert.equal(c.ctx.location.hash,'#/course/review','several due items go to the review center via the router');
+});
 test('due reminder ships with badge markup, boot watch and hidden-safe styles',()=>{
   const html=fs.readFileSync(new URL('../web/index.html',import.meta.url),'utf8');
   const css=fs.readFileSync(new URL('../web/desk.css',import.meta.url),'utf8');
