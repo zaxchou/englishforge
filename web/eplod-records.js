@@ -2,7 +2,7 @@
   'use strict';
   const copy=x=>x===undefined?undefined:JSON.parse(JSON.stringify(x));
   const object=x=>x&&typeof x==='object'&&!Array.isArray(x);
-  const SCORING_VERSION=12;
+  const SCORING_VERSION=13;
   /* 判分归一分词(r19): 官方文本的 "5:58" 分词成 [5,58], ASR/用户输入是 [five,fifty,eight],
      形状不同会白扣分——数字 token 统一展开成读法单词; oh 与 zero 互通(两侧同变换, 只增匹配不改错配)。 */
   const NUM1={0:'zero',1:'one',2:'two',3:'three',4:'four',5:'five',6:'six',7:'seven',8:'eight',9:'nine',10:'ten',11:'eleven',12:'twelve',13:'thirteen',14:'fourteen',15:'fifteen',16:'sixteen',17:'seventeen',18:'eighteen',19:'nineteen',20:'twenty'};   /* 20 曾缺表, expandNum 兜底成 "20" 配不上 twenty(r2 2026-10-30) */
@@ -166,6 +166,10 @@
      (挡 to+get↔together / a+lone↔alone / re+sign↔resign 这类真词误并; over/anti/out 等
      是合法复合词首, 不挡, overhead/antiparticles 案例依赖它们)。两侧同变换, 只增匹配不改错配。 */
   const COMPOUND_BLOCK=new Set(['to','a','i','of','in','on','for','and','or','is','it','be','by','at','as','we','he','she','you','they','do','go','so','no','if','me','my','us','an','am','are','was','were','has','have','had','the','that','this','with','from','but','not','oh','ok','re','un','de','dis','pre','non']);
+  /* ASR 短语合并(r23 2026-11-13): "jump in"[dʒʌmpɪn] 与 "jumping"[dʒʌmpɪŋ] 语音几乎同形,
+     0061 实测 ASR 把 "It's fine! Jump in!" 写成 "It's fine jumping."。白名单只收已确认的
+     短语→词形对, 且仅语音(fuzzy)路径放行——默认写仍要求正确写法。 */
+  const ASR_PHRASE_MERGES={'jumpin':'jumping'};
   /* 连字符 re- 复合词中「连起来就是同一个词」的白名单(r9 2026-11-09): 官方 "re-do" vs
      用户 "redo" 是同词异写; resign(辞职)与 re-sign(再签)这类真异义词不在表内, 仍保持区分。 */
   const RE_MERGES=new Set(['redo','redecorating','redecorate','reemphasize','retake','rerun','rebook','reorder','reenter','repaint','rewrite','reread','replay','recheck','reapply','rebuild','reload','reopen','restart','reuse','remix','recast','reconnect','recreate','reassemble']);
@@ -182,6 +186,7 @@
       let best=Math.max(dp[i-1][j],dp[i][j-1]);
       if(a[i-1]===b[j-1])best=Math.max(best,dp[i-1][j-1]+1);
       if(i>=2&&compoundOK(a[i-2],a[i-2]+a[i-1])&&mergeEqual(a[i-2]+a[i-1],b[j-1]))best=Math.max(best,dp[i-2][j-1]+2);
+      if(fuzzy&&i>=2&&ASR_PHRASE_MERGES[a[i-2]+a[i-1]]===b[j-1])best=Math.max(best,dp[i-2][j-1]+2);
       if(j>=2&&compoundOK(b[j-2],b[j-2]+b[j-1])&&mergeEqual(b[j-2]+b[j-1],a[i-1]))best=Math.max(best,dp[i-1][j-2]+1);
       dp[i][j]=best;
     }
@@ -191,6 +196,9 @@
     while(i>0&&j>0){
       if(a[i-1]===b[j-1]){marks[i-1]=true;matched[j-1]=true;pairs.push([i-1,j-1]);i--;j--;continue;}
       if(i>=2&&compoundOK(a[i-2],a[i-2]+a[i-1])&&mergeEqual(a[i-2]+a[i-1],b[j-1])){
+        marks[i-2]=true;marks[i-1]=true;matched[j-1]=true;pairs.push([i-2,j-1],[i-1,j-1]);i-=2;j--;continue;
+      }
+      if(fuzzy&&i>=2&&ASR_PHRASE_MERGES[a[i-2]+a[i-1]]===b[j-1]){
         marks[i-2]=true;marks[i-1]=true;matched[j-1]=true;pairs.push([i-2,j-1],[i-1,j-1]);i-=2;j--;continue;
       }
       if(j>=2&&compoundOK(b[j-2],b[j-2]+b[j-1])&&mergeEqual(b[j-2]+b[j-1],a[i-1])){

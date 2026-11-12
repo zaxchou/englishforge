@@ -1024,6 +1024,19 @@
    ],
    "forceAudioDialogue": true,
    "note": "印刷文本与配音为两套不同措辞(逐句重合 0.29-0.80), 用户定案改用音频转写文本; 标题/分级仍取印刷版(2026-11-10)"
+  },
+  "0061": {
+   "replacements": [
+    [
+     "It's Jump in!",
+     "It's fine! Jump in!"
+    ],
+    [
+     "跳进来吧!",
+     "没事，跳进来吧!"
+    ]
+   ],
+   "note": "官方 PDF 漏 fine(2026-11-13): faster-whisper 词级 + 讲解音频三次原句均为 It's fine. Jump in."
   }
  }
 }

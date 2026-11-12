@@ -282,6 +282,9 @@ test('r12/r21: letter+digit codes read as letters plus number words; ordinal dig
   assert.equal(E.lcsAcc('We are on the seventieth floor', 'We are on the 70th floor'), 1);
   assert.deepEqual(E.normTokens('back in the 70s'), ['back', 'in', 'the', 'seventies']);
   assert.equal(E.scoreTokens('We are on the 70th', 'We are on the 70s', true).acc, 1, 'decade digits equal the ASR-ordinal form');
+  const jump = 'It\'s fine! Jump in!';
+  assert.equal(E.scoreTokens(jump, 'It\'s fine jumping.', true).acc, 1, 'r23: jump in matches the ASR word form jumping');
+  assert.ok(E.scoreTokens(jump, 'It\'s fine jumping.', false).acc < 1, 'typing still needs the real words');
   assert.ok(E.lcsAcc('a B2 visa', 'a B3 visa') < 1, 'different codes stay different');
   assert.equal(E.lcsAcc('your mp3 player', 'your mp3 player'), 1);
 });
