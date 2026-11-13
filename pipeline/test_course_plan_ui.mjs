@@ -28,6 +28,14 @@ test('catalog short names drop duplicated prefixes without inventing new meaning
   };
   for(const [input,expected] of Object.entries(cases))assert.equal(ctx.short(input),expected,input);
 });
+test('background saves and plan polls never blink the top progress bar (quiz-page refresh complaint)',()=>{
+  const html=fs.readFileSync(new URL('../web/index.html',import.meta.url),'utf8');
+  assert.ok(html.includes('(health|records|course-plan)')&&html.includes('.test(url)'),'periodic background requests skip the net-bar');
+  assert.match(html,/放宽到 ~15s/,'study autosave cadence documented at the tick site');
+  assert.equal((html.match(/%15===0\)recSave\(\)/g)||[]).length,5,'all five study ticks save every ~15s');
+  assert.ok(!/%5===0\)recSave\(\)/.test(html),'old 5s cadence is gone');
+  assert.match(html,/recSaveNow\(\)/,'per-answer judged saves stay immediate');
+});
 test('courses whose titles already carry section numbers hide the duplicate sequence column',()=>{
   const html=fs.readFileSync(new URL('../web/index.html',import.meta.url),'utf8');
   const css=fs.readFileSync(new URL('../web/desk.css',import.meta.url),'utf8');

@@ -402,7 +402,10 @@ function answerKeyOf(q){
 /* ---------- 服务端数据 ---------- */
 let CATALOG = null, COURSES = null, CURATED = {}, LESSON_HANDOUT_MAP = {};
 const SETCACHE = {};
-/* 顶部进度条：给所有 /api 请求计数。慢网下至少能看见"在读"，不至于像卡死。 */
+/* 顶部进度条：给所有 /api 请求计数。慢网下至少能看见"在读"，不至于像卡死。
+   例外(2026-11-13 用户反馈做题时顶栏一直闪=像在刷新)：保存心跳(records/attempt)、
+   学习时长自动保存、复习计划轮询(course-plan)是周期性后台请求，不点亮进度条；
+   用户主动发起的加载(题库/讲义/真题/解析)仍然可见。 */
 (function(){
   const orig = window.fetch;
   let n = 0, hideT = 0;
@@ -410,7 +413,7 @@ const SETCACHE = {};
   const paint = () => { const b = bar(); if (b) b.classList.toggle('on', n > 0); };
   window.fetch = function(input, init) {
     const url = typeof input === 'string' ? input : (input && input.url) || '';
-    if (!/\/api\//.test(url) || /\/api\/health/.test(url)) return orig.call(this, input, init);
+    if (!/\/api\//.test(url) || /\/api\/(health|records|course-plan)/.test(url)) return orig.call(this, input, init);
     n++; clearTimeout(hideT); paint();
     return orig.call(this, input, init).finally(() => {
       n = Math.max(0, n - 1);
@@ -1077,7 +1080,9 @@ let TICK=null, T0=0, Q0=0, T_PAUSED=false, STU=false, TACC=0, QACC=0;
 function usedSec(){ return TACC + (T_PAUSED?0:(Date.now()-T0)/1000); }
 function qUsedSec(){ if(S?.revealed&&S.answerSec!=null)return S.answerSec;return QACC + (T_PAUSED?0:(Date.now()-Q0)/1000); }
 function tStart(){ if(TICK) return; T0=Date.now(); Q0=Date.now(); T_PAUSED=false;
-  TICK=setInterval(()=>{ tStep(); if(STU&&!document.hidden){studyTick(1);if((REC.study.total||0)%5===0)recSave();} },1000); }
+  /* 学习时长的自动保存放宽到 ~15s 一拍(2026-11-13): 时长按分钟统计, 15s 粒度足够;
+   每题作答仍走 recSaveNow 判分即存, 不受此影响 */
+  TICK=setInterval(()=>{ tStep(); if(STU&&!document.hidden){studyTick(1);if((REC.study.total||0)%15===0)recSave();} },1000); }
 function tStep(){
   if(!S||T_PAUSED) return;
   const used=usedSec(), q=qUsedSec();
@@ -2540,7 +2545,7 @@ function gqStudyGate() {
   }
   if(on && !GQ_TICK)GQ_TICK=setInterval(()=>{
     if(!gqActive()){gqStudyGate();return;}
-    if(!$('cs-video')||$('cs-video').paused){studyTick(1);if((REC.study.total||0)%5===0)recSave();}
+    if(!$('cs-video')||$('cs-video').paused){studyTick(1);if((REC.study.total||0)%15===0)recSave();}
   },1000);
   else if(!on && GQ_TICK){clearInterval(GQ_TICK);GQ_TICK=null;}
 }
@@ -3413,7 +3418,7 @@ function vbScheduleWake(){
 }
 function vbStudyGate(){
   const on=!!document.querySelector('#v-vocab.on')&&!!VB.cur&&!document.hidden&&!lvActive();
-  if(on&&!VB_TICK) VB_TICK=setInterval(()=>{if(!VB.cur||!document.querySelector('#v-vocab.on')||document.hidden){vbStudyGate();return;}studyTick(1);if((REC.study.total||0)%5===0)recSave();},1000);
+  if(on&&!VB_TICK) VB_TICK=setInterval(()=>{if(!VB.cur||!document.querySelector('#v-vocab.on')||document.hidden){vbStudyGate();return;}studyTick(1);if((REC.study.total||0)%15===0)recSave();},1000);
   else if(!on&&VB_TICK){clearInterval(VB_TICK);VB_TICK=null;}
 }
 window.addEventListener('online',()=>{vbFlushQueue();});
@@ -3944,7 +3949,7 @@ function epWire(){
   a.addEventListener('play',()=>{STU=true;
     if(!TICK)TICK=setInterval(()=>{if(STU&&!document.hidden){studyTick(1);
       const ce=REC.course[st.l.id]||(REC.course[st.l.id]={});ce.wt=(ce.wt||0)+1;
-      if((REC.study.total||0)%5===0)recSave();}},1000);});
+      if((REC.study.total||0)%15===0)recSave();}},1000);});
   a.addEventListener('pause',()=>{STU=false;epSavePos();});
   a.addEventListener('ended',()=>{if(st.playSession)st.playSession.completed=true;if(st.range&&st.stopAtEnd){try{st.seekPosition(st.range[0]);}catch(e){}}});
   let posT=0;
@@ -5276,7 +5281,7 @@ function renderCourseMain(){
   STU=!v.paused;
   v.addEventListener('play',()=>{if(!TICK)TICK=setInterval(()=>{if(STU&&!document.hidden){studyTick(1);
     if(courseWatchTarget){const c=REC.course[courseWatchTarget]||(REC.course[courseWatchTarget]={});c.wt=(c.wt||0)+1;}
-    if((REC.study.total||0)%5===0)recSave();}},1000);});
+    if((REC.study.total||0)%15===0)recSave();}},1000);});
   v.addEventListener('play',()=>{played=true;STU=true;}); v.addEventListener('pause',()=>STU=false);
   const hand=$('cs-handout');
   const hm=((LESSON_HANDOUT_MAP[c.id]||{}).lessons||{})[l.id];
