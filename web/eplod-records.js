@@ -2,7 +2,7 @@
   'use strict';
   const copy=x=>x===undefined?undefined:JSON.parse(JSON.stringify(x));
   const object=x=>x&&typeof x==='object'&&!Array.isArray(x);
-  const SCORING_VERSION=13;
+  const SCORING_VERSION=14;
   /* 判分归一分词(r19): 官方文本的 "5:58" 分词成 [5,58], ASR/用户输入是 [five,fifty,eight],
      形状不同会白扣分——数字 token 统一展开成读法单词; oh 与 zero 互通(两侧同变换, 只增匹配不改错配)。 */
   const NUM1={0:'zero',1:'one',2:'two',3:'three',4:'four',5:'five',6:'six',7:'seven',8:'eight',9:'nine',10:'ten',11:'eleven',12:'twelve',13:'thirteen',14:'fourteen',15:'fifteen',16:'sixteen',17:'seventeen',18:'eighteen',19:'nineteen',20:'twenty'};   /* 20 曾缺表, expandNum 兜底成 "20" 配不上 twenty(r2 2026-10-30) */
@@ -188,6 +188,11 @@
       if(i>=2&&compoundOK(a[i-2],a[i-2]+a[i-1])&&mergeEqual(a[i-2]+a[i-1],b[j-1]))best=Math.max(best,dp[i-2][j-1]+2);
       if(fuzzy&&i>=2&&ASR_PHRASE_MERGES[a[i-2]+a[i-1]]===b[j-1])best=Math.max(best,dp[i-2][j-1]+2);
       if(j>=2&&compoundOK(b[j-2],b[j-2]+b[j-1])&&mergeEqual(b[j-2]+b[j-1],a[i-1]))best=Math.max(best,dp[i-1][j-2]+1);
+      /* 名词+'s 的 is-缩读(r24 2026-11-13, 0023 两处整篇误报): "Tuesday's"[ˈtuːzdeɪz] 与
+         "Tuesday is" 语音几乎同形, ASR 把缩读写开。代词+'s(r6)可无条件展开, 名词+'s 有
+         所有格歧义, 故只作为 1↔2 合并分支且仅语音(fuzzy)路径放行; 默写打字仍分重写法。 */
+      if(fuzzy&&i>=1&&j>=2&&a[i-1]===b[j-2]+"'s"&&b[j-1]==='is')best=Math.max(best,dp[i-1][j-2]+1);
+      if(fuzzy&&i>=2&&j>=1&&b[j-1]===a[i-2]+"'s"&&a[i-1]==='is')best=Math.max(best,dp[i-2][j-1]+1);
       dp[i][j]=best;
     }
     const marks=new Array(n).fill(false),matched=new Array(m).fill(false),pairs=[];
@@ -203,6 +208,12 @@
       }
       if(j>=2&&compoundOK(b[j-2],b[j-2]+b[j-1])&&mergeEqual(b[j-2]+b[j-1],a[i-1])){
         marks[i-1]=true;matched[j-2]=true;matched[j-1]=true;pairs.push([i-1,j-2],[i-1,j-1]);i--;j-=2;continue;
+      }
+      if(fuzzy&&i>=1&&j>=2&&a[i-1]===b[j-2]+"'s"&&b[j-1]==='is'){
+        marks[i-1]=true;matched[j-2]=true;matched[j-1]=true;pairs.push([i-1,j-2],[i-1,j-1]);i--;j-=2;continue;
+      }
+      if(fuzzy&&i>=2&&j>=1&&b[j-1]===a[i-2]+"'s"&&a[i-1]==='is'){
+        marks[i-2]=true;marks[i-1]=true;matched[j-1]=true;pairs.push([i-2,j-1],[i-1,j-1]);i-=2;j--;continue;
       }
       if(dp[i-1][j]>=dp[i][j-1])i--;else j--;
     }

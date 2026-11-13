@@ -107,13 +107,17 @@ test('common contractions equal their full forms without erasing grammar or cont
     ["I'll call.", 'I would call.'],
     ["He's called.", 'He has called.'],
     ["I'd called.", 'I had called.'],
-    ["I'd call.", 'I would call.'],
-    ["The customer's calling.", 'The customer is calling.']
+    ["I'd call.", 'I would call.']
   ]) assert.ok(E.scoreTokens(a, b, true).acc < 1, a + ' retains a distinct or ambiguous form');
   // r6 2026-11-07: 代词+'s 从不表示所有格, 按 is 读法两侧展开; 名词所有格与 'd 仍不展开。
   assert.equal(E.lcsAcc("He's called.", 'He is called.'), 1, "pronoun he's equals he is");
   assert.equal(E.lcsAcc("What's wrong? Where's he?", 'What is wrong? Where is he?'), 1);
-  assert.ok(E.lcsAcc("James's book", 'James is book') < 1, "possessive James's is not expanded");
+  assert.ok(E.lcsAcc("James's book", 'James is book') < 1, "possessive James's is not expanded in typing");
+  // r24 2026-11-13(0023 实测 Tuesday's/Tuesday is 两处整篇误报): 名词+'s 的 is-缩读与读开的
+  // "X is" 同音, 语音路径互认(取代 r6 对名词+'s 的一律不展开——当时没有仅语音的合并分支);
+  // 打字默写仍要求正确写法。
+  assert.equal(E.scoreTokens("The customer's calling.", 'The customer is calling.', true).acc, 1, "voice: customer's calling equals customer is calling");
+  assert.ok(E.scoreTokens("The customer's calling.", 'The customer is calling.', false).acc < 1, 'typing keeps noun +\'s distinct');
 });
 
 test('contraction rescoring repairs evidenced voice/whole takes and blocks version-1 snapshots', () => {
@@ -287,6 +291,21 @@ test('r12/r21: letter+digit codes read as letters plus number words; ordinal dig
   assert.ok(E.scoreTokens(jump, 'It\'s fine jumping.', false).acc < 1, 'typing still needs the real words');
   assert.ok(E.lcsAcc('a B2 visa', 'a B3 visa') < 1, 'different codes stay different');
   assert.equal(E.lcsAcc('your mp3 player', 'your mp3 player'), 1);
+});
+
+test('r24: noun +\'s copula readings match their ASR-opened two-word forms in voice only', () => {
+  for (const [official, spoken] of [
+    ['Sure, Tuesday\'s perfect. May I ask where you\'re calling from?', 'Sure, Tuesday is perfect. May I ask where you\'re calling from?'],
+    ['Oh, actually, Tuesday\'s no good. Sorry \'bout that.', 'Oh, actually, Tuesday is no good. Sorry about that.'],
+    ['Monday\'s fine.', 'Monday is fine,']
+  ]) {
+    const voice = E.scoreTokens(official, spoken, true);
+    assert.equal(voice.acc, 1, official);
+    assert.deepEqual(voice.extras, [], 'no false extras for ' + official);
+    assert.ok(E.scoreTokens(official, spoken, false).acc < 1, 'typing keeps the written form distinct: ' + official);
+  }
+  assert.equal(E.scoreTokens('Oh, actually, Tuesday is no good.', 'Oh, actually, Tuesday\'s no good.', true).acc, 1, 'symmetric: contraction in the transcript too');
+  assert.ok(E.scoreTokens('Tuesday\'s meeting moved.', 'Tuesday meeting moved.', false).acc < 1, 'possessive readings still require the \'s in typing');
 });
 
 test('r11: whole-recite report gives accuracy, speed, fluency and a total', () => {
