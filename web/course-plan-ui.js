@@ -96,12 +96,14 @@ function cpEplodDue(){
   return out;
 }
 /* 徽标口径(2026-11-13 用户反馈「三节到期只显示一个数」): 课后练=所有到期/进行中的课,
-   不被每日推荐截断(推荐只决定弹窗顺序); EnglishPod=覆盖背诵到期+可选第四遍。 */
+   不被每日推荐截断(推荐只决定弹窗顺序); EnglishPod=覆盖背诵到期+可选第四遍。
+   与服务端推送门槛(r7「练过才算开始」)同口径: 计划启用时就给每课写了 due=启用日,
+   从未开始的课 begun=false, 不算到期——否则没学过的万词班会全部涌进提醒。 */
 function cpDueAll(){
   const now=Date.now(),ids=new Set();
   for(const p of Object.values(CP.data?.plans||{})){
-    if(!p||p.complete)continue;
-    if(p.active||(p.due&&p.due<=now))ids.add(p.lessonId);
+    if(!p||p.complete||p.begun===false)continue;
+    if(p.begun&&(p.active||(p.due&&p.due<=now)))ids.add(p.lessonId);
   }
   for(const r of (CP.data?.recommendations||[]))ids.add(r);
   const ep=cpEplodDue();
@@ -126,7 +128,7 @@ async function cpDashboard(){
   const due=cpDueAll();
   const epDueN=due.ep.filter(x=>x.kind==='due').length,epOptN=due.ep.length-epDueN;
   const dueTotal=due.plan+epDueN,extraDue=Math.max(0,due.plan-recs.length);
-  const duePlanIds=(()=>{const s=new Set();for(const p of Object.values(d.plans||{})){if(p&&!p.complete&&(p.active||(p.due&&p.due<=Date.now())))s.add(p.lessonId);}for(const r of recs)s.add(r);return s;})();
+  const duePlanIds=(()=>{const s=new Set();for(const p of Object.values(d.plans||{})){if(p&&!p.complete&&p.begun&&(p.active||(p.due&&p.due<=Date.now())))s.add(p.lessonId);}for(const r of recs)s.add(r);return s;})();
   /* 到期但被每日推荐截掉的课也列出来(2026-11-13 用户反馈: 要能自己挑) */
   const extraOf=prefix=>[...duePlanIds].filter(id=>id.startsWith(prefix)&&!recs.includes(id)).map(cpPlan).filter(Boolean);
   const row=p=>'<div class="cp-lesson"><div><b>'+esc(cpLessonName(p.lessonId))+'</b>'+cpStamps(p)+'<p>'+esc(cpCaption(p))+'</p></div><button data-cp-open="'+esc(p.lessonId)+'">'+(p.active?'继续本遍':'复习本课')+' →</button></div>';

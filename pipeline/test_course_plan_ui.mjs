@@ -66,9 +66,9 @@ test('badge counts every due lesson beyond the daily recommendation and adds Eng
   c.ctx.$=id=>id==='cp-bell'?bell:null;
   const past=Date.now()-60000;
   c.run(`CP.data={recommendations:['a'],plans:{
-    a:{lessonId:'a',complete:false,due:${past}},
-    b:{lessonId:'b',complete:false,due:${past}},
-    c:{lessonId:'c',complete:false,due:${past}}}};cpBadgeUpdate()`);
+    a:{lessonId:'a',complete:false,begun:true,due:${past}},
+    b:{lessonId:'b',complete:false,begun:true,due:${past}},
+    c:{lessonId:'c',complete:false,begun:true,due:${past}}}};cpBadgeUpdate()`);
   assert.equal(num.textContent,'3','three due lessons count even when the daily recommendation is one');
   assert.match(bell.title,/3 课课后练到期/);
   c.run(`courseById=()=>({lessons:[{id:'eplod-0001',dialogue_count:2},{id:'eplod-0002',dialogue_count:2}]});
@@ -82,6 +82,21 @@ test('badge counts every due lesson beyond the daily recommendation and adds Eng
   c.run("cpBadgeUpdate()");   // idempotent re-render keeps the same count
   assert.equal(num.textContent,'5');
 });
+test('never-started lessons stay out of due counts and the review center even when overdue',()=>{const c=context();
+  const num={textContent:''};
+  const bell={hidden:true,title:'',querySelector:sel=>sel==='#cp-bell-n'?num:null};
+  c.ctx.$=id=>id==='cp-bell'?bell:null;
+  const past=Date.now()-60000;
+  /* 万词班 36 节误推回归(2026-11-13): 计划启用日给没学过的课也写了 due=启用日,
+     徽标必须沿用服务端 begun 门槛, 否则未学过的万词班全部涌进提醒 */
+  c.run(`CP.data={recommendations:[],plans:{
+    fresh:{lessonId:'fresh',complete:false,begun:false,due:${past}},
+    mistapped:{lessonId:'mistapped',complete:false,begun:false,active:{answers:{}},due:${past}}}};cpBadgeUpdate()`);
+  assert.equal(bell.hidden,true,'unbegun plans are never due, even with a zero-answer round');
+  c.run(`CP.data={recommendations:['started'],plans:{
+    started:{lessonId:'started',complete:false,begun:true,due:${past}}}};cpBadgeUpdate()`);
+  assert.equal(num.textContent,'1','begun and due lessons still count');
+});
 test('optional fourth pass shows in the badge but the popup only ever nudges scheduled passes',()=>{const c=context();
   const html=fs.readFileSync(new URL('../web/index.html',import.meta.url),'utf8');
   const source=fs.readFileSync(new URL('../web/course-plan-ui.js',import.meta.url),'utf8');
@@ -92,7 +107,7 @@ test('optional fourth pass shows in the badge but the popup only ever nudges sch
 });
 test('badge click opens the single due item directly and the review center for several',()=>{const c=context();
   let opened=[];c.ctx.nav=h=>opened.push(h);c.ctx.location={hash:''};
-  c.run("courseById=()=>({lessons:[]});REC={course:{}};CP.data={recommendations:['a'],plans:{a:{lessonId:'a',complete:false,due:Date.now()-1}}};cpBadgeGo()");
+  c.run("courseById=()=>({lessons:[]});REC={course:{}};CP.data={recommendations:['a'],plans:{a:{lessonId:'a',complete:false,begun:true,due:Date.now()-1}}};cpBadgeGo()");
   assert.deepEqual(opened,['course/a'],'one due lesson opens it directly');
   opened=[];
   c.run("courseById=()=>({lessons:[{id:'eplod-0001',dialogue_count:2}]});EplodRecords={coverProgress:d=>d.fake};REC={course:{'eplod-0001':{drill:{fake:{dueToday:true,completed:1}}}}};CP.data={recommendations:[],plans:{}};cpBadgeGo()");
