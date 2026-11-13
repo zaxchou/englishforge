@@ -75,6 +75,36 @@ const practiceContext=()=>JSON.stringify([lookupSense,learning?.alliance?.id||''
 /* 独立服务(8036)走 /api；挂在研读桌 /dict/ 下走 /dict/api，页面自身只改这一处基址。 */
 const API_BASE=location.pathname.startsWith('/dict')?'/dict/api':'/api';
 const api=async p=>{const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),20000);try{const r=await fetch(p.replace(/^\/api(?=\/|$)/,API_BASE),{signal:controller.signal});const d=await r.json();if(!r.ok)throw Error(d.error||'REQUEST_FAILED');return d;}finally{clearTimeout(timer);}};
+
+/* ---- 词源联网查证(2026-11-14 用户定案"查词时才调用"): 点击才花 ¥0.01~0.03 的工具费,
+   结果永久缓存在服务端, 第二次同词秒回免费。结果永远是「机器候选 · 未核验」。 ---- */
+function etymOfferHTML(name){return `<div class="etym-offer"><div><b>联网查证「${esc(name)}」的词源</b><small>搜索多来源并整理为候选，标注「机器候选 · 未核验」。约 ¥0.01~0.03/次，结果会缓存，下次免费。</small></div><button class="secondary" id="etym-go">查证词源</button></div>`;}
+function etymResultHTML(r){
+  const c=r.candidate||{},rows=[];
+  if(Array.isArray(c.chain)&&c.chain.length)rows.push('<h4>来源链</h4><ol class="etym-chain">'+c.chain.map(x=>`<li><b>${esc(x.stage)}</b> ${esc(x.text||'')}</li>`).join('')+'</ol>');
+  if(Array.isArray(c.root_candidates)&&c.root_candidates.length)rows.push('<h4>词根/语源成分</h4><p>'+c.root_candidates.map(x=>`<b>${esc(x.root||'?')}</b>「${esc(x.meaning||'?')}」〔${esc(x.language||'?')}〕`).join('；')+'</p>');
+  if(c.earliest_english_sense)rows.push('<h4>英语最早义项</h4><p>'+esc(c.earliest_english_sense)+'</p>');
+  if(Array.isArray(c.sense_shift)&&c.sense_shift.length)rows.push('<h4>义项演变</h4><p>'+c.sense_shift.map(x=>esc(x)).join(' → ')+'</p>');
+  if(Array.isArray(c.disagreements)&&c.disagreements.length)rows.push('<h4>来源分歧（如实在档）</h4><ul class="etym-dis">'+c.disagreements.map(x=>`<li>${esc(typeof x==='string'?x:(x.note||JSON.stringify(x)))}</li>`).join('')+'</ul>');
+  const src=[...(r.captures||[]).map(x=>`<li><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title||x.url)}</a> <i>${esc(x.license||'')}</i></li>`),
+    ...(r.search_results||[]).slice(0,4).map(x=>`<li><a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title||x.url)}</a> <i>搜索摘要</i></li>`)];
+  if(src.length)rows.push('<h4>依据来源</h4><ul class="etym-src">'+src.join('')+'</ul>');
+  return '<div class="etym-result"><p class="etym-status">机器候选 · 未核验 — 只依据当次抓到的网页整理，正式词条仍走人工整理+独立复核</p>'+(rows.join('')||'<p>这次没有抓到足够的内容，请稍后重试。</p>')+'<p class="etym-cost">本次调用：搜索 '+(r.cost?.search_calls??'?')+' · 抓取 '+(r.cost?.fetch_calls??0)+' · 整理 '+(r.cost?.chat_calls??0)+' ≈ ¥'+esc(r.cost?.est_cny??'?')+'（'+(r.mode==='summaries'?'摘要模式，未抓网页':((r.cost?.fetch_calls||0)?'已抓网页存档':'本轮网页抓取未成功'))+'）。结果已缓存，下次查这个词免费。</p></div>';
+}
+async function runEtymLookup(name,host){
+  host.innerHTML='<div class="etym-offer"><b>正在联网查证「'+esc(name)+'」…</b><small>搜索与整理约需 10~40 秒。</small></div>';
+  try{
+    const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),180000);
+    const res=await fetch(API_BASE+'/etym-lookup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({word:name}),signal:controller.signal});
+    clearTimeout(timer);
+    const d=await res.json();
+    if(!d.ok){host.innerHTML='<div class="etym-offer"><b>没有查成</b><small>'+esc(d.message||d.error||'未知错误')+'</small><button class="secondary" id="etym-go">重试</button></div>';bindEtymGo(host,name);return;}
+    host.innerHTML=etymResultHTML(d.result);
+  }catch(e){host.innerHTML='<div class="etym-offer"><b>没有查成</b><small>'+(e.name==='AbortError'?'超时了，网络可能较慢。':'网络错误：'+esc(e.message))+'</small><button class="secondary" id="etym-go">重试</button></div>';bindEtymGo(host,name);}
+}
+function bindEtymGo(host,name){const b=host.querySelector('#etym-go');if(b)b.onclick=()=>runEtymLookup(name,host);}
+function mountEtymOffer(name){const host=document.getElementById('etym-host');if(!host)return;host.innerHTML=etymOfferHTML(name);bindEtymGo(host,name);}
+
 let toastTimer=null;
 function toast(text){const t=$('#toast');t.textContent=text;t.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>{t.hidden=true;},2600);}
 const sensesOf=headId=>G.nodes.filter(n=>n.type==='senses'&&n.headword_id===headId);
@@ -150,8 +180,9 @@ function showLookupState(){
 function renderUnknown(){
   ++lookupSequence;++searchIntent;++suggestSeq;$('#suggestions').hidden=true;
   lookupStatus='unknown';learning=null;learningLookup=null;displayLookupView();updateNavigation();
-  $('#word-content').innerHTML='<div class="notice-empty"><h2>这个词还未收录</h2><p>目前只收录已通过独立来源复核的词族。可以先看看已收录的词。</p><button class="secondary" id="reset-word">查看已收录的词</button></div>';
+  $('#word-content').innerHTML='<div class="notice-empty"><h2>这个词还未收录</h2><p>正式词条只收录已通过独立来源复核的词族。可以先看看已收录的词，或联网查证这个词的词源。</p><button class="secondary" id="reset-word">查看已收录的词</button></div><div id="etym-host"></div>';
   $('#reset-word').onclick=()=>{lookupSense=defaultSense();renderWord();};
+  mountEtymOffer($('#search').value.trim()||name);
 }
 function defaultSense(){
   const all=G.nodes.filter(n=>n.type==='senses'&&n.zh&&n.language==='en');
@@ -227,6 +258,7 @@ async function renderWord({background=false}={}){
       <button class="primary" id="lookup-graph">展开词族关系 →</button>
       ${practiceFamilyAvailable(fam)?'<button class="link" id="lookup-practice">练一练这组词</button>':''}
     </aside></div>`;
+  if(data.status!=='reviewed'){const entry=document.querySelector('#word-content .word-entry');if(entry){entry.insertAdjacentHTML('beforeend','<div id="etym-host"></div>');mountEtymOffer(head?(head.label||head.display):n.label);}}
   document.querySelectorAll('#word-content [data-word]').forEach(b=>b.onclick=()=>{lookupSense=b.dataset.word;renderWord();});
   document.querySelectorAll('#word-content [data-sense]').forEach(b=>b.onclick=()=>{lookupSense=b.dataset.sense;renderWord();});
   const openGraph=()=>{graphFocus=lookupSense;rootGraphMode=learning?.status==='reviewed';trail=[];graphFamily=(familyOf(lookupSense)||{}).id||graphFamily;showGraphView();};
@@ -638,8 +670,10 @@ $('#search-form').onsubmit=e=>{
     if(exact&&!(result.roots||[]).length){lookupSense=exact.senses[0].id;renderWord();return;}
     lookupStatus='search';learning=null;learningLookup=null;displayLookupView();updateNavigation();
     $('#word-content').removeAttribute('aria-busy');
-    $('#word-content').innerHTML=`<section class="search-results"><h2>“${esc(val)}” 的搜索结果</h2>${searchResultHTML(result)}</section>`;
+    const rows=result.results.flatMap(h=>h.senses).length;
+    $('#word-content').innerHTML=`<section class="search-results"><h2>“${esc(val)}” 的搜索结果</h2>${searchResultHTML(result)}</section>`+((rows||((result.roots||[]).length))?'':'<div id="etym-host"></div>');
     bindSearchResults($('#word-content'));
+    if(!rows&&!((result.roots||[]).length))mountEtymOffer(val);
   }).catch(()=>{if(intent===searchIntent)toast('暂时无法读取，请重试。');});
 };
 document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{invalidateRootFilter();++rootSequence;++familySwitchSequence;setView(b.dataset.view);});

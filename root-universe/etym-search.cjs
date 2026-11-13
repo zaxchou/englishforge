@@ -14,9 +14,10 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { createHash } = require('node:crypto');
 
-const ROOT = path.resolve(__dirname, '..', '..');
+const ROOT = path.resolve(__dirname, '..');
 const OUT_DIR = path.join(ROOT, 'build', 'qa', 'root-etym');
 const COST = { search: 0.005, fetch: 0.005 };   // ¥5/千次(限时刊例同价, 官方定价页)
+const DAILY_CALL_LIMIT = 100;   // 每天最多 100 次工具调用(≈¥0.5), 防失控
 
 function envKey(name, file) {
   const env = process.env[name];
@@ -30,10 +31,9 @@ function envKey(name, file) {
   } catch {}
   return '';
 }
-const KEY = envKey('TFL_AI_KEY');
-const AI_BASE = (envKey('TFL_AI_BASE_URL') || 'https://api.deepseek.com').replace(/\/+$/, '');
-const AI_MODEL = envKey('TFL_AI_MODEL') || 'deepseek-chat';
-if (!KEY) { console.error('缺少 TFL_AI_KEY(环境变量或 .env.local)'); process.exit(1); }
+function apiKey() { return process.env.TFL_AI_KEY || envKey('TFL_AI_KEY') || ''; }
+function aiBase() { return (process.env.TFL_AI_BASE_URL || envKey('TFL_AI_BASE_URL') || 'https://api.deepseek.com').replace(/\/+$/, ''); }
+function aiModel() { return process.env.TFL_AI_MODEL || envKey('TFL_AI_MODEL') || 'deepseek-chat'; }
 
 /* 来源站分级: 优先权威词源站; 牛津(oed.com)按语料许可边界硬禁止;
    wiktionary 是 CC BY-SA; 其余抓取只作核验证据, 许可按 unknown-verify-only 标注。 */
@@ -62,7 +62,7 @@ function pickSources(results, n) {
     const url = normalizeUrl(raw);
     if (isUnfetchable(url)) continue;
     const score = (r.rerank_score || 0) + (r.authority >= 3 ? 1 : 0) + (PREFERRED.some(p => dom === p || dom.endsWith('.' + p)) ? 0.5 : 0);
-    seen.add(dom); picked.push({ url, dom, score, title: r.title || '', snippet: r.snippet || '' });
+    seen.add(dom); picked.push({ url, dom, score, title: r.title || '', snippet: r.snippet || '', summary: r.summary || '', authority: r.authority ?? -1 });
   }
   return picked.sort((a, b) => b.score - a.score).slice(0, n);
 }
@@ -70,7 +70,7 @@ async function toolApi(kind, payload, state) {
   if (state.calls >= state.maxCalls) throw new Error('CALL_BUDGET_EXHAUSTED');
   state.calls++;
   const r = await fetch('https://api.deepseek.com/v1/tools/' + kind, {
-    method: 'POST', headers: { Authorization: 'Bearer ' + KEY, 'Content-Type': 'application/json' },
+    method: 'POST', headers: { Authorization: 'Bearer ' + apiKey(), 'Content-Type': 'application/json' },
     body: JSON.stringify(payload), signal: AbortSignal.timeout(60000),
   });
   if (!r.ok) throw new Error('tools/' + kind + ' -> ' + r.status + ' ' + (await r.text()).slice(0, 200));
@@ -91,9 +91,9 @@ async function chatExtract(word, pages, state) {
     '要求: 每条结论都在 sources 里给出对应 URL; 来源冲突写进 disagreements; 页面没讲的字段填 null; 只输出 JSON。',
     ...pages.map((p, i) => '【页面' + (i + 1) + '】' + p.url + '\n' + p.content.slice(0, 8000)),
   ].join('\n\n');
-  const r = await fetch(AI_BASE + '/chat/completions', {
-    method: 'POST', headers: { Authorization: 'Bearer ' + KEY, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: AI_MODEL, messages: [{ role: 'user', content: body }], stream: false, response_format: { type: 'json_object' } }),
+  const r = await fetch(aiBase() + '/chat/completions', {
+    method: 'POST', headers: { Authorization: 'Bearer ' + apiKey(), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: aiModel(), messages: [{ role: 'user', content: body }], stream: false, response_format: { type: 'json_object' } }),
     signal: AbortSignal.timeout(180000),
   });
   if (!r.ok) throw new Error('chat -> ' + r.status + ' ' + (await r.text()).slice(0, 200));
@@ -102,8 +102,8 @@ async function chatExtract(word, pages, state) {
   catch { return { ok: false, raw: text.slice(0, 4000) }; }
 }
 function sha256(s) { return createHash('sha256').update(s).digest('hex'); }
-function writeCapture(word, i, cap) {
-  const dir = path.join(OUT_DIR, word);
+function writeCapture(word, i, cap, outDir) {
+  const dir = path.join(outDir || OUT_DIR, word);
   fs.mkdirSync(dir, { recursive: true });
   const file = String(i + 1).padStart(2, '0') + '-' + (cap.dom || 'page').replace(/[^\w.-]/g, '_') + '.md';
   const head = ['<!-- capture: ' + word, 'url: ' + cap.url, 'title: ' + (cap.title || ''), 'fetched_at: ' + new Date().toISOString(),
@@ -112,7 +112,7 @@ function writeCapture(word, i, cap) {
   return file;
 }
 async function processWord(word, opts, state) {
-  const dir = path.join(OUT_DIR, word);
+  const dir = path.join(opts.outDir || OUT_DIR, word);
   if (!opts.force && fs.existsSync(path.join(dir, 'result.json'))) return { word, skipped: true };
   const fetchErrors = [];
   const search = await toolApi('search', { query: word + ' etymology origin of the word history', count: 10, need_content: false }, state);
@@ -130,7 +130,7 @@ async function processWord(word, opts, state) {
         const content = f.content || '';
         if (content.length < 200) { fetchErrors.push({ url: p.url, reason: 'content too short(' + content.length + ')' }); continue; }
         const cap = { url: p.url, dom: p.dom, title: f.title || p.title, content, sha256: sha256(content), license: licenseOf(p.url) };
-        cap.file = writeCapture(word, captures.length, cap);
+        cap.file = writeCapture(word, captures.length, cap, opts.outDir);
         captures.push(cap);
       } catch (e) {
         if (e.message === 'CALL_BUDGET_EXHAUSTED') throw e;
@@ -165,6 +165,93 @@ async function processWord(word, opts, state) {
   fs.writeFileSync(path.join(dir, 'result.json'), JSON.stringify(result, null, 1), 'utf8');
   return { word, skipped: false, captures: captures.length, ok: extract.ok };
 }
+/* ---- 按需查词(2026-11-14 用户定案: 不全量预跑, 查词时才调用) ---- */
+/* 摘要优先决策(纯函数, 供测试): 优先站/权威结果的长摘要够用时, 0 次抓取出候选;
+   不够时返回要抓的页面。 */
+function planSources(results, { snippetFirst = true, maxFetch = 2 } = {}) {
+  const picks = pickSources(results, 8);
+  const preferred = r => PREFERRED.some(p => r.dom === p || r.dom.endsWith('.' + p));
+  if (snippetFirst) {
+    const rich = picks.filter(p => preferred(p) && (p.summary || '').length >= 240);
+    if (rich.length) return { mode: 'summaries', pages: rich.slice(0, 3).map(p => ({ url: p.url, content: '[搜索摘要] ' + p.summary })) };
+  }
+  return { mode: 'fetch', picks: picks.slice(0, maxFetch) };
+}
+/* 日预算账本: <cacheDir>/_spend.json {day,calls}。防失控, 不追求精确计费。 */
+function spendGuard(cacheDir, maxPerDay = DAILY_CALL_LIMIT) {
+  const file = path.join(cacheDir, '_spend.json');
+  const day = new Date().toISOString().slice(0, 10);
+  let s = { day, calls: 0 };
+  try { const old = JSON.parse(fs.readFileSync(file, 'utf8')); if (old && old.day === day) s = old; } catch {}
+  if (s.calls >= maxPerDay) { const e = Error('当日联网查证次数已达上限(' + maxPerDay + ' 次调用)，明天再试'); e.code = 'DAILY_BUDGET'; throw e; }
+  return { add(n) { s.calls += n; fs.mkdirSync(cacheDir, { recursive: true }); fs.writeFileSync(file, JSON.stringify(s), 'utf8'); } };
+}
+/* 单词按需查证: 缓存命中 0 调用; 否则 1 搜索 + 0~maxFetch 抓取 + 1 整理, 结果永久缓存。
+   服务端(/dict)与 CLI 共用; opts: {cacheDir, maxFetch, snippetFirst, maxPerDay, force} */
+async function lookupEtymology(word, opts = {}) {
+  const o = { cacheDir: OUT_DIR, maxFetch: 2, snippetFirst: true, maxPerDay: DAILY_CALL_LIMIT, force: false, ...opts };
+  word = String(word || '').trim().toLowerCase();
+  if (!/^[a-z][a-z'\-]{0,31}$/.test(word)) { const e = Error('词形不合法'); e.code = 'WORD_INVALID'; throw e; }
+  const dir = path.join(o.cacheDir, word);
+  if (!o.force) { try { return { cached: true, result: JSON.parse(fs.readFileSync(path.join(dir, 'result.json'), 'utf8')) }; } catch {} }
+  if (!apiKey()) { const e = Error('未配置 TFL_AI_KEY'); e.code = 'NO_KEY'; throw e; }
+  const spend = spendGuard(o.cacheDir, o.maxPerDay);
+  const fetchErrors = [];
+  const search = await toolApi('search', { query: word + ' etymology origin of the word history', count: 8, need_content: false }, { calls: 0, maxCalls: 1e9 });
+  let calls = 1, searchCalls = 1;
+  const results = (search.results || []).map(r => ({ ...r, url: normalizeUrl(String(r.url || '').trim()) }))
+    .filter(r => domainOf(r.url) && !isUnfetchable(r.url));
+  const plan = planSources(results, o);
+  const captures = [];
+  if (plan.mode === 'summaries') {
+    for (const pg of plan.pages) {
+      const cap = { url: pg.url, dom: domainOf(pg.url), title: '', content: pg.content, sha256: sha256(pg.content), license: licenseOf(pg.url) };
+      cap.file = writeCapture(word, captures.length, cap, o.cacheDir);
+      captures.push(cap);
+    }
+  } else {
+    const tryFetch = async picks => {
+      for (const p of picks) {
+        if (captures.length >= o.maxFetch) break;
+        try {
+          const f = await toolApi('fetch', { url: p.url }, { calls: 0, maxCalls: 1e9 }); calls++;
+          const content = f.content || '';
+          if (content.length < 200) { fetchErrors.push({ url: p.url, reason: 'content too short(' + content.length + ')' }); continue; }
+          const cap = { url: p.url, dom: p.dom, title: f.title || p.title, content, sha256: sha256(content), license: licenseOf(p.url) };
+          cap.file = writeCapture(word, captures.length, cap, o.cacheDir);
+          captures.push(cap);
+        } catch (e) { fetchErrors.push({ url: p.url, reason: e.message.slice(0, 120) }); }
+      }
+    };
+    await tryFetch(plan.picks);
+    for (const fallback of ['site:etymonline.com', 'site:en.wiktionary.org']) {
+      if (captures.length || calls > 6) break;
+      try {
+        const extra = await toolApi('search', { query: word + ' etymology ' + fallback, count: 8, need_content: false }, { calls: 0, maxCalls: 1e9 }); calls++; searchCalls++;
+        await tryFetch(pickSources(extra.results || [], o.maxFetch));
+      } catch (e) { fetchErrors.push({ fallback, reason: e.message.slice(0, 120) }); }
+    }
+  }
+  let extract = { ok: false, raw: captures.length ? '(extraction failed)' : '(no sources)', chat: 0 };
+  if (captures.length) {
+    try { extract = await chatExtract(word, captures, { calls: 0, maxCalls: 1e9 }); extract.chat = 1; calls++; }
+    catch (e) { extract = { ok: false, raw: e.message.slice(0, 200), chat: 0 }; }
+  }
+  const result = {
+    word, at: new Date().toISOString(), status: 'machine-candidate',   // 未核验; 进正式包需人工整理+独立 review 签署
+    mode: plan.mode,
+    cost: { search_calls: searchCalls, fetch_calls: captures.length, chat_calls: extract.chat || 0, est_cny: null },
+    search_results: results.slice(0, 8).map(r => ({ title: r.title, url: r.url, authority: r.authority, rerank_score: r.rerank_score, summary: (r.summary || '').slice(0, 400) })),
+    captures: captures.map(c => ({ url: c.url, title: c.title, file: c.file, sha256: c.sha256, license: c.license })),
+    fetch_errors: fetchErrors,
+    candidate: extract.ok ? extract.candidate : null, candidate_raw: extract.ok ? undefined : extract.raw,
+  };
+  result.cost.est_cny = +(result.cost.search_calls * COST.search + result.cost.fetch_calls * COST.fetch + (extract.chat || 0) * 0.002).toFixed(4);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'result.json'), JSON.stringify(result, null, 1), 'utf8');
+  spend.add(calls);
+  return { cached: false, result };
+}
 async function main() {
   const args = process.argv.slice(2);
   const opt = { words: [], sources: 3, limit: Infinity, force: false, maxCalls: 60, allianceDict: false };
@@ -198,9 +285,9 @@ async function main() {
     }
   }
   const spent = state.calls * COST.search;   // search/fetch 同价, 近似
-  fs.mkdirSync(OUT_DIR, { recursive: true });
-  fs.writeFileSync(path.join(OUT_DIR, 'run-log.json'), JSON.stringify({ at: new Date().toISOString(), words: opt.words, summary, api_calls: state.calls, est_cny: +spent.toFixed(4) }, null, 1), 'utf8');
+  fs.mkdirSync(opt.outDir || OUT_DIR, { recursive: true });
+  fs.writeFileSync(path.join(opt.outDir || OUT_DIR, 'run-log.json'), JSON.stringify({ at: new Date().toISOString(), words: opt.words, summary, api_calls: state.calls, est_cny: +spent.toFixed(4) }, null, 1), 'utf8');
   console.log('== 完成: ' + summary.length + ' 词 · API 调用 ' + state.calls + ' 次 · 预估 ¥' + spent.toFixed(2) + ' · 明细 build/qa/root-etym/run-log.json');
 }
 if (require.main === module) main().catch(e => { console.error(e); process.exit(1); });
-module.exports = { pickSources, licenseOf, domainOf, sha256, LICENSE_NOTES, BLOCKED, PREFERRED };
+module.exports = { pickSources, planSources, spendGuard, lookupEtymology, licenseOf, domainOf, sha256, normalizeUrl, isUnfetchable, LICENSE_NOTES, BLOCKED, PREFERRED, DAILY_CALL_LIMIT, COST };

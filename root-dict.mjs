@@ -12,7 +12,7 @@ const ASSETS = {
   'brand.png': 'image/png',
 };
 export const DICT_CSP = "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'";
-export function createRootDict({ project }) {
+export function createRootDict({ project, etymCacheDir }) {
   const dir = path.join(project, 'root-universe');
   const ws = require(path.join(dir, 'workspace.cjs'));
   const build = require(path.join(dir, 'build.cjs'));
@@ -21,6 +21,37 @@ export function createRootDict({ project }) {
   const discovery = require(path.join(dir, 'discovery.cjs'));
   const base = ws.ROOT;
   ws.controlled(base);
+  /* 词源按需查证(2026-11-14 用户定案"查词时才调用"): POST 才花工具费, 结果永久缓存到
+     records 卷(cacheDir), 命中缓存 0 调用。引擎在 root-universe/etym-search.cjs。 */
+  const etym = etymCacheDir ? require(path.join(dir, 'etym-search.cjs')) : null;
+  let etymInflight = null;
+  async function etymLookup(word) {
+    const key = String(word || '').trim().toLowerCase();
+    if (etymInflight && etymInflight.key === key) return etymInflight.promise;   // 同词并发只花一次钱
+    const promise = (async () => {
+      try {
+        const { cached, result } = await etym.lookupEtymology(key, { cacheDir: etymCacheDir });
+        return { ok: true, cached, result };
+      } catch (e) {
+        if (e.code === 'DAILY_BUDGET') return { ok: false, error: 'DAILY_BUDGET', message: e.message };
+        if (e.code === 'WORD_INVALID') return { ok: false, error: 'WORD_INVALID', message: '请输入英文单词' };
+        if (e.code === 'NO_KEY') return { ok: false, error: 'NO_KEY', message: '平台未配置联网查证密钥' };
+        return { ok: false, error: 'LOOKUP_FAILED', message: '查证失败：' + e.message };
+      } finally { if (etymInflight && etymInflight.key === key) etymInflight = null; }
+    })();
+    etymInflight = { key, promise };
+    return promise;
+  }
+  async function handleEtymLookup(req, res, sendJSON) {
+    let body = '';
+    try {
+      for await (const chunk of req) { body += chunk; if (body.length > 4096) { return sendJSON(res, 413, { error: 'BODY_LIMIT' }); } }
+    } catch { return sendJSON(res, 413, { error: 'BODY_LIMIT' }); }
+    let inc; try { inc = JSON.parse(body || '{}'); } catch { return sendJSON(res, 400, { error: 'bad json' }); }
+    const answer = await etymLookup(String(inc.word || ''));
+    const status = answer.ok ? 200 : answer.error === 'DAILY_BUDGET' ? 429 : answer.error === 'WORD_INVALID' || answer.error === 'NO_KEY' ? 400 : 502;
+    return sendJSON(res, status, answer);
+  }
   let snapshot = null, token = null;
   function current() {
     const pointer = ws.bytes(base, 'current.json'), p = JSON.parse(pointer);
@@ -67,6 +98,13 @@ export function createRootDict({ project }) {
       return true;
     }
     if (!pathname.startsWith('/dict/api/')) return false;
+    /* 按需查证是唯一会花钱的路由, 用 POST 与只读 GET 明确区分; word 是纯文本词形。 */
+    if (pathname === '/dict/api/etym-lookup') {
+      if (!etym) return sendJSON(res, 503, { error: 'ETYM_DISABLED' }), true;
+      if (req.method !== 'POST') return sendJSON(res, 405, { error: 'method' }), true;
+      handleEtymLookup(req, res, sendJSON);   // async: 响应由 helper 发出, 查证可花 10~60s
+      return true;
+    }
     if (req.method !== 'GET') return sendJSON(res, 405, { error: 'READ_ONLY' }), true;
     if (url.pathname.length > 2048) return sendJSON(res, 414, { error: 'URL_LIMIT' }), true;
     const routes = {

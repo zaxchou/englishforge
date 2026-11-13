@@ -1104,7 +1104,7 @@ let VOCAB_BANK = null, VOCAB_INDEX = null, VOCAB_BANK_RAW = null, VOCAB_BANK_GZ 
 let ROOT_MAP = null, ROOT_MAP_RAW = null, ROOT_MAP_GZ = null, ROOT_MAP_TOKEN = null;
 const ROOT_LEARNING_DIR = path.join(BUILD_DIR, 'root-universe', 'learning');
 const ROOT_PRACTICE = createRootPractice(ROOT_LEARNING_DIR);
-const ROOT_DICT = createRootDict({ project: __dirname });
+const ROOT_DICT = createRootDict({ project: __dirname, etymCacheDir: path.join(RECORDS_DIR, 'root-etym') });
 function rootLearningMap() {
   const map = ROOT_PRACTICE.rootMap();
   if (map.token !== ROOT_MAP_TOKEN) { ROOT_MAP_TOKEN = map.token; ROOT_MAP_RAW = null; ROOT_MAP_GZ = null; }
