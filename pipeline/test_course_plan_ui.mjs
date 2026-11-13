@@ -50,7 +50,7 @@ test('due prompt picks the first unsnoozed lesson and snooze is one day with pru
 });
 test('due badge reflects remaining recommendations and disappears when none',()=>{const c=context();
   const num={textContent:''};
-  const bell={hidden:true,title:'',querySelector:sel=>sel==='#cp-bell-n'?num:null};
+  const bell={hidden:true,title:'',classList:{toggle(_c,v){this.on=v;}},querySelector:sel=>sel==='#cp-bell-n'?num:null};
   c.ctx.$=id=>id==='cp-bell'?bell:null;
   c.run("CP.data={recommendations:['a','b','c']};cpBadgeUpdate()");
   assert.equal(bell.hidden,false,'badge shows when recommendations remain');
@@ -62,7 +62,7 @@ test('due badge reflects remaining recommendations and disappears when none',()=
 });
 test('badge counts every due lesson beyond the daily recommendation and adds EnglishPod passes',()=>{const c=context();
   const num={textContent:''};
-  const bell={hidden:true,title:'',querySelector:sel=>sel==='#cp-bell-n'?num:null};
+  const bell={hidden:true,title:'',classList:{on:false,toggle(_c,v){this.on=v;}},querySelector:sel=>sel==='#cp-bell-n'?num:null};
   c.ctx.$=id=>id==='cp-bell'?bell:null;
   const past=Date.now()-60000;
   c.run(`CP.data={recommendations:['a'],plans:{
@@ -76,15 +76,26 @@ test('badge counts every due lesson beyond the daily recommendation and adds Eng
     REC={course:{'eplod-0001':{drill:{fake:{dueToday:true,completed:1,extraToday:false}}},
                   'eplod-0002':{drill:{fake:{dueToday:false,completed:3,extraToday:true}}}}};
     epDay=()=>'2026-11-13';cpBadgeUpdate()`);
-  assert.equal(num.textContent,'5','plan due 3 + EP due 1 + EP optional fourth 1');
+  assert.equal(num.textContent,'4','red count only: plan 3 + EP due 1; optional fourth is excluded');
   assert.match(bell.title,/1 课覆盖背诵到期/);
-  assert.match(bell.title,/1 课可选第四遍/);
+  assert.match(bell.title,/另有 1 课可选第四遍（可选，不计入）/);
+  assert.equal(bell.classList.on,true,'optional presence shows as an amber dot class');
   c.run("cpBadgeUpdate()");   // idempotent re-render keeps the same count
-  assert.equal(num.textContent,'5');
+  assert.equal(num.textContent,'4');
+});
+test('a lone optional fourth pass never lights the badge',()=>{const c=context();
+  const bell={hidden:true,title:'',classList:{on:false,toggle(_c,v){this.on=v;}},querySelector:()=>({textContent:''})};
+  c.ctx.$=id=>id==='cp-bell'?bell:null;
+  c.run(`courseById=()=>({lessons:[{id:'eplod-0002',dialogue_count:2}]});
+    EplodRecords={coverProgress:(drill)=>drill.fake};
+    REC={course:{'eplod-0002':{drill:{fake:{dueToday:false,completed:3,extraToday:true}}}}};
+    CP.data={recommendations:[],plans:{}};epDay=()=>'2026-11-13';cpBadgeUpdate()`);
+  assert.equal(bell.hidden,true,'optional only: badge stays hidden');
+  assert.equal(bell.title,'','no must-do title either');
 });
 test('never-started lessons stay out of due counts and the review center even when overdue',()=>{const c=context();
   const num={textContent:''};
-  const bell={hidden:true,title:'',querySelector:sel=>sel==='#cp-bell-n'?num:null};
+  const bell={hidden:true,title:'',classList:{toggle(_c,v){this.on=v;}},querySelector:sel=>sel==='#cp-bell-n'?num:null};
   c.ctx.$=id=>id==='cp-bell'?bell:null;
   const past=Date.now()-60000;
   /* 万词班 36 节误推回归(2026-11-13): 计划启用日给没学过的课也写了 due=启用日,

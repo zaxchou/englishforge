@@ -106,8 +106,8 @@ function cpDueAll(){
     if(p.begun&&(p.active||(p.due&&p.due<=now)))ids.add(p.lessonId);
   }
   for(const r of (CP.data?.recommendations||[]))ids.add(r);
-  const ep=cpEplodDue();
-  return {plan:ids.size,ep,total:ids.size+ep.length};
+  const ep=cpEplodDue(),epDue=ep.filter(x=>x.kind==='due'),epOpt=ep.filter(x=>x.kind==='optional');
+  return {plan:ids.size,ep,epDue,epOpt,red:ids.size+epDue.length,yellow:epOpt.length};
 }
 async function cpExamCard(){
   let exams=[];
@@ -126,8 +126,8 @@ async function cpDashboard(){
   const d=CP.data,recs=d.recommendations||[];
   const ndf=cpGroupSummary(cpPlansOf('ndf-01')),cf=cpGroupSummary(cpPlansOf('cfcm-01'));
   const due=cpDueAll();
-  const epDueN=due.ep.filter(x=>x.kind==='due').length,epOptN=due.ep.length-epDueN;
-  const dueTotal=due.plan+epDueN,extraDue=Math.max(0,due.plan-recs.length);
+  const epDueN=due.epDue.length,epOptN=due.epOpt.length;
+  const dueTotal=due.red,extraDue=Math.max(0,due.plan-recs.length);
   const duePlanIds=(()=>{const s=new Set();for(const p of Object.values(d.plans||{})){if(p&&!p.complete&&p.begun&&(p.active||(p.due&&p.due<=Date.now())))s.add(p.lessonId);}for(const r of recs)s.add(r);return s;})();
   /* 到期但被每日推荐截掉的课也列出来(2026-11-13 用户反馈: 要能自己挑) */
   const extraOf=prefix=>[...duePlanIds].filter(id=>id.startsWith(prefix)&&!recs.includes(id)).map(cpPlan).filter(Boolean);
@@ -138,10 +138,10 @@ async function cpDashboard(){
   const epRows=due.ep.map(item=>{
     const name=(typeof lessonTitle==='function'&&lessonTitle(item.id))||item.id;
     const label=item.kind==='optional'?'三遍已完成 · 第四遍可选（不限时）':'第 '+item.pass+' 遍到期';
-    return '<div class="cp-lesson"><div><b>'+esc(name)+'</b><p>'+esc(label)+'</p></div><button data-ep-open="'+esc(item.id)+'">'+(item.kind==='optional'?'背第四遍':'去背诵')+' →</button></div>';
+    return '<div class="cp-lesson'+(item.kind==='optional'?' opt':'')+'"><div><b>'+esc(name)+'</b>'+(item.kind==='optional'?'<span class="cp-opt-tag">可选</span>':'<span class="cp-due-tag">到期</span>')+'<p>'+esc(label)+'</p></div><button data-ep-open="'+esc(item.id)+'">'+(item.kind==='optional'?'背第四遍':'去背诵')+' →</button></div>';
   }).join('');
   host.innerHTML='<div class="cp-dashboard"><div class="cp-heading"><div><h3>复习中心</h3><p>按来源分区：课后练盖章、期末考、EnglishPod 覆盖、错题与词根。各自独立计算，互不混排。</p></div><span class="cp-total">'+ndf.started+' / '+ndf.total+' 课已开始 · '+ndf.done+' 课盖满</span></div>'
-    +'<div class="cp-today"><div><b>'+(dueTotal>0?('今天有 '+dueTotal+' 件事到期'+(extraDue>0?('（推荐 '+recs.length+' + 自选 '+(due.plan-recs.length)+'）'):'')+(epOptN?('，另有 '+epOptN+' 课可选第四遍'):'')):(d.remainingToday>0?'今天暂无到期的课后练':'今天的课后练复习已完成'))+'</b><p>'+(extraDue>0?'到期但没排进推荐的部分列在下面，练哪课自己挑，不用按顺序。':(d.remainingToday>0?'按课慢慢来，不用清空所有错题。':'可以收工了，想多练再选一课。'))+'</p></div>'+(recs.length?'<button class="pri" data-cp-open="'+esc(recs[0])+'">'+(d.remainingToday>0?'开始今天的复习':'再练一课')+' →</button>':'')+'</div>'
+    +'<div class="cp-today"><div><b>'+(dueTotal>0?('今天必做 '+dueTotal+' 件'+(extraDue>0?('（推荐 '+recs.length+' + 自选 '+(due.plan-recs.length)+'）'):'')+(epOptN?('，另有 '+epOptN+' 课可选第四遍，不做也行'):'')):(epOptN?('今天没有必做项，另有 '+epOptN+' 课可选第四遍，不做也行'):(d.remainingToday>0?'今天暂无到期的课后练':'今天的课后练复习已完成')))+'</b><p>'+(extraDue>0?'到期但没排进推荐的部分列在下面，练哪课自己挑，不用按顺序。':(d.remainingToday>0?'按课慢慢来，不用清空所有错题。':'可以收工了，想多练再选一课。'))+'</p></div>'+(recs.length?'<button class="pri" data-cp-open="'+esc(recs[0])+'">'+(d.remainingToday>0?'开始今天的复习':'再练一课')+' →</button>':'')+'</div>'
     +exam
     +'<section class="cp-sec"><h4>新东方词汇课 · 课后练盖章<span>'+ndf.started+' 已开始 · '+ndf.done+' / '+ndf.total+' 盖满</span></h4>'
       +'<div class="cp-lessons">'+([...recPlans.filter(p=>String(p.lessonId).startsWith('ndf-01')),...extraOf('ndf-01')].map(row).join('')||'<p class="cp-sec-note">今天没有到期的课后练；可以展开全部进度挑一课。</p>')+'</div>'
@@ -150,7 +150,7 @@ async function cpDashboard(){
       +'<div class="cp-lessons">'+([...recPlans.filter(p=>String(p.lessonId).startsWith('cfcm-01')),...extraOf('cfcm-01')].map(row).join('')||'<p class="cp-sec-note">'+(cf.started?'今天没有到期的课后练；可以展开进度挑一课。':cf.total+' 节已排入计划，还没有开始。按自己的节奏随时开始第一课。')+'</p>')+'</div>'
       +'<details class="cp-all"><summary>万词班进度 · '+cf.total+' 课</summary>'+plist(cpPlansOf('cfcm-01'))+'</details></section>'
     +'<section class="cp-sec"><h4>EnglishPod · 覆盖背诵<span>三个不同日期各一遍，第四遍可选</span></h4>'
-      +'<p class="cp-sec-note">已开始 '+ep.started+' 节 · 今日已计入 '+ep.today+' 节 · 三遍完成 '+ep.full+' 节'+(due.ep.length?(' · 今天待背 '+due.ep.filter(x=>x.kind==='due').length+' 课'+(due.ep.length>due.ep.filter(x=>x.kind==='due').length?(' + 可选 '+ (due.ep.length-due.ep.filter(x=>x.kind==='due').length) +' 课'):'')):'')+'</p>'
+      +'<p class="cp-sec-note">已开始 '+ep.started+' 节 · 今日已计入 '+ep.today+' 节 · 三遍完成 '+ep.full+' 节'+(epDueN?(' · <span class="cp-due-tag">必背 '+epDueN+' 课</span>'):'')+(epOptN?(' · <span class="cp-opt-tag">可选 '+epOptN+' 课</span>'):'')+'</p>'
       +(epRows?'<div class="cp-lessons">'+epRows+'</div>':'<div class="cp-sec-actions"><button data-ep-go>打开 EnglishPod 列表 →</button></div>')+'</section>'
     +'<section class="cp-sec"><h4>错题与词根</h4><p class="cp-sec-note">今日到期：错题 '+weak.mistakes+' 题 · 词根家族 '+weak.families+' 个</p>'
       +'<div class="cp-sec-actions"><button data-review-go>去错题本 →</button><button data-fam-go>词根家族练习 →</button></div></section>'
@@ -223,26 +223,27 @@ function cpSnooze(lid){
 }
 function cpBadgeUpdate(){
   const b=$('cp-bell');if(!b)return;
-  const due=cpDueAll(),n=due.total;
-  b.hidden=!n;
-  if(n){
-    const epDueN=due.ep.filter(x=>x.kind==='due').length,epOptN=due.ep.length-epDueN,parts=[];
+  const due=cpDueAll();
+  b.hidden=!due.red;   /* 黄色(可选第四遍)永不点亮徽标 */
+  b.classList.toggle('has-opt',!!due.yellow);
+  if(due.red){
+    const parts=[];
     if(due.plan)parts.push(due.plan+' 课课后练到期');
-    if(epDueN)parts.push(epDueN+' 课覆盖背诵到期');
-    if(epOptN)parts.push(epOptN+' 课可选第四遍');
-    b.title='今天：'+parts.join(' · ')+'，点击挑选';
+    if(due.epDue.length)parts.push(due.epDue.length+' 课覆盖背诵到期');
+    let title='今天必做：'+parts.join(' · ');
+    if(due.yellow)title+='；另有 '+due.yellow+' 课可选第四遍（可选，不计入）';
+    b.title=title;
   }
-  const t=b.querySelector('#cp-bell-n');if(t)t.textContent=n>9?'9+':String(n||'');
+  const t=b.querySelector('#cp-bell-n');if(t)t.textContent=due.red>9?'9+':String(due.red||'');
 }
 function cpBadgeGo(){
   const due=cpDueAll();
-  /* 只有一件到期的事就直接开始; 多件时进复习中心自己挑, 不替用户排顺序 */
-  if(due.total===1){
-    if(due.ep.length){nav('eplod/'+encodeURIComponent(due.ep[0].id));return;}
+  if(due.red===1){
+    if(due.epDue.length){nav('eplod/'+encodeURIComponent(due.epDue[0].id));return;}
     const rec=(CP.data?.recommendations||[])[0];
     if(rec){cpOpenLesson(rec);return;}
   }
-  if((CP.data&&Object.keys(CP.data.plans||{}).length)||due.ep.length){location.hash='#/course/review';}   /* 走路由切换视图, 不能只 replaceState(从首页进会停在隐藏面板) */
+  if(due.red>1){location.hash='#/course/review';}   /* 多件必做 → 复习中心自选(走路由) */
 }
 function cpDuePromptShow(lid){
   CP.closePrompt?.();
