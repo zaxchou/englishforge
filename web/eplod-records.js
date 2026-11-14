@@ -2,7 +2,7 @@
   'use strict';
   const copy=x=>x===undefined?undefined:JSON.parse(JSON.stringify(x));
   const object=x=>x&&typeof x==='object'&&!Array.isArray(x);
-  const SCORING_VERSION=14;
+  const SCORING_VERSION=15;
   /* 判分归一分词(r19): 官方文本的 "5:58" 分词成 [5,58], ASR/用户输入是 [five,fifty,eight],
      形状不同会白扣分——数字 token 统一展开成读法单词; oh 与 zero 互通(两侧同变换, 只增匹配不改错配)。 */
   const NUM1={0:'zero',1:'one',2:'two',3:'three',4:'four',5:'five',6:'six',7:'seven',8:'eight',9:'nine',10:'ten',11:'eleven',12:'twelve',13:'thirteen',14:'fourteen',15:'fifteen',16:'sixteen',17:'seventeen',18:'eighteen',19:'nineteen',20:'twenty'};   /* 20 曾缺表, expandNum 兜底成 "20" 配不上 twenty(r2 2026-10-30) */
@@ -64,6 +64,9 @@
   const SLANG={alright:['all','right'],gonna:['going','to'],wanna:['want','to'],gotta:['got','to'],kinda:['kind','of'],sorta:['sort','of'],
     lemme:['let','me'],gimme:['give','me'],outta:['out','of'],lotta:['lot','of'],"c'mon":['come','on'],
     "'bout":['about'],"'em":['them'],"'cause":['because'],"'til":['till'],"'till":['till'],"'tis":['it','is']};
+  /* 同音异拼家族(r25 2026-11-14): -ie/-y 词尾随意(0073 实测官方 pinkie vs ASR pinky, 词典两拼均收)。
+     两侧同变换到 -y 形, 与英式拼写归一同一原则; 白名单整词匹配, 真词(movie/movey 之类不存在的形)不受影响。 */
+  const HOMOPHONE_SPELLINGS={pinkie:'pinky'};
   /* 明确同义的常见缩写两侧展开。's(is/has/所有格)有歧义——但人称/指示代词+'s 从不表示
      所有格(its/ours 无撇号), 按 is 读法展开(r6 2026-11-07): ASR 常把 He's 写成 He is,
      形状差(1↔2 token)整对落空; has 读法(he's got ↔ he has got)展开后 he/got 仍各得其所。
@@ -109,6 +112,7 @@
       if(spoken.every(t=>typeof t==='string'))return spoken;
     }
     if(Object.hasOwn(SLANG,w))return SLANG[w].slice();
+    if(Object.hasOwn(HOMOPHONE_SPELLINGS,w))return [HOMOPHONE_SPELLINGS[w]];
     if(!bare)return out;
     if(Object.hasOwn(CONTRACTIONS,bare))return CONTRACTIONS[bare].slice();
     /* 已确认的视力复合词与连字符/分写形式同分词; 不普遍拼接(如 re-sign/resign)。 */

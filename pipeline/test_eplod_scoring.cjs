@@ -308,6 +308,15 @@ test('r24: noun +\'s copula readings match their ASR-opened two-word forms in vo
   assert.ok(E.scoreTokens('Tuesday\'s meeting moved.', 'Tuesday meeting moved.', false).acc < 1, 'possessive readings still require the \'s in typing');
 });
 
+test('r25: -ie/-y homophone spellings match in both voice and typing', () => {
+  const official = "Honey, that's my pinkie. The ring goes on the ring finger!";
+  const spoken = "Honey, that's my pinky. The ring goes on the ring finger.";
+  const voice = E.scoreTokens(official, spoken, true);
+  assert.equal(voice.acc, 1, 'pinkie/pinky are the same spoken word');
+  assert.deepEqual(voice.extras, []);
+  assert.equal(E.lcsAcc(official, spoken), 1, 'dictation accepts the dictionary-variant spelling too');
+  assert.ok(E.scoreTokens('the movie', 'the movey', true).acc < 1, 'unrelated words stay strict');
+});
 test('r11: whole-recite report gives accuracy, speed, fluency and a total', () => {
   const official = 'I know, and I apologize for the delay. But some things were just beyond my control.';
   const perfect = E.wholeReport(official, official, 19, 19);
