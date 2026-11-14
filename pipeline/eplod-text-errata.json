@@ -1037,6 +1037,15 @@
     ]
    ],
    "note": "官方 PDF 漏 fine(2026-11-13): faster-whisper 词级 + 讲解音频三次原句均为 It's fine. Jump in."
+  },
+  "0024": {
+   "replacements": [
+    [
+     "neigbourhood",
+     "neighborhood"
+    ]
+   ],
+   "note": "官方 PDF 漏 h(2026-11-14): 印刷件即为 neigbourhood, 原音与 ASR 均为 neighborhood; 英美拼写中 neighborhood 是规范形。"
   }
  }
 }

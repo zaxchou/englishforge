@@ -102,7 +102,8 @@ test('common contractions equal their full forms without erasing grammar or cont
   }
   for (const [a, b] of [
     ["You aren't calling in sick.", 'You are calling in sick.'],
-    ["You're calling in sick.", 'You were calling in sick.'],
+    // r26 2026-11-14: were↔'re 只在语音互认（用户 0024 归档录音重听确认念的是 "We were"、
+    // 是 ASR 把弱读写成 We're），打字默写仍判错——下一行移出本表后由 r26 测试正向钉住。
     ["I've called.", 'I called.'],
     ["I'll call.", 'I would call.'],
     ["He's called.", 'He has called.'],
@@ -308,6 +309,17 @@ test('r24: noun +\'s copula readings match their ASR-opened two-word forms in vo
   assert.ok(E.scoreTokens('Tuesday\'s meeting moved.', 'Tuesday meeting moved.', false).acc < 1, 'possessive readings still require the \'s in typing');
 });
 
+test('r26: reduced were transcribed as re/are matches in voice only (0024)', () => {
+  const official = 'We were thinking of checking out a restaurant in the neighborhood. Do you have any suggestions?';
+  const spoken = "We're thinking of checking out a restaurant in the neighborhood. Do you have any suggestions?";
+  const voice = E.scoreTokens(official, spoken, true);
+  assert.equal(voice.acc, 1, 'fast-speech were -> are is an ASR artifact');
+  assert.deepEqual(voice.extras, []);
+  assert.equal(E.scoreTokens(spoken, official, true).acc, 1, 'symmetric');
+  assert.ok(E.scoreTokens(official, spoken, false).acc < 1, 'typing keeps the tense distinct');
+  assert.equal(E.scoreTokens('You were late.', 'You are late.', true).acc, 1);
+  assert.equal(E.scoreTokens('They were here.', 'They are here.', true).acc, 1);
+});
 test('r25: -ie/-y homophone spellings match in both voice and typing', () => {
   const official = "Honey, that's my pinkie. The ring goes on the ring finger!";
   const spoken = "Honey, that's my pinky. The ring goes on the ring finger.";
