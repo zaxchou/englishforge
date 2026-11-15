@@ -90,8 +90,9 @@ function homeHTML() {
   <div class="nt-pad">
     <h1 class="nt-h1">数字敏感度训练</h1>
     <p class="nt-lead">每题播放一个英语数字，听完输入数值。系统按准确度和反应时间记录，并把易错类型排成下一轮的专项题。</p>
-    ${tiles(s)}
-    <div class="nt-advice">${adv.slice(0, 2).map(a => `<p>${esc(a.text)}</p>`).join('') || '<p>还没有记录，先做一轮建立基线。</p>'}</div>
+    ${(s?.total?.settled || 0) > 0
+      ? `${tiles(s)}<div class="nt-advice">${adv.slice(0, 2).map(a => `<p>${esc(a.text)}</p>`).join('')}</div>`
+      : '<p class="nt-empty">还没有训练记录。做完第一轮，这里会显示单听准确率、反应时间和针对你的建议。</p>'}
     <div class="nt-field"><span class="nt-label">位数</span><div class="nt-chips cols-7" role="group" aria-label="位数">
       <button class="nt-chip span2${S.cfg.mode === 'smart' ? ' on' : ''}" data-mode="smart">智能</button>
       ${[2, 3, 4, 5, 6].map(d => `<button class="nt-chip${S.cfg.mode === 'fixed' && S.cfg.digits === d ? ' on' : ''}" data-fixed="${d}">${d}</button>`).join('')}

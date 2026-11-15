@@ -59,6 +59,7 @@
 #v-number-trainer .nt-tiles>div{background:var(--nt-surface);border:1px solid var(--nt-line);border-radius:12px;padding:12px 8px;text-align:center}
 #v-number-trainer .nt-tiles b{display:block;font-size:21px;color:var(--nt-green);line-height:1.35;font-variant-numeric:tabular-nums}
 #v-number-trainer .nt-tiles span{font-size:11px;color:var(--nt-dim)}
+#v-number-trainer .nt-empty{font-size:12.5px;line-height:1.8;color:var(--nt-mut);background:var(--nt-surface);border:1px dashed var(--nt-line2);border-radius:11px;padding:14px 15px;margin:0}
 #v-number-trainer .nt-advice{background:var(--nt-surface);border:1px solid var(--nt-line);border-radius:11px;padding:11px 13px}
 #v-number-trainer .nt-advice p{margin:0;font-size:12.5px;line-height:1.75;color:#c6d4cb}
 #v-number-trainer .nt-advice p+p{margin-top:5px}
