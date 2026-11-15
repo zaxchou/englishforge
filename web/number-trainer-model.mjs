@@ -297,6 +297,8 @@ export function planRound({ summary, config = {}, rng = Math.random, retestGapMs
   const slots = [];
   focusTags.forEach(tag => { for (let i = 0; i < perTag; i++) slots.push({ source: 'focus', feature: tag, digits: baseDigits }); });
   while (slots.length < focusN) slots.push({ source: 'focus', feature: focusTags[0] || null, digits: baseDigits });
+  // 没有已确认弱项时，这一档其实是普通练习，不能标成“专项”。
+  if (!focusTags.length) for (const slot of slots) slot.source = 'probe';
   const perReview = reviewTags.length ? Math.floor(reviewN / reviewTags.length) : 0;
   const reviewSlots = [];
   reviewTags.forEach(tag => { for (let i = 0; i < perReview; i++) reviewSlots.push({ source: 'review', feature: tag, digits: baseDigits }); });
