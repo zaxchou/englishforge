@@ -147,6 +147,22 @@ const gate = M.buildAdvice(gateSummary).find(a => a.kind === 'gate');
 assert(gate && /95%/.test(gate.text) && /多错 1 题/.test(gate.text), JSON.stringify(gate));
 ok('建议: 明确升档线、最多错几题、现在多错几题');
 
+// 升档失败后不能永久卡住：回到低档练稳了应该能再升
+const bounce = [];
+for (let i = 0; i < 20; i++) bounce.push({ target: '100', digits: 3, correct: i < 15, skip: false, assisted: false, timingValid: true, submitMs: 1700, submittedAt: new Date(Date.now() - (100 - i) * 60000).toISOString(), features: ['distinctDigits'], errorTags: i < 15 ? [] : ['substitution'] });
+for (let i = 0; i < 20; i++) bounce.push({ target: '42', digits: 2, correct: true, skip: false, assisted: false, timingValid: true, submitMs: 1100, submittedAt: new Date(Date.now() - (40 - i) * 60000).toISOString(), features: ['teenTy'], errorTags: [] });
+assert.equal(M.currentLevel(bounce), 2, '当前档看最近 20 题');
+const bw = M.recentWindow(bounce, { digits: M.currentLevel(bounce) });
+assert.equal(bw.rate, 1);
+const bs = M.summarizeAttempts(bounce);bs.recent = bw;bs.level = 2;
+assert.equal(M.currentDigits(bs, { maxDigits: 6, startDigits: 2 }, bw), 3, '低档练稳后应重新升到 3');
+const onlyThree = bounce.slice(0, 20);
+const ow = M.recentWindow(onlyThree, { digits: 3 });
+const os = M.summarizeAttempts(onlyThree);os.recent = ow;os.level = 3;
+assert.equal(ow.rate, 0.75);
+assert.equal(M.currentDigits(os, { maxDigits: 6, startDigits: 2 }, ow), 3, '75% 不应降档');
+ok('降档: 75% 留在原档继续练，低档练稳后可以再升');
+
 // 智能升档
 const good = M.summarizeAttempts(Array.from({ length: 40 }, () => ev({ correct: true })));
 assert.equal(M.currentDigits(good, { maxDigits: 6, startDigits: 2 }), 4);

@@ -47,9 +47,9 @@ export function createNumberTrainer({ recordsDir, ttsConfigured = false, ttsSynt
     const events = store.readRange({ days });
     const summary = M.summarizeAttempts(events, { days, now: now() });
     // 升档看最近 20 个同档有效作答，避免早期错题永久压着；长期弱项仍用全量。
-    const levels = Object.keys(summary.byDigits).map(Number).sort((a, b) => a - b);
-    const top = levels.length ? levels[levels.length - 1] : null;
-    summary.recent = top == null ? null : M.recentWindow(events, { digits: top });
+    const level = M.currentLevel(events);
+    summary.recent = level == null ? null : M.recentWindow(events, { digits: level });
+    summary.level = level;
     return {
       summary,
       advice: M.buildAdvice(summary),

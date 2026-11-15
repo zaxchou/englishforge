@@ -251,7 +251,7 @@ export const THRESHOLDS = {
   minTag: 5, minTagErrors: 2,
   minWeakSamples: 10, minWeakErrors: 2, minWeakRate: 0.05,
   promoteSamples: 20, promoteRate: 0.95, promoteWindow: 20, promoteMinInWindow: 15,
-  demoteRate: 0.8,
+  demoteRate: 0.7,
 };
 
 function weakFeatures(summary, { minSamples = THRESHOLDS.minWeakSamples, minErrors = THRESHOLDS.minWeakErrors, minRate = THRESHOLDS.minWeakRate } = {}) {
@@ -274,17 +274,31 @@ export function recentWindow(events, { digits = null, size = THRESHOLDS.promoteW
   return { digits: digits == null ? null : Number(digits), settled: win.length, independent, rate: win.length ? independent / win.length : null };
 }
 
+/** 当前在练哪一档：最近 20 个有效作答里出现最多的位数（并列取高的）。 */
+export function currentLevel(events, { size = THRESHOLDS.promoteWindow } = {}) {
+  const list = (events || []).filter(e => e && e.target && !e.invalid && e.digits);
+  list.sort((a, b) => String(a.submittedAt).localeCompare(String(b.submittedAt)));
+  const win = list.slice(-size);
+  if (!win.length) return null;
+  const counts = new Map();
+  for (const e of win) { const d = Number(e.digits);counts.set(d, (counts.get(d) || 0) + 1); }
+  return [...counts.entries()].sort((a, b) => b[1] - a[1] || b[0] - a[0])[0][0];
+}
+
 export function currentDigits(summary, config = {}, recent = null) {
   const max = clampDigits(config.maxDigits || 6), start = clampDigits(config.startDigits || 2);
   const levels = Object.keys(summary.byDigits || {}).map(Number).filter(d => (summary.byDigits[d]?.settled || 0) > 0).sort((a, b) => a - b);
   if (!levels.length) return start;
-  const top = levels[levels.length - 1], b = summary.byDigits[String(top)];
-  const win = recent && Number(recent.digits) === top ? recent : null;
-  const n = win ? win.settled : b.settled;
-  const rate = win && win.rate != null ? win.rate : (b.independentRate || 0);
-  if (n >= THRESHOLDS.promoteMinInWindow && rate >= THRESHOLDS.promoteRate) return Math.min(max, top + 1);
-  if (n >= 10 && rate < THRESHOLDS.demoteRate) return Math.max(DIGIT_MIN, top - 1);
-  return Math.max(start, Math.min(max, top));
+  // 以“当前正在练的档”为准（recent 已按它取窗口），而不是历史最高档，
+  // 否则升档失败一次就再也升不上去。
+  const level = recent && recent.digits != null ? Number(recent.digits) : levels[levels.length - 1];
+  const b = summary.byDigits?.[String(level)];
+  const win = recent && Number(recent.digits) === level ? recent : null;
+  const n = win ? win.settled : (b?.settled || 0);
+  const rate = win && win.rate != null ? win.rate : (b?.independentRate || 0);
+  if (n >= THRESHOLDS.promoteMinInWindow && rate >= THRESHOLDS.promoteRate) return Math.min(max, level + 1);
+  if (n >= 10 && rate < THRESHOLDS.demoteRate) return Math.max(DIGIT_MIN, level - 1);
+  return Math.max(start, Math.min(max, level));
 }
 export function buildAdvice(summary, config = {}) {
   const advice = [];
