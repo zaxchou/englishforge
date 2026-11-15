@@ -127,7 +127,7 @@ function homeHTML() {
     ${last ? `<button class="nt-last" data-act="history">
       <span><b>上次训练</b><small>${esc(dayLabel(last.endedAt))} · ${last.settled} 题 · ${Math.round((last.accuracy || 0) * 100)}%${last.medianMs ? ' · ' + M.fmtSec(last.medianMs) : ''}</small></span>
       <span class="nt-last-go">看记录 →</span></button>` : ''}
-    <p class="nt-fine">${S.meta?.tts === false ? '当前使用浏览器朗读，声音与速度因设备而异。' : phone ? '单个数字拼接播放，停顿固定；不按整数连读。' : '音频为固定音色与读法；加载时间不计入反应时间。'}</p>
+    <p class="nt-fine">${S.meta?.tts === false ? '当前使用浏览器朗读，声音与速度因设备而异。' : phone ? '整串逐位朗读，0 读作 oh；不按整数连读。' : '音频为固定音色与读法；加载时间不计入反应时间。'}</p>
     ${S.pending ? `<p class="nt-fine nt-warn">${S.pending} 条作答待同步，联网后自动补传。</p>` : ''}
   </div>`;
 }
