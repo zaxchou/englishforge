@@ -89,6 +89,25 @@ export function createNumberTrainer({ recordsDir, ttsConfigured = false, ttsSynt
     if (!fmt || !data?.length || ![8, 16, 24, 32].includes(fmt.bits)) return null;
     return { fmt, data };
   }
+  /** 只裁首尾静音（按 20ms 能量窗找语音边界），不动中间，避免切掉弱辅音。 */
+  function trimEdges(clip, { threshold = 200, leadMs = 40, keepMs = 30 } = {}) {
+    const { fmt, data } = clip;
+    const bytesPer = fmt.channels * (fmt.bits / 8);
+    if (fmt.bits !== 16) return data;
+    const frames = Math.floor(data.length / bytesPer);
+    const frameMs = 1000 / fmt.sampleRate;
+    const win = Math.max(1, Math.round(fmt.sampleRate * 0.02));
+    let first = null, last = null;
+    for (let i = 0; i < frames; i += win) {
+      let sum = 0, count = 0;
+      for (let j = i; j < Math.min(frames, i + win); j++) { const v = data.readInt16LE(j * bytesPer);sum += v * v;count++; }
+      if (Math.sqrt(sum / count) > threshold) { if (first === null) first = i;last = Math.min(frames, i + win); }
+    }
+    if (first === null) return data;
+    const start = Math.max(0, first - Math.round(leadMs / frameMs));
+    const end = Math.min(frames, last + Math.round(keepMs / frameMs));
+    return data.subarray(start * bytesPer, end * bytesPer);
+  }
   function silence(fmt, ms) {
     const bytes = Math.round(fmt.sampleRate * fmt.channels * (fmt.bits / 8) * ms / 1000);
     return Buffer.alloc(bytes - (bytes % (fmt.channels * (fmt.bits / 8))));
@@ -102,9 +121,12 @@ export function createNumberTrainer({ recordsDir, ttsConfigured = false, ttsSynt
     h.write('data', 36);h.writeUInt32LE(dataBytes, 40);
     return h;
   }
-  async function phoneWav(digits, gapMs = 160) {
+  async function phoneWav(digits, gapMs = 110) {
     const clips = [];
-    for (const ch of String(digits)) clips.push(await digitClip(Number(ch)));
+    for (const ch of String(digits)) {
+      const clip = await digitClip(Number(ch));
+      clips.push({ fmt: clip.fmt, data: trimEdges(clip) });
+    }
     const fmt = clips[0].fmt;
     for (const c of clips) if (c.fmt.sampleRate !== fmt.sampleRate || c.fmt.channels !== fmt.channels || c.fmt.bits !== fmt.bits) throw new Error('DIGIT_FORMAT_MISMATCH');
     const gap = silence(fmt, gapMs);
