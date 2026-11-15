@@ -57,6 +57,7 @@ async function typeValue(page, value) {
 
       // 10 题一轮，全部输入正确答案
       await page.locator('[data-count="10"]').click();
+      await page.locator('[data-auto="off"]').click();   // 先用手动确认，便于逐题断言
       await page.locator('[data-act="start"]').click();
       await page.locator('.nt-bars').waitFor();
       let roundId = null;
@@ -113,7 +114,8 @@ async function typeValue(page, value) {
         const r2 = await sessionOf(page);
         const feats = [...new Set(r2.session.questions.map(q => q.feature).filter(Boolean))];
         assert.equal(feats.length, 1, 'retry drills a single feature: ' + feats);
-        assert(r2.session.questions.every(q => q.source === 'focus'));
+        assert(r2.session.questions.every(q => ['focus', 'probe'].includes(q.source)), 'retry only uses focus or probe fill');
+        assert(r2.session.questions.filter(q => q.source === 'focus').length >= Math.min(5, r2.session.questions.length));
         assert.equal(new Set(r2.session.questions.map(q => q.value)).size, r2.session.questions.length, 'retry values are fresh');
         page.once('dialog', d => d.accept());
         await page.locator('[data-act="back"]').click();
@@ -157,6 +159,39 @@ async function typeValue(page, value) {
       const replayEvent = await (await page.request.get(base + '/api/number-trainer/attempts?date=' + new Date().toISOString().slice(0, 10))).json();
       const ev = replayEvent.events.find(e => e.questionId === 'q3' && e.sessionId === resumed.saved.id);
       assert(ev && ev.assisted === true && ev.replay === true, 'replay recorded as assisted');
+
+      // 键盘直控：不点输入区，R/C/退格/Delete/方向键/Enter，以及答对自动进入下一题
+      if (w === 390) {
+        page.once('dialog', d => d.accept());
+        await page.locator('[data-act="back"]').click();
+        await page.locator('.nt-h1').waitFor();
+        await page.locator('[data-auto="on"]').click();
+        await page.locator('[data-act="start"]').click();
+        await page.locator('.nt-bars').waitFor();
+        await page.waitForFunction(() => /输入你听到的数值|本题不计/.test(document.querySelector('.nt-state')?.textContent || ''));
+        const k = await sessionOf(page);
+        const v = String(k.session.questions[0].value);
+        await page.keyboard.type(v + '9');
+        assert.equal(await page.locator('.nt-digits').textContent(), v + '9', 'digits typed without focusing an input');
+        await page.keyboard.press('Backspace');
+        assert.equal(await page.locator('.nt-digits').textContent(), v);
+        await page.keyboard.press('Home');
+        await page.keyboard.press('Delete');
+        assert.equal(await page.locator('.nt-digits').textContent(), v.slice(1), 'forward delete at caret');
+        await page.keyboard.press('c');
+        assert.equal(await page.locator('.nt-digits').textContent(), '');
+        await page.keyboard.press('r');
+        await page.waitForFunction(() => (document.querySelector('.nt-stage')?.textContent || '').includes('已重听'));
+        await page.keyboard.type(v);
+        await page.keyboard.press('Enter');
+        await page.locator('.nt-result.ok').waitFor();
+        await page.waitForFunction(() => (document.querySelector('.nt-meta-row')?.textContent || '').trim().startsWith('2 /'), null, { timeout: 6000 });
+        assert.equal(await page.locator('.nt-result').count(), 0, 'auto-advance leaves no stale result');
+        page.once('dialog', d => d.accept());
+        await page.locator('[data-act="back"]').click();
+        await page.locator('.nt-h1').waitFor();
+        await page.locator('[data-auto="off"]').click();
+      }
 
       const overflow = await page.evaluate(() => ({ w: innerWidth, s: document.documentElement.scrollWidth }));
       assert(overflow.s <= overflow.w, 'horizontal overflow ' + JSON.stringify(overflow));

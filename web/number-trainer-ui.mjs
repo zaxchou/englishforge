@@ -12,15 +12,16 @@ const API = '/api/number-trainer';
 
 const S = {
   mounted: false, token: 0, screen: 'home',
-  cfg: { mode: 'smart', digits: 3, count: 20, rate: 1 },
+  cfg: { mode: 'smart', digits: 3, count: 20, rate: 1, auto: true },
   meta: null, summary: null, history: null,
-  session: null, index: 0, input: '', answers: [],
+  session: null, index: 0, input: '', caret: 0, answers: [], autoTimer: null,
   playState: 'idle', endedAt: 0, firstAt: 0, replay: false, hint: false, plays: 0,
   timingValid: true, invalidReason: null, result: null, assistedThis: false,
   ttsBroken: false, browserVoice: false, pending: 0, note: '', finishSummary: null, finishState: 'idle',
 };
 
 let player = null, queue = null, root = null;
+const CARET = '<i class="nt-caret" aria-hidden="true"></i>';
 
 function cfgLoad() {
   try { const c = JSON.parse(localStorage.getItem(LS_CFG) || 'null');if (c && typeof c === 'object') S.cfg = { ...S.cfg, ...c }; } catch { /* 忽略 */ }
@@ -88,7 +89,7 @@ function homeHTML() {
   const last = (S.history?.rounds || []).find(r => r.settled >= 5);
   return `<div class="nt-pad">
     <h1 class="nt-h1">数字敏感度训练</h1>
-    <p class="nt-lead">每题播放一个英语数字，听完输入数值。系统按准确度和反应时间记录，并把易错类型排成下一轮的专项题。</p>
+    <p class="nt-lead">每题播放一个英语数字，听完输入数值。电脑上直接敲数字即可，不用点输入框；答对会自动进入下一题。</p>
     ${(s?.total?.settled || 0) > 0
       ? `${tiles(s)}<div class="nt-advice">${adv.slice(0, 2).map(a => `<p>${esc(a.text)}</p>`).join('')}</div>`
       : '<p class="nt-empty">还没有训练记录。做完第一轮，这里会显示单听准确率、反应时间和针对你的建议。</p>'}
@@ -98,6 +99,10 @@ function homeHTML() {
     </div>${S.cfg.mode === 'smart' ? `<span class="nt-note">${(s?.total?.settled || 0) >= 5 ? `按当前记录建议 ${rec} 位` : '还没有记录，先按 2 位起步'}</span>` : ''}</div>
     <div class="nt-field"><span class="nt-label">每轮</span><div class="nt-chips cols-3" role="group" aria-label="每轮题数">
       ${[10, 20, 30].map(n => `<button class="nt-chip${S.cfg.count === n ? ' on' : ''}" data-count="${n}">${n} 题</button>`).join('')}
+    </div></div>
+    <div class="nt-field"><span class="nt-label">答对后</span><div class="nt-chips" role="group" aria-label="答对后">
+      <button class="nt-chip${S.cfg.auto ? ' on' : ''}" data-auto="on">自动下一题</button>
+      <button class="nt-chip${S.cfg.auto ? '' : ' on'}" data-auto="off">手动确认</button>
     </div></div>
     <button class="nt-primary" data-act="start">开始训练</button>
     ${last ? `<button class="nt-last" data-act="history">
@@ -132,12 +137,20 @@ function trainHTML() {
     <div class="nt-digits" aria-live="polite">${inputBoxes()}</div>
     ${S.result ? resultHTML() : stateHTML(heard)}
   </div>
-  ${keysHTML(!!S.result, heard)}`;
+  ${keysHTML(!!S.result, heard)}
+  <p class="nt-hint-row" aria-hidden="true">数字直接输入 · R 重听 · C 清空 · ⌫ / Del 删除 · ← → 移动 · Enter 确认</p>`;
 }
 function inputBoxes() {
   const chars = [...S.input];
-  if (!chars.length) return '<span class="nt-box empty-single" aria-hidden="true"></span>';
-  return chars.slice(0, 12).map(c => `<span class="nt-box${c ? ' filled' : ''}${S.result && !S.result.correct ? ' miss' : ''}">${esc(c)}</span>`).join('');
+  const showCaret = !S.result;
+  if (!chars.length) return `<span class="nt-box empty-single" data-slot="0">${showCaret ? CARET : ''}</span>`;
+  const out = [];
+  chars.slice(0, 12).forEach((c, i) => {
+    if (showCaret && i === S.caret) out.push(CARET);
+    out.push(`<span class="nt-box filled${S.result && !S.result.correct ? ' miss' : ''}" data-slot="${i + 1}">${esc(c)}</span>`);
+  });
+  if (showCaret && S.caret >= Math.min(chars.length, 12)) out.push(CARET);
+  return out.join('');
 }
 function stateHTML(heard) {
   if (S.playState === 'loading') return '<p class="nt-state">正在准备音频…</p>';
@@ -206,15 +219,59 @@ function doneHTML() {
 function currentQ() { return S.session?.questions[S.index] || null; }
 function bind() {
   root.querySelectorAll('[data-digit]').forEach(b => b.onclick = () => pressDigit(b.dataset.digit));
-  root.querySelectorAll('[data-act]').forEach(b => b.onclick = () => act(b.dataset.act));
+  root.querySelectorAll('[data-slot]').forEach(b => b.onclick = () => {
+    if (S.result) return;
+    S.caret = Math.min(Number(b.dataset.slot), [...S.input].length);render();
+  });
+  root.querySelectorAll('[data-act]').forEach(b => { if (b.dataset.act !== 'del') b.onclick = () => act(b.dataset.act); });
+  root.querySelectorAll('[data-act="del"]').forEach(b => {
+    let timer = null, longFired = false;
+    const stop = () => { if (timer) { clearTimeout(timer);timer = null; } };
+    b.addEventListener('pointerdown', () => { longFired = false;timer = setTimeout(() => { longFired = true;clearInput(); }, 550); });
+    for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) b.addEventListener(ev, stop);
+    b.addEventListener('click', () => { if (longFired) { longFired = false;return; }delBack(); });
+  });
+  root.querySelectorAll('[data-auto]').forEach(b => b.onclick = () => { S.cfg.auto = b.dataset.auto === 'on';cfgSave();render(); });
   root.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => { S.cfg.mode = b.dataset.mode;cfgSave();render(); });
   root.querySelectorAll('[data-fixed]').forEach(b => b.onclick = () => { S.cfg.mode = 'fixed';S.cfg.digits = Number(b.dataset.fixed);cfgSave();render(); });
   root.querySelectorAll('[data-count]').forEach(b => b.onclick = () => { S.cfg.count = Number(b.dataset.count);cfgSave();render(); });
 }
 function pressDigit(d) {
   if (S.result || S.input.length >= 12) return;
+  cancelAutoNext();
   if (S.firstAt === 0 && S.endedAt) S.firstAt = performance.now();
-  S.input += d;render();
+  const chars = [...S.input];
+  const at = Math.min(S.caret, chars.length);
+  chars.splice(at, 0, d);
+  S.input = chars.join('');
+  S.caret = at + 1;
+  render();
+}
+function clearInput() {
+  if (S.result) return;
+  cancelAutoNext();
+  S.input = '';S.caret = 0;render();
+}
+function delBack() {
+  if (S.result) return;
+  cancelAutoNext();
+  const chars = [...S.input];
+  if (!chars.length) return;
+  const at = Math.min(S.caret, chars.length);
+  if (at > 0) { chars.splice(at - 1, 1);S.input = chars.join('');S.caret = at - 1;render(); }
+}
+function delForward() {
+  if (S.result) return;
+  cancelAutoNext();
+  const chars = [...S.input];
+  const at = Math.min(S.caret, chars.length);
+  if (at < chars.length) { chars.splice(at, 1);S.input = chars.join('');render(); }
+}
+function moveCaret(step) {
+  if (S.result) return;
+  const len = [...S.input].length;
+  S.caret = Math.max(0, Math.min(len, S.caret + step));
+  render();
 }
 function act(a) {
   if (a === 'start') return startSession();
@@ -224,7 +281,8 @@ function act(a) {
   if (a === 'settings') return toast('在上方切换位数和每轮题数。');
   if (a === 'srchint') return toast(SOURCE_HINT[currentQ()?.source] || '这轮按记录自动配题。');
   if (a === 'play') return playCurrent();
-  if (a === 'del') { if (!S.result) { S.input = S.input.slice(0, -1);render(); } return; }
+  if (a === 'del') return delBack();
+  if (a === 'clear') return clearInput();
   if (a === 'replay') return playCurrent(true);
   if (a === 'hint') { if (!S.result) { S.hint = true;render(); } return; }
   if (a === 'skip') return submit(true);
@@ -236,7 +294,7 @@ function act(a) {
 
 async function startSession(override = null) {
   const token = ++S.token;
-  clearRun();S.screen = 'loading';S.result = null;S.answers = [];S.index = 0;S.input = '';render();
+  cancelAutoNext();clearRun();S.screen = 'loading';S.result = null;S.answers = [];S.index = 0;S.input = '';S.caret = 0;render();
   try {
     const data = await api('/sessions', override || S.cfg);
     if (token !== S.token) return;
@@ -249,12 +307,12 @@ async function startSession(override = null) {
   }
 }
 function resetQuestionState() {
-  S.input = '';S.result = null;S.endedAt = 0;S.firstAt = 0;S.submitMs = null;
+  cancelAutoNext();S.input = '';S.caret = 0;S.result = null;S.endedAt = 0;S.firstAt = 0;S.submitMs = null;
   S.replay = false;S.hint = false;S.plays = 0;S.timingValid = true;S.invalidReason = null;S.assistedThis = false;
   S.playState = 'idle';S.note = '';
 }
 async function enterQuestion({ draft = '' } = {}) {
-  resetQuestionState();S.input = draft;render();
+  resetQuestionState();S.input = draft;S.caret = [...draft].length;render();
   const q = currentQ();if (!q) return;
   await loadAndPlay(q);
 }
@@ -319,6 +377,7 @@ function submit(skip) {
   S.answers[S.index] = { correct: !!graded.correct, skip, assisted: S.assistedThis, submitMs: S.submitMs, errorTags };
   render();
   persist(skip);
+  scheduleAutoNext();
 }
 function persist(skip) {
   const q = currentQ();
@@ -338,6 +397,10 @@ function persist(skip) {
   queue.enqueue(event);
   queue.flush().catch(() => { });
 }
+function primaryDoneAction() {
+  if (document.querySelector('[data-act="retry"]')) return retryErrors();
+  return startSession();
+}
 function retryErrors() {
   const wrong = S.answers.map((a, i) => ({ a, i })).filter(x => x.a && !x.a.correct && !x.a.skip);
   const feats = [...new Set(wrong.map(x => S.session?.questions?.[x.i]?.feature).filter(f => f && M.FEATURE_LABELS[f]))];
@@ -345,7 +408,19 @@ function retryErrors() {
   const base = S.session?.config || S.cfg;
   startSession({ ...base, count: Math.min(20, Math.max(10, feats.length * 4)), focus: feats });
 }
+function scheduleAutoNext() {
+  cancelAutoNext();
+  if (!S.cfg.auto || !S.result?.correct || S.result.skip) return;
+  S.autoTimer = setTimeout(() => {
+    S.autoTimer = null;
+    if (S.screen === 'train' && S.result?.correct) nextQuestion();
+  }, 900);
+}
+function cancelAutoNext() {
+  if (S.autoTimer) { clearTimeout(S.autoTimer);S.autoTimer = null; }
+}
 function nextQuestion() {
+  cancelAutoNext();
   if (S.index + 1 >= (S.session?.questions.length || 0)) return finishRound();
   S.index++;S.result = null;enterQuestion();
 }
@@ -368,7 +443,7 @@ function leaveToHome(confirmLeave) {
   if (confirmLeave && S.screen === 'train' && S.session && S.answers.length && S.answers.length < S.session.questions.length) {
     if (!window.confirm('这一轮还没做完。离开后本轮记录会保留，但要重新开始一轮。')) return;
   }
-  clearRun();S.token++;S.screen = 'home';S.session = null;S.result = null;S.input = '';
+  cancelAutoNext();clearRun();S.token++;S.screen = 'home';S.session = null;S.result = null;S.input = '';S.caret = 0;
   if (player) player.stop();
   S.pending = queue ? queue.pendingCount() : 0;
   refreshSummary();refreshHistory();render();
@@ -433,13 +508,25 @@ function onVisibility() {
 }
 function onPageHide() { if (player) player.stop(); }
 function onKeydown(e) {
-  if (!S.mounted || S.screen !== 'train') return;
+  if (!S.mounted || e.metaKey || e.ctrlKey || e.altKey) return;
   const tag = (e.target?.tagName || '').toLowerCase();
   if (tag === 'input' || tag === 'select' || tag === 'textarea') return;
-  if (/^[0-9]$/.test(e.key)) { e.preventDefault();pressDigit(e.key);return; }
-  if (e.key === 'Backspace') { e.preventDefault();act('del');return; }
-  if (e.key === 'Enter') { e.preventDefault();act(S.result ? 'next' : 'confirm');return; }
-  if (e.key === ' ') { e.preventDefault();act('replay'); }
+  const eat = () => { e.preventDefault();e.stopPropagation(); };
+  if (S.screen === 'home') { if (e.key === 'Enter') { eat();startSession(); } return; }
+  if (S.screen === 'done') { if (e.key === 'Enter') { eat();primaryDoneAction(); } return; }
+  if (S.screen !== 'train') return;
+  if (/^[0-9]$/.test(e.key)) { eat();pressDigit(e.key);return; }
+  if (e.key === 'Backspace') { eat();delBack();return; }
+  if (e.key === 'Delete') { eat();delForward();return; }
+  if (e.key === 'ArrowLeft') { eat();moveCaret(-1);return; }
+  if (e.key === 'ArrowRight') { eat();moveCaret(1);return; }
+  if (e.key === 'Home') { eat();S.caret = 0;render();return; }
+  if (e.key === 'End') { eat();S.caret = [...S.input].length;render();return; }
+  if (e.key === 'Enter') { eat();act(S.result ? 'next' : 'confirm');return; }
+  if (e.key === ' ') { eat();act('replay');return; }
+  const k = e.key.toLowerCase();
+  if (k === 'r') { eat();act('replay');return; }
+  if (k === 'c') { eat();clearInput();return; }
 }
 
 async function resumeRun() {
