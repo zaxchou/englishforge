@@ -2,6 +2,10 @@
  "version": 1,
  "note": "全库文本勘误表(2026-11-08 全库审计产物)。每期一组字符串替换, apply_errata 在解析/重用/落盘前递归应用(正文/词块例句/意群/讲解引用/中文)。来源: whisper+qwen 双引擎无偏置 ASR 与官方文本逐句比对(见 build/qa/eplod-text-audit/)。",
  "episodes": {
+  "0076": {
+   "replacements": [["One hundred and forty four!", "One forty four!"]],
+   "note": "2026-11-15 第10句配音读作 one forty-four（144），未说 hundred and；用户听辨与无偏置 Qwen 切句转写一致，small.en 宽窗转写为144。正文与意群按原音修正，中文数值仍为一百四十四，保留已复核时间轴。"
+  },
   "0047": {
    "replacements": [
     [

@@ -3,9 +3,9 @@
  "episodes": {
   "0076": {
    "reviewed": "2026-11-15",
-   "reason": "All 15 dialogue turns rechecked against production-identical audio: unprompted small.en full/cropped word timestamps, silence intervals, and Qwen ASR of each final clip without ep/i context. Restore clipped Alright and missing Zero anchor; preserve short reply heads/tails and trim excess gaps. ASR wording disagreements (144, know-it-all, Kadlec) are not treated as verified text corrections. Evidence: build/qa/eplod-0076/.",
+   "reason": "All 15 dialogue turns rechecked against production-identical audio: unprompted small.en full/cropped word timestamps, silence intervals, and Qwen ASR of each final clip without ep/i context. Restore clipped Alright and missing Zero anchor; preserve short reply heads/tails and trim excess gaps. 2026-11-15 follow-up: user listening and unbiased Qwen confirm turn 10 says One forty four (144), without hundred and; text fingerprint updated with all bounds unchanged. Know-it-all/Kadlec ASR wording remains uncorrected. Evidence: build/qa/eplod-0076/.",
    "audioSha256": "8a0425dfecffdbff84f350ed380e33c78d463e2b97ffbd26dcc703101210ae57",
-   "dialogueSha256": "5ea0143f2fc7df43680b437d79605a164208dd2976259210ca00d1803ad33ae5",
+   "dialogueSha256": "75ec76925b869e56ec69267b79ba28c54fa6310dd6cbbed6e3bceedeae04e78e",
    "bounds": [
     [9.2, 13.52],
     [13.7, 15.02],
