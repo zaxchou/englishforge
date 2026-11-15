@@ -351,6 +351,8 @@ function nextQuestion() {
 async function finishRound() {
   const token = ++S.token;
   S.screen = 'done';S.result = null;S.finishSummary = null;S.finishState = 'loading';render();
+  // 汇总前先把最后一条作答传完，否则服务端统计会少一题。
+  try { await queue.flush(); } catch { /* 离线时按已落盘部分汇总 */ }
   try {
     const out = await api(`/sessions/${S.session.id}/finish`, {});
     if (token !== S.token) return;
