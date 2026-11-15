@@ -273,6 +273,8 @@ export function buildAdvice(summary, config = {}) {
     if (t.p80Ms) advice.push({ kind: 'speed', text: `准确率稳定，正确题中位 ${fmtSec(t.medianMs)}、P80 ${fmtSec(t.p80Ms)}；下一步先缩短尾部时间，再升位数。` });
   } else if ((t.independentRate || 0) < 0.8 && t.settled >= 10) {
     advice.push({ kind: 'load', text: '当前负荷偏高，先保持位数、把准确率拉回 90% 再加难。' });
+  } else if (t.settled >= 10) {
+    advice.push({ kind: 'near', text: `准确率 ${Math.round((t.independentRate || 0) * 100)}%，再稳一点就能升位数；先把偶尔错的题压下去，不用急着提速。` });
   }
   if (!weak.length) {
     const cand = candidateWeaknesses(summary)[0];

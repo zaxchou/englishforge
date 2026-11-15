@@ -56,7 +56,7 @@ async function typeValue(page, value) {
       assert.match(await page.locator('.nt-h1').textContent(), /数字敏感度训练/);
 
       // 10 题一轮，全部输入正确答案
-      await page.locator('[data-cfg="count"]').selectOption('10');
+      await page.locator('[data-count="10"]').click();
       await page.locator('[data-act="start"]').click();
       await page.locator('.nt-bars').waitFor();
       let roundId = null;
@@ -89,8 +89,9 @@ async function typeValue(page, value) {
         await page.locator('[data-act="next"]').click();
       }
       await page.locator('.nt-h1').waitFor();
-      assert.match((await page.locator('#v-number-trainer').textContent()), /本轮结束|数字敏感度训练/);
-      const score = await page.locator('.nt-stats b').first().textContent();
+      assert.match((await page.locator('#v-number-trainer').textContent()), /本轮完成/);
+      await page.waitForFunction(() => !/—/.test(document.querySelector('.nt-tiles b')?.textContent || '') && /%/.test(document.querySelector('.nt-tiles b')?.textContent || ''));
+      const score = await page.locator('.nt-tiles b').first().textContent();
       assert.match(score, /%|—/);
 
       // 服务端应正好 10 条（1 错 9 对），且与摘要一致
@@ -132,8 +133,8 @@ async function typeValue(page, value) {
 
       // 重听不应把题目标记为单听
       const before = (await sessionOf(page)).session.questions[2].value;
-      await page.locator('[data-act="replay"]').click();
-      await page.waitForFunction(() => (document.querySelector('.nt-state')?.textContent || '').includes('已重听'));
+      await page.locator('.nt-keys [data-act="replay"]').click();
+      await page.waitForFunction(() => (document.querySelector('.nt-stage')?.textContent || '').includes('已重听'));
       await typeValue(page, before);
       await page.locator('[data-act="confirm"]').click();
       await page.locator('.nt-result').waitFor();

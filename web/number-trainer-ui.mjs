@@ -1,4 +1,4 @@
-/* 数字听写训练界面：单题状态机 + 大键盘 + 轮末反馈。
+/* 数字听写训练界面：单题状态机 + 大键盘 + 轮末反馈 + 历史。
    依赖 number-trainer-model / -client / -audio。挂载由主站 go() 调用 mount / leave。 */
 import * as M from './number-trainer-model.mjs';
 import { createQueue } from './number-trainer-client.mjs';
@@ -13,14 +13,14 @@ const API = '/api/number-trainer';
 const S = {
   mounted: false, token: 0, screen: 'home',
   cfg: { mode: 'smart', digits: 3, count: 20, rate: 1 },
-  meta: null, summary: null,
+  meta: null, summary: null, history: null,
   session: null, index: 0, input: '', answers: [],
   playState: 'idle', endedAt: 0, firstAt: 0, replay: false, hint: false, plays: 0,
-  timingValid: true, invalidReason: null, result: null, busy: false,
-  ttsBroken: false, browserVoice: false, pending: 0, note: '',
+  timingValid: true, invalidReason: null, result: null, assistedThis: false,
+  ttsBroken: false, browserVoice: false, pending: 0, note: '', finishSummary: null, finishState: 'idle',
 };
 
-let player = null, queue = null, root = null, offTimer = null;
+let player = null, queue = null, root = null;
 
 function cfgLoad() {
   try { const c = JSON.parse(localStorage.getItem(LS_CFG) || 'null');if (c && typeof c === 'object') S.cfg = { ...S.cfg, ...c }; } catch { /* 忽略 */ }
@@ -41,65 +41,98 @@ async function api(p, body) {
   return data;
 }
 
+const ICON_BACK = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 5.5 8 12l6.5 6.5"/></svg>';
+const ICON_GEAR = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1.11 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H9a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V9a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1Z"/></svg>';
+const ICON_SPEAKER = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9.5h3L12 5v14l-5-4.5H4z"/><path d="M16 8.5a5 5 0 0 1 0 7"/></svg>';
+
+const FEATURE_HINT = {
+  teenTy: '末两位容易被听成另一个数——thirteen 和 thirty 只差一个音，要盯住结尾。',
+  zeroGap: '数位中间夹着零，容易漏掉位置；听的时候先记住一共有几位。',
+  adjacentRepeat: '有连续重复的数字，容易少记或多记一个。',
+  distinctDigits: '数字互不相同，顺序变了就是另一个数，注意排列。',
+  crossGroup: '跨过 thousand 之后要换到下一组，注意单位后面的尾数。',
+};
+const SOURCE_HINT = {
+  focus: '按你的记录，这类最容易出错，所以这轮多练一点。',
+  review: '之前练过但不稳，换个新数字再确认一次。',
+  probe: '随机抽的题，用来检查换了数字还听不听得懂。',
+};
+
 /* ---------- 渲染 ---------- */
 function render() {
   if (!root) return;
   let html;
   if (S.screen === 'home') html = homeHTML();
+  else if (S.screen === 'history') html = historyHTML();
   else if (S.screen === 'loading') html = loadingHTML();
   else if (S.screen === 'done') html = doneHTML();
   else { html = trainHTML();saveRun(); }
-  root.innerHTML = '<div class="nt">' + html + '</div>';
+  root.innerHTML = '<div class="nt nt-' + S.screen + '">' + html + '</div>';
   bind();
 }
-const ICON_BACK = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 5.5 8 12l6.5 6.5"/></svg>';
-const ICON_GEAR = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M12 3.5v2.2M12 18.3v2.2M4.9 7.8l1.9 1.1M17.2 15.1l1.9 1.1M4.9 16.2l1.9-1.1M17.2 8.9l1.9-1.1"/></svg>';
-function headHTML(title, back = true, gear = true) {
+function headHTML(title, { back = true, gear = true } = {}) {
   const left = back ? `<button class="nt-ico" data-act="back" aria-label="返回">${ICON_BACK}</button>` : '<span class="nt-ico-space" aria-hidden="true"></span>';
   const right = gear ? `<button class="nt-ico" data-act="settings" aria-label="设置">${ICON_GEAR}</button>` : '<span class="nt-ico-space" aria-hidden="true"></span>';
   return `<div class="nt-top">${left}<b>${esc(title)}</b>${right}</div>`;
 }
+function tiles(s) {
+  const ready = !!s?.total?.settled;
+  return `<div class="nt-tiles">
+    <div><b>${ready ? Math.round((s.total.independentRate || 0) * 100) + '%' : '—'}</b><span>单听准确</span></div>
+    <div><b>${ready ? M.fmtSec(s.total.medianMs) : '—'}</b><span>中位用时</span></div>
+    <div><b>${ready ? s.total.settled : 0}</b><span>已练题数</span></div>
+  </div>`;
+}
 function homeHTML() {
-  const s = S.summary?.summary, adv = S.summary?.advice || [];
-  const rec = S.summary?.recommendedDigits;
-  const stat = s?.total?.settled ? `<div class="nt-stats">
-    <div><b>${Math.round((s.total.independentRate || 0) * 100)}%</b><span>单听准确</span></div>
-    <div><b>${M.fmtSec(s.total.medianMs)}</b><span>中位用时</span></div>
-    <div><b>${s.samples}</b><span>样本</span></div></div>` : '';
-  return `${headHTML('数字听写', false, false)}
+  const s = S.summary?.summary, adv = S.summary?.advice || [], rec = S.summary?.recommendedDigits;
+  const last = (S.history?.rounds || []).find(r => r.settled >= 5);
+  return `${headHTML('数字听写', { back: false, gear: false })}
   <div class="nt-pad">
-    <p class="nt-eyebrow">听到多少，就输入多少</p>
     <h1 class="nt-h1">数字敏感度训练</h1>
-    <p class="nt-lead">每题播放一个英语数字。听完输入数值，系统按准确度和反应时间记录，并把易错类型安排成下一轮的专项题。</p>
-    ${stat}
-    <div class="nt-advice">${adv.slice(0, 2).map(a => `<p>${esc(a.text)}</p>`).join('') || '<p>还没有记录。先做一轮，建立你的个人基线。</p>'}</div>
-    <div class="nt-cfgrow">
-      <label>位数<select data-cfg="mode"><option value="smart"${S.cfg.mode === 'smart' ? ' selected' : ''}>智能（推荐${rec ? ' · 当前建议' + rec + '位' : ''}）</option><option value="fixed"${S.cfg.mode === 'fixed' ? ' selected' : ''}>固定位数</option></select></label>
-      ${S.cfg.mode === 'fixed' ? `<label>固定<select data-cfg="digits">${[1, 2, 3, 4, 5, 6].map(d => `<option value="${d}"${S.cfg.digits === d ? ' selected' : ''}>${d} 位</option>`).join('')}</select></label>` : ''}
-      <label>题数<select data-cfg="count">${[10, 20, 30].map(n => `<option value="${n}"${S.cfg.count === n ? ' selected' : ''}>${n} 题</option>`).join('')}</select></label>
-    </div>
+    <p class="nt-lead">每题播放一个英语数字，听完输入数值。系统按准确度和反应时间记录，并把易错类型排成下一轮的专项题。</p>
+    ${tiles(s)}
+    <div class="nt-advice">${adv.slice(0, 2).map(a => `<p>${esc(a.text)}</p>`).join('') || '<p>还没有记录，先做一轮建立基线。</p>'}</div>
+    <div class="nt-field"><span class="nt-label">位数</span><div class="nt-chips cols-7" role="group" aria-label="位数">
+      <button class="nt-chip span2${S.cfg.mode === 'smart' ? ' on' : ''}" data-mode="smart">智能</button>
+      ${[2, 3, 4, 5, 6].map(d => `<button class="nt-chip${S.cfg.mode === 'fixed' && S.cfg.digits === d ? ' on' : ''}" data-fixed="${d}">${d}</button>`).join('')}
+    </div>${S.cfg.mode === 'smart' && rec ? `<span class="nt-note">按当前记录建议 ${rec} 位</span>` : ''}</div>
+    <div class="nt-field"><span class="nt-label">每轮</span><div class="nt-chips cols-3" role="group" aria-label="每轮题数">
+      ${[10, 20, 30].map(n => `<button class="nt-chip${S.cfg.count === n ? ' on' : ''}" data-count="${n}">${n} 题</button>`).join('')}
+    </div></div>
     <button class="nt-primary" data-act="start">开始训练</button>
-    <p class="nt-fine">${S.meta?.tts === false ? '当前未配置服务端语音，将使用浏览器朗读；声音与速度会因设备而异。' : '音频为固定音色与读法，加载时间不计入反应时间。'}</p>
-    ${S.pending ? `<p class="nt-fine nt-warn">${S.pending} 条作答待同步，联网后会自动补传。</p>` : ''}
+    ${last ? `<button class="nt-last" data-act="history">
+      <span><b>上次训练</b><small>${esc(dayLabel(last.endedAt))} · ${last.settled} 题 · ${Math.round((last.accuracy || 0) * 100)}%${last.medianMs ? ' · ' + M.fmtSec(last.medianMs) : ''}</small></span>
+      <span class="nt-last-go">看记录 →</span></button>` : ''}
+    <p class="nt-fine">${S.meta?.tts === false ? '当前使用浏览器朗读，声音与速度因设备而异。' : '音频为固定音色与读法；加载时间不计入反应时间。'}</p>
+    ${S.pending ? `<p class="nt-fine nt-warn">${S.pending} 条作答待同步，联网后自动补传。</p>` : ''}
+  </div>`;
+}
+function historyHTML() {
+  const list = S.history?.rounds || [];
+  return `${headHTML('最近训练', { gear: false })}
+  <div class="nt-pad">
+    ${list.length ? `<ul class="nt-rounds">${list.map(r => `<li>
+      <div class="nt-round-main"><b>${Math.round((r.accuracy || 0) * 100)}%</b><span>${esc(dayLabel(r.endedAt))} · ${r.settled} 题${r.digits ? ' · ' + esc(r.digits) + ' 位' : ''}</span></div>
+      <div class="nt-round-meta"><span>${r.medianMs ? M.fmtSec(r.medianMs) : '—'}</span><span>${r.topError ? esc(M.ERROR_LABELS[r.topError] || r.topError) : '无主要错误'}</span></div>
+    </li>`).join('')}</ul>` : '<p class="nt-lead">还没有完成过的轮次。</p>'}
+    <button class="nt-secondary" data-act="home">回到入口</button>
   </div>`;
 }
 function loadingHTML() {
-  return `${headHTML('正在准备', true)}<div class="nt-pad"><p class="nt-lead">正在生成这一轮的题目并准备音频…</p></div>`;
+  return `${headHTML('正在准备')}<div class="nt-pad"><p class="nt-lead">正在生成题目并准备音频…</p></div>`;
 }
 function trainHTML() {
   const q = currentQ(), total = S.session?.questions.length || S.cfg.count;
-  const bars = Array.from({ length: total }, (_, i) => `<i class="${i < S.index ? 'done' : i === S.index ? 'cur' : ''}"></i>`).join('');
-  const showResult = !!S.result;
+  const pct = Math.round((S.index + (S.result ? 1 : 0)) / total * 100);
   const heard = S.playState === 'ready' || S.playState === 'done';
-  const boxes = inputBoxes();
-  return `${headHTML('正在练习', true)}
-  <div class="nt-bars" aria-hidden="true">${bars}</div>
+  return `${headHTML('正在练习', { gear: false })}
+  <div class="nt-bars" role="progressbar" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${S.index + (S.result ? 1 : 0)}"><i style="width:${pct}%"></i></div>
+  <div class="nt-meta-row"><span>${S.index + 1} / ${total}</span><button class="nt-src" data-act="srchint">${esc(M.SOURCE_LABELS[q?.source] || '')}</button></div>
   <div class="nt-stage">
-    <p class="nt-progress">${S.index + 1} / ${total}${q?.source ? ` · ${esc(M.SOURCE_LABELS[q.source] || '')}` : ''}</p>
-    <div class="nt-digits" aria-live="polite">${boxes}</div>
-    ${showResult ? resultHTML() : stateHTML(heard)}
+    <div class="nt-digits" aria-live="polite">${inputBoxes()}</div>
+    ${S.result ? resultHTML() : stateHTML(heard)}
   </div>
-  ${keysHTML(showResult, heard)}`;
+  ${keysHTML(!!S.result, heard)}`;
 }
 function inputBoxes() {
   const chars = [...S.input];
@@ -109,30 +142,33 @@ function inputBoxes() {
 function stateHTML(heard) {
   if (S.playState === 'loading') return '<p class="nt-state">正在准备音频…</p>';
   if (S.playState === 'playing') return '<p class="nt-state">正在播放，请听完整…</p>';
-  if (S.playState === 'blocked') return '<p class="nt-state">浏览器拦截了自动播放</p><button class="nt-secondary" data-act="play">播放本題</button>';
+  if (S.playState === 'blocked') return '<p class="nt-state">浏览器拦截了自动播放</p><button class="nt-secondary" data-act="play">播放本题</button>';
   if (S.playState === 'paused') return '<p class="nt-state nt-err">离开页面时已中断，本题不计反应时间</p><button class="nt-secondary" data-act="play">重新播放本题</button>';
   if (S.playState === 'error') return `<p class="nt-state nt-err">${esc(S.note || '音频加载失败')}</p><button class="nt-secondary" data-act="play">重试播放</button>`;
-  if (heard) return `<p class="nt-state">${S.replay ? '已重听 · 本题不计入单听准确率' : '输入你听到的数值，再按确认'}</p>${S.hint && !S.result ? `<p class="nt-hint">${hintText()}</p>` : ''}`;
+  if (heard) return `<p class="nt-state">输入你听到的数值，再按确认</p>
+    <div class="nt-subrow">${S.replay ? '<span class="nt-flag">已重听 · 不计单听准确</span>' : `<button class="nt-pill" data-act="replay">${ICON_SPEAKER}再听一次</button>`}${S.hint ? '<span class="nt-flag">已用提示</span>' : ''}</div>`;
   return '<p class="nt-state">点播放开始这一题</p>';
 }
-function hintText() {
-  const q = currentQ();if (!q) return '';
-  return `提示：${esc(q.text)}（本次计为辅助完成）`;
-}
 function resultHTML() {
-  const r = S.result;
+  const r = S.result, q = currentQ();
   const tags = (r.errorTags || []).map(t => `<span class="nt-tag">${esc(M.ERROR_LABELS[t] || t)}</span>`).join('');
+  const hint = q?.feature && FEATURE_HINT[q.feature] ? `<p class="nt-why">${esc(FEATURE_HINT[q.feature])}</p>` : '';
   return `<div class="nt-result ${r.correct ? 'ok' : 'bad'}" role="status">
     <b>${r.correct ? (S.assistedThis ? '答对了（用了辅助）' : '答对了') : (r.skip ? '已跳过' : '这次不对')}</b>
-    <p>你输入 <code>${esc(S.input || '—')}</code>・正确 <code>${esc(r.answer)}</code></p>
-    <p class="nt-read">${esc(r.text)}</p>
+    ${r.correct && !r.skip
+      ? `<p class="nt-answer-line"><code>${esc(r.answer)}</code><span>${esc(r.text)}</span></p>`
+      : `<div class="nt-compare"><span><small>你的输入</small><code>${esc(S.input || '—')}</code></span><span><small>正确</small><code>${esc(r.answer)}</code></span></div><p class="nt-read">${esc(r.text)}</p>`}
     ${tags ? `<p class="nt-tags">${tags}</p>` : ''}
+    ${hint}
     <p class="nt-time">${S.submitMs != null ? `本题用时 ${M.fmtSec(S.submitMs)}` : '本题未记录有效时间'}${S.replay ? ' · 含重听' : ''}</p>
   </div>`;
 }
 function keysHTML(showResult, heard) {
   const canConfirm = heard && !showResult && S.input.length > 0;
-  const next = showResult ? `<button class="nt-key wide2 confirm" data-act="next">下一题</button>` : `<button class="nt-key confirm" data-act="confirm" ${canConfirm ? '' : 'disabled'}>确认</button>`;
+  const last = showResult && S.index + 1 >= (S.session?.questions.length || 0);
+  const next = showResult
+    ? `<button class="nt-key confirm wide2" data-act="next">${last ? '看本轮结果' : '下一题'}</button>`
+    : `<button class="nt-key confirm" data-act="confirm" ${canConfirm ? '' : 'disabled'}>确认</button>`;
   return `<div class="nt-keys">
     ${[1, 2, 3].map(d => `<button class="nt-key" data-digit="${d}">${d}</button>`).join('')}<button class="nt-key alt" data-act="del">删除</button>
     ${[4, 5, 6].map(d => `<button class="nt-key" data-digit="${d}">${d}</button>`).join('')}<button class="nt-key alt" data-act="replay">重听</button>
@@ -141,38 +177,34 @@ function keysHTML(showResult, heard) {
   </div>`;
 }
 function doneHTML() {
-  const s = S.finishSummary;
-  const total = s?.summary?.total || { settled: 0, independent: 0, independentRate: 0, medianMs: null, samples: 0 };
+  const s = S.finishSummary?.summary, adv = S.finishSummary?.advice || [];
   const rows = S.answers.map((a, i) => {
-    const q = S.session.questions[i];
-    return `<li class="${a.correct ? 'ok' : 'bad'}"><span>${esc(q.value)}</span><small>${esc(a.correct ? '对' : (a.skip ? '跳过' : '错'))}${a.assisted ? ' · 辅助' : ''}${a.submitMs != null ? ' · ' + M.fmtSec(a.submitMs) : ''}</small></li>`;
+    const q = S.session?.questions?.[i];if (!q) return '';
+    return `<li class="${a?.correct ? 'ok' : 'bad'}"><span class="nt-row-word">${esc(q.value)}</span><small>${a?.correct ? '对' : (a?.skip ? '跳过' : '错')}${a?.assisted ? ' · 辅助' : ''}${a?.submitMs != null ? ' · ' + M.fmtSec(a.submitMs) : ''}</small></li>`;
   }).join('');
-  return `${headHTML('本轮结束', false)}
+  const summary = S.finishState === 'loading'
+    ? '<p class="nt-lead">正在汇总本轮…</p>'
+    : S.finishState === 'error'
+      ? '<div class="nt-advice"><p>本轮记录已保存，但汇总暂时读不到，可以稍后在「最近记录」里查看。</p></div>'
+      : `${tiles(s)}<div class="nt-advice">${adv.map(a => `<p>${esc(a.text)}</p>`).join('') || '<p>记录已保存。</p>'}</div>`;
+  return `${headHTML('本轮完成', { back: false, gear: false })}
   <div class="nt-pad">
-    <p class="nt-eyebrow">这一轮</p>
     <h1 class="nt-h1">本轮完成</h1>
-    <div class="nt-stats">
-      <div><b>${Math.round((total.independentRate || 0) * 100)}%</b><span>单听准确</span></div>
-      <div><b>${M.fmtSec(total.medianMs)}</b><span>中位用时</span></div>
-      <div><b>${total.independent}/${total.settled}</b><span>独立答对</span></div>
-    </div>
-    <div class="nt-advice">${(s?.advice || []).map(a => `<p>${esc(a.text)}</p>`).join('') || '<p>记录已保存。</p>'}</div>
+    ${summary}
     <details class="nt-detail"><summary>看这一轮的每一题</summary><ul class="nt-list">${rows}</ul></details>
     <button class="nt-primary" data-act="again">再练一轮</button>
-    <button class="nt-secondary" data-act="home">回到入口</button>
+    <div class="nt-done-actions"><button class="nt-secondary" data-act="history">看最近记录</button><button class="nt-secondary" data-act="home">回到入口</button></div>
   </div>`;
 }
 
-/* ---------- 绑定 ---------- */
+/* ---------- 交互 ---------- */
 function currentQ() { return S.session?.questions[S.index] || null; }
 function bind() {
   root.querySelectorAll('[data-digit]').forEach(b => b.onclick = () => pressDigit(b.dataset.digit));
   root.querySelectorAll('[data-act]').forEach(b => b.onclick = () => act(b.dataset.act));
-  root.querySelectorAll('[data-cfg]').forEach(sel => sel.onchange = () => {
-    const k = sel.dataset.cfg;
-    S.cfg[k] = k === 'count' || k === 'digits' ? Number(sel.value) : sel.value;
-    cfgSave();render();
-  });
+  root.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => { S.cfg.mode = b.dataset.mode;cfgSave();render(); });
+  root.querySelectorAll('[data-fixed]').forEach(b => b.onclick = () => { S.cfg.mode = 'fixed';S.cfg.digits = Number(b.dataset.fixed);cfgSave();render(); });
+  root.querySelectorAll('[data-count]').forEach(b => b.onclick = () => { S.cfg.count = Number(b.dataset.count);cfgSave();render(); });
 }
 function pressDigit(d) {
   if (S.result || S.input.length >= 12) return;
@@ -181,20 +213,21 @@ function pressDigit(d) {
 }
 function act(a) {
   if (a === 'start') return startSession();
-  if (a === 'back') return leaveToHome(true);
-  if (a === 'home') { S.screen = 'home';S.session = null;S.result = null;S.input = '';render();return; }
-  if (a === 'settings') return toast('在入口页调整位数与题数。');
+  if (a === 'back') { if (S.screen === 'history') { S.screen = 'home';render(); } else leaveToHome(true); return; }
+  if (a === 'home') { S.screen = 'home';S.session = null;S.result = null;S.input = '';render();refreshHistory();return; }
+  if (a === 'history') return openHistory();
+  if (a === 'settings') return toast('在上方切换位数和每轮题数。');
+  if (a === 'srchint') return toast(SOURCE_HINT[currentQ()?.source] || '这轮按记录自动配题。');
   if (a === 'play') return playCurrent();
   if (a === 'del') { if (!S.result) { S.input = S.input.slice(0, -1);render(); } return; }
   if (a === 'replay') return playCurrent(true);
-  if (a === 'hint') { if (S.result) return;S.hint = true;render();return; }
+  if (a === 'hint') { if (!S.result) { S.hint = true;render(); } return; }
   if (a === 'skip') return submit(true);
   if (a === 'confirm') return submit(false);
   if (a === 'next') return nextQuestion();
   if (a === 'again') return startSession();
 }
 
-/* ---------- 一轮 ---------- */
 async function startSession() {
   const token = ++S.token;
   clearRun();S.screen = 'loading';S.result = null;S.answers = [];S.index = 0;S.input = '';render();
@@ -227,7 +260,6 @@ async function loadAndPlay(q) {
     const ok = await player.load(q.audioUrl);
     if (token !== S.token) return;
     if (!ok.ok) {
-      // 服务端音频不可用时退回浏览器朗读，并在本轮内保持该选择；统计按 voice 分开。
       S.ttsBroken = true;S.note = '服务端音频不可用，本次改用浏览器朗读';toast(S.note);
       await playCurrent();return;
     }
@@ -244,10 +276,8 @@ async function playCurrent(isReplay = false) {
   const token = S.token;
   S.playState = 'playing';render();
   if (!S.meta?.tts || S.ttsBroken) {
-    // 浏览器朗读兜底：明确标记 voice=browser，不与服务端音频混算
     if (!('speechSynthesis' in window)) { S.playState = 'error';S.note = '此设备不支持朗读';render();return; }
     S.browserVoice = true;
-    const t0 = performance.now();
     await new Promise(resolve => {
       const u = new SpeechSynthesisUtterance(q.text);u.lang = 'en-US';u.rate = S.cfg.rate;
       u.onend = () => resolve(true);u.onerror = () => resolve(false);
@@ -264,8 +294,7 @@ async function playCurrent(isReplay = false) {
   const out = await player.play({ rate: S.cfg.rate });
   if (token !== S.token) return;
   if (out.ok) { S.plays++;S.endedAt = performance.now();S.playState = 'ready'; }
-  else if (out.reason === 'stopped') { /* 已被新题替换 */ }
-  else if (out.reason === 'autoplay') { S.playState = 'blocked'; }
+  else if (out.reason === 'autoplay') S.playState = 'blocked';
   else if (out.reason === 'stopped') { /* 已被新题替换 */ }
   else { S.playState = 'error';S.note = '播放失败，可重试';S.timingValid = false;S.invalidReason = 'audio_play'; }
   render();
@@ -278,7 +307,7 @@ function submit(skip) {
   S.submitMs = S.endedAt ? Math.round(nowP - S.endedAt) : null;
   const graded = skip ? { correct: false, status: 'skipped' } : M.gradeAnswer(q.value, S.input);
   S.assistedThis = S.replay || S.hint;
-  const errorTags = graded.correct || skip ? [] : (skip ? [] : M.classifyError(q.value, graded.normalized));
+  const errorTags = graded.correct || skip ? [] : M.classifyError(q.value, graded.normalized);
   S.result = { correct: !!graded.correct, answer: q.value, text: q.text, errorTags, skip };
   S.answers[S.index] = { correct: !!graded.correct, skip, assisted: S.assistedThis, submitMs: S.submitMs };
   render();
@@ -308,16 +337,16 @@ function nextQuestion() {
 }
 async function finishRound() {
   const token = ++S.token;
-  S.screen = 'done';S.result = null;render();
+  S.screen = 'done';S.result = null;S.finishSummary = null;S.finishState = 'loading';render();
   try {
     const out = await api(`/sessions/${S.session.id}/finish`, {});
     if (token !== S.token) return;
-    S.finishSummary = out;render();
+    S.finishSummary = out;S.finishState = 'ready';render();
   } catch {
     if (token !== S.token) return;
-    S.finishSummary = null;render();
+    S.finishSummary = null;S.finishState = 'error';render();
   }
-  try { const s = await api('/summary');if (token === S.token) { S.summary = s; } } catch { /* 忽略 */ }
+  refreshSummary();refreshHistory();
 }
 function leaveToHome(confirmLeave) {
   if (confirmLeave && S.screen === 'train' && S.session && S.answers.length && S.answers.length < S.session.questions.length) {
@@ -326,10 +355,27 @@ function leaveToHome(confirmLeave) {
   clearRun();S.token++;S.screen = 'home';S.session = null;S.result = null;S.input = '';
   if (player) player.stop();
   S.pending = queue ? queue.pendingCount() : 0;
-  refreshSummary();render();
+  refreshSummary();refreshHistory();render();
 }
 async function refreshSummary() {
   try { const s = await api('/summary');S.summary = s;if (S.screen === 'home') render(); } catch { /* 忽略 */ }
+}
+async function refreshHistory() {
+  try {
+    const h = await api('/history?limit=8');S.history = h;
+    if (S.screen === 'home' || S.screen === 'history') render();
+  } catch { /* 忽略 */ }
+}
+function openHistory() {
+  S.screen = 'history';render();
+  if (!S.history) refreshHistory();
+}
+function dayLabel(iso) {
+  if (!iso) return '';
+  const d = new Date(iso), t = new Date();
+  const same = d.toDateString() === t.toDateString();
+  const hh = String(d.getHours()).padStart(2, '0'), mm = String(d.getMinutes()).padStart(2, '0');
+  return same ? `今天 ${hh}:${mm}` : `${d.getMonth() + 1}月${d.getDate()}日 ${hh}:${mm}`;
 }
 
 /* ---------- 生命周期 ---------- */
@@ -343,15 +389,43 @@ export async function mount(el) {
   queue = createQueue({ onChange: n => { S.pending = n;if (S.screen === 'home') render(); } });
   document.addEventListener('visibilitychange', onVisibility);
   window.addEventListener('pagehide', onPageHide);
+  document.addEventListener('keydown', onKeydown);
   render();
   try { S.meta = await api('/config'); } catch { S.meta = { tts: false }; }
   if (!S.mounted) return;
   S.pending = queue.pendingCount();
   queue.flush().catch(() => { });
   render();
-  refreshSummary();
+  refreshSummary();refreshHistory();
   resumeRun();
 }
+export function leave() {
+  S.mounted = false;S.token++;
+  document.removeEventListener('visibilitychange', onVisibility);
+  window.removeEventListener('pagehide', onPageHide);
+  document.removeEventListener('keydown', onKeydown);
+  if (player) { player.dispose();player = null; }
+  root = null;
+}
+export const isActive = () => S.mounted;
+
+function onVisibility() {
+  if (document.visibilityState !== 'hidden') return;
+  if (player && S.screen === 'train' && S.playState === 'playing') {
+    player.stop();S.playState = 'paused';S.timingValid = false;S.invalidReason = 'hidden';render();
+  }
+}
+function onPageHide() { if (player) player.stop(); }
+function onKeydown(e) {
+  if (!S.mounted || S.screen !== 'train') return;
+  const tag = (e.target?.tagName || '').toLowerCase();
+  if (tag === 'input' || tag === 'select' || tag === 'textarea') return;
+  if (/^[0-9]$/.test(e.key)) { e.preventDefault();pressDigit(e.key);return; }
+  if (e.key === 'Backspace') { e.preventDefault();act('del');return; }
+  if (e.key === 'Enter') { e.preventDefault();act(S.result ? 'next' : 'confirm');return; }
+  if (e.key === ' ') { e.preventDefault();act('replay'); }
+}
+
 async function resumeRun() {
   let saved = null;
   try { saved = JSON.parse(sessionStorage.getItem(SS_RUN) || 'null'); } catch { /* 忽略 */ }
@@ -368,23 +442,6 @@ async function resumeRun() {
     await enterQuestion({ draft: typeof saved.input === 'string' ? saved.input : '' });
   } catch { clearRun(); }
 }
-export function leave() {
-  S.mounted = false;S.token++;
-  document.removeEventListener('visibilitychange', onVisibility);
-  window.removeEventListener('pagehide', onPageHide);
-  if (player) { player.dispose();player = null; }
-  if (offTimer) { clearTimeout(offTimer);offTimer = null; }
-  root = null;
-}
-export const isActive = () => S.mounted;
-
-function onVisibility() {
-  if (document.visibilityState !== 'hidden') return;
-  if (player && S.screen === 'train' && S.playState === 'playing') {
-    player.stop();S.playState = 'paused';S.timingValid = false;S.invalidReason = 'hidden';render();
-  }
-}
-function onPageHide() { if (player) player.stop(); }
 
 function toast(text) {
   if (!root) return;

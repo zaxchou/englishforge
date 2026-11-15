@@ -141,6 +141,7 @@ export function createNumberTrainer({ recordsDir, ttsConfigured = false, ttsSynt
       attempt: p === '/api/number-trainer/attempt',
       summary: p === '/api/number-trainer/summary',
       attempts: p === '/api/number-trainer/attempts',
+      history: p === '/api/number-trainer/history',
       settings: p === '/api/number-trainer/settings',
     };
     if (!Object.values(m).some(Boolean)) { sendJSON(res, 404, { error: 'NOT_FOUND' });return true; }
@@ -207,6 +208,42 @@ export function createNumberTrainer({ recordsDir, ttsConfigured = false, ttsSynt
         const day = store.readDay(date);
         const events = Object.values(day.events).sort((a, b) => String(a.submittedAt).localeCompare(String(b.submittedAt))).slice(-500);
         sendJSON(res, 200, { date, events });return true;
+      }
+      if (m.history) {
+        const days = num(url.searchParams.get('days'), 1, 180, 30);
+        const limit = num(url.searchParams.get('limit'), 1, 30, 8);
+        const rounds = new Map();
+        for (const e of store.readRange({ days })) {
+          let r = rounds.get(e.sessionId);
+          if (!r) {
+            r = { sessionId: e.sessionId, startedAt: e.sessionAt || e.submittedAt, endedAt: e.submittedAt, settled: 0, independent: 0, assisted: 0, skipped: 0, times: [], digits: new Set(), errors: {} };
+            rounds.set(e.sessionId, r);
+          }
+          r.endedAt = e.submittedAt;
+          r.settled++;
+          if (e.skip) r.skipped++;
+          else if (e.assisted) r.assisted++;
+          else if (e.correct) r.independent++;
+          if (e.timingValid && !e.assisted && !e.skip && e.correct && Number.isFinite(e.submitMs)) r.times.push(e.submitMs);
+          r.digits.add(String(e.digits || ''));
+          for (const t of e.errorTags || []) r.errors[t] = (r.errors[t] || 0) + 1;
+        }
+        const list = [...rounds.values()]
+          .sort((a, b) => String(b.endedAt).localeCompare(String(a.endedAt)))
+          .slice(0, limit)
+          .map(r => {
+            const times = r.times.sort((x, y) => x - y);
+            const top = Object.entries(r.errors).sort((a, b) => b[1] - a[1])[0];
+            return {
+              sessionId: r.sessionId, startedAt: r.startedAt, endedAt: r.endedAt,
+              settled: r.settled, independent: r.independent, assisted: r.assisted, skipped: r.skipped,
+              accuracy: r.settled ? r.independent / r.settled : null,
+              medianMs: times.length ? times[Math.floor((times.length - 1) / 2)] : null,
+              digits: [...r.digits].filter(Boolean).sort().join('/'),
+              errorTags: Object.keys(r.errors), topError: top ? top[0] : null,
+            };
+          });
+        sendJSON(res, 200, { rounds: list, days });return true;
       }
       if (m.settings) {
         if (req.method === 'GET') { sendJSON(res, 200, store.readSettings());return true; }
