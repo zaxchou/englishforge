@@ -21,6 +21,7 @@
    ============================================================ */
 import { createCoursePlanHandler, Model as CoursePlanModel, ensurePlans, applyPlanAttempt, publicPlan, attemptFingerprint, questionSignature } from './course-plan.mjs';
 import { createRootPractice } from './root-practice.mjs';
+import { createNumberTrainer } from './number-trainer.mjs';
 import { createRootDict } from './root-dict.mjs';
 import { createReviewHub } from './review-hub.mjs';
 import * as LessonVocab from './lesson-vocab.mjs';
@@ -1860,6 +1861,8 @@ const COURSE_PLAN=createCoursePlanHandler({records:()=>RECORDS,setRecords:x=>{RE
   rootQuizVersion:(lid,v)=>/^cfcm-01-\d{2}$/.test(lid)?ROOT_PRACTICE.lessonVersion(Number(lid.slice(-2)),v)?.quiz:null,
   gradeRootWord:rootGradeWord,now:()=>Date.now()});
 const REVIEW_HUB=createReviewHub({web:WEB_DIR,records:()=>RECORDS,setRecords:x=>{RECORDS=x;},save:recordsSave,recordAttempt:serverRecAttempt,quizzes:()=>GQ_STORE,banks:()=>[...REVIEW_BANKS.values()],reviewEvents:()=>REVIEW_EVENTS,ai:AI_CFG});
+/* 数字听写：独立分账目录 number-trainer/，不写 RECORDS 的词汇/课程/考试字段。 */
+const NUMBER_TRAINER=createNumberTrainer({recordsDir:RECORDS_DIR,ttsConfigured:!!(TTS_CFG.key&&TTS_CFG.url),ttsSynth:ttsSynthToFile,now:()=>Date.now()});
 
 /* ---------- HTTP 基础 ---------- */
 const MIME = {
@@ -2088,6 +2091,7 @@ const handler = async (req, res) => {
     /* ---- API: 学习记录 ---- */
     if(await COURSE_PLAN.handle(req,res,p,readBody,sendJSON))return;
     if(await REVIEW_HUB.handle(req,res,p,readBody,sendJSON))return;
+    if(await NUMBER_TRAINER.handle(req,res,p,readBody,sendJSON,sendFile))return;
     if(p==='/api/course-review/catalog'){
       if(req.method!=='GET')return sendJSON(res,405,{error:'method not allowed'});
       const lessons=REVIEW_CATALOG.filter(item=>item.lesson===REVIEW_BANK.lesson||RECORDS.course[item.lesson]?.done).map(item=>{const bank=REVIEW_BANKS.get(item.lesson),ids=new Set(bank.units.map(u=>u.id)),checked=new Set(REVIEW_HUB.events().filter(e=>e.version===bank.version&&ids.has(e.unit)&&e.phase==='check'&&e.outcome!=='skipped').map(e=>e.unit));return {...item,checkedUnitCount:checked.size};});

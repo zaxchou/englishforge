@@ -10,6 +10,7 @@
 <title>TOEFL Lab · 托福自学练习</title>
 <link rel="stylesheet" href="desk.css?v=20261113r6">
 <link rel="stylesheet" href="lesson-vocab.css?v=20261110r3">
+<link rel="stylesheet" href="number-trainer.css?v=20261116r1">
 <style>
 /* 应用层补充样式（视觉基线在 desk.css，不改它的既有规则） */
 /* 单词与字符格保持同一行；焦点、已填、判题状态沿用研读桌配色。 */
@@ -129,6 +130,7 @@ details.ai-tsec[open] summary{margin-bottom:8px}
       <div class="nav-label second">习</div>
       <button data-v="exam" title="真题训练（整套/专项/错题 · 官方真题）"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3.5h8a1 1 0 0 1 1 1V7h1.5a1 1 0 0 1 1 1v11a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 19V8a1 1 0 0 1 1-1H7V4.5a1 1 0 0 1 1-1Z"/><path d="M9 3.5h6V7H9Z"/><path d="M8.5 12h7M8.5 15.5h7"/></svg><span class="nv-t">真题训练</span></button>
       <button data-v="vocab" title="背单词"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5h6.5a2 2 0 0 1 2 2V20a1.6 1.6 0 0 0-1.6-1.6H4Z"/><path d="M20 5.5h-6.5a2 2 0 0 0-2 2V20a1.6 1.6 0 0 1 1.6-1.6H20Z"/></svg><span class="nv-t">背单词</span></button>
+      <button data-v="number-trainer" title="数字听写"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M7.5 9h2M11 9h2M14.5 9h2M7.5 12.5h2M11 12.5h2M14.5 12.5h2M7.5 16h9"/></svg><span class="nv-t">数字听写</span></button>
       <div class="nav-label second">工具</div>
       <button data-v="stats" title="数据分析"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 20h16"/><path d="M7.5 16.5v-5"/><path d="M12 16.5V7"/><path d="M16.5 16.5v-8"/></svg><span class="nv-t">数据分析</span></button>
       <a class="nav-ext" href="/dict/" target="_blank" rel="noopener" title="词根词典（新窗口打开）"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6.5C10.5 5 8.5 4.5 5.5 4.5c-.6 0-1 .4-1 1v12c0 .6.4 1 1 1 3 0 5 .5 6.5 2 1.5-1.5 3.5-2 6.5-2 .6 0 1-.4 1-1v-12c0-.6-.4-1-1-1-3 0-5 .5-6.5 2Z"/><path d="M12 6.5v14"/></svg><span class="nv-t">词根词典</span></a>
@@ -297,6 +299,9 @@ details.ai-tsec[open] summary{margin-bottom:8px}
   <div class="lv-entry" id="lv-entry"><div class="l"><b id="lv-entry-title">第01课 · 全词认读</b><span id="lv-entry-sub">176 词 · 正面只给英文，认识 / 不认识；不认识看老师讲解，当天再认</span></div><button id="lv-entry-go" type="button">开始认读</button></div>
   <div id="vb-body"><div class="card" style="padding:28px;text-align:center;color:var(--t2)">正在读取词库…</div></div>
 </div>
+
+<!-- ============ 数字听写 ============ -->
+<div class="view" id="v-number-trainer"><div id="nt-root"></div></div>
 
 <!-- ============ 课后复习（并入视频课, 由 #/memory 重定向进入） ============ -->
 
@@ -1140,6 +1145,7 @@ function go(v){
   if(!isTask) {checkpointCourse(true);lastNav=v; if(TICK) {TACC=usedSec();QACC=qUsedSec();clearInterval(TICK);TICK=null;} STU=false; $('d-audio').pause();const cv=$('cs-video');if(cv)cv.pause();document.querySelectorAll('.ai-audio').forEach(a=>a.pause());} else if(S && !TICK && !T_PAUSED) tStart();
   if(v!=='course'&&GQ_TICK){clearInterval(GQ_TICK);GQ_TICK=null;}   /* 离开课程页: 课后练计时即停(回到同节 quiz 相位会自动重开) */
   if(v!=='vocab'&&window.LV)LV.leave();
+  if(v!=='number-trainer'&&window.NT)NT.leave();
   if(v!=='vocab'&&VB_TICK){clearInterval(VB_TICK);VB_TICK=null;}   /* 离开背单词页: 秒表即停 */
   if(v!=='vocab'&&VB_WAKE){clearTimeout(VB_WAKE);VB_WAKE=null;}
   if(v!=='vocab'&&VB_AUDIO){try{VB_AUDIO.pause();window.speechSynthesis?.cancel();}catch(e){}}
@@ -1166,6 +1172,7 @@ function go(v){
   if(v==='stats') renderStats();
   if(v==='final') renderFinalExam();
   if(v==='vocab') mountVocab();
+  if(v==='number-trainer'){const el=$('nt-root');if(window.NT)window.NT.mount(el);else setTimeout(()=>window.NT?.mount(el),60);}
   gqStudyGate();
   window.scrollTo(0,0);
 }
@@ -1195,7 +1202,7 @@ function route(){
     VB_LESSON_REQ=parts[1]==='lesson'?(parts[2]?decodeURIComponent(parts[2]):'cfcm-01-01'):null;
     go('vocab');return;
   }
-  if(['home','course','eplod','exam','stats','vocab'].includes(v)){
+  if(['home','course','eplod','exam','stats','vocab','number-trainer'].includes(v)){
     if(v==='drill'&&arg&&SUBN[arg]) drillTab(arg);
     if(v==='course'&&arg){
       if(arg==='review'){csCourseTab='review';go('course');return;}
@@ -1216,7 +1223,7 @@ window.goBack=function(){ nav(lastNav||'home'); };
 document.querySelectorAll('.nav button').forEach(b=>{ b.onclick=()=>nav(b.dataset.v); });
 
 /* 手机可收缩导航: 左上角菜单键展开面板, 选中/点外部即收起 */
-const NAV_CUR_NAMES={home:'首页',course:'视频课',eplod:'EnglishPod',exam:'真题训练',vocab:'背单词',stats:'数据分析',do:'做题',final:'期末考试'};
+const NAV_CUR_NAMES={home:'首页',course:'视频课',eplod:'EnglishPod',exam:'真题训练',vocab:'背单词','number-trainer':'数字听写',stats:'数据分析',do:'做题',final:'期末考试'};
 function navMenuOpen(open){
   const top=document.querySelector('.top'),burger=$('nav-burger');
   if(!top||!burger)return;
@@ -6153,6 +6160,11 @@ async function boot(){
 }
 window.addEventListener('resize',()=>document.querySelectorAll('.seg').forEach(moveThumb));
 boot();
+</script>
+<script type="module">
+import * as NT from './number-trainer-ui.mjs';
+window.NT = NT;
+if ((location.hash || '').startsWith('#/number-trainer')) NT.mount(document.getElementById('nt-root'));
 </script>
 </body>
 </html>
