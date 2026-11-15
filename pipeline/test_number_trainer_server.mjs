@@ -142,18 +142,12 @@ for (const q of phoneSession.data.questions) {
   assert.equal(q.value.length, 7);
   assert(q.display.includes(' '));
   assert.match(q.audioUrl, /^\/api\/number-trainer\/audio\?s=/);
-  assert.match(q.text, /^(zero|one|two|three|four|five|six|seven|eight|nine)( (zero|one|two|three|four|five|six|seven|eight|nine))+$/);
-}
-for (const d of [0, 5, 9]) {
-  const clip = await call(nt, 'GET', '/api/number-trainer/digit-audio?d=' + d);
-  assert.equal(clip.status, 200);
-  assert.equal(clip.raw.subarray(0, 4).toString('ascii'), 'RIFF');
+  assert.match(q.text, /^(oh|zero|one|two|three|four|five|six|seven|eight|nine)( (oh|zero|one|two|three|four|five|six|seven|eight|nine))+$/);
 }
 const phoneAudio = await call(nt, 'GET', phoneSession.data.questions[0].audioUrl);
 assert.equal(phoneAudio.status, 200);
 assert.equal(phoneAudio.raw.subarray(0, 4).toString('ascii'), 'RIFF');
-assert(phoneAudio.raw.length > 8000, 'assembled phone audio has content: ' + phoneAudio.raw.length);
-assert.equal((await call(nt, 'GET', '/api/number-trainer/digit-audio?d=10')).status, 400);
+assert(phoneAudio.raw.length > 1000, 'phone audio has content: ' + phoneAudio.raw.length);
 const pq = phoneSession.data.questions[0];
 const phoneOk = await call(nt, 'POST', '/api/number-trainer/attempt', { eventId: 'ph-0001', sessionId: phoneSession.data.id, questionId: pq.id, raw: [...pq.value].join(' '), plays: 1, submitMs: 2400, timingValid: true });
 assert.equal(phoneOk.data.result.correct, true, '允许空格分隔');

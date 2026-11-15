@@ -190,6 +190,9 @@ export function groupDigits(digits) {
   for (let i = 0; i < s.length; i += 3) out.push(s.slice(i, i + 3));
   return out.join(' ');
 }
+export function readPhoneDigits(digits) {
+  return [...String(digits)].map(d => (d === '0' ? 'oh' : DIGIT_WORDS[+d])).join(' ');
+}
 export function phoneFeatures(value) {
   const s = String(value), tags = [];
   if (/^0/.test(s)) tags.push('leadingZero');
@@ -207,10 +210,10 @@ export function makePhoneQuestion({ min = 7, max = 11, rng = Math.random, recent
     if (chars[0] === '0' && rng() < 0.6) chars[0] = String(1 + Math.floor(rng() * 9)); // 前导零占少数
     const value = chars.join('');
     if (seen.has(value)) continue;
-    return { mode: 'phone', value, text: readDigits(value), digits: value.length, display: groupDigits(value), features: phoneFeatures(value), feature: phoneFeatures(value)[0] || null };
+    return { mode: 'phone', value, text: readPhoneDigits(value), digits: value.length, display: groupDigits(value), features: phoneFeatures(value), feature: phoneFeatures(value)[0] || null };
   }
   const value = String(Math.floor(rng() * 9) + 1) + Array.from({ length: 6 }, () => Math.floor(rng() * 10)).join('');
-  return { mode: 'phone', value, text: readDigits(value), digits: value.length, display: groupDigits(value), features: phoneFeatures(value), feature: null };
+  return { mode: 'phone', value, text: readPhoneDigits(value), digits: value.length, display: groupDigits(value), features: phoneFeatures(value), feature: null };
 }
 
 /** 电话号按字符串比对：允许空格/连字符，前导零必须保留。 */

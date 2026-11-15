@@ -396,9 +396,7 @@ async function playCurrent(isReplay = false) {
     });
     return;
   }
-  // 电话号是逐位拼接，稍快一点更接近真实报号码的节奏。
-  const rate = q.mode === 'phone' ? Math.max(1.3, S.cfg.rate) : S.cfg.rate;
-  const out = await player.play({ rate });
+  const out = await player.play({ rate: S.cfg.rate });
   if (token !== S.token) return;
   if (out.ok) { S.plays++;S.endedAt = performance.now();S.playState = 'ready'; }
   else if (out.reason === 'autoplay') S.playState = 'blocked';

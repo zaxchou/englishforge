@@ -172,6 +172,7 @@ ok('智能档位: 有稳定证据才升一档，无数据从起始位开始');
 
 // 电话号：逐位读、前导零、分组、精确判分
 assert.equal(M.readDigits('0414'), 'zero four one four');
+assert.equal(M.readPhoneDigits('0414'), 'oh four one four', '电话里 0 读 oh');
 assert.equal(M.groupDigits('4146601234'), '414 660 1234');
 assert.equal(M.groupDigits('0414'), '041 4');
 assert.equal(M.gradePhone('0414', '0414').correct, true);
@@ -184,7 +185,7 @@ for (let k = 0; k < 200; k++) {
   const q = M.makePhoneQuestion({ min: 7, max: 11, rng: rng(k + 1) });
   assert(q.value.length >= 7 && q.value.length <= 11, '长度在范围内: ' + q.value);
   assert(/^[0-9]+$/.test(q.value));
-  assert.equal(q.text, M.readDigits(q.value));
+  assert.equal(q.text, M.readPhoneDigits(q.value));
   assert.equal(q.digits, q.value.length);
   assert(q.display.includes(' '), 'display 有分组');
 }
