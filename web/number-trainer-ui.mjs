@@ -17,7 +17,7 @@ const S = {
   session: null, index: 0, input: '', caret: 0, answers: [], autoTimer: null,
   playState: 'idle', endedAt: 0, firstAt: 0, replay: false, hint: false, plays: 0,
   timingValid: true, invalidReason: null, result: null, assistedThis: false,
-  ttsBroken: false, browserVoice: false, pending: 0, note: '', finishSummary: null, finishState: 'idle',
+  browserVoice: false, pending: 0, note: '', finishSummary: null, finishState: 'idle',
 };
 
 let player = null, queue = null, root = null;
@@ -157,7 +157,7 @@ function stateHTML(heard) {
   if (S.playState === 'playing') return '<p class="nt-state">正在播放，请听完整…</p>';
   if (S.playState === 'blocked') return '<p class="nt-state">浏览器拦截了自动播放</p><button class="nt-secondary" data-act="play">播放本题</button>';
   if (S.playState === 'paused') return '<p class="nt-state nt-err">离开页面时已中断，本题不计反应时间</p><button class="nt-secondary" data-act="play">重新播放本题</button>';
-  if (S.playState === 'error') return `<p class="nt-state nt-err">${esc(S.note || '音频加载失败')}</p><button class="nt-secondary" data-act="play">重试播放</button>`;
+  if (S.playState === 'error') return `<p class="nt-state nt-err">${esc(S.note || '音频加载失败')}</p><button class="nt-secondary" data-act="retry">重新读取音频</button>`;
   if (heard) return `<p class="nt-state">输入你听到的数值，再按确认</p>
     <div class="nt-subrow">${S.replay ? '<span class="nt-flag">已重听 · 不计单听准确</span>' : `<button class="nt-pill" data-act="replay">${ICON_SPEAKER}再听一次</button>`}${S.hint ? '<span class="nt-flag">已用提示</span>' : ''}</div>`;
   return '<p class="nt-state">点播放开始这一题</p>';
@@ -281,6 +281,7 @@ function act(a) {
   if (a === 'settings') return toast('在上方切换位数和每轮题数。');
   if (a === 'srchint') return toast(SOURCE_HINT[currentQ()?.source] || '这轮按记录自动配题。');
   if (a === 'play') return playCurrent();
+  if (a === 'retry') return loadAndPlay(currentQ());
   if (a === 'del') return delBack();
   if (a === 'clear') return clearInput();
   if (a === 'replay') return playCurrent(true);
@@ -319,32 +320,40 @@ async function enterQuestion({ draft = '' } = {}) {
 async function loadAndPlay(q) {
   const token = S.token;
   S.playState = 'loading';render();
-  if (!S.meta?.tts || S.ttsBroken) { await playCurrent();return; }
+  if (!S.meta?.tts) { await playCurrent();return; }   // 只有服务端明确没有语音时才用浏览器朗读
   try {
-    const ok = await player.load(q.audioUrl);
+    let ok = await player.load(q.audioUrl);
     if (token !== S.token) return;
+    if (!ok.ok) {                                     // 冷缓存偶发慢，重试一次再报错
+      await new Promise(r => setTimeout(r, 250));
+      if (token !== S.token) return;
+      ok = await player.load(q.audioUrl);
+      if (token !== S.token) return;
+    }
     if (!ok.ok) {
-      S.ttsBroken = true;S.note = '服务端音频不可用，本次改用浏览器朗读';toast(S.note);
-      await playCurrent();return;
+      S.playState = 'error';S.note = '音频没准备好，点下面重试';S.timingValid = false;S.invalidReason = 'audio_load';
+      render();return;
     }
     await playCurrent();
   } catch {
     if (token !== S.token) return;
-    S.ttsBroken = true;S.note = '服务端音频不可用，本次改用浏览器朗读';
-    await playCurrent();
+    S.playState = 'error';S.note = '音频加载失败，点下面重试';S.timingValid = false;S.invalidReason = 'audio_load';
+    render();
   }
 }
 async function playCurrent(isReplay = false) {
   const q = currentQ();if (!q) return;
   if (S.result && !isReplay) return;
+  cancelAutoNext();   // 想再听就别把题换掉
   if (isReplay || S.plays > 0) S.replay = true;
   const token = S.token;
   S.playState = 'playing';render();
-  if (!S.meta?.tts || S.ttsBroken) {
+  if (!S.meta?.tts) {
     if (!('speechSynthesis' in window)) { S.playState = 'error';S.note = '此设备不支持朗读';render();return; }
     S.browserVoice = true;
     await new Promise(resolve => {
-      const u = new SpeechSynthesisUtterance(q.text);u.lang = 'en-US';u.rate = S.cfg.rate;
+      const u = new SpeechSynthesisUtterance(q.text.replace(/-/g, ' '));u.lang = 'en-US';u.rate = S.cfg.rate;
+      try { const v = speechSynthesis.getVoices().find(x => /^en(-|_)/i.test(x.lang));if (v) u.voice = v; } catch { /* 忽略 */ }
       u.onend = () => resolve(true);u.onerror = () => resolve(false);
       speechSynthesis.cancel();speechSynthesis.speak(u);
       setTimeout(() => resolve(false), 15000);
@@ -378,6 +387,8 @@ function submit(skip) {
   render();
   persist(skip);
   scheduleAutoNext();
+  const next = S.session?.questions?.[S.index + 1];
+  if (next && S.meta?.tts && player) player.warm(next.audioUrl);
 }
 function persist(skip) {
   const q = currentQ();
@@ -411,10 +422,13 @@ function retryErrors() {
 function scheduleAutoNext() {
   cancelAutoNext();
   if (!S.cfg.auto || !S.result?.correct || S.result.skip) return;
-  S.autoTimer = setTimeout(() => {
+  const tryAdvance = (left = 40) => {
     S.autoTimer = null;
-    if (S.screen === 'train' && S.result?.correct) nextQuestion();
-  }, 900);
+    if (S.screen !== 'train' || !S.result?.correct) return;
+    if (S.playState === 'playing' && left > 0) { S.autoTimer = setTimeout(() => tryAdvance(left - 1), 300);return; }
+    nextQuestion();
+  };
+  S.autoTimer = setTimeout(() => tryAdvance(), 900);
 }
 function cancelAutoNext() {
   if (S.autoTimer) { clearTimeout(S.autoTimer);S.autoTimer = null; }

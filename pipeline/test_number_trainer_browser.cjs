@@ -160,6 +160,28 @@ async function typeValue(page, value) {
       const ev = replayEvent.events.find(e => e.questionId === 'q3' && e.sessionId === resumed.saved.id);
       assert(ev && ev.assisted === true && ev.replay === true, 'replay recorded as assisted');
 
+      // 音频失败：明确报错并可重试，不静默切换引擎
+      if (w === 1440) {
+        if (await page.locator('[data-act="back"]').count()) {
+          page.once('dialog', d => d.accept());
+          await page.locator('[data-act="back"]').click();
+        }
+        await page.locator('.nt-h1').waitFor();
+        let failAudio = true;
+        await page.route('**/api/number-trainer/audio?*', route => failAudio ? route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"TTS_NOT_CONFIGURED"}' }) : route.continue());
+        await page.locator('[data-act="start"]').click();
+        await page.locator('.nt-bars').waitFor();
+        await page.locator('[data-act="retry"]').waitFor({ timeout: 25000 });
+        assert.match(await page.locator('.nt-state').textContent(), /音频/);
+        failAudio = false;
+        await page.locator('[data-act="retry"]').click();
+        await page.waitForFunction(() => /输入你听到的数值/.test(document.querySelector('.nt-state')?.textContent || ''), null, { timeout: 25000 });
+        await page.unroute('**/api/number-trainer/audio?*');
+        page.once('dialog', d => d.accept());
+        await page.locator('[data-act="back"]').click();
+        await page.locator('.nt-h1').waitFor();
+      }
+
       // 键盘直控：不点输入区，R/C/退格/Delete/方向键/Enter，以及答对自动进入下一题
       if (w === 390) {
         page.once('dialog', d => d.accept());

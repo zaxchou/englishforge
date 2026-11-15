@@ -67,6 +67,16 @@ export function createPlayer({ onInvalidate = () => {} } = {}) {
     });
   }
 
+  /** 用独立元素预热下一题（只借 HTTP 缓存，不打断当前播放）。 */
+  let warmEl = null;
+  function warm(url) {
+    if (!url) return;
+    try {
+      if (!warmEl) { warmEl = new Audio();warmEl.preload = 'auto'; }
+      if (warmEl.src !== url) warmEl.src = url;
+    } catch { /* 忽略 */ }
+  }
+
   function dispose() { stop();try { audio.removeAttribute('src');audio.load(); } catch { /* 忽略 */ } }
 
   /** 页面不可见时中断，返回是否确有中断。 */
@@ -76,5 +86,5 @@ export function createPlayer({ onInvalidate = () => {} } = {}) {
     onInvalidate(reason);
     return true;
   }
-  return { load, play, stop, dispose, interrupt, element: audio };
+  return { load, play, stop, dispose, interrupt, warm, element: audio };
 }
