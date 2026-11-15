@@ -10,6 +10,12 @@ function sha(s) { return crypto.createHash('sha256').update(s).digest('hex'); }
 function isObject(v) { return v && typeof v === 'object' && !Array.isArray(v); }
 function num(v, lo, hi, fallback) { const n = Number(v); return Number.isFinite(n) ? Math.min(hi, Math.max(lo, Math.round(n))) : fallback; }
 
+/* 错题归因词（ERROR_LABELS）到训练特征的映射；无法映射的错因不硬凑专项。 */
+const ERROR_TO_FEATURE = {
+  teenTy: 'teenTy',
+  zeroDrop: 'zeroGap', zeroInsert: 'zeroGap', missingDigits: 'zeroGap', extraDigits: 'zeroGap',
+  transposition: 'distinctDigits',
+};
 export function createNumberTrainer({ recordsDir, ttsConfigured = false, ttsSynth = null, now = () => Date.now(), random = Math.random } = {}) {
   const store = createStore({ recordsDir, now });
   store.ensure();
@@ -51,7 +57,21 @@ export function createNumberTrainer({ recordsDir, ttsConfigured = false, ttsSynt
   function createSession(input) {
     const config = sanitizeConfig(input);
     const { summary } = summaryFor(90);
-    const plan = M.planRound({ summary, config, rng: random, now: now() });
+    const focus = Array.isArray(input.focus)
+      ? [...new Set(input.focus.map(f => Object.hasOwn(M.FEATURE_LABELS, f) ? f : ERROR_TO_FEATURE[f]).filter(Boolean))].slice(0, 3)
+      : [];
+    let plan;
+    if (focus.length) {
+      // 错题重练：只按本轮错因出同类新数字，仍然不重复具体旧题。
+      const count = Math.max(5, Math.min(20, config.count));
+      const digits = config.mode === 'fixed' ? config.digits : Math.max(2, M.currentDigits(summary, { maxDigits: M.DIGIT_MAX, startDigits: 2 }));
+      plan = {
+        slots: Array.from({ length: count }, (_, i) => ({ source: 'focus', feature: focus[i % focus.length], digits })),
+        baseDigits: digits, focusTags: focus, reviewTags: [], version: M.PLAN_VERSION + '+retry',
+      };
+    } else {
+      plan = M.planRound({ summary, config, rng: random, now: now() });
+    }
     const questions = M.buildSessionQuestions({ plan, rng: random });
     const id = 's' + now().toString(36) + crypto.randomBytes(4).toString('hex');
     const date = new Date(now()).toISOString().slice(0, 10);

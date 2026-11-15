@@ -106,8 +106,24 @@ async function typeValue(page, value) {
       assert(sum.summary.total.settled >= 10);
       assert(sum.advice.length > 0);
 
+      // 错题重练：有可映射的错因时，按同一特征出新数字
+      if (await page.locator('[data-act="retry"]').count()) {
+        await page.locator('[data-act="retry"]').click();
+        await page.locator('.nt-bars').waitFor();
+        const r2 = await sessionOf(page);
+        const feats = [...new Set(r2.session.questions.map(q => q.feature).filter(Boolean))];
+        assert.equal(feats.length, 1, 'retry drills a single feature: ' + feats);
+        assert(r2.session.questions.every(q => q.source === 'focus'));
+        assert.equal(new Set(r2.session.questions.map(q => q.value)).size, r2.session.questions.length, 'retry values are fresh');
+        page.once('dialog', d => d.accept());
+        await page.locator('[data-act="back"]').click();
+        await page.locator('[data-act="home"]').click({ timeout: 3000 }).catch(() => { });
+        await page.locator('.nt-h1').waitFor();
+      }
+
       // 刷新续做：新一轮做 2 题后刷新，应回到第 3 题并保留草稿
-      await page.locator('[data-act="again"]').click();
+      if (await page.locator('[data-act="again"]').count()) await page.locator('[data-act="again"]').click();
+      else await page.locator('[data-act="start"]').click();
       await page.locator('.nt-bars').waitFor();
       for (let i = 0; i < 2; i++) {
         await page.waitForFunction(() => /输入你听到的数值|本题不计/.test(document.querySelector('.nt-state')?.textContent || ''));

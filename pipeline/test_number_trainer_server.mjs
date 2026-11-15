@@ -91,6 +91,20 @@ assert.equal(sum.data.summary.total.samples, 1, '只有无辅助的正确题进�
 assert(sum.data.advice.length > 0);
 ok('summary: 分母口径与时间样本分离');
 
+// 错题重练：只出指定错因的新数字
+const retry = await call(nt, 'POST', '/api/number-trainer/sessions', { mode: 'fixed', digits: 3, count: 10, focus: ['teenTy', 'zeroGap'] });
+assert.equal(retry.status, 200);
+assert.equal(retry.data.questions.length, 10);
+assert(retry.data.questions.every(q => q.source === 'focus'), 'retry slots are focus');
+assert(retry.data.questions.every(q => ['teenTy', 'zeroGap'].includes(q.feature)), 'retry only uses requested features');
+assert.equal(new Set(retry.data.questions.map(q => q.value)).size, 10, 'retry uses fresh values');
+const mapped = await call(nt, 'POST', '/api/number-trainer/sessions', { mode: 'fixed', digits: 3, count: 5, focus: ['zeroDrop', 'transposition'] });
+assert(mapped.data.questions.every(q => ['zeroGap', 'distinctDigits'].includes(q.feature)), 'error tags map to features: ' + mapped.data.questions.map(q => q.feature));
+const ignored = await call(nt, 'POST', '/api/number-trainer/sessions', { mode: 'fixed', digits: 2, count: 5, focus: ['not-a-feature'] });
+assert.equal(ignored.status, 200);
+assert(!ignored.data.questions.every(q => q.source === 'focus'), 'unknown feature falls back to normal plan');
+ok('retry: 只出指定错因、新数字、未知特征回退');
+
 // 重启（新实例）后仍能读到
 nt = createNumberTrainer({ recordsDir: dir, ttsConfigured: true, ttsSynth: synth, now, random: Math.random });
 const sum2 = await call(nt, 'GET', '/api/number-trainer/summary');

@@ -178,6 +178,9 @@ function keysHTML(showResult, heard) {
 }
 function doneHTML() {
   const s = S.finishSummary?.summary, adv = S.finishSummary?.advice || [];
+  const wrong = S.answers.map((a, i) => ({ a, i })).filter(x => x.a && !x.a.correct && !x.a.skip);
+  const retryFeatures = [...new Set(wrong.map(x => S.session?.questions?.[x.i]?.feature).filter(f => f && M.FEATURE_LABELS[f]))];
+  const hasErrors = retryFeatures.length > 0;
   const rows = S.answers.map((a, i) => {
     const q = S.session?.questions?.[i];if (!q) return '';
     return `<li class="${a?.correct ? 'ok' : 'bad'}"><span class="nt-row-word">${esc(q.value)}</span><small>${a?.correct ? '对' : (a?.skip ? '跳过' : '错')}${a?.assisted ? ' · 辅助' : ''}${a?.submitMs != null ? ' · ' + M.fmtSec(a.submitMs) : ''}</small></li>`;
@@ -192,7 +195,9 @@ function doneHTML() {
     <h1 class="nt-h1">本轮完成</h1>
     ${summary}
     <details class="nt-detail"><summary>看这一轮的每一题</summary><ul class="nt-list">${rows}</ul></details>
-    <button class="nt-primary" data-act="again">再练一轮</button>
+    ${hasErrors
+      ? `<button class="nt-primary" data-act="retry">重练本轮错题</button><button class="nt-secondary" data-act="again">再来一轮随机</button>`
+      : '<button class="nt-primary" data-act="again">再练一轮</button>'}
     <div class="nt-done-actions"><button class="nt-secondary" data-act="history">看最近记录</button><button class="nt-secondary" data-act="home">回到入口</button></div>
   </div>`;
 }
@@ -226,13 +231,14 @@ function act(a) {
   if (a === 'confirm') return submit(false);
   if (a === 'next') return nextQuestion();
   if (a === 'again') return startSession();
+  if (a === 'retry') return retryErrors();
 }
 
-async function startSession() {
+async function startSession(override = null) {
   const token = ++S.token;
   clearRun();S.screen = 'loading';S.result = null;S.answers = [];S.index = 0;S.input = '';render();
   try {
-    const data = await api('/sessions', S.cfg);
+    const data = await api('/sessions', override || S.cfg);
     if (token !== S.token) return;
     S.session = data;S.screen = 'train';S.finishSummary = null;
     S.index = 0;S.answers = [];
@@ -309,7 +315,7 @@ function submit(skip) {
   S.assistedThis = S.replay || S.hint;
   const errorTags = graded.correct || skip ? [] : M.classifyError(q.value, graded.normalized);
   S.result = { correct: !!graded.correct, answer: q.value, text: q.text, errorTags, skip };
-  S.answers[S.index] = { correct: !!graded.correct, skip, assisted: S.assistedThis, submitMs: S.submitMs };
+  S.answers[S.index] = { correct: !!graded.correct, skip, assisted: S.assistedThis, submitMs: S.submitMs, errorTags };
   render();
   persist(skip);
 }
@@ -330,6 +336,13 @@ function persist(skip) {
   };
   queue.enqueue(event);
   queue.flush().catch(() => { });
+}
+function retryErrors() {
+  const wrong = S.answers.map((a, i) => ({ a, i })).filter(x => x.a && !x.a.correct && !x.a.skip);
+  const feats = [...new Set(wrong.map(x => S.session?.questions?.[x.i]?.feature).filter(f => f && M.FEATURE_LABELS[f]))];
+  if (!feats.length) return;
+  const base = S.session?.config || S.cfg;
+  startSession({ ...base, count: Math.min(20, Math.max(10, feats.length * 4)), focus: feats });
 }
 function nextQuestion() {
   if (S.index + 1 >= (S.session?.questions.length || 0)) return finishRound();
