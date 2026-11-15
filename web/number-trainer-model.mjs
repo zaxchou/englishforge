@@ -1,7 +1,7 @@
 /* 数字听写训练：纯规则层。浏览器与服务端共用同一份生成、读法、判分和统计规则。
    时间单位统一为毫秒整数；数值一律以字符串保存，避免前导零/科学计数法歧义。 */
 
-export const READING_VERSION = 'nt-us-integer-v1';
+export const READING_VERSION = 'nt-us-integer-v2';   // v2: 电话号 0 读 oh、整串朗读
 export const GRADE_VERSION = 'nt-grade-v1';
 export const CLASSIFY_VERSION = 'nt-classify-v1';
 export const PLAN_VERSION = 'nt-plan-v1';

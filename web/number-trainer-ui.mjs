@@ -177,7 +177,7 @@ function stateHTML(heard) {
   if (S.playState === 'playing') return '<p class="nt-state">正在播放，请听完整…</p>';
   if (S.playState === 'blocked') return '<p class="nt-state">浏览器拦截了自动播放</p><button class="nt-secondary" data-act="play">播放本题</button>';
   if (S.playState === 'paused') return '<p class="nt-state nt-err">离开页面时已中断，本题不计反应时间</p><button class="nt-secondary" data-act="play">重新播放本题</button>';
-  if (S.playState === 'error') return `<p class="nt-state nt-err">${esc(S.note || '音频加载失败')}</p><button class="nt-secondary" data-act="retry">重新读取音频</button>`;
+  if (S.playState === 'error') return `<p class="nt-state nt-err">${esc(S.note || '音频加载失败')}</p><button class="nt-secondary" data-act="retryAudio">重新读取音频</button>`;
   if (heard) return `<p class="nt-state">输入你听到的数值，再按确认</p>
     <div class="nt-subrow">${S.replay ? '<span class="nt-flag">已重听 · 不计单听准确</span>' : `<button class="nt-pill" data-act="replay">${ICON_SPEAKER}再听一次</button>`}${S.hint ? '<span class="nt-flag">已用提示</span>' : ''}</div>`;
   return '<p class="nt-state">点播放开始这一题</p>';
@@ -312,7 +312,7 @@ function act(a) {
   if (a === 'settings') return toast('在上方切换位数和每轮题数。');
   if (a === 'srchint') return toast(SOURCE_HINT[currentQ()?.source] || '这轮按记录自动配题。');
   if (a === 'play') return playCurrent();
-  if (a === 'retry') return loadAndPlay(currentQ());
+  if (a === 'retryAudio') return loadAndPlay(currentQ());
   if (a === 'del') return delBack();
   if (a === 'clear') return clearInput();
   if (a === 'replay') return playCurrent(true);
@@ -584,6 +584,9 @@ async function resumeRun() {
     const data = await api('/sessions/' + encodeURIComponent(saved.id));
     if (token !== S.token || S.session) return;
     if (data.state !== 'active') { clearRun();return; }
+    // 读音版本变了（例如 0 从 zero 改成 oh）就不再续做旧轮，避免继续听旧音频。
+    const stale = (data.questions || []).some(q => q.readingVersion && q.readingVersion !== M.READING_VERSION);
+    if (stale) { clearRun();return; }
     const idx = Number.isInteger(saved.index) && saved.index >= 0 && saved.index < data.questions.length ? saved.index : 0;
     S.session = data;S.screen = 'train';S.index = idx;
     S.answers = Array.isArray(saved.answers) ? saved.answers.slice(0, idx + 1) : [];

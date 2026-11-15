@@ -80,7 +80,7 @@ export function createNumberTrainer({ recordsDir, ttsConfigured = false, ttsSynt
         const q = M.makePhoneQuestion({ min: config.phoneMin, max: config.phoneMax, rng: random, recent: seen });
         seen.push(q.value);
         const qid = 'q' + (i + 1);
-        phoneQuestions.push({ id: qid, ...q, source: 'probe', readingVersion: M.READING_VERSION, audioUrl: `/api/number-trainer/audio?s=${encodeURIComponent(id)}&q=${encodeURIComponent(qid)}` });
+        phoneQuestions.push({ id: qid, ...q, source: 'probe', readingVersion: M.READING_VERSION });
       }
       const session = {
         id, date, createdAt: new Date(now()).toISOString(), config,
@@ -88,6 +88,7 @@ export function createNumberTrainer({ recordsDir, ttsConfigured = false, ttsSynt
         questions: phoneQuestions,
         state: 'active', finishedAt: null,
       };
+      for (const q of session.questions) q.audioUrl = audioUrlFor(id, q);
       store.saveSession(session);
       store.pruneSessions(30);
       return {
@@ -129,10 +130,15 @@ export function createNumberTrainer({ recordsDir, ttsConfigured = false, ttsSynt
       id, config, createdAt: session.createdAt,
       plan: session.plan,
       advice: M.buildAdvice(summary),
-      questions: session.questions.map(q => ({ ...q, audioUrl: `/api/number-trainer/audio?s=${encodeURIComponent(id)}&q=${encodeURIComponent(q.id)}` })),
+      questions: session.questions.map(q => ({ ...q, audioUrl: audioUrlFor(id, q) })),
     };
   }
 
+  /** 音频地址带读音文本摘要：读音文本一变 URL 就变，浏览器不会复用旧读音的缓存。 */
+  function audioUrlFor(sessionId, q) {
+    const v = crypto.createHash('sha1').update(String(q.text || '') + '|' + (q.readingVersion || '')).digest('hex').slice(0, 10);
+    return `/api/number-trainer/audio?s=${encodeURIComponent(sessionId)}&q=${encodeURIComponent(q.id)}&v=${v}`;
+  }
   function sessionView(session) {
     const answered = {};
     try {
@@ -144,7 +150,7 @@ export function createNumberTrainer({ recordsDir, ttsConfigured = false, ttsSynt
     return {
       id: session.id, config: session.config, createdAt: session.createdAt, plan: session.plan,
       state: session.state, finishedAt: session.finishedAt, answered,
-      questions: session.questions.map(q => ({ ...q, audioUrl: `/api/number-trainer/audio?s=${encodeURIComponent(session.id)}&q=${encodeURIComponent(q.id)}` })),
+      questions: session.questions.map(q => ({ ...q, audioUrl: audioUrlFor(session.id, q) })),
     };
   }
 

@@ -50,6 +50,7 @@ async function typeValue(page, value) {
       page.setDefaultTimeout(20000);
       const errors = [];
       page.on('pageerror', e => errors.push(e.message));
+      page.on('dialog', d => d.accept().catch(() => { }));
 
       await page.goto(base + '/#/number-trainer');
       await page.locator('.nt-h1').waitFor();
@@ -117,7 +118,6 @@ async function typeValue(page, value) {
         assert(r2.session.questions.every(q => ['focus', 'probe'].includes(q.source)), 'retry only uses focus or probe fill');
         assert(r2.session.questions.filter(q => q.source === 'focus').length >= Math.min(5, r2.session.questions.length));
         assert.equal(new Set(r2.session.questions.map(q => q.value)).size, r2.session.questions.length, 'retry values are fresh');
-        page.once('dialog', d => d.accept());
         await page.locator('[data-act="back"]').click();
         await page.locator('[data-act="home"]').click({ timeout: 3000 }).catch(() => { });
         await page.locator('.nt-h1').waitFor();
@@ -163,7 +163,6 @@ async function typeValue(page, value) {
       // 音频失败：明确报错并可重试，不静默切换引擎
       if (w === 1440) {
         if (await page.locator('[data-act="back"]').count()) {
-          page.once('dialog', d => d.accept());
           await page.locator('[data-act="back"]').click();
         }
         await page.locator('.nt-h1').waitFor();
@@ -171,20 +170,18 @@ async function typeValue(page, value) {
         await page.route('**/api/number-trainer/audio?*', route => failAudio ? route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"TTS_NOT_CONFIGURED"}' }) : route.continue());
         await page.locator('[data-act="start"]').click();
         await page.locator('.nt-bars').waitFor();
-        await page.locator('[data-act="retry"]').waitFor({ timeout: 25000 });
+        await page.locator('[data-act="retryAudio"]').waitFor({ timeout: 25000 });
         assert.match(await page.locator('.nt-state').textContent(), /音频/);
         failAudio = false;
-        await page.locator('[data-act="retry"]').click();
+        await page.locator('[data-act="retryAudio"]').click();
         await page.waitForFunction(() => /输入你听到的数值/.test(document.querySelector('.nt-state')?.textContent || ''), null, { timeout: 25000 });
         await page.unroute('**/api/number-trainer/audio?*');
-        page.once('dialog', d => d.accept());
         await page.locator('[data-act="back"]').click();
         await page.locator('.nt-h1').waitFor();
       }
 
       // 键盘直控：不点输入区，R/C/退格/Delete/方向键/Enter，以及答对自动进入下一题
       if (w === 390) {
-        page.once('dialog', d => d.accept());
         await page.locator('[data-act="back"]').click();
         await page.locator('.nt-h1').waitFor();
         await page.locator('[data-auto="on"]').click();
@@ -209,7 +206,6 @@ async function typeValue(page, value) {
         await page.locator('.nt-result.ok').waitFor();
         await page.waitForFunction(() => (document.querySelector('.nt-meta-row')?.textContent || '').trim().startsWith('2 /'), null, { timeout: 6000 });
         assert.equal(await page.locator('.nt-result').count(), 0, 'auto-advance leaves no stale result');
-        page.once('dialog', d => d.accept());
         await page.locator('[data-act="back"]').click();
         await page.locator('.nt-h1').waitFor();
         await page.locator('[data-auto="off"]').click();
@@ -235,7 +231,6 @@ async function typeValue(page, value) {
         const grouped = pv.slice(0, 3) + ' ' + pv.slice(3);
         assert((await page.locator('.nt-result').textContent()).includes(grouped), 'grouped display in feedback');
         assert(audioRes.filter(x => x === 200 || x === 206).length >= 1, 'phone audio served: ' + JSON.stringify(audioRes));
-        page.once('dialog', d => d.accept());
         await page.locator('[data-act="back"]').click();
         await page.locator('.nt-h1').waitFor();
         await page.locator('[data-kind="number"]').click();
