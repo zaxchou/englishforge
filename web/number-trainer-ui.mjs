@@ -149,28 +149,53 @@ function trainHTML() {
   const q = currentQ(), total = S.session?.questions.length || S.cfg.count;
   const pct = Math.round((S.index + 1) / total * 100);
   const heard = S.playState === 'ready' || S.playState === 'done';
-  const compact = q?.mode === 'phone' && q.digits >= 9;
+  const phoneStyle = q?.mode === 'phone';
   return `${headHTML('正在练习', { gear: false })}
   <div class="nt-bars" role="progressbar" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${S.index + (S.result ? 1 : 0)}"><i style="width:${pct}%"></i></div>
   <div class="nt-meta-row"><span>${S.index + 1} / ${total}</span><button class="nt-src" data-act="srchint">${esc(M.SOURCE_LABELS[q?.source] || '')} ⓘ</button></div>
   <div class="nt-stage">
-    <div class="nt-digits${compact ? ' compact' : ''}" aria-live="polite">${inputBoxes()}</div>
+    <div class="nt-digits${phoneStyle ? ' phone' : ''}" aria-live="polite">${inputBoxes()}</div>
     ${S.result ? resultHTML() : stateHTML(heard)}
   </div>
   ${keysHTML(!!S.result, heard)}
   <p class="nt-hint-row" aria-hidden="true">数字直接输入 · R 重听 · C 清空 · ⌫ / Del 删除 · ← → 移动 · Enter 确认</p>`;
 }
+function groupBreaks(len) {
+  // 与 groupDigits 一致的断点：10 位 3-3-4，11 位 3-4-4，7 位 3-4，其余每 3 位。
+  if (len === 10) return [3, 6];
+  if (len === 11) return [3, 7];
+  if (len === 7) return [3];
+  const out = [];
+  for (let i = 3; i < len; i += 3) out.push(i);
+  return out;
+}
 function inputBoxes() {
   const chars = [...S.input];
   const showCaret = !S.result;
   if (!chars.length) return `<span class="nt-box empty-single" data-slot="0">${showCaret ? CARET : ''}</span>`;
-  const out = [];
+  const q = currentQ();
+  const phone = q?.mode === 'phone';
+  const box = (c, i) => `<span class="nt-box filled${S.result && !S.result.correct ? ' miss' : ''}" data-slot="${i + 1}">${esc(c)}</span>`;
+  if (!phone) {
+    const out = [];
+    chars.slice(0, 12).forEach((c, i) => {
+      if (showCaret && i === S.caret) out.push(CARET);
+      out.push(box(c, i));
+    });
+    if (showCaret && S.caret >= Math.min(chars.length, 12)) out.push(CARET);
+    return out.join('');
+  }
+  // 电话号：按 3-3-4 分组渲染，组内格子尺寸固定，不随长度变化
+  const breaks = new Set(groupBreaks(Number(q.digits) || chars.length));
+  let html = '', open = false;
   chars.slice(0, 12).forEach((c, i) => {
-    if (showCaret && i === S.caret) out.push(CARET);
-    out.push(`<span class="nt-box filled${S.result && !S.result.correct ? ' miss' : ''}" data-slot="${i + 1}">${esc(c)}</span>`);
+    if (!open || breaks.has(i)) { if (open) html += '</span>';html += '<span class="nt-grp">';open = true; }
+    if (showCaret && i === S.caret) html += CARET;
+    html += box(c, i);
   });
-  if (showCaret && S.caret >= Math.min(chars.length, 12)) out.push(CARET);
-  return out.join('');
+  if (open) html += '</span>';
+  if (showCaret && S.caret >= Math.min(chars.length, 12)) html += CARET;
+  return html;
 }
 function stateHTML(heard) {
   if (S.playState === 'loading') return '<p class="nt-state">正在准备音频…</p>';
