@@ -1,6 +1,29 @@
 {
  "version": 1,
  "episodes": {
+  "0076": {
+   "reviewed": "2026-11-15",
+   "reason": "All 15 dialogue turns rechecked against production-identical audio: unprompted small.en full/cropped word timestamps, silence intervals, and Qwen ASR of each final clip without ep/i context. Restore clipped Alright and missing Zero anchor; preserve short reply heads/tails and trim excess gaps. ASR wording disagreements (144, know-it-all, Kadlec) are not treated as verified text corrections. Evidence: build/qa/eplod-0076/.",
+   "audioSha256": "8a0425dfecffdbff84f350ed380e33c78d463e2b97ffbd26dcc703101210ae57",
+   "dialogueSha256": "5ea0143f2fc7df43680b437d79605a164208dd2976259210ca00d1803ad33ae5",
+   "bounds": [
+    [9.2, 13.52],
+    [13.7, 15.02],
+    [15.85, 20.25],
+    [20.8, 22.25],
+    [22.28, 25.52],
+    [25.9, 29.7],
+    [30.42, 31.8],
+    [31.78, 34.1],
+    [33.9, 35.82],
+    [35.93, 37.0],
+    [37.95, 39.6],
+    [39.61, 40.55],
+    [40.88, 46.05],
+    [46.72, 49.08],
+    [49.9, 53.68]
+   ]
+  },
   "0033": {
    "reviewed": "2026-11-05",
    "reason": "Partial-word alignment omitted opening words. Rechecked all 11 turns with cropped small/large-v3 word timestamps; brief overlaps preserve word endings and beginnings between adjacent speakers.；2026-11-05 勘误 dialogue#8 补 even(文本变,锚点与音频未变)",
