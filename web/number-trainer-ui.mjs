@@ -104,7 +104,7 @@ function trainHTML() {
 function inputBoxes() {
   const chars = [...S.input];
   const shown = chars.length ? chars : ['', '', ''];
-  return shown.slice(0, 12).map(c => `<span class="nt-box${c ? ' filled' : ''}${S.result && !S.result.correct ? ' miss' : ''}">${c ? esc(c) : '·'}</span>`).join('');
+  return shown.slice(0, 12).map(c => `<span class="nt-box${c ? ' filled' : ''}${S.result && !S.result.correct ? ' miss' : ''}">${c ? esc(c) : ''}</span>`).join('');
 }
 function stateHTML(heard) {
   if (S.playState === 'loading') return '<p class="nt-state">正在准备音频…</p>';

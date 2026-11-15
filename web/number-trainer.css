@@ -16,6 +16,7 @@
 #v-number-trainer .nt-box{min-width:56px;height:76px;display:grid;place-items:center;font-size:40px;line-height:1;font-weight:600;color:var(--nt-green);border:1.5px dashed #37463c;border-radius:12px;padding:0 8px;font-variant-numeric:tabular-nums}
 #v-number-trainer .nt-box.filled{border-style:solid;border-color:#3d6a52;background:#121a15}
 #v-number-trainer .nt-box.miss{border-color:#6b3a33;color:var(--nt-bad)}
+#v-number-trainer .nt-box:empty{background:#0f1511}
 #v-number-trainer .nt-state{margin:22px 0 0;font-size:14px;color:var(--nt-mut);min-height:22px}
 #v-number-trainer .nt-state.nt-err{color:var(--nt-bad)}
 #v-number-trainer .nt-hint{margin:10px 0 0;font-size:13px;color:#b9c9bf;background:#18211b;border-radius:8px;padding:8px 12px;max-width:420px}
