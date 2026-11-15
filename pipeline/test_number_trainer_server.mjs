@@ -152,7 +152,7 @@ for (const d of [0, 5, 9]) {
 const phoneAudio = await call(nt, 'GET', phoneSession.data.questions[0].audioUrl);
 assert.equal(phoneAudio.status, 200);
 assert.equal(phoneAudio.raw.subarray(0, 4).toString('ascii'), 'RIFF');
-assert(phoneAudio.raw.length > 20000, 'assembled phone audio has content: ' + phoneAudio.raw.length);
+assert(phoneAudio.raw.length > 8000, 'assembled phone audio has content: ' + phoneAudio.raw.length);
 assert.equal((await call(nt, 'GET', '/api/number-trainer/digit-audio?d=10')).status, 400);
 const pq = phoneSession.data.questions[0];
 const phoneOk = await call(nt, 'POST', '/api/number-trainer/attempt', { eventId: 'ph-0001', sessionId: phoneSession.data.id, questionId: pq.id, raw: [...pq.value].join(' '), plays: 1, submitMs: 2400, timingValid: true });

@@ -121,7 +121,7 @@ export function createNumberTrainer({ recordsDir, ttsConfigured = false, ttsSynt
     h.write('data', 36);h.writeUInt32LE(dataBytes, 40);
     return h;
   }
-  async function phoneWav(digits, gapMs = 110) {
+  async function phoneWav(digits, gapMs = 90) {
     const clips = [];
     for (const ch of String(digits)) {
       const clip = await digitClip(Number(ch));
