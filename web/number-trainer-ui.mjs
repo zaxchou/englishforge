@@ -95,7 +95,7 @@ function homeHTML() {
     <div class="nt-field"><span class="nt-label">位数</span><div class="nt-chips cols-7" role="group" aria-label="位数">
       <button class="nt-chip span2${S.cfg.mode === 'smart' ? ' on' : ''}" data-mode="smart">智能</button>
       ${[2, 3, 4, 5, 6].map(d => `<button class="nt-chip${S.cfg.mode === 'fixed' && S.cfg.digits === d ? ' on' : ''}" data-fixed="${d}">${d}</button>`).join('')}
-    </div>${S.cfg.mode === 'smart' && rec ? `<span class="nt-note">按当前记录建议 ${rec} 位</span>` : ''}</div>
+    </div>${S.cfg.mode === 'smart' ? `<span class="nt-note">${(s?.total?.settled || 0) >= 5 ? `按当前记录建议 ${rec} 位` : '还没有记录，先按 2 位起步'}</span>` : ''}</div>
     <div class="nt-field"><span class="nt-label">每轮</span><div class="nt-chips cols-3" role="group" aria-label="每轮题数">
       ${[10, 20, 30].map(n => `<button class="nt-chip${S.cfg.count === n ? ' on' : ''}" data-count="${n}">${n} 题</button>`).join('')}
     </div></div>
