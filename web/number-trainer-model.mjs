@@ -246,7 +246,13 @@ export function summarizeAttempts(events, { days = 90, now = Date.now() } = {}) 
   return out;
 }
 
-export const THRESHOLDS = { minTag: 5, minTagErrors: 2, minWeakSamples: 10, minWeakErrors: 3, minWeakRate: 0.15, promoteSamples: 20, promoteRate: 0.95 };
+// 专项门槛必须和升档门槛对齐：升档只允许 5% 失误，那么超过 5% 的特征就是挡路的那一类。
+export const THRESHOLDS = {
+  minTag: 5, minTagErrors: 2,
+  minWeakSamples: 10, minWeakErrors: 2, minWeakRate: 0.05,
+  promoteSamples: 20, promoteRate: 0.95, promoteWindow: 20, promoteMinInWindow: 15,
+  demoteRate: 0.8,
+};
 
 function weakFeatures(summary, { minSamples = THRESHOLDS.minWeakSamples, minErrors = THRESHOLDS.minWeakErrors, minRate = THRESHOLDS.minWeakRate } = {}) {
   return Object.entries(summary.byFeature || {})
@@ -259,41 +265,66 @@ export function candidateWeaknesses(summary) {
     .filter(([, b]) => b.settled >= THRESHOLDS.minTag && b.errors >= THRESHOLDS.minTagErrors)
     .map(([tag, b]) => ({ tag, settled: b.settled, errors: b.errors, confirmed: b.settled >= THRESHOLDS.minWeakSamples && b.errors >= THRESHOLDS.minWeakErrors }));
 }
-export function currentDigits(summary, config = {}) {
+/** 最近 size 个该档有效作答（按提交时间）；升档看最近表现，避免早期错题永久压着。 */
+export function recentWindow(events, { digits = null, size = THRESHOLDS.promoteWindow } = {}) {
+  const list = (events || []).filter(e => e && e.target && !e.invalid && (digits == null || String(e.digits) === String(digits)));
+  list.sort((a, b) => String(a.submittedAt).localeCompare(String(b.submittedAt)));
+  const win = list.slice(-size);
+  const independent = win.filter(e => !e.skip && !e.assisted && e.correct).length;
+  return { digits: digits == null ? null : Number(digits), settled: win.length, independent, rate: win.length ? independent / win.length : null };
+}
+
+export function currentDigits(summary, config = {}, recent = null) {
   const max = clampDigits(config.maxDigits || 6), start = clampDigits(config.startDigits || 2);
   const levels = Object.keys(summary.byDigits || {}).map(Number).filter(d => (summary.byDigits[d]?.settled || 0) > 0).sort((a, b) => a - b);
   if (!levels.length) return start;
   const top = levels[levels.length - 1], b = summary.byDigits[String(top)];
-  if (b.settled >= THRESHOLDS.promoteSamples && (b.independentRate || 0) >= THRESHOLDS.promoteRate) return Math.min(max, top + 1);
-  if (b.settled >= 10 && (b.independentRate || 0) < 0.8) return Math.max(DIGIT_MIN, top - 1);
+  const win = recent && Number(recent.digits) === top ? recent : null;
+  const n = win ? win.settled : b.settled;
+  const rate = win && win.rate != null ? win.rate : (b.independentRate || 0);
+  if (n >= THRESHOLDS.promoteMinInWindow && rate >= THRESHOLDS.promoteRate) return Math.min(max, top + 1);
+  if (n >= 10 && rate < THRESHOLDS.demoteRate) return Math.max(DIGIT_MIN, top - 1);
   return Math.max(start, Math.min(max, top));
 }
 export function buildAdvice(summary, config = {}) {
   const advice = [];
-  if (summary.samples < 10) {
+  const t = summary.total || { settled: 0 };
+  if ((t.settled || 0) < 10) {
     advice.push({ kind: 'baseline', text: '样本还少，先完成一轮，系统再给个人建议。' });
     return advice;
   }
   const weak = weakFeatures(summary);
+  const win = summary.recent;
+  // 1) 先说清“为什么还没升档、差多少”
+  if (win && win.digits != null && win.settled >= 10) {
+    const allowed = Math.floor(win.settled * (1 - THRESHOLDS.promoteRate));
+    const wrong = win.settled - win.independent;
+    const next = Math.min(DIGIT_MAX, win.digits + 1);
+    const same = next === win.digits;
+    if (win.rate >= THRESHOLDS.promoteRate) {
+      advice.push({ kind: 'promote', text: `最近 ${win.settled} 题独立答对 ${win.independent} 题（${pct(win.rate)}），已经达到升档线；下一轮会开始 ${next} 位。` });
+    } else if (!same) {
+      advice.push({ kind: 'gate', text: `最近 ${win.settled} 题独立答对 ${win.independent} 题（${pct(win.rate)}）；升到 ${next} 位要 ≥95%（最多错 ${allowed} 题），现在多错 ${Math.max(1, wrong - allowed)} 题。` });
+    }
+  }
+  // 2) 再说主要失分点
   if (weak.length) {
     const w = weak[0], label = FEATURE_LABELS[w.tag] || w.tag;
-    advice.push({ kind: 'weak', tag: w.tag, text: `「${label}」在 ${w.settled} 个相关题里错了 ${w.errors} 个，下一轮会优先安排不同数字的同类题。`, samples: w.settled });
-  }
-  const t = summary.total;
-  if ((t.independentRate || 0) >= 0.9 && t.samples >= 10) {
-    if (t.p80Ms) advice.push({ kind: 'speed', text: `准确率稳定，正确题中位 ${fmtSec(t.medianMs)}、P80 ${fmtSec(t.p80Ms)}；下一步先缩短尾部时间，再升位数。` });
-  } else if ((t.independentRate || 0) < 0.8 && t.settled >= 10) {
-    advice.push({ kind: 'load', text: '当前负荷偏高，先保持位数、把准确率拉回 90% 再加难。' });
-  } else if (t.settled >= 10) {
-    advice.push({ kind: 'near', text: `准确率 ${Math.round((t.independentRate || 0) * 100)}%，再稳一点就能升位数；先把偶尔错的题压下去，不用急着提速。` });
-  }
-  if (!weak.length) {
+    advice.push({ kind: 'weak', tag: w.tag, text: `「${label}」在 ${w.settled} 题里错 ${w.errors} 次（${pct(w.errorRate)}），是当前主要失分点；下一轮会多练这类的新数字。`, samples: w.settled });
+  } else {
     const cand = candidateWeaknesses(summary)[0];
-    if (cand) advice.push({ kind: 'watch', tag: cand.tag, text: `「${FEATURE_LABELS[cand.tag] || cand.tag}」出现了 ${cand.errors} 次，样本还不足以确认，先记录并少量复测。`, samples: cand.settled });
+    if (cand && (cand.settled < THRESHOLDS.minWeakSamples)) advice.push({ kind: 'watch', tag: cand.tag, text: `「${FEATURE_LABELS[cand.tag] || cand.tag}」出现了 ${cand.errors} 次，样本还少，先记录。`, samples: cand.settled });
+    else if (cand) advice.push({ kind: 'watch', tag: cand.tag, text: `「${FEATURE_LABELS[cand.tag] || cand.tag}」有 ${cand.errors} 次（${pct(cand.errors / cand.settled)}），还在可接受范围，不单独开专项。`, samples: cand.settled });
   }
-  if (!advice.length) advice.push({ kind: 'steady', text: '没有明显短板，继续混练即可；随机探针会继续检查是否有遗漏。' });
+  // 3) 速度只在准确率稳定时提
+  if ((t.independentRate || 0) >= 0.9 && t.samples >= 10 && t.p80Ms) {
+    advice.push({ kind: 'speed', text: `正确题中位 ${fmtSec(t.medianMs)}、P80 ${fmtSec(t.p80Ms)}；准确率稳住后再压尾部时间。` });
+  }
+  if (!advice.length) advice.push({ kind: 'steady', text: '没有明显短板，继续混练即可；随机题会继续检查是否有遗漏。' });
   return advice;
 }
+function pct(v) { return Math.round((v || 0) * 100) + '%'; }
+
 export function fmtSec(ms) { return ms == null ? '—' : (ms / 1000).toFixed(1) + 's'; }
 
 /* ---------- 一轮的题目分配 ---------- */
@@ -302,7 +333,7 @@ export function planRound({ summary, config = {}, rng = Math.random, retestGapMs
   const focusN = Math.round(count * 0.5), reviewN = Math.round(count * 0.3);
   const probeN = count - focusN - reviewN;
   const maxDigits = clampDigits(config.maxDigits || 6);
-  const baseDigits = config.mode === 'fixed' ? clampDigits(config.digits || 3) : currentDigits(summary, config);
+  const baseDigits = config.mode === 'fixed' ? clampDigits(config.digits || 3) : currentDigits(summary, config, summary.recent || null);
   const weak = weakFeatures(summary);
   const focusTags = weak.slice(0, 2).map(w => w.tag);
   const reviewTags = weak.slice(2, 4).map(w => w.tag);

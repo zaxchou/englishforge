@@ -118,11 +118,34 @@ assert(maxRun <= Math.max(2, Math.ceil(20 * 0.2)), '同特征连续摊开');
 ok('分配: 20题、专项≤50%、固定位数不越档、同特征摊开');
 
 // 无弱项时回到普通覆盖
-const healthy = M.summarizeAttempts(Array.from({ length: 30 }, (_, i) => ev({ correct: i % 10 !== 0, errorTags: i % 10 === 0 ? ['substitution'] : [] })));
+const healthy = M.summarizeAttempts(Array.from({ length: 40 }, (_, i) => ev({ correct: i !== 7, errorTags: i === 7 ? ['substitution'] : [] })));
 const p2 = M.planRound({ summary: healthy, config: { count: 20, mode: 'fixed', digits: 3 }, rng: rng(4) });
 assert.equal(p2.focusTags.length, 0);
 assert.equal(p2.slots.filter(x => x.feature).length, 0);
 ok('无确认弱项时不做伪专项，整轮保持普通覆盖');
+
+// 门槛对齐：5%~15% 的失误既能挡住升档，也必须能触发专项
+const stuck = M.summarizeAttempts(Array.from({ length: 40 }, (_, i) => ev({ correct: i >= 5, errorTags: i < 5 ? ['teenTy'] : [] })));
+assert.equal(stuck.byFeature.teenTy.errorRate, 0.125);
+assert(M.candidateWeaknesses(stuck).some(w => w.tag === 'teenTy' && w.confirmed), '12.5% 应算已确认弱项');
+assert.equal(M.planRound({ summary: stuck, config: { count: 20, mode: 'fixed', digits: 3 }, rng: rng(5) }).focusTags[0], 'teenTy');
+ok('门槛对齐: 12.5% 失误既算弱项也会进专项');
+
+// 升档只看最近表现：早期错题不该永久压着
+const stale = Array.from({ length: 40 }, (_, i) => ev({ correct: i >= 10, digits: 2, features: ['teenTy'], submittedAt: new Date(Date.now() - (40 - i) * 60000).toISOString() }));
+const staleSummary = M.summarizeAttempts(stale);
+const win = M.recentWindow(stale, { digits: 2 });
+assert.equal(win.settled, 20);assert.equal(win.independent, 20);
+assert.equal(M.currentDigits(staleSummary, { maxDigits: 6, startDigits: 2 }, win), 3, '最近 20 题全对就升档');
+assert.equal(M.currentDigits(staleSummary, { maxDigits: 6, startDigits: 2 }, { digits: 2, settled: 20, independent: 17, rate: 0.85 }), 2, '最近 85% 留在原档');
+ok('升档: 用最近 20 题，早期错题不再永久压着');
+
+// 建议说清“差多少”
+const gateSummary = M.summarizeAttempts(stale);
+gateSummary.recent = { digits: 2, settled: 20, independent: 17, rate: 0.85 };
+const gate = M.buildAdvice(gateSummary).find(a => a.kind === 'gate');
+assert(gate && /95%/.test(gate.text) && /多错 1 题/.test(gate.text), JSON.stringify(gate));
+ok('建议: 明确升档线、最多错几题、现在多错几题');
 
 // 智能升档
 const good = M.summarizeAttempts(Array.from({ length: 40 }, () => ev({ correct: true })));
