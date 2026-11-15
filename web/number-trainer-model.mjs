@@ -82,6 +82,17 @@ export function featuresOf(value) {
 }
 export function primaryFeature(value) { return featuresOf(value).find(t => FEATURE_ORDER.includes(t)) || null; }
 
+const CAPACITY = new Map();
+/** 某位数的某个特征一共有多少种取值；用于避免一轮里重复同一个数字。 */
+export function featureCapacity(feature, digits) {
+  const d = clampDigits(digits), key = feature + ':' + d;
+  if (CAPACITY.has(key)) return CAPACITY.get(key);
+  const lo = d === 1 ? 0 : POW10[d - 1], hi = POW10[d] - 1;
+  let n = 0;
+  for (let v = lo; v <= hi; v++) if (featuresOf(String(v)).includes(feature)) n++;
+  CAPACITY.set(key, n);
+  return n;
+}
 export function validFeaturesFor(digits) {
   const d = clampDigits(digits);
   const ok = { teenTy: d >= 2, zeroGap: d >= 3, adjacentRepeat: d >= 2, distinctDigits: d >= 3, crossGroup: d >= 4 };
@@ -321,7 +332,7 @@ export function buildSessionQuestions({ plan, rng = Math.random, readingVersion 
   const recent = [];
   return plan.slots.map((slot, i) => {
     const q = makeQuestion({ digits: slot.digits, feature: slot.feature, rng, recent });
-    recent.push(q.value);if (recent.length > 8) recent.shift();
+    recent.push(q.value);   // 整轮避重：同一轮里重复出现会被记住而不是听到
     return { id: 'q' + (i + 1), ...q, source: slot.source, readingVersion, audioKey: null };
   });
 }

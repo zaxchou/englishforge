@@ -65,10 +65,16 @@ export function createNumberTrainer({ recordsDir, ttsConfigured = false, ttsSynt
       // 错题重练：只按本轮错因出同类新数字，仍然不重复具体旧题。
       const count = Math.max(5, Math.min(20, config.count));
       const digits = config.mode === 'fixed' ? config.digits : Math.max(2, M.currentDigits(summary, { maxDigits: M.DIGIT_MAX, startDigits: 2 }));
-      plan = {
-        slots: Array.from({ length: count }, (_, i) => ({ source: 'focus', feature: focus[i % focus.length], digits })),
-        baseDigits: digits, focusTags: focus, reviewTags: [], version: M.PLAN_VERSION + '+retry',
-      };
+      const room = new Map(focus.map(f => [f, M.featureCapacity(f, digits)]));
+      const slots = [];
+      for (let i = 0; i < count; i++) {
+        const open = focus.filter(f => (room.get(f) || 0) > 0);
+        if (!open.length) { slots.push({ source: 'probe', feature: null, digits });continue; }
+        const f = open[i % open.length];
+        room.set(f, room.get(f) - 1);
+        slots.push({ source: 'focus', feature: f, digits });
+      }
+      plan = { slots, baseDigits: digits, focusTags: focus, reviewTags: [], version: M.PLAN_VERSION + '+retry' };
     } else {
       plan = M.planRound({ summary, config, rng: random, now: now() });
     }

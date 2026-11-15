@@ -46,7 +46,7 @@ const ICON_GEAR = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" s
 const ICON_SPEAKER = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9.5h3L12 5v14l-5-4.5H4z"/><path d="M16 8.5a5 5 0 0 1 0 7"/></svg>';
 
 const FEATURE_HINT = {
-  teenTy: '末两位容易被听成另一个数——thirteen 和 thirty 只差一个音，要盯住结尾。',
+  teenTy: '末两位里 -teen 和 -ty 只差一个音，最容易被听成另一个数，要盯住结尾。',
   zeroGap: '数位中间夹着零，容易漏掉位置；听的时候先记住一共有几位。',
   adjacentRepeat: '有连续重复的数字，容易少记或多记一个。',
   distinctDigits: '数字互不相同，顺序变了就是另一个数，注意排列。',
@@ -75,19 +75,18 @@ function headHTML(title, { back = true, gear = true } = {}) {
   const right = gear ? `<button class="nt-ico" data-act="settings" aria-label="设置">${ICON_GEAR}</button>` : '<span class="nt-ico-space" aria-hidden="true"></span>';
   return `<div class="nt-top">${left}<b>${esc(title)}</b>${right}</div>`;
 }
-function tiles(s) {
+function tiles(s, label = '已练题数') {
   const ready = !!s?.total?.settled;
   return `<div class="nt-tiles">
     <div><b>${ready ? Math.round((s.total.independentRate || 0) * 100) + '%' : '—'}</b><span>单听准确</span></div>
     <div><b>${ready ? M.fmtSec(s.total.medianMs) : '—'}</b><span>中位用时</span></div>
-    <div><b>${ready ? s.total.settled : 0}</b><span>已练题数</span></div>
+    <div><b>${ready ? s.total.settled : 0}</b><span>${label}</span></div>
   </div>`;
 }
 function homeHTML() {
   const s = S.summary?.summary, adv = S.summary?.advice || [], rec = S.summary?.recommendedDigits;
   const last = (S.history?.rounds || []).find(r => r.settled >= 5);
-  return `${headHTML('数字听写', { back: false, gear: false })}
-  <div class="nt-pad">
+  return `<div class="nt-pad">
     <h1 class="nt-h1">数字敏感度训练</h1>
     <p class="nt-lead">每题播放一个英语数字，听完输入数值。系统按准确度和反应时间记录，并把易错类型排成下一轮的专项题。</p>
     ${(s?.total?.settled || 0) > 0
@@ -124,11 +123,11 @@ function loadingHTML() {
 }
 function trainHTML() {
   const q = currentQ(), total = S.session?.questions.length || S.cfg.count;
-  const pct = Math.round((S.index + (S.result ? 1 : 0)) / total * 100);
+  const pct = Math.round((S.index + 1) / total * 100);
   const heard = S.playState === 'ready' || S.playState === 'done';
   return `${headHTML('正在练习', { gear: false })}
   <div class="nt-bars" role="progressbar" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${S.index + (S.result ? 1 : 0)}"><i style="width:${pct}%"></i></div>
-  <div class="nt-meta-row"><span>${S.index + 1} / ${total}</span><button class="nt-src" data-act="srchint">${esc(M.SOURCE_LABELS[q?.source] || '')}</button></div>
+  <div class="nt-meta-row"><span>${S.index + 1} / ${total}</span><button class="nt-src" data-act="srchint">${esc(M.SOURCE_LABELS[q?.source] || '')} ⓘ</button></div>
   <div class="nt-stage">
     <div class="nt-digits" aria-live="polite">${inputBoxes()}</div>
     ${S.result ? resultHTML() : stateHTML(heard)}
@@ -137,8 +136,8 @@ function trainHTML() {
 }
 function inputBoxes() {
   const chars = [...S.input];
-  const shown = chars.length ? chars : ['', '', ''];
-  return shown.slice(0, 12).map(c => `<span class="nt-box${c ? ' filled' : ''}${S.result && !S.result.correct ? ' miss' : ''}">${c ? esc(c) : ''}</span>`).join('');
+  if (!chars.length) return '<span class="nt-box empty-single" aria-hidden="true"></span>';
+  return chars.slice(0, 12).map(c => `<span class="nt-box${c ? ' filled' : ''}${S.result && !S.result.correct ? ' miss' : ''}">${esc(c)}</span>`).join('');
 }
 function stateHTML(heard) {
   if (S.playState === 'loading') return '<p class="nt-state">正在准备音频…</p>';
@@ -170,11 +169,12 @@ function keysHTML(showResult, heard) {
   const next = showResult
     ? `<button class="nt-key confirm wide2" data-act="next">${last ? '看本轮结果' : '下一题'}</button>`
     : `<button class="nt-key confirm" data-act="confirm" ${canConfirm ? '' : 'disabled'}>确认</button>`;
+  const lock = showResult ? 'disabled' : '';
   return `<div class="nt-keys">
-    ${[1, 2, 3].map(d => `<button class="nt-key" data-digit="${d}">${d}</button>`).join('')}<button class="nt-key alt" data-act="del">删除</button>
-    ${[4, 5, 6].map(d => `<button class="nt-key" data-digit="${d}">${d}</button>`).join('')}<button class="nt-key alt" data-act="replay">重听</button>
-    ${[7, 8, 9].map(d => `<button class="nt-key" data-digit="${d}">${d}</button>`).join('')}<button class="nt-key alt" data-act="hint" ${showResult ? 'disabled' : ''}>提示</button>
-    <button class="nt-key alt" data-act="skip" ${showResult ? 'disabled' : ''}>跳过</button><button class="nt-key" data-digit="0">0</button>${next}
+    ${[1, 2, 3].map(d => `<button class="nt-key" data-digit="${d}" ${lock}>${d}</button>`).join('')}<button class="nt-key alt" data-act="del" ${lock}>删除</button>
+    ${[4, 5, 6].map(d => `<button class="nt-key" data-digit="${d}" ${lock}>${d}</button>`).join('')}<button class="nt-key alt" data-act="replay">重听</button>
+    ${[7, 8, 9].map(d => `<button class="nt-key" data-digit="${d}" ${lock}>${d}</button>`).join('')}<button class="nt-key alt" data-act="hint" ${showResult ? 'disabled' : ''}>提示</button>
+    <button class="nt-key alt" data-act="skip" ${showResult ? 'disabled' : ''}>跳过</button><button class="nt-key" data-digit="0" ${lock}>0</button>${next}
   </div>`;
 }
 function doneHTML() {
@@ -191,8 +191,7 @@ function doneHTML() {
     : S.finishState === 'error'
       ? '<div class="nt-advice"><p>本轮记录已保存，但汇总暂时读不到，可以稍后在「最近记录」里查看。</p></div>'
       : `${tiles(s)}<div class="nt-advice">${adv.map(a => `<p>${esc(a.text)}</p>`).join('') || '<p>记录已保存。</p>'}</div>`;
-  return `${headHTML('本轮完成', { back: false, gear: false })}
-  <div class="nt-pad">
+  return `<div class="nt-pad">
     <h1 class="nt-h1">本轮完成</h1>
     ${summary}
     <details class="nt-detail"><summary>看这一轮的每一题</summary><ul class="nt-list">${rows}</ul></details>
@@ -278,7 +277,8 @@ async function loadAndPlay(q) {
   }
 }
 async function playCurrent(isReplay = false) {
-  const q = currentQ();if (!q || S.result) return;
+  const q = currentQ();if (!q) return;
+  if (S.result && !isReplay) return;
   if (isReplay || S.plays > 0) S.replay = true;
   const token = S.token;
   S.playState = 'playing';render();
