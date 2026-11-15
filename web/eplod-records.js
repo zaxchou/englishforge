@@ -2,7 +2,7 @@
   'use strict';
   const copy=x=>x===undefined?undefined:JSON.parse(JSON.stringify(x));
   const object=x=>x&&typeof x==='object'&&!Array.isArray(x);
-  const SCORING_VERSION=16;
+  const SCORING_VERSION=17;
   /* 判分归一分词(r19): 官方文本的 "5:58" 分词成 [5,58], ASR/用户输入是 [five,fifty,eight],
      形状不同会白扣分——数字 token 统一展开成读法单词; oh 与 zero 互通(两侧同变换, 只增匹配不改错配)。 */
   const NUM1={0:'zero',1:'one',2:'two',3:'three',4:'four',5:'five',6:'six',7:'seven',8:'eight',9:'nine',10:'ten',11:'eleven',12:'twelve',13:'thirteen',14:'fourteen',15:'fifteen',16:'sixteen',17:'seventeen',18:'eighteen',19:'nineteen',20:'twenty'};   /* 20 曾缺表, expandNum 兜底成 "20" 配不上 twenty(r2 2026-10-30) */
@@ -156,7 +156,8 @@
   }
   function normTokens(s){return tokenSegments(s).flatMap(part=>part.tokens);}
   /* 语音赦免仅限逐项确认的姓名变体与序数误听。普通数词、内容词、星期名称不走编辑距离或大写猜测。 */
-  const NAME_ALIASES=[['julianne','julian'],['mcnealy','mclean']];
+  // 0076: 原版配音与用户归档录音均被无偏置 ASR 写成 Cadillac（2026-11-15）。
+  const NAME_ALIASES=[['julianne','julian'],['mcnealy','mclean'],['kadlec','cadillac']];
   /* 序数词尾 -tieth 常被 ASR 转写成 -ties(0044 "70th"→"seventies" 实测); 只在语音判分里
      互认, 默写打字仍要求正确写法。 */
   const ASR_ORDINAL_ALIASES=[['twenties','twentieth'],['thirties','thirtieth'],['forties','fortieth'],
@@ -271,8 +272,9 @@
   }
   /* 兼容旧调用方的计数返回值; 新调用方可用 repairVoiceScores 获取逐字段审计。 */
   function repairVoiceFuzzyScores(records,loadDialogue){return repairVoiceScores(records,loadDialogue).changed;}
-  /* 只重算有本次原始转写的显式结果。rd.acc 是没有 best 转写的历史聚合, 不能从 latest
-     反推或降低。wp 的 best/latest 各用自己的 text, 双方均核实后才重选 best 并完整审计。 */
+  /* 只重算有本次原始转写的显式结果。rd.acc 不降低；仅当前 voice/latest/归档录音
+     绑定同一 attempt 时，用该次已验证分数补足下限。无绑定的历史聚合保留。
+     wp 的 best/latest 各用自己的 text, 双方均核实后才重选 best 并完整审计。 */
   function repairVoiceScores(records,loadDialogue){
     const changes=[],skipped=[];
     const skip=(path,reason)=>skipped.push({path,reason});
@@ -292,13 +294,19 @@
       for(const [i,row] of Object.entries(drill.rd||{})){
         if(!object(row))continue;
         const path=[...base,'rd',i],official=dialogue[i]?.text;
-        if(Number.isFinite(row.acc))skip([...path,'acc'],'unverifiable-historical-best');
+        const aggregateBefore=row.acc;
         if(!hasText(official)||!normTokens(official).length){skip(path,'official-text-unavailable');continue;}
         const rescore=(result,resultPath)=>{
           if(!hasText(result.text)){skip(resultPath,'transcript-unavailable');return;}
           if(scoringVersion(result)>SCORING_VERSION){skip(resultPath,'newer-scoring-version');return;}
           write(result,'acc',lcsAccFuzzy(official,result.text),resultPath,'normalized-voice-transcript');
           write(result,'scoringVersion',SCORING_VERSION,resultPath,'verified-voice-scoring-version');
+          if(Number.isFinite(row.acc)&&result.acc>row.acc&&hasText(row.rec)&&hasText(result.id)&&time(result.at)>0&&
+             row.recAttemptId===result.id&&time(row.recAt)===time(result.at)&&
+             row.latest?.mode==='voice'&&row.latest.id===result.id&&time(row.latest.at)===time(result.at)&&
+             row.latest.text===result.text&&row.mode==='voice'&&row.last===result.text&&time(row.at)===time(result.at)){
+            write(row,'acc',result.acc,path,'verified-archived-voice-best');
+          }
         };
         if(object(row.voice)){
           if(row.voice.mode==null||row.voice.mode==='voice')rescore(row.voice,[...path,'voice']);
@@ -316,6 +324,7 @@
             write(row,'lastScoringVersion',SCORING_VERSION,path,'verified-voice-mirror-version');
           }
         }
+        if(Number.isFinite(row.acc)&&row.acc===aggregateBefore)skip([...path,'acc'],'unverifiable-historical-best');
       }
       if(!object(drill.wp))continue;
       const sourceValid=dialogue.length&&dialogue.every(line=>object(line)&&typeof line.text==='string');

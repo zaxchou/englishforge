@@ -37,7 +37,7 @@ test('R6: ordinary number/content/day words require an exact normalized match', 
 });
 
 test('R6: only confirmed name aliases are forgiven, in both directions and only for voice scoring', () => {
-  for (const [a, b] of [['Julianne', 'Julian'], ['McNealy', 'McLean']]) {
+  for (const [a, b] of [['Julianne', 'Julian'], ['McNealy', 'McLean'], ['Kadlec', 'Cadillac']]) {
     assert.equal(E.fuzzyEqual(a.toLowerCase(), b.toLowerCase()), true);
     assert.equal(E.fuzzyEqual(b.toLowerCase(), a.toLowerCase()), true);
     assert.equal(E.fuzzyEqual(a.toLowerCase(), a.toLowerCase()), false, 'Exact matches need no alias rescue');
@@ -472,6 +472,50 @@ test('r5: historical scores for 6\'1" lines rescore to the spoken form six one',
   const dict = {course: {'eplod-0039': {drill: {dd: {0: {acc: 6 / 7, mode: 'dict', last: spoken, at: 5}}}}}};
   assert.equal(E.repairNumberScores(dict, () => height), 1);
   assert.equal(dict.course['eplod-0039'].drill.dd[0].acc, 1);
+});
+
+test('0076: Kadlec/Cadillac recognizer alias clears both voice sentences but not typed spelling', () => {
+  for (const official of ['Sorry Miss Kadlec.', "Miss Kadlec always asks Crystal; she's such a teacher's pet."]) {
+    const spoken = official.replace('Kadlec', 'Cadillac');
+    const score = E.scoreTokens(official, spoken, true);
+    assert.equal(score.acc, 1); assert.deepEqual(score.extras, []);
+    assert.ok(score.marks.every(Boolean)); assert.ok(score.matched.every(Boolean));
+    assert.ok(E.scoreTokens(official, spoken, false).acc < 1);
+  }
+  assert.ok(E.lcsAccFuzzy('Sorry Miss Kadlec.', 'Sorry Miss Kathleen.') < 1, 'other names stay distinct');
+  assert.ok(E.lcsAccFuzzy('Sorry Miss Kadlec.', 'Sorry Mister Cadillac.') < 1, 'an alias does not forgive the wrong title');
+});
+
+test('archived voice evidence raises only the same bound attempt, preserving history and stamps', () => {
+  const make = () => ({course: {'eplod-0076': {drill: {
+    rd: {1: {...row(voice('name-take', 100, 'Sorry, Miss Cadillac.', 2 / 3)),
+      rec: 'synthetic-name.webm', recAt: 100, recAttemptId: 'name-take'}},
+    stampDays: {'2026-11-15': [0]}
+  }}}});
+  const dialogue = [{text: 'Other sentence.'}, {text: 'Sorry Miss Kadlec.'}];
+  const records = make(), before = clone(records);
+  const audit = E.repairVoiceScores(records, () => dialogue);
+  const r = records.course['eplod-0076'].drill.rd[1];
+  assert.equal(r.acc, 1); assert.equal(r.voice.acc, 1); assert.equal(r.latest.acc, 1); assert.equal(r.lastAcc, 1);
+  assert.equal(r.rec, 'synthetic-name.webm'); assert.equal(r.recAttemptId, 'name-take');
+  assert.deepEqual(records.course['eplod-0076'].drill.stampDays, before.course['eplod-0076'].drill.stampDays);
+  assert.ok(audit.changes.some(x => x.reason === 'verified-archived-voice-best' && x.path.at(-1) === 'acc'));
+  assert.equal(E.repairVoiceScores(records, () => dialogue).changed, 0, 'repeat-safe');
+  for (const mutate of [
+    r => {delete r.rec;}, r => {r.recAttemptId = 'other';}, r => {r.recAt = 99;},
+    r => {r.latest.id = 'other';}, r => {r.latest.at = 99;},
+    r => {r.latest.text = 'Different transcript';}, r => {r.last = 'Different transcript';},
+    r => {r.latest.mode = 'type';}, r => {r.at = 99;},
+    r => {delete r.recAt; delete r.at; delete r.latest.at; delete r.voice.at;}
+  ]) {
+    const uncertain = make(), target = uncertain.course['eplod-0076'].drill.rd[1]; mutate(target);
+    E.repairVoiceScores(uncertain, () => dialogue);
+    assert.equal(target.acc, 2 / 3, 'ambiguous archive/result binding cannot change the aggregate');
+  }
+  const higher = make(); higher.course['eplod-0076'].drill.rd[1].acc = 1;
+  higher.course['eplod-0076'].drill.rd[1].last = higher.course['eplod-0076'].drill.rd[1].latest.text = higher.course['eplod-0076'].drill.rd[1].voice.text = 'Sorry.';
+  E.repairVoiceScores(higher, () => dialogue);
+  assert.equal(higher.course['eplod-0076'].drill.rd[1].acc, 1, 'never reduce an unverifiable past best');
 });
 
 const bestText = 'I have fifty dollars. Julian calls McLean. The decor is beautiful.';
