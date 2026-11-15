@@ -215,6 +215,32 @@ async function typeValue(page, value) {
         await page.locator('[data-auto="off"]').click();
       }
 
+      // 电话号模式：逐位播放、前导零、分组反馈
+      if (w === 390) {
+        const audioRes = [];
+        page.on('response', r => { if (new URL(r.url()).pathname === '/api/number-trainer/audio') audioRes.push(r.status()); });
+        await page.locator('[data-kind="phone"]').click();
+        await page.locator('[data-phone="7:7"]').click();
+        await page.locator('[data-act="start"]').click();
+        await page.locator('.nt-bars').waitFor();
+        await page.waitForFunction(() => /输入你听到的数值/.test(document.querySelector('.nt-state')?.textContent || ''), null, { timeout: 40000 });
+        const ps = await sessionOf(page);
+        assert(ps.session.questions.every(q => q.mode === 'phone'), 'phone session');
+        assert(ps.session.questions.every(q => String(q.value).length === 7), '7-digit numbers');
+        const pv = String(ps.session.questions[0].value);
+        await page.keyboard.type(pv);
+        assert.equal((await page.locator('.nt-digits').textContent()).replace(/\s/g, ''), pv, 'leading zeros typeable');
+        await page.keyboard.press('Enter');
+        await page.locator('.nt-result.ok').waitFor();
+        const grouped = pv.slice(0, 3) + ' ' + pv.slice(3);
+        assert((await page.locator('.nt-result').textContent()).includes(grouped), 'grouped display in feedback');
+        assert(audioRes.filter(x => x === 200 || x === 206).length >= 1, 'phone audio served: ' + JSON.stringify(audioRes));
+        page.once('dialog', d => d.accept());
+        await page.locator('[data-act="back"]').click();
+        await page.locator('.nt-h1').waitFor();
+        await page.locator('[data-kind="number"]').click();
+      }
+
       const overflow = await page.evaluate(() => ({ w: innerWidth, s: document.documentElement.scrollWidth }));
       assert(overflow.s <= overflow.w, 'horizontal overflow ' + JSON.stringify(overflow));
       const shot = path.join(out, 'ui-' + w + '.png');

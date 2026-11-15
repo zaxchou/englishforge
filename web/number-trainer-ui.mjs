@@ -12,7 +12,7 @@ const API = '/api/number-trainer';
 
 const S = {
   mounted: false, token: 0, screen: 'home',
-  cfg: { mode: 'smart', digits: 3, count: 20, rate: 1, auto: true },
+  cfg: { mode: 'smart', digits: 3, count: 20, rate: 1, auto: true, phoneMin: 7, phoneMax: 11 },
   meta: null, summary: null, history: null,
   session: null, index: 0, input: '', caret: 0, answers: [], autoTimer: null,
   playState: 'idle', endedAt: 0, firstAt: 0, replay: false, hint: false, plays: 0,
@@ -76,27 +76,46 @@ function headHTML(title, { back = true, gear = true } = {}) {
   const right = gear ? `<button class="nt-ico" data-act="settings" aria-label="设置">${ICON_GEAR}</button>` : '<span class="nt-ico-space" aria-hidden="true"></span>';
   return `<div class="nt-top">${left}<b>${esc(title)}</b>${right}</div>`;
 }
-function tiles(s, label = '已练题数') {
+function tiles(s, accLabel = '单听准确', label = '已练题数') {
   const ready = !!s?.total?.settled;
   return `<div class="nt-tiles">
-    <div><b>${ready ? Math.round((s.total.independentRate || 0) * 100) + '%' : '—'}</b><span>单听准确</span></div>
+    <div><b>${ready ? Math.round((s.total.independentRate || 0) * 100) + '%' : '—'}</b><span>${accLabel}</span></div>
     <div><b>${ready ? M.fmtSec(s.total.medianMs) : '—'}</b><span>中位用时</span></div>
     <div><b>${ready ? s.total.settled : 0}</b><span>${label}</span></div>
   </div>`;
 }
 function homeHTML() {
-  const s = S.summary?.summary, adv = S.summary?.advice || [], rec = S.summary?.recommendedDigits;
-  const last = (S.history?.rounds || []).find(r => r.settled >= 5);
+  const phone = S.cfg.mode === 'phone';
+  const s = phone ? S.summary?.phone?.summary : S.summary?.summary;
+  const adv = (phone ? S.summary?.phone?.advice : S.summary?.advice) || [];
+  const rec = S.summary?.recommendedDigits;
+  const last = (S.history?.rounds || []).find(r => r.settled >= 5 && (phone ? r.mode === 'phone' : r.mode !== 'phone'));
+  const has = (s?.total?.settled || 0) > 0;
   return `<div class="nt-pad">
     <h1 class="nt-h1">数字敏感度训练</h1>
-    <p class="nt-lead">每题播放一个英语数字，听完输入数值。电脑上直接敲数字即可，不用点输入框；答对会自动进入下一题。</p>
-    ${(s?.total?.settled || 0) > 0
-      ? `${tiles(s)}<div class="nt-advice">${adv.slice(0, 2).map(a => `<p>${esc(a.text)}</p>`).join('')}</div>`
-      : '<p class="nt-empty">还没有训练记录。做完第一轮，这里会显示单听准确率、反应时间和针对你的建议。</p>'}
-    <div class="nt-field"><span class="nt-label">位数</span><div class="nt-chips cols-7" role="group" aria-label="位数">
-      <button class="nt-chip span2${S.cfg.mode === 'smart' ? ' on' : ''}" data-mode="smart">智能</button>
-      ${[2, 3, 4, 5, 6].map(d => `<button class="nt-chip${S.cfg.mode === 'fixed' && S.cfg.digits === d ? ' on' : ''}" data-fixed="${d}">${d}</button>`).join('')}
-    </div>${S.cfg.mode === 'smart' ? `<span class="nt-note">${(s?.total?.settled || 0) >= 5 ? `按当前记录建议 ${rec} 位` : '还没有记录，先按 2 位起步'}</span>` : ''}</div>
+    <p class="nt-lead">${phone
+      ? '逐个数字播放，像听电话号码一样。长度不固定，前面的 0 也要写出来。'
+      : '每题播放一个英语数字，听完输入数值。电脑上直接敲数字即可；答对会自动进入下一题。'}</p>
+    <div class="nt-field"><span class="nt-label">练什么</span><div class="nt-chips" role="group" aria-label="练习类型">
+      <button class="nt-chip${phone ? '' : ' on'}" data-kind="number">数字</button>
+      <button class="nt-chip${phone ? ' on' : ''}" data-kind="phone">电话号码</button>
+    </div></div>
+    ${has ? tiles(s, phone ? '逐位准确' : '单听准确', phone ? '已练题数' : '已练题数') : ''}
+    ${has
+      ? `<div class="nt-advice">${adv.slice(0, 2).map(a => `<p>${esc(a.text)}</p>`).join('')}</div>`
+      : `<p class="nt-empty">${phone ? '还没有电话号记录。先做一轮 7 位号码建立基线。' : '还没有训练记录。做完第一轮，这里会显示准确率、反应时间和建议。'}</p>`}
+    ${phone
+      ? `<div class="nt-field"><span class="nt-label">号码长度</span><div class="nt-chips cols-4" role="group" aria-label="号码长度">
+          ${[['7:11', '随机 7–11'], ['7:7', '7 位'], ['10:10', '10 位'], ['11:11', '11 位']].map(([range, label]) => {
+            const [lo, hi] = range.split(':').map(Number);
+            const on = (S.cfg.phoneMin || 7) === lo && (S.cfg.phoneMax || 11) === hi;
+            return `<button class="nt-chip${on ? ' on' : ''}" data-phone="${range}">${label}</button>`;
+          }).join('')}
+        </div></div>`
+      : `<div class="nt-field"><span class="nt-label">位数</span><div class="nt-chips cols-7" role="group" aria-label="位数">
+          <button class="nt-chip span2${S.cfg.mode === 'smart' ? ' on' : ''}" data-mode="smart">智能</button>
+          ${[2, 3, 4, 5, 6].map(d => `<button class="nt-chip${S.cfg.mode === 'fixed' && S.cfg.digits === d ? ' on' : ''}" data-fixed="${d}">${d}</button>`).join('')}
+        </div>${S.cfg.mode === 'smart' ? `<span class="nt-note">${has && (s?.total?.settled || 0) >= 5 ? `按当前记录建议 ${rec} 位` : '还没有记录，先按 2 位起步'}</span>` : ''}</div>`}
     <div class="nt-field"><span class="nt-label">每轮</span><div class="nt-chips cols-3" role="group" aria-label="每轮题数">
       ${[10, 20, 30].map(n => `<button class="nt-chip${S.cfg.count === n ? ' on' : ''}" data-count="${n}">${n} 题</button>`).join('')}
     </div></div>
@@ -108,7 +127,7 @@ function homeHTML() {
     ${last ? `<button class="nt-last" data-act="history">
       <span><b>上次训练</b><small>${esc(dayLabel(last.endedAt))} · ${last.settled} 题 · ${Math.round((last.accuracy || 0) * 100)}%${last.medianMs ? ' · ' + M.fmtSec(last.medianMs) : ''}</small></span>
       <span class="nt-last-go">看记录 →</span></button>` : ''}
-    <p class="nt-fine">${S.meta?.tts === false ? '当前使用浏览器朗读，声音与速度因设备而异。' : '音频为固定音色与读法；加载时间不计入反应时间。'}</p>
+    <p class="nt-fine">${S.meta?.tts === false ? '当前使用浏览器朗读，声音与速度因设备而异。' : phone ? '单个数字拼接播放，停顿固定；不按整数连读。' : '音频为固定音色与读法；加载时间不计入反应时间。'}</p>
     ${S.pending ? `<p class="nt-fine nt-warn">${S.pending} 条作答待同步，联网后自动补传。</p>` : ''}
   </div>`;
 }
@@ -130,11 +149,12 @@ function trainHTML() {
   const q = currentQ(), total = S.session?.questions.length || S.cfg.count;
   const pct = Math.round((S.index + 1) / total * 100);
   const heard = S.playState === 'ready' || S.playState === 'done';
+  const compact = q?.mode === 'phone' && q.digits >= 9;
   return `${headHTML('正在练习', { gear: false })}
   <div class="nt-bars" role="progressbar" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${S.index + (S.result ? 1 : 0)}"><i style="width:${pct}%"></i></div>
   <div class="nt-meta-row"><span>${S.index + 1} / ${total}</span><button class="nt-src" data-act="srchint">${esc(M.SOURCE_LABELS[q?.source] || '')} ⓘ</button></div>
   <div class="nt-stage">
-    <div class="nt-digits" aria-live="polite">${inputBoxes()}</div>
+    <div class="nt-digits${compact ? ' compact' : ''}" aria-live="polite">${inputBoxes()}</div>
     ${S.result ? resultHTML() : stateHTML(heard)}
   </div>
   ${keysHTML(!!S.result, heard)}
@@ -168,9 +188,11 @@ function resultHTML() {
   const hint = q?.feature && FEATURE_HINT[q.feature] ? `<p class="nt-why">${esc(FEATURE_HINT[q.feature])}</p>` : '';
   return `<div class="nt-result ${r.correct ? 'ok' : 'bad'}" role="status">
     <b>${r.correct ? (S.assistedThis ? '答对了（用了辅助）' : '答对了') : (r.skip ? '已跳过' : '这次不对')}</b>
-    ${r.correct && !r.skip
-      ? `<p class="nt-answer-line"><code>${esc(r.answer)}</code><span>${esc(r.text)}</span></p>`
-      : `<div class="nt-compare"><span><small>你的输入</small><code>${esc(S.input || '—')}</code></span><span><small>正确</small><code>${esc(r.answer)}</code></span></div><p class="nt-read">${esc(r.text)}</p>`}
+    ${r.mode === 'phone'
+      ? `<div class="nt-compare"><span><small>你的输入</small><code>${esc(S.input ? M.groupDigits(S.input) : '—')}</code></span><span><small>正确</small><code>${esc(r.display || r.answer)}</code></span></div><p class="nt-read">${esc(r.text)}</p>`
+      : r.correct && !r.skip
+        ? `<p class="nt-answer-line"><code>${esc(r.answer)}</code><span>${esc(r.text)}</span></p>`
+        : `<div class="nt-compare"><span><small>你的输入</small><code>${esc(S.input || '—')}</code></span><span><small>正确</small><code>${esc(r.answer)}</code></span></div><p class="nt-read">${esc(r.text)}</p>`}
     ${tags ? `<p class="nt-tags">${tags}</p>` : ''}
     ${hint}
     <p class="nt-time">${S.submitMs != null ? `本题用时 ${M.fmtSec(S.submitMs)}` : '本题未记录有效时间'}${S.replay ? ' · 含重听' : ''}</p>
@@ -233,6 +255,15 @@ function bind() {
   });
   root.querySelectorAll('[data-auto]').forEach(b => b.onclick = () => { S.cfg.auto = b.dataset.auto === 'on';cfgSave();render(); });
   root.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => { S.cfg.mode = b.dataset.mode;cfgSave();render(); });
+  root.querySelectorAll('[data-kind]').forEach(b => b.onclick = () => {
+    if (b.dataset.kind === 'phone') S.cfg.mode = 'phone';
+    else if (S.cfg.mode === 'phone') S.cfg.mode = 'smart';
+    cfgSave();render();
+  });
+  root.querySelectorAll('[data-phone]').forEach(b => b.onclick = () => {
+    const [lo, hi] = b.dataset.phone.split(':').map(Number);
+    S.cfg.mode = 'phone';S.cfg.phoneMin = lo;S.cfg.phoneMax = hi;cfgSave();render();
+  });
   root.querySelectorAll('[data-fixed]').forEach(b => b.onclick = () => { S.cfg.mode = 'fixed';S.cfg.digits = Number(b.dataset.fixed);cfgSave();render(); });
   root.querySelectorAll('[data-count]').forEach(b => b.onclick = () => { S.cfg.count = Number(b.dataset.count);cfgSave();render(); });
 }
@@ -379,10 +410,11 @@ function submit(skip) {
   if (!skip && !S.input.trim()) { toast('先输入数字，或点跳过。');return; }
   const nowP = performance.now();
   S.submitMs = S.endedAt ? Math.round(nowP - S.endedAt) : null;
-  const graded = skip ? { correct: false, status: 'skipped' } : M.gradeAnswer(q.value, S.input);
+  const graded = skip ? { correct: false, status: 'skipped' }
+    : (q.mode === 'phone' ? M.gradePhone(q.value, S.input) : M.gradeAnswer(q.value, S.input));
   S.assistedThis = S.replay || S.hint;
   const errorTags = graded.correct || skip ? [] : M.classifyError(q.value, graded.normalized);
-  S.result = { correct: !!graded.correct, answer: q.value, text: q.text, errorTags, skip };
+  S.result = { correct: !!graded.correct, answer: q.value, text: q.text, errorTags, skip, mode: q.mode || 'number', display: q.mode === 'phone' ? M.groupDigits(q.value) : null };
   S.answers[S.index] = { correct: !!graded.correct, skip, assisted: S.assistedThis, submitMs: S.submitMs, errorTags };
   render();
   persist(skip);
@@ -393,7 +425,7 @@ function submit(skip) {
 function persist(skip) {
   const q = currentQ();
   const event = {
-    eventId: crypto.randomUUID(), sessionId: S.session.id, questionId: q.id,
+    eventId: crypto.randomUUID(), sessionId: S.session.id, questionId: q.id, mode: q.mode || 'number',
     raw: S.input, skip,
     replay: S.replay, hint: S.hint, plays: Math.max(1, S.plays),
     firstInputMs: S.firstAt && S.endedAt ? Math.round(S.firstAt - S.endedAt) : null,

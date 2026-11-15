@@ -167,6 +167,62 @@ export function makeQuestion({ digits = 3, feature = null, rng = Math.random, re
   return { value, text: readNumber(value), digits: digitsOf(value), feature: f || primaryFeature(value), features: featuresOf(value) };
 }
 
+/* ---------- 电话号码（逐位，不按整数读） ---------- */
+export const DIGIT_WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine'];
+export const PHONE_MIN = 3, PHONE_MAX = 12;
+
+export function phoneLength({ min = 7, max = 11, rng = Math.random } = {}) {
+  const lo = Math.min(PHONE_MAX, Math.max(PHONE_MIN, Number(min) || 7));
+  const hi = Math.min(PHONE_MAX, Math.max(lo, Number(max) || lo));
+  return lo + Math.floor(rng() * (hi - lo + 1));
+}
+
+/** 逐位读法文本：数字之间留空格，浏览器朗读时才不会当成一个整数。 */
+export function readDigits(digits) { return [...String(digits)].map(d => DIGIT_WORDS[+d]).join(' '); }
+
+/** 显示分组：>=10 位按 3-3-4，7 位按 3-4，其余 3 位一组，便于对照。 */
+export function groupDigits(digits) {
+  const s = String(digits);
+  if (s.length === 10) return [s.slice(0, 3), s.slice(3, 6), s.slice(6)].join(' ');
+  if (s.length === 11) return [s.slice(0, 3), s.slice(3, 7), s.slice(7)].join(' ');
+  if (s.length === 7) return [s.slice(0, 3), s.slice(3)].join(' ');
+  const out = [];
+  for (let i = 0; i < s.length; i += 3) out.push(s.slice(i, i + 3));
+  return out.join(' ');
+}
+export function phoneFeatures(value) {
+  const s = String(value), tags = [];
+  if (/^0/.test(s)) tags.push('leadingZero');
+  if (/0/.test(s)) tags.push('hasZero');
+  if (/(\d)\1/.test(s)) tags.push('adjacentRepeat');
+  if (/^(\d)\1{2,}/.test(s)) tags.push('tripleRepeat');
+  return tags;
+}
+export function makePhoneQuestion({ min = 7, max = 11, rng = Math.random, recent = [] } = {}) {
+  const seen = new Set(recent.map(String));
+  for (let i = 0; i < 80; i++) {
+    const len = phoneLength({ min, max, rng });
+    const chars = [];
+    for (let k = 0; k < len; k++) chars.push(String(Math.floor(rng() * 10)));
+    if (chars[0] === '0' && rng() < 0.6) chars[0] = String(1 + Math.floor(rng() * 9)); // 前导零占少数
+    const value = chars.join('');
+    if (seen.has(value)) continue;
+    return { mode: 'phone', value, text: readDigits(value), digits: value.length, display: groupDigits(value), features: phoneFeatures(value), feature: phoneFeatures(value)[0] || null };
+  }
+  const value = String(Math.floor(rng() * 9) + 1) + Array.from({ length: 6 }, () => Math.floor(rng() * 10)).join('');
+  return { mode: 'phone', value, text: readDigits(value), digits: value.length, display: groupDigits(value), features: phoneFeatures(value), feature: null };
+}
+
+/** 电话号按字符串比对：允许空格/连字符，前导零必须保留。 */
+export function gradePhone(target, raw) {
+  const s = String(raw ?? '').trim();
+  if (!s) return { status: 'empty', correct: false, reason: 'empty' };
+  if (!/^[0-9][0-9\s-]*$/.test(s)) return { status: 'invalid', correct: false, reason: 'charset' };
+  const digits = s.replace(/[\s-]/g, '');
+  if (!digits) return { status: 'empty', correct: false, reason: 'empty' };
+  return { status: 'graded', correct: digits === String(target), normalized: digits };
+}
+
 export function normalizeInput(raw) {
   const s = String(raw ?? '').trim();
   if (!s) return { ok: false, reason: 'empty' };
@@ -225,9 +281,9 @@ function finish(b) {
     medianMs: quantile(times, .5), p80Ms: quantile(times, .8),
   };
 }
-export function summarizeAttempts(events, { days = 90, now = Date.now() } = {}) {
+export function summarizeAttempts(events, { days = 90, now = Date.now(), mode = 'number' } = {}) {
   const since = now - days * 86400000;
-  const list = (events || []).filter(e => e && e.target && !e.invalid && (!e.submittedAt || Date.parse(e.submittedAt) >= since));
+  const list = (events || []).filter(e => e && e.target && !e.invalid && (e.mode || 'number') === mode && (!e.submittedAt || Date.parse(e.submittedAt) >= since));
   const total = bucket(), byDigits = {}, byFeature = {}, byVoice = {}, errorTags = {};
   const today = new Date(now).toISOString().slice(0, 10);
   const todayBucket = bucket();
@@ -266,8 +322,8 @@ export function candidateWeaknesses(summary) {
     .map(([tag, b]) => ({ tag, settled: b.settled, errors: b.errors, confirmed: b.settled >= THRESHOLDS.minWeakSamples && b.errors >= THRESHOLDS.minWeakErrors }));
 }
 /** 最近 size 个该档有效作答（按提交时间）；升档看最近表现，避免早期错题永久压着。 */
-export function recentWindow(events, { digits = null, size = THRESHOLDS.promoteWindow } = {}) {
-  const list = (events || []).filter(e => e && e.target && !e.invalid && (digits == null || String(e.digits) === String(digits)));
+export function recentWindow(events, { digits = null, size = THRESHOLDS.promoteWindow, mode = 'number' } = {}) {
+  const list = (events || []).filter(e => e && e.target && !e.invalid && (e.mode || 'number') === mode && (digits == null || String(e.digits) === String(digits)));
   list.sort((a, b) => String(a.submittedAt).localeCompare(String(b.submittedAt)));
   const win = list.slice(-size);
   const independent = win.filter(e => !e.skip && !e.assisted && e.correct).length;
@@ -275,8 +331,8 @@ export function recentWindow(events, { digits = null, size = THRESHOLDS.promoteW
 }
 
 /** 当前在练哪一档：最近 20 个有效作答里出现最多的位数（并列取高的）。 */
-export function currentLevel(events, { size = THRESHOLDS.promoteWindow } = {}) {
-  const list = (events || []).filter(e => e && e.target && !e.invalid && e.digits);
+export function currentLevel(events, { size = THRESHOLDS.promoteWindow, mode = 'number' } = {}) {
+  const list = (events || []).filter(e => e && e.target && !e.invalid && e.digits && (e.mode || 'number') === mode);
   list.sort((a, b) => String(a.submittedAt).localeCompare(String(b.submittedAt)));
   const win = list.slice(-size);
   if (!win.length) return null;
@@ -338,6 +394,23 @@ export function buildAdvice(summary, config = {}) {
   return advice;
 }
 function pct(v) { return Math.round((v || 0) * 100) + '%'; }
+
+export const PHONE_FEATURE_LABELS = { leadingZero: '前导零', hasZero: '含 0', adjacentRepeat: '重复数字', tripleRepeat: '三连数字' };
+
+/** 电话号的建议只讲准确率/用时/哪类位串容易错，不涉及升档。 */
+export function buildPhoneAdvice(summary) {
+  const t = summary.total || {};
+  if ((t.settled || 0) < 5) return [{ kind: 'baseline', text: '样本还少，先做一轮；号码从 7 位开始比较稳。' }];
+  const out = [{ kind: 'level', text: `逐位正确率 ${pct(t.independentRate)}，中位 ${fmtSec(t.medianMs)}${t.samples ? `（${t.samples} 个有效计时）` : ''}。` }];
+  const weak = Object.entries(summary.byFeature || {})
+    .filter(([, b]) => b.settled >= 5 && b.errors >= 2 && (b.errorRate || 0) > 0.05)
+    .sort((a, b) => (b[1].errorRate || 0) - (a[1].errorRate || 0))[0];
+  if (weak) out.push({ kind: 'weak', tag: weak[0], text: `「${PHONE_FEATURE_LABELS[weak[0]] || weak[0]}」在 ${weak[1].settled} 题里错 ${weak[1].errors} 次，下一轮会多出这类号码。` });
+  const lens = Object.entries(summary.byDigits || {}).map(([d, b]) => [Number(d), b]).sort((a, b) => a[0] - b[0]);
+  const weakest = lens.filter(([, b]) => b.settled >= 3).sort((a, b) => (a[1].independentRate || 0) - (b[1].independentRate || 0))[0];
+  if (weakest && (weakest[1].independentRate || 0) < 0.9) out.push({ kind: 'len', text: `${weakest[0]} 位号码目前 ${pct(weakest[1].independentRate)}（${weakest[1].settled} 题），比其他长度弱。` });
+  return out;
+}
 
 export function fmtSec(ms) { return ms == null ? '—' : (ms / 1000).toFixed(1) + 's'; }
 

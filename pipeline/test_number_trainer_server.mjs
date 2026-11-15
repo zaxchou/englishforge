@@ -133,4 +133,42 @@ const kept = fs.readdirSync(path.dirname(dayFile)).filter(f => f.includes('corru
 assert.equal(kept.length, 1, '损坏文件被改名保留');
 ok('store: 坏分卷报错且保留原件');
 
+// 电话号：逐位播放素材、前导零判分、统计与整数互不污染
+const phoneSession = await call(nt, 'POST', '/api/number-trainer/sessions', { mode: 'phone', count: 6, phoneMin: 7, phoneMax: 7 });
+assert.equal(phoneSession.status, 200);
+assert.equal(phoneSession.data.questions.length, 6);
+for (const q of phoneSession.data.questions) {
+  assert.equal(q.mode, 'phone');
+  assert.equal(q.value.length, 7);
+  assert(q.display.includes(' '));
+  assert.match(q.audioUrl, /^\/api\/number-trainer\/audio\?s=/);
+  assert.match(q.text, /^(zero|one|two|three|four|five|six|seven|eight|nine)( (zero|one|two|three|four|five|six|seven|eight|nine))+$/);
+}
+for (const d of [0, 5, 9]) {
+  const clip = await call(nt, 'GET', '/api/number-trainer/digit-audio?d=' + d);
+  assert.equal(clip.status, 200);
+  assert.equal(clip.raw.subarray(0, 4).toString('ascii'), 'RIFF');
+}
+const phoneAudio = await call(nt, 'GET', phoneSession.data.questions[0].audioUrl);
+assert.equal(phoneAudio.status, 200);
+assert.equal(phoneAudio.raw.subarray(0, 4).toString('ascii'), 'RIFF');
+assert(phoneAudio.raw.length > 20000, 'assembled phone audio has content: ' + phoneAudio.raw.length);
+assert.equal((await call(nt, 'GET', '/api/number-trainer/digit-audio?d=10')).status, 400);
+const pq = phoneSession.data.questions[0];
+const phoneOk = await call(nt, 'POST', '/api/number-trainer/attempt', { eventId: 'ph-0001', sessionId: phoneSession.data.id, questionId: pq.id, raw: [...pq.value].join(' '), plays: 1, submitMs: 2400, timingValid: true });
+assert.equal(phoneOk.data.result.correct, true, '允许空格分隔');
+const q2 = phoneSession.data.questions[1];
+const phoneBad = await call(nt, 'POST', '/api/number-trainer/attempt', { eventId: 'ph-0002', sessionId: phoneSession.data.id, questionId: q2.id, raw: q2.value.slice(0, -1), plays: 1, submitMs: 2600, timingValid: true });
+assert.equal(phoneBad.data.result.correct, false, '少一位应判错');
+const zeroQ = phoneSession.data.questions.find(q => /^0/.test(q.value));
+if (zeroQ) {
+  const dropZero = await call(nt, 'POST', '/api/number-trainer/attempt', { eventId: 'ph-0003', sessionId: phoneSession.data.id, questionId: zeroQ.id, raw: zeroQ.value.replace(/^0/, ''), plays: 1, submitMs: 2600, timingValid: true });
+  assert.equal(dropZero.data.result.correct, false, '少写前导零应判错');
+}
+const afterPhone = await call(nt, 'GET', '/api/number-trainer/summary');
+assert(afterPhone.data.phone.summary.total.settled >= 2, 'phone stats count');
+assert.equal(afterPhone.data.summary.total.settled, sum.data.summary.total.settled, 'integer stats unaffected');
+assert(afterPhone.data.phone.advice.length > 0);
+ok('电话号: 7位会话、单数字音频、空格容忍、前导零严格、统计分账');
+
 console.log(`\n${pass} groups passed`);

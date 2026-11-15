@@ -1,6 +1,8 @@
 /* 数字听写服务：会话、音频、幂等作答、摘要。
    与主站学习账分账；只写 number-trainer/ 目录。 */
 import crypto from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
 import * as M from './web/number-trainer-model.mjs';
 import { createStore } from './number-trainer-store.mjs';
 
@@ -26,18 +28,22 @@ export function createNumberTrainer({ recordsDir, ttsConfigured = false, ttsSynt
       countDefault: 20, countOptions: [10, 20, 30],
       features: M.FEATURE_LABELS, errorLabels: M.ERROR_LABELS, sources: M.SOURCE_LABELS,
       readingVersion: M.READING_VERSION, gradingVersion: M.GRADE_VERSION,
+      phoneMin: M.PHONE_MIN, phoneMax: M.PHONE_MAX,
       tts: !!ttsConfigured,
       thresholds: M.THRESHOLDS,
     };
   }
 
   function sanitizeConfig(input = {}) {
-    const mode = input.mode === 'fixed' ? 'fixed' : 'smart';
+    const mode = input.mode === 'phone' ? 'phone' : input.mode === 'fixed' ? 'fixed' : 'smart';
     const digits = num(input.digits, M.DIGIT_MIN, M.DIGIT_MAX, 3);
+    const phoneMin = num(input.phoneMin, M.PHONE_MIN, M.PHONE_MAX, 7);
     return {
       mode, digits,
       startDigits: num(input.startDigits, M.DIGIT_MIN, M.DIGIT_MAX, 2),
       maxDigits: Math.max(digits, num(input.maxDigits, M.DIGIT_MIN, M.DIGIT_MAX, M.DIGIT_MAX)),
+      phoneMin,
+      phoneMax: Math.max(phoneMin, num(input.phoneMax, M.PHONE_MIN, M.PHONE_MAX, 11)),
       count: num(input.count, 5, 60, 20),
       rate: [0.8, 1].includes(Number(input.rate)) ? Number(input.rate) : 1,
     };
@@ -45,18 +51,78 @@ export function createNumberTrainer({ recordsDir, ttsConfigured = false, ttsSynt
 
   function summaryFor(days = 90) {
     const events = store.readRange({ days });
-    const summary = M.summarizeAttempts(events, { days, now: now() });
-    // 升档看最近 20 个同档有效作答，避免早期错题永久压着；长期弱项仍用全量。
-    const level = M.currentLevel(events);
-    summary.recent = level == null ? null : M.recentWindow(events, { digits: level });
+    // 整数值和电话号是两种技能，统计完全分开，避免互相污染档位与弱项。
+    const summary = M.summarizeAttempts(events, { days, now: now(), mode: 'number' });
+    const level = M.currentLevel(events, { mode: 'number' });
+    summary.recent = level == null ? null : M.recentWindow(events, { digits: level, mode: 'number' });
     summary.level = level;
+    const phone = M.summarizeAttempts(events, { days, now: now(), mode: 'phone' });
     return {
       summary,
       advice: M.buildAdvice(summary),
       candidateWeaknesses: M.candidateWeaknesses(summary),
       recommendedDigits: M.currentDigits(summary, { maxDigits: M.DIGIT_MAX, startDigits: 2 }, summary.recent),
+      phone: { summary: phone, advice: M.buildPhoneAdvice(phone) },
     };
   }
+
+  /* ---------- 电话号：把 10 个单数字音频按固定停顿拼成一条 ---------- */
+  const digitCache = new Map();   // d -> {fmt, data}
+  async function digitClip(d) {
+    if (digitCache.has(d)) return digitCache.get(d);
+    const file = await ttsSynth(M.DIGIT_WORDS[d]);
+    const buf = fs.readFileSync(file);
+    const parsed = parseWav(buf);
+    if (!parsed) throw new Error('BAD_DIGIT_WAV');
+    digitCache.set(d, parsed);
+    return parsed;
+  }
+  function parseWav(buf) {
+    if (buf.length < 44 || buf.toString('ascii', 0, 4) !== 'RIFF' || buf.toString('ascii', 8, 12) !== 'WAVE') return null;
+    let off = 12, fmt = null, data = null;
+    while (off + 8 <= buf.length) {
+      const id = buf.toString('ascii', off, off + 4), size = buf.readUInt32LE(off + 4);
+      if (id === 'fmt ') fmt = { channels: buf.readUInt16LE(off + 10), sampleRate: buf.readUInt32LE(off + 12), bits: buf.readUInt16LE(off + 22) };
+      else if (id === 'data') { data = buf.subarray(off + 8, off + 8 + Math.min(size, buf.length - off - 8)); break; }
+      off += 8 + size + (size % 2);
+    }
+    if (!fmt || !data?.length || ![8, 16, 24, 32].includes(fmt.bits)) return null;
+    return { fmt, data };
+  }
+  function silence(fmt, ms) {
+    const bytes = Math.round(fmt.sampleRate * fmt.channels * (fmt.bits / 8) * ms / 1000);
+    return Buffer.alloc(bytes - (bytes % (fmt.channels * (fmt.bits / 8))));
+  }
+  function wavHeader(fmt, dataBytes) {
+    const h = Buffer.alloc(44);
+    h.write('RIFF', 0);h.writeUInt32LE(36 + dataBytes, 4);h.write('WAVE', 8);h.write('fmt ', 12);
+    h.writeUInt32LE(16, 16);h.writeUInt16LE(1, 20);h.writeUInt16LE(fmt.channels, 22);
+    h.writeUInt32LE(fmt.sampleRate, 24);h.writeUInt32LE(fmt.sampleRate * fmt.channels * (fmt.bits / 8), 28);
+    h.writeUInt16LE(fmt.channels * (fmt.bits / 8), 32);h.writeUInt16LE(fmt.bits, 34);
+    h.write('data', 36);h.writeUInt32LE(dataBytes, 40);
+    return h;
+  }
+  async function phoneWav(digits, gapMs = 160) {
+    const clips = [];
+    for (const ch of String(digits)) clips.push(await digitClip(Number(ch)));
+    const fmt = clips[0].fmt;
+    for (const c of clips) if (c.fmt.sampleRate !== fmt.sampleRate || c.fmt.channels !== fmt.channels || c.fmt.bits !== fmt.bits) throw new Error('DIGIT_FORMAT_MISMATCH');
+    const gap = silence(fmt, gapMs);
+    const parts = [];
+    clips.forEach((c, i) => { if (i) parts.push(gap);parts.push(c.data); });
+    const dataBytes = parts.reduce((n, b) => n + b.length, 0);
+    const outDir = path.join(recordsDir, 'number-trainer', 'audio');
+    fs.mkdirSync(outDir, { recursive: true });
+    const sha = crypto.createHash('sha256').update([ttsModelTag(), digits, gapMs, M.READING_VERSION].join('|')).digest('hex');
+    const file = path.join(outDir, sha + '.wav');
+    if (!fs.existsSync(file)) {
+      const body = Buffer.concat([wavHeader(fmt, dataBytes), ...parts]);
+      const tmp = file + '.tmp';
+      fs.writeFileSync(tmp, body);fs.renameSync(tmp, file);
+    }
+    return file;
+  }
+  function ttsModelTag() { return process.env.TFL_TTS_MODEL || process.env.QWEN_TTS_MODEL || 'qwen3-tts-flash'; }
 
   function createSession(input) {
     const config = sanitizeConfig(input);
@@ -64,6 +130,32 @@ export function createNumberTrainer({ recordsDir, ttsConfigured = false, ttsSynt
     const focus = Array.isArray(input.focus)
       ? [...new Set(input.focus.map(f => Object.hasOwn(M.FEATURE_LABELS, f) ? f : ERROR_TO_FEATURE[f]).filter(Boolean))].slice(0, 3)
       : [];
+    if (config.mode === 'phone') {
+      const count = Math.max(5, Math.min(30, config.count));
+      const id = 's' + now().toString(36) + crypto.randomBytes(4).toString('hex');
+      const date = new Date(now()).toISOString().slice(0, 10);
+      const phoneQuestions = [];
+      const seen = [];
+      for (let i = 0; i < count; i++) {
+        const q = M.makePhoneQuestion({ min: config.phoneMin, max: config.phoneMax, rng: random, recent: seen });
+        seen.push(q.value);
+        const qid = 'q' + (i + 1);
+        phoneQuestions.push({ id: qid, ...q, source: 'probe', readingVersion: M.READING_VERSION, audioUrl: `/api/number-trainer/audio?s=${encodeURIComponent(id)}&q=${encodeURIComponent(qid)}` });
+      }
+      const session = {
+        id, date, createdAt: new Date(now()).toISOString(), config,
+        plan: { version: M.PLAN_VERSION + '+phone', baseDigits: null, focusTags: [], reviewTags: [] },
+        questions: phoneQuestions,
+        state: 'active', finishedAt: null,
+      };
+      store.saveSession(session);
+      store.pruneSessions(30);
+      return {
+        id, config, createdAt: session.createdAt, plan: session.plan,
+        advice: M.buildAdvice(summary),
+        questions: session.questions,
+      };
+    }
     let plan;
     if (focus.length) {
       // 错题重练：只按本轮错因出同类新数字，仍然不重复具体旧题。
@@ -124,7 +216,8 @@ export function createNumberTrainer({ recordsDir, ttsConfigured = false, ttsSynt
     const raw = typeof input.raw === 'string' ? input.raw.slice(0, MAX_RAW) : '';
     const skip = input.skip === true;
     if (!skip && !raw.trim()) throw Object.assign(new Error('ANSWER_EMPTY'), { code: 400 });
-    const graded = skip ? { status: 'skipped', correct: false, normalized: null } : M.gradeAnswer(q.value, raw);
+    const graded = skip ? { status: 'skipped', correct: false, normalized: null }
+      : (q.mode === 'phone' ? M.gradePhone(q.value, raw) : M.gradeAnswer(q.value, raw));
     if (graded.status === 'invalid') throw Object.assign(new Error('ANSWER_FORMAT'), { code: 400 });
     const correct = graded.correct === true;
     const errorTags = correct || skip ? [] : M.classifyError(q.value, graded.normalized);
@@ -132,6 +225,7 @@ export function createNumberTrainer({ recordsDir, ttsConfigured = false, ttsSynt
     const event = {
       eventId: String(input.eventId || ''), sessionId: session.id, questionId: q.id,
       sessionAt: session.createdAt, submittedAt: new Date(now()).toISOString(),
+      mode: q.mode || 'number',
       target: q.value, text: q.text, digits: q.digits, feature: q.feature, features: q.features, source: q.source,
       raw, normalized: graded.normalized || null, correct, skip,
       assisted: !!(input.replay === true || input.hint === true), replay: input.replay === true, hint: input.hint === true,
@@ -156,7 +250,7 @@ export function createNumberTrainer({ recordsDir, ttsConfigured = false, ttsSynt
     return { duplicate: false, result: resultOf(event) };
   }
   function resultOf(e) {
-    return { correct: !!e.correct, answer: e.target, text: e.text, errorTags: e.errorTags || [], skip: !!e.skip, normalized: e.normalized ?? null };
+    return { correct: !!e.correct, answer: e.target, text: e.text, display: e.mode === 'phone' ? M.groupDigits(e.target) : null, errorTags: e.errorTags || [], skip: !!e.skip, normalized: e.normalized ?? null };
   }
 
   /** 返回 true 表示已处理该请求。 */
@@ -168,6 +262,7 @@ export function createNumberTrainer({ recordsDir, ttsConfigured = false, ttsSynt
       sessionOne: /^\/api\/number-trainer\/sessions\/([a-z0-9-]{6,64})$/i.exec(p),
       finish: /^\/api\/number-trainer\/sessions\/([a-z0-9-]{6,64})\/finish$/i.exec(p),
       audio: p === '/api/number-trainer/audio',
+      digitAudio: p === '/api/number-trainer/digit-audio',
       attempt: p === '/api/number-trainer/attempt',
       summary: p === '/api/number-trainer/summary',
       attempts: p === '/api/number-trainer/attempts',
@@ -207,7 +302,23 @@ export function createNumberTrainer({ recordsDir, ttsConfigured = false, ttsSynt
         if (!s) { sendJSON(res, 404, { error: 'SESSION_NOT_FOUND' });return true; }
         if (s.state !== 'finished') { s.state = 'finished';s.finishedAt = new Date(now()).toISOString();store.updateSession(s); }
         const events = Object.values(store.readDay(s.date).events).filter(e => e.sessionId === s.id);
-        sendJSON(res, 200, { id: s.id, state: s.state, finishedAt: s.finishedAt, attempts: events.length, summary: M.summarizeAttempts(events, { now: now() }), advice: M.buildAdvice(M.summarizeAttempts(events, { now: now() })) });return true;
+        const mode = s.config?.mode === 'phone' ? 'phone' : 'number';
+        const sess = M.summarizeAttempts(events, { now: now(), mode });
+        sendJSON(res, 200, {
+          id: s.id, state: s.state, finishedAt: s.finishedAt, attempts: events.length, mode, summary: sess,
+          advice: mode === 'phone' ? M.buildPhoneAdvice(sess) : M.buildAdvice(sess),
+        });return true;
+      }
+      if (m.digitAudio) {
+        const d = Number(url.searchParams.get('d'));
+        if (!Number.isInteger(d) || d < 0 || d > 9) { sendJSON(res, 400, { error: 'BAD_DIGIT' });return true; }
+        if (!ttsConfigured || typeof ttsSynth !== 'function') { sendJSON(res, 503, { error: 'TTS_NOT_CONFIGURED' });return true; }
+        let file;
+        try { file = await ttsSynth(M.DIGIT_WORDS[d]); }
+        catch (e) { sendJSON(res, 502, { error: 'TTS_FAILED', message: String(e.message || e).slice(0, 120) });return true; }
+        res.setHeader('Cache-Control', 'private, max-age=604800');
+        sendFile(req, res, file);
+        return true;
       }
       if (m.audio) {
         const sid = String(url.searchParams.get('s') || ''), qid = String(url.searchParams.get('q') || '');
@@ -217,7 +328,7 @@ export function createNumberTrainer({ recordsDir, ttsConfigured = false, ttsSynt
         if (!q) { sendJSON(res, 404, { error: 'QUESTION_NOT_FOUND' });return true; }
         if (!ttsConfigured || typeof ttsSynth !== 'function') { sendJSON(res, 503, { error: 'TTS_NOT_CONFIGURED' });return true; }
         let file;
-        try { file = await ttsSynth(q.text); }
+        try { file = q.mode === 'phone' ? await phoneWav(q.value) : await ttsSynth(q.text); }
         catch (e) { sendJSON(res, 502, { error: 'TTS_FAILED', message: String(e.message || e).slice(0, 120) });return true; }
         res.setHeader('Cache-Control', 'private, max-age=604800');
         sendFile(req, res, file);
