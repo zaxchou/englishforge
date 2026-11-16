@@ -75,6 +75,12 @@ async function typeValue(page, value) {
       await page.locator('[data-act="theme"]').click();
       assert.equal(await page.locator('#v-number-trainer').getAttribute('data-theme'), 'light', 'theme toggled back to light');
 
+      // 按钮一致性：图标按钮是正圆（宽=高，不被全局 min-height 拉成椭圆），主按钮同高同圆角
+      const ico = await page.locator('[data-act="theme"]').evaluate(el => { const r = el.getBoundingClientRect(); return { w: Math.round(r.width), h: Math.round(r.height) }; });
+      assert(Math.abs(ico.w - ico.h) <= 1, 'icon button is a true circle ' + JSON.stringify(ico));
+      const primaryBox = await page.locator('[data-act="start"]').evaluate(el => { const cs = getComputedStyle(el); return { h: Math.round(el.getBoundingClientRect().height), r: cs.borderTopLeftRadius }; });
+      assert(primaryBox.h >= 48 && primaryBox.r === '12px', 'primary button geometry ' + JSON.stringify(primaryBox));
+
       // 10 题一轮，全部输入正确答案
       await page.locator('[data-count="10"]').click();
       await page.locator('[data-auto="off"]').click();   // 先用手动确认，便于逐题断言

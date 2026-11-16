@@ -22,17 +22,24 @@
   --nt-shadow:0 10px 34px #1b33201a;--nt-toast-bg:#1f3328;--nt-toast-ink:#eef6f0;
   color-scheme:light;
 }
+/* 隔离主站全局 button 样式：desk.css 的 min-height/active/focus 会串进来，
+   把圆形图标拉成椭圆、让按压与焦点颜色不一致。本页按钮自成一套。 */
+#v-number-trainer button{min-height:0;font:inherit;color:inherit}
+#v-number-trainer button:focus-visible{outline:2px solid var(--nt-green);outline-offset:3px}
+#v-number-trainer button:disabled{opacity:1;transform:none}
+#v-number-trainer button:active{transform:translateY(1px)}
+#v-number-trainer .nt-key:active{transform:scale(.985)}
 #v-number-trainer #nt-root{width:100%}
 #v-number-trainer .nt{width:100%;max-width:600px;margin:0 auto;background:var(--nt-bg);color:var(--nt-ink);border-radius:18px;padding:14px 16px 16px;display:flex;flex-direction:column;box-shadow:var(--nt-shadow)}
 #v-number-trainer .nt-home,#v-number-trainer .nt-history,#v-number-trainer .nt-done,#v-number-trainer .nt-loading{min-height:0}
 #v-number-trainer .nt-train{min-height:min(760px,calc(100vh - 132px))}
 
-#v-number-trainer .nt-top{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:2px 0 10px}
-#v-number-trainer .nt-top b{font-size:14px;font-weight:600;letter-spacing:.02em;color:var(--nt-ink)}
-#v-number-trainer .nt-ico{width:38px;height:38px;border-radius:50%;background:var(--nt-surface2);color:var(--nt-ink);display:grid;place-items:center;border:1px solid var(--nt-line);flex-shrink:0}
+#v-number-trainer .nt-top{display:flex;align-items:center;gap:10px;padding:2px 0 10px}
+#v-number-trainer .nt-top b{flex:1;text-align:center;font-size:14px;font-weight:600;letter-spacing:.02em;color:var(--nt-ink)}
+#v-number-trainer .nt-ico{width:40px;height:40px;flex:0 0 40px;min-height:40px;border-radius:50%;background:var(--nt-surface2);color:var(--nt-ink);display:grid;place-items:center;border:1px solid var(--nt-line);padding:0;flex-shrink:0}
 #v-number-trainer .nt-ico:hover{background:var(--nt-line)}
-#v-number-trainer .nt-ico-space{width:38px;height:38px;flex-shrink:0}
-#v-number-trainer .nt-top-right{display:flex;align-items:center;gap:8px}
+#v-number-trainer .nt-ico-space{width:40px;height:40px;flex:0 0 40px;flex-shrink:0}
+#v-number-trainer .nt-top-right{display:flex;align-items:center;gap:8px;flex:0 0 auto}
 
 #v-number-trainer .nt-bars{height:4px;border-radius:3px;background:var(--nt-track);overflow:hidden}
 #v-number-trainer .nt-bars i{display:block;height:100%;background:var(--nt-green);border-radius:3px;transition:width .18s ease}
@@ -60,7 +67,7 @@
 #v-number-trainer .nt-subrow{display:flex;align-items:center;gap:9px;justify-content:center;margin-top:10px;flex-wrap:wrap}
 #v-number-trainer .nt-pill{display:inline-flex;align-items:center;gap:6px;min-height:36px;padding:5px 14px;border-radius:20px;background:var(--nt-surface2);border:1px solid var(--nt-line);color:var(--nt-ink);font-size:12.5px}
 #v-number-trainer .nt-pill:hover{background:var(--nt-line)}
-#v-number-trainer .nt-flag{font-size:11.5px;color:var(--nt-warn);background:var(--nt-warn-soft);border-radius:20px;padding:4px 11px}
+#v-number-trainer .nt-flag{font-size:11.5px;color:var(--nt-mut);background:var(--nt-surface2);border:1px solid var(--nt-line);border-radius:20px;padding:5px 11px}
 
 #v-number-trainer .nt-result{margin:12px 0 0;width:100%;max-width:460px;background:var(--nt-surface);border-radius:14px;padding:15px 17px;text-align:left;border:1px solid var(--nt-line)}
 #v-number-trainer .nt-result.ok{border-color:var(--nt-ok-border)}
@@ -85,10 +92,10 @@
 #v-number-trainer .nt-keys{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;padding-top:10px}
 #v-number-trainer .nt-key{min-height:58px;border-radius:12px;background:var(--nt-surface2);color:var(--nt-ink);font-size:23px;font-weight:500;border:1px solid var(--nt-line);display:grid;place-items:center;padding:0 4px;font-variant-numeric:tabular-nums;transition:background .12s ease,transform .06s ease}
 #v-number-trainer .nt-key:active{background:var(--nt-line);transform:scale(.985)}
-#v-number-trainer .nt-key.alt{font-size:13px;color:var(--nt-mut);font-weight:400}
-#v-number-trainer .nt-key.confirm{grid-column:span 2;font-size:15px;font-weight:600;background:var(--nt-green);color:var(--nt-green-ink);border-color:var(--nt-green)}
+#v-number-trainer .nt-key.alt{font-size:13px;color:var(--nt-mut);font-weight:400;background:transparent;border-style:dashed}
+#v-number-trainer .nt-key.confirm{grid-column:span 2;font-size:15px;font-weight:600;background:var(--nt-green);color:var(--nt-green-ink);border:1px solid var(--nt-green)}
 #v-number-trainer .nt-key.confirm:disabled{background:var(--nt-track);color:var(--nt-dim);border-color:var(--nt-line)}
-#v-number-trainer .nt-key.wide2{grid-column:span 2;font-size:15px;background:var(--nt-green);color:var(--nt-green-ink);border-color:var(--nt-green)}
+#v-number-trainer .nt-key.wide2{grid-column:span 2;font-size:15px;font-weight:600;background:var(--nt-green);color:var(--nt-green-ink);border:1px solid var(--nt-green)}
 #v-number-trainer .nt-key:disabled{opacity:1;background:var(--nt-surface);color:var(--nt-dim);border-color:var(--nt-line)}
 #v-number-trainer .nt-hint-row{margin:10px 0 0;text-align:center;font-size:11.5px;color:var(--nt-mut);letter-spacing:.01em;line-height:1.7}
 
@@ -114,10 +121,10 @@
 #v-number-trainer .nt-chip:hover{background:var(--nt-surface2)}
 #v-number-trainer .nt-chip.on{background:var(--nt-green);border-color:var(--nt-green);color:var(--nt-green-ink);font-weight:600}
 #v-number-trainer .nt-chip.span2{grid-column:span 2}
-#v-number-trainer .nt-primary{min-height:52px;border-radius:12px;background:var(--nt-green);color:var(--nt-green-ink);font-weight:700;font-size:16px;border:0;margin-top:2px}
-#v-number-trainer .nt-primary:hover{filter:brightness(1.03)}
-#v-number-trainer .nt-secondary{min-height:46px;border-radius:11px;background:transparent;color:var(--nt-ink);border:1px solid var(--nt-line2);font-size:14px}
-#v-number-trainer .nt-secondary:hover{background:var(--nt-surface2)}
+#v-number-trainer .nt-primary{min-height:52px;border-radius:12px;background:var(--nt-green);color:var(--nt-green-ink);font-weight:600;font-size:15px;border:1px solid var(--nt-green);margin-top:2px}
+#v-number-trainer .nt-primary:hover{filter:brightness(1.04)}
+#v-number-trainer .nt-secondary{min-height:52px;border-radius:12px;background:var(--nt-surface2);color:var(--nt-ink);border:1px solid var(--nt-line2);font-size:15px;font-weight:500}
+#v-number-trainer .nt-secondary:hover{background:var(--nt-line)}
 #v-number-trainer .nt-last{display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;text-align:left;background:var(--nt-surface);border:1px solid var(--nt-line);border-radius:11px;padding:11px 13px;min-height:56px;color:var(--nt-ink)}
 #v-number-trainer .nt-last:hover{background:var(--nt-surface2)}
 #v-number-trainer .nt-last b{display:block;font-size:12.5px;font-weight:600}
