@@ -165,4 +165,49 @@ assert.equal(afterPhone.data.summary.total.settled, sum.data.summary.total.settl
 assert(afterPhone.data.phone.advice.length > 0);
 ok('电话号: 7位会话、单数字音频、空格容忍、前导零严格、统计分账');
 
+// 音频预热：开轮时并发合成全部题，答题时音频已是缓存命中；并发有上限；失败不影响会话
+{
+  const dir2 = fs.mkdtempSync(path.join(os.tmpdir(), 'nt-prefetch-'));
+  let calls = 0, live = 0, peak = 0;
+  const cache2 = new Map();
+  const synth2 = async (text) => {
+    if (cache2.has(text)) return cache2.get(text);
+    const job = (async () => {
+      calls++;live++;peak = Math.max(peak, live);
+      await new Promise(r => setTimeout(r, 8));
+      live--;return wav;
+    })();
+    cache2.set(text, job);return job;
+  };
+  const nt2 = createNumberTrainer({ recordsDir: dir2, ttsConfigured: true, ttsSynth: synth2, now, random: Math.random, audioPrefetch: true });
+  const made = await call(nt2, 'POST', '/api/number-trainer/sessions', { mode: 'fixed', digits: 3, count: 10 });
+  const report = await nt2.waitPrefetch(made.data.id);
+  assert.equal(report.total, 10, 'one synthesis per distinct question');
+  assert.equal(report.done, 10, 'all question audio warmed');
+  assert.equal(report.failed, 0);
+  assert(peak <= 3, 'prefetch concurrency bounded: ' + peak);
+  const before = calls;
+  const warmAudio = await call(nt2, 'GET', made.data.questions[0].audioUrl);
+  assert.equal(warmAudio.status, 200);
+  assert.equal(calls, before, 'serving audio needs no new synthesis');
+  fs.rmSync(dir2, { recursive: true, force: true });
+  ok('音频预热: 开轮并发缓存、有并发上限、答题零等待');
+}
+
+// 预热失败不致命：音频端点仍按需重试并成功返回
+{
+  const dir3 = fs.mkdtempSync(path.join(os.tmpdir(), 'nt-prefetch-fail-'));
+  let fail = true;
+  const synth3 = async () => { if (fail) throw new Error('cold fail');return wav; };
+  const nt3 = createNumberTrainer({ recordsDir: dir3, ttsConfigured: true, ttsSynth: synth3, now, random: Math.random, audioPrefetch: true });
+  const made = await call(nt3, 'POST', '/api/number-trainer/sessions', { mode: 'fixed', digits: 3, count: 5 });
+  const report = await nt3.waitPrefetch(made.data.id);
+  assert.equal(report.failed, 5);
+  fail = false;
+  const retry = await call(nt3, 'GET', made.data.questions[0].audioUrl);
+  assert.equal(retry.status, 200, 'audio endpoint retries after prefetch failure');
+  fs.rmSync(dir3, { recursive: true, force: true });
+  ok('音频预热: 失败不影响会话，端点按需重试');
+}
+
 console.log(`\n${pass} groups passed`);

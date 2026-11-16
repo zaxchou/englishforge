@@ -16,9 +16,34 @@ const ERROR_TO_FEATURE = {
   zeroDrop: 'zeroGap', zeroInsert: 'zeroGap', missingDigits: 'zeroGap', extraDigits: 'zeroGap',
   transposition: 'distinctDigits',
 };
-export function createNumberTrainer({ recordsDir, ttsConfigured = false, ttsSynth = null, now = () => Date.now(), random = Math.random } = {}) {
+export function createNumberTrainer({ recordsDir, ttsConfigured = false, ttsSynth = null, now = () => Date.now(), random = Math.random, audioPrefetch = false } = {}) {
   const store = createStore({ recordsDir, now });
   store.ensure();
+  /* 一轮的音频在开轮时并行预热：TTS 每次冷合成约 1.2s，20 题逐题等就是 24s。
+     开轮时并发合成并落盘缓存，用户答题时全部是本地缓存命中，音质与自然读法完全不变。
+     ttsSynth 本身按文本缓存且合并并发请求，重复号码直接命中，不会重复接 AI。
+     失败只记录数量、不影响会话：音频端点仍会按需重试。 */
+  const prefetched = new Map();
+  function prefetchAudio(session) {
+    if (!audioPrefetch || !ttsConfigured || typeof ttsSynth !== 'function') return;
+    const texts = [...new Set(session.questions.map(q => String(q.text || '')).filter(Boolean))];
+    let done = 0, failed = 0, next = 0;
+    const runner = async () => {
+      while (next < texts.length) {
+        const t = texts[next++];
+        let ok = false;
+        for (let attempt = 0; attempt < 3 && !ok; attempt++) {
+          try { await ttsSynth(t); ok = true; }
+          catch { if (attempt < 2) await new Promise(r => setTimeout(r, 250 * (attempt + 1))); }
+        }
+        if (ok) done++; else failed++;
+      }
+    };
+    const jobs = Array.from({ length: Math.min(3, texts.length) }, runner);
+    const p = Promise.all(jobs).then(() => ({ done, failed, total: texts.length })).catch(() => ({ done, failed, total: texts.length }));
+    prefetched.set(session.id, p);
+  }
+  function waitPrefetch(id) { return prefetched.get(id) || Promise.resolve(null); }
 
   function publicConfig() {
     return {
@@ -91,6 +116,7 @@ export function createNumberTrainer({ recordsDir, ttsConfigured = false, ttsSynt
       for (const q of session.questions) q.audioUrl = audioUrlFor(id, q);
       store.saveSession(session);
       store.pruneSessions(30);
+      prefetchAudio(session);
       return {
         id, config, createdAt: session.createdAt, plan: session.plan,
         advice: M.buildAdvice(summary),
@@ -126,6 +152,7 @@ export function createNumberTrainer({ recordsDir, ttsConfigured = false, ttsSynt
     };
     store.saveSession(session);
     store.pruneSessions(30);
+    prefetchAudio(session);
     return {
       id, config, createdAt: session.createdAt,
       plan: session.plan,
@@ -335,5 +362,5 @@ export function createNumberTrainer({ recordsDir, ttsConfigured = false, ttsSynt
     return true;
   }
 
-  return { handle, store, publicConfig, summaryFor };
+  return { handle, store, publicConfig, summaryFor, waitPrefetch };
 }

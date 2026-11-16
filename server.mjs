@@ -1862,7 +1862,7 @@ const COURSE_PLAN=createCoursePlanHandler({records:()=>RECORDS,setRecords:x=>{RE
   gradeRootWord:rootGradeWord,now:()=>Date.now()});
 const REVIEW_HUB=createReviewHub({web:WEB_DIR,records:()=>RECORDS,setRecords:x=>{RECORDS=x;},save:recordsSave,recordAttempt:serverRecAttempt,quizzes:()=>GQ_STORE,banks:()=>[...REVIEW_BANKS.values()],reviewEvents:()=>REVIEW_EVENTS,ai:AI_CFG});
 /* 数字听写：独立分账目录 number-trainer/，不写 RECORDS 的词汇/课程/考试字段。 */
-const NUMBER_TRAINER=createNumberTrainer({recordsDir:RECORDS_DIR,ttsConfigured:!!(TTS_CFG.key&&TTS_CFG.url),ttsSynth:ttsSynthToFile,now:()=>Date.now()});
+const NUMBER_TRAINER=createNumberTrainer({recordsDir:RECORDS_DIR,ttsConfigured:!!(TTS_CFG.key&&TTS_CFG.url),ttsSynth:ttsSynthToFile,now:()=>Date.now(),audioPrefetch:true});
 
 /* ---------- HTTP 基础 ---------- */
 const MIME = {
