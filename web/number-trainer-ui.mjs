@@ -119,7 +119,7 @@ function homeHTML() {
     <p class="nt-lead">${phone
       ? '逐个数字播放，像听电话号码一样。长度不固定，前面的 0 也要写出来。'
       : '每题播放一个英语数字，听完输入数值。电脑上直接敲数字即可；答对会自动进入下一题。'}</p>
-    <div class="nt-field"><span class="nt-label">练什么</span><div class="nt-chips" role="group" aria-label="练习类型">
+    <div class="nt-field"><span class="nt-label">练什么</span><div class="nt-chips cols-2" role="group" aria-label="练习类型">
       <button class="nt-chip${phone ? '' : ' on'}" data-kind="number">数字</button>
       <button class="nt-chip${phone ? ' on' : ''}" data-kind="phone">电话号码</button>
     </div></div>
@@ -135,14 +135,14 @@ function homeHTML() {
             return `<button class="nt-chip${on ? ' on' : ''}" data-phone="${range}">${label}</button>`;
           }).join('')}
         </div></div>`
-      : `<div class="nt-field"><span class="nt-label">位数</span><div class="nt-chips cols-7" role="group" aria-label="位数">
-          <button class="nt-chip span2${S.cfg.mode === 'smart' ? ' on' : ''}" data-mode="smart">智能</button>
+      : `<div class="nt-field"><span class="nt-label">位数</span><div class="nt-chips cols-6" role="group" aria-label="位数">
+          <button class="nt-chip${S.cfg.mode === 'smart' ? ' on' : ''}" data-mode="smart">智能</button>
           ${[2, 3, 4, 5, 6].map(d => `<button class="nt-chip${S.cfg.mode === 'fixed' && S.cfg.digits === d ? ' on' : ''}" data-fixed="${d}">${d}</button>`).join('')}
         </div>${S.cfg.mode === 'smart' ? `<span class="nt-note">${has && (s?.total?.settled || 0) >= 5 ? `按当前记录建议 ${rec} 位` : '还没有记录，先按 2 位起步'}</span>` : ''}</div>`}
     <div class="nt-field"><span class="nt-label">每轮</span><div class="nt-chips cols-3" role="group" aria-label="每轮题数">
       ${[10, 20, 30].map(n => `<button class="nt-chip${S.cfg.count === n ? ' on' : ''}" data-count="${n}">${n} 题</button>`).join('')}
     </div></div>
-    <div class="nt-field"><span class="nt-label">答对后</span><div class="nt-chips" role="group" aria-label="答对后">
+    <div class="nt-field"><span class="nt-label">答对后</span><div class="nt-chips cols-2" role="group" aria-label="答对后">
       <button class="nt-chip${S.cfg.auto ? ' on' : ''}" data-auto="on">自动下一题</button>
       <button class="nt-chip${S.cfg.auto ? '' : ' on'}" data-auto="off">手动确认</button>
     </div></div>

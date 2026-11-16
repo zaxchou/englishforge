@@ -113,14 +113,17 @@
 #v-number-trainer .nt-field{display:flex;flex-direction:column;gap:6px}
 #v-number-trainer .nt-label{font-size:11.5px;color:var(--nt-mut);letter-spacing:.04em}
 #v-number-trainer .nt-note{font-size:11.5px;color:var(--nt-mut);line-height:1.6}
-#v-number-trainer .nt-chips{display:flex;gap:7px;flex-wrap:wrap}
-#v-number-trainer .nt-chips.cols-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}
-#v-number-trainer .nt-chips.cols-4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr))}
-#v-number-trainer .nt-chips.cols-7{display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}
-#v-number-trainer .nt-chip{min-height:38px;padding:6px 4px;text-align:center;border-radius:20px;background:transparent;border:1px solid var(--nt-line2);color:var(--nt-ink);font-size:13px}
-#v-number-trainer .nt-chip:hover{background:var(--nt-surface2)}
-#v-number-trainer .nt-chip.on{background:var(--nt-green);border-color:var(--nt-green);color:var(--nt-green-ink);font-weight:600}
-#v-number-trainer .nt-chip.span2{grid-column:span 2}
+/* 选项行统一为分段控件：一个浅底圆角轨道，内部等宽分段，选中段填绿。
+   所有行（练什么 / 位数 / 号码长度 / 每轮 / 答对后）共用同一套视觉语言。 */
+#v-number-trainer .nt-chips{display:grid;gap:4px;padding:4px;background:var(--nt-track);border:1px solid var(--nt-line);border-radius:14px}
+#v-number-trainer .nt-chips.cols-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+#v-number-trainer .nt-chips.cols-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+#v-number-trainer .nt-chips.cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}
+#v-number-trainer .nt-chips.cols-6{grid-template-columns:repeat(6,minmax(0,1fr))}
+#v-number-trainer .nt-chip{min-height:36px;padding:6px 4px;text-align:center;border-radius:10px;background:transparent;border:0;color:var(--nt-mut);font-size:13px}
+#v-number-trainer .nt-chip:hover{color:var(--nt-ink)}
+#v-number-trainer .nt-chip.on{background:var(--nt-green);color:var(--nt-green-ink);font-weight:600;box-shadow:0 1px 3px #0002}
+#v-number-trainer .nt-chip.on:hover{color:var(--nt-green-ink)}
 #v-number-trainer .nt-primary{min-height:52px;border-radius:12px;background:var(--nt-green);color:var(--nt-green-ink);font-weight:600;font-size:15px;border:1px solid var(--nt-green);margin-top:2px}
 #v-number-trainer .nt-primary:hover{filter:brightness(1.04)}
 #v-number-trainer .nt-secondary{min-height:52px;border-radius:12px;background:var(--nt-surface2);color:var(--nt-ink);border:1px solid var(--nt-line2);font-size:15px;font-weight:500}

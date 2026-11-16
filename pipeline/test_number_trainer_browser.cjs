@@ -80,6 +80,10 @@ async function typeValue(page, value) {
       assert(Math.abs(ico.w - ico.h) <= 1, 'icon button is a true circle ' + JSON.stringify(ico));
       const primaryBox = await page.locator('[data-act="start"]').evaluate(el => { const cs = getComputedStyle(el); return { h: Math.round(el.getBoundingClientRect().height), r: cs.borderTopLeftRadius }; });
       assert(primaryBox.h >= 48 && primaryBox.r === '12px', 'primary button geometry ' + JSON.stringify(primaryBox));
+      // 选项行（练什么/位数/每轮/答对后）是等宽分段控件，同一行按钮宽度必须一致
+      const chipGroups = await page.evaluate(() => [...document.querySelectorAll('.nt-chips')].map(g => [...g.querySelectorAll('.nt-chip')].map(e => Math.round(e.getBoundingClientRect().width))));
+      assert(chipGroups.length >= 4, 'home has option rows: ' + JSON.stringify(chipGroups));
+      for (const ws of chipGroups) assert(Math.max(...ws) - Math.min(...ws) <= 2, 'chip row equal width ' + JSON.stringify(ws));
 
       // 10 题一轮，全部输入正确答案
       await page.locator('[data-count="10"]').click();
