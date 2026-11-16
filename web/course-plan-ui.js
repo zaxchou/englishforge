@@ -121,7 +121,7 @@ async function cpExamCard(){
 }
 async function cpDashboard(){
   const host=$('course-memory-content');if(!host)return;
-  host.innerHTML='<p role="status">正在读取复习计划…</p>';
+  host.innerHTML='<p class="tfl-loading" role="status"><i aria-hidden="true"></i>正在读取复习计划…</p>';
   try{await cpLoad();}catch(e){host.innerHTML='<p role="alert">'+esc(e.message)+'</p><button id="cp-reload">重试</button>';host.querySelector('button').onclick=cpDashboard;return;}
   const d=CP.data,recs=d.recommendations||[];
   const ndf=cpGroupSummary(cpPlansOf('ndf-01')),cf=cpGroupSummary(cpPlansOf('cfcm-01'));
@@ -170,7 +170,7 @@ function cpWireSettings(host){
   const draw=()=>{const box=form.querySelector('#cp-intervals'),old=[...box.querySelectorAll('input')].map(x=>Number(x.value));box.innerHTML=Array.from({length:Number(form.elements.target.value)-1},(_,i)=>'<label>第 '+(i+2)+' 遍间隔<input name="interval-'+i+'" type="number" min="1" max="60" required value="'+(old[i]||s.intervals[i]||[3,7,14,21,30][i])+'"><span>天</span></label>').join('');};draw();form.elements.target.onchange=draw;
   form.onsubmit=async e=>{e.preventDefault();const status=form.querySelector('#cp-settings-status'),button=form.querySelector('[type=submit]');button.disabled=true;status.textContent='保存中…';try{const j=await cpRequest('/settings',{target:Number(form.elements.target.value),mode:form.elements.mode.value,daily:Number(form.elements.daily.value),intervals:[...form.querySelectorAll('#cp-intervals input')].map(x=>Number(x.value)),revision:s.revision});CP.data=j;s=j.settings;status.textContent='已保存，已有章保留。';gqRefreshList();await cpDashboard();const panel=$('cp-settings');if(panel)panel.closest('details').open=true;const saved=$('cp-settings-status');if(saved)saved.textContent='已保存，已有章保留。';}catch(e){if(e.code==='settings_conflict'){try{await cpLoad();s=CP.data.settings;status.textContent='另一端已修改计划，你的输入保留；再次保存会采用当前输入。';}catch{status.textContent='设置已被另一端修改，暂时无法读取新版本，请稍后重试。';}}else status.textContent=e.message;}finally{button.disabled=false;}};
 }
-function cpOverviewHTML(lid){const p=cpPlan(lid);if(!CP.data)return '<div class="cp-plan"><p role="status">'+esc(CP.error||'正在读取盖章计划…')+'</p><button id="cp-plan-retry">重试读取计划</button></div>';
+function cpOverviewHTML(lid){const p=cpPlan(lid);if(!CP.data)return '<div class="cp-plan"><p role="status"'+(CP.error?'':' class="tfl-loading"')+'>'+(CP.error?esc(CP.error):'<i aria-hidden="true"></i>正在读取盖章计划…')+'</p><button id="cp-plan-retry">重试读取计划</button></div>';
   const a=p?.active,can=!p?.complete&&(a||(!p?.pendingHistorical&&(!p?.due||p.due<=Date.now())));
   return '<div class="cp-plan">'+cpStamps(p)+'<p>'+esc(cpCaption(p))+'</p><div class="cp-actions">'+(can?'<button class="pri" id="cp-plan-start">'+(a?'继续本遍':'开始第 '+((p?.stamps.length||0)+1)+' 遍')+' →</button>':'')+'<button id="cp-free">自主练习'+(can?'':' · 不计章')+'</button><button id="cp-plan-settings">复习计划设置</button></div><p class="cp-hint">每遍覆盖本课课堂题，错题在轮末纠正一次。扩展挑战选做。</p>'+(p?.stamps.length?'<div class="cp-history">'+p.stamps.map((s,i)=>'<span>第'+(i+1)+'章 · '+(s.historical?'历史已练 · 日期未知':cpDate(s.at)+' · 首次正确 '+s.right+'/'+s.total)+'</span>').join('')+'</div>':'')+'</div>';
 }

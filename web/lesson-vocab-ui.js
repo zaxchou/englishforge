@@ -212,7 +212,7 @@
     const body=q('vb-body');
     if(!body||!active||!document.querySelector('#v-vocab.on')) return;
     const ct=q('vb-ct'); if(ct&&lesson) ct.textContent=(lesson.title||lessonId)+' · '+(session?(session.doneCount||0):0)+' / '+(lesson.total||0);
-    if(!session){ body.innerHTML=shell('<div class="lv-loading">正在读取课程进度…</div>'); wire(); return; }
+    if(!session){ body.innerHTML=shell('<div class="lv-loading tfl-loading"><i aria-hidden="true"></i>正在读取课程进度…</div>'); wire(); return; }
     if(session.completedAt){ body.innerHTML=shell(done()); wire(); return; }
     const seg=segDue();
     if(seg){ body.innerHTML=shell(breakCard(seg)); wire(); return; }
@@ -362,7 +362,7 @@
     document.addEventListener('visibilitychange',onVis);
     q('lv-entry')?.setAttribute('hidden','');
     const body=q('vb-body');
-    if(body) body.innerHTML='<div class="lv-loading">正在读取课程词卡…</div>';
+    if(body) body.innerHTML='<div class="lv-loading tfl-loading"><i aria-hidden="true"></i>正在读取课程词卡…</div>';
     try{
       if(!cardsByLesson.has(lessonId)){
         const data=await api('/api/vocab/lesson/cards?id='+encodeURIComponent(lessonId),{signal:AbortSignal.timeout(20000)});

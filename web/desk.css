@@ -2839,3 +2839,15 @@ html.sb-min .cp-due-mask{padding-left:84px}
 .gq-explain.wrong{background:rgba(194,85,77,.06)}
 .gq-explain p{margin:5px 0 0;color:var(--t2)}
 @media(max-width:700px){.rp-branches{grid-template-columns:1fr}.rp-recall{flex-direction:column}}
+
+/* ==== 统一加载态 .tfl-loading (2026-11-16) ====
+   所有「正在读取…」共用一个语义组件: 品牌绿细环 + 文案, 左对齐居中由各自容器决定。
+   用 <i> 作 spinner (role=status 的容器不变), 不用背景图, 不新增依赖。
+   全局 prefers-reduced-motion 规则已在 block1 兜底(动画停止), 这里补静态替代。 */
+.tfl-loading{display:inline-flex;align-items:center;gap:9px}
+.tfl-loading>i{flex:none;width:14px;height:14px;border:2px solid var(--line2);
+  border-top-color:var(--acc);border-radius:50%;animation:tfl-spin .75s linear infinite}
+@keyframes tfl-spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){
+  .tfl-loading>i{animation:none;border-color:var(--acc);border-right-color:transparent;border-bottom-color:transparent}
+}

@@ -132,7 +132,7 @@ async function fetchSources(ids,ctx){ // ctx: {clean,zh} cleaned definition of t
 function bindSourceTriggers(root){
   root.querySelectorAll('[data-source-trigger]').forEach(b=>{b.onclick=async()=>{
     const box=document.getElementById(b.dataset.sourceTrigger);
-    if(box.hidden&&!box.dataset.loaded){box.innerHTML='<p>正在读取出处…</p>';const ctx=box.dataset.ctx?JSON.parse(box.dataset.ctx):null;
+    if(box.hidden&&!box.dataset.loaded){box.innerHTML='<p class="tfl-loading"><i aria-hidden="true"></i>正在读取出处…</p>';const ctx=box.dataset.ctx?JSON.parse(box.dataset.ctx):null;
       box.innerHTML=await fetchSources(JSON.parse(box.dataset.evidence),ctx);box.dataset.loaded='1';}
     box.hidden=!box.hidden;b.setAttribute('aria-expanded',String(!box.hidden));};
   });
@@ -171,7 +171,7 @@ function showLookupState(){
   displayLookupView();updateNavigation();
   const name=nodeById.get(lookupSense)?.label||$('#search').value;
   if(lookupStatus==='loading'){
-    $('#word-content').innerHTML=`<div class="notice-empty" role="status"><h2>正在读取 ${esc(name)}</h2><p>词义、构词和来源正在加载。</p></div>`;return;
+    $('#word-content').innerHTML=`<div class="notice-empty" role="status"><h2 class="tfl-loading"><i aria-hidden="true"></i>正在读取 ${esc(name)}</h2><p>词义、构词和来源正在加载。</p></div>`;return;
   }
   $('#word-content').removeAttribute('aria-busy');
   $('#word-content').innerHTML=`<div class="notice-empty" role="alert"><h2>${esc(name)} 的词条暂时无法读取</h2><p>请联网后重试，也可以继续搜索其他词。已保存的学习记录仍会保留。</p><button class="primary" id="retry-word">重试读取这个词</button></div>`;
@@ -192,7 +192,7 @@ async function renderWord({background=false}={}){
   const n=nodeById.get(lookupSense),sequence=++lookupSequence,intent=++searchIntent,previousContext=JSON.stringify([learningLookup,learning?.alliance?.id||'',learning?.version||'']);
   ++suggestSeq;$('#suggestions').hidden=true;
   learningLookup=null;lookupStatus='loading';
-  const practiceCard=$('#practice-card');if(practiceCard)practiceCard.innerHTML='<p class="question-hint">正在读取当前词的学习档案…</p>';
+  const practiceCard=$('#practice-card');if(practiceCard)practiceCard.innerHTML='<p class="question-hint tfl-loading"><i aria-hidden="true"></i>正在读取当前词的学习档案…</p>';
   if(graphStatus!=='ready'){renderDown();return;}
   if(!n||(n.type!=='senses'&&n.type!=='learning_word')){learning=null;lookupStatus='unknown';updateNavigation();renderUnknown();return;}
   $('#search').value=n.label;if(background)updateNavigation();else showLookupState();address();
@@ -421,7 +421,7 @@ function buildFamilySwitch(){
   $('#family-switch').innerHTML=fams.map(f=>`<button data-family="${esc(f.id)}">${esc(f.label)}</button>`).join('');
   document.querySelectorAll('#family-switch button').forEach(b=>b.onclick=async()=>{
     invalidateRootFilter();const seq=++familySwitchSequence;++rootSequence;
-    exploreRoot=null;rootSelectionPending=true;explorerMode='map';renderExplorerLayout();$('#map-loading').hidden=false;$('#map-loading').textContent='正在读取关系图…';
+    exploreRoot=null;rootSelectionPending=true;explorerMode='map';renderExplorerLayout();$('#map-loading').hidden=false;$('#map-loading').innerHTML='<span class="tfl-loading"><i aria-hidden="true"></i>正在读取关系图…</span>';
     const family=b.dataset.family;lookupSense=defaultFocusOf(family);
     await renderWord({background:true});if(seq!==familySwitchSequence)return;$('#map-loading').hidden=true;if(lookupStatus!=='ready')return;
     rootSelectionPending=false;graphFamily=family;trail=[];selectedAllianceBranch=null;selectedAllianceRoot='@all';
@@ -450,7 +450,7 @@ function renderExplorerLayout(){
   const back=$('#explorer-back');back.hidden=explorerMode==='directory';
   back.textContent=explorerMode==='map'&&exploreRoot?'← 相关单词':'← 词根目录';
   $('#explorer-title').textContent=explorerMode==='directory'?'探索词族':explorerMode==='map'?'词族关系图':exploreRoot?.label.split('「')[0]||'相关单词';
-  $('#explorer-subtitle').textContent=explorerMode==='directory'?'从词根出发，找到相关单词。':explorerMode==='map'?learning?.alliance?.title||'点击节点查看关系':exploreRoot?[exploreRoot.meaning,exploreRoot.title].join(' · '):'正在读取…';
+  $('#explorer-subtitle').innerHTML=explorerMode==='directory'?'从词根出发，找到相关单词。':explorerMode==='map'?esc(learning?.alliance?.title||'点击节点查看关系'):exploreRoot?esc([exploreRoot.meaning,exploreRoot.title].join(' · ')):'<span class="tfl-loading"><i aria-hidden="true"></i>正在读取…</span>';
 }
 function showRootDirectory(restore=false){
   invalidateRootFilter();++rootSequence;++familySwitchSequence;
@@ -477,7 +477,7 @@ function renderRootDirectory(){
 }
 async function loadRootDirectory(){
   const seq=++rootFilterSequence;
-  $('#root-coverage').textContent='正在读取词根目录…';
+  $('#root-coverage').innerHTML='<span class="tfl-loading"><i aria-hidden="true"></i>正在读取词根目录…</span>';
   try{
     const data=await api('/api/roots');if(!Array.isArray(data.results))throw Error('ROOT_DIRECTORY_INVALID');rootDirectory=data.results;renderRootCourses();updateNavigation();
     if(seq!==rootFilterSequence)return;
@@ -513,8 +513,8 @@ async function openRoot(id){
   if(explorerMode==='directory')directoryScroll=window.scrollY;
   invalidateRootFilter();const seq=++rootSequence;++familySwitchSequence;
   explorerMode='members';rootSelectionPending=true;exploreRoot=rootDirectory.find(r=>r.id===id)||null;
-  $('#root-member-count').textContent='正在读取相关单词…';$('#show-root-map').disabled=true;
-  $('#root-members').innerHTML='<p class="empty-search" role="status">正在读取…</p>';setView('graph');
+  $('#root-member-count').innerHTML='<span class="tfl-loading"><i aria-hidden="true"></i>正在读取相关单词…</span>';$('#show-root-map').disabled=true;
+  $('#root-members').innerHTML='<p class="empty-search tfl-loading" role="status"><i aria-hidden="true"></i>正在读取…</p>';setView('graph');
   try{
     const r=await api('/api/root?id='+encodeURIComponent(id));if(seq!==rootSequence)return;
     exploreRoot=r;rootSelectionPending=false;renderRootMembers();renderExplorerLayout();address();
@@ -529,7 +529,7 @@ async function openRootMap(){
   const r=exploreRoot;if(!r?.members?.length)return;
   invalidateRootFilter();const seq=++rootSequence;++familySwitchSequence;
   explorerMode='map';rootSelectionPending=true;setView('graph');
-  $('#map-loading').hidden=false;$('#map-loading').textContent='正在读取关系图…';
+  $('#map-loading').hidden=false;$('#map-loading').innerHTML='<span class="tfl-loading"><i aria-hidden="true"></i>正在读取关系图…</span>';
   const id=r.members.some(w=>w.id===lookupSense)?lookupSense:r.members[0].id;
   lookupSense=id;await renderWord({background:true});
   if(seq!==rootSequence)return;
@@ -598,7 +598,7 @@ function memberIn(f,id){return !!(f&&f.member_ids.includes(id));}
 function renderPractice(){
   if(graphStatus!=='ready'){renderDown();return;}
   if(lookupStatus!=='ready'){showLookupState();return;}
-  if(learningLookup!==lookupSense){$('#practice-card').innerHTML='<p class="question-hint">正在读取当前词的学习档案…</p>';return;}
+  if(learningLookup!==lookupSense){$('#practice-card').innerHTML='<p class="question-hint tfl-loading"><i aria-hidden="true"></i>正在读取当前词的学习档案…</p>';return;}
   if(learning?.status==='reviewed'&&learning.alliance?.id&&learning.word.query_id)return renderAlliancePractice();
   let fam=G.families.find(f=>f.id===practiceFamily);
   if(!fam){

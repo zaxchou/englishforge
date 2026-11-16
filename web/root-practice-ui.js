@@ -230,7 +230,7 @@ function rpRender(){
   const oldInput=$('rp-answer');
   const draft=oldInput&&!oldInput.disabled&&oldInput.dataset?.rpRound===s?.id&&oldInput.dataset?.rpQuestion===RP_STATE.question
     ?{value:oldInput.value,focused:document.activeElement===oldInput,start:oldInput.selectionStart,end:oldInput.selectionEnd}:null;
-  if(RP_STATE.loading){body.innerHTML='<p role="status">正在读取本节词根联盟…</p>';return;}
+  if(RP_STATE.loading){body.innerHTML='<p class="tfl-loading" role="status"><i aria-hidden="true"></i>正在读取本节词根联盟…</p>';return;}
   if(!d){body.innerHTML='<p class="gq-note" role="status">'+esc(RP_STATE.err||'本节新练习尚未收录，可使用原配套题。')+'</p><button id="rp-retry">重新读取</button>';if(meta)meta.textContent='';$('rp-retry').onclick=()=>rpLoad(csSel.l+1);return;}
   if(meta)meta.textContent=d.branches.length+' 小组 · '+d.branches.reduce((n,b)=>n+b.words.length,0)+' 词';
   const notice=(RP_STATE.err?'<p role="alert">'+esc(RP_STATE.err)+' <button id="rp-sync">重试同步</button></p>':'')+rpRecoveryHTML();

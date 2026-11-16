@@ -39,3 +39,12 @@
 .etym-src li{margin:4px 0}
 .etym-src i{color:var(--muted);font-size:11px;margin-left:6px;font-style:normal}
 .etym-cost{margin-top:14px;font-size:12px;color:var(--muted);border-top:1px dashed var(--line);padding-top:9px}
+
+/* 统一加载态: 与主应用 .tfl-loading 同一视觉语言, 用词典自己的绿/线变量 */
+.tfl-loading{display:inline-flex;align-items:center;gap:9px}
+.tfl-loading>i{flex:none;width:13px;height:13px;border:2px solid var(--line);
+  border-top-color:var(--green);border-radius:50%;animation:tfl-spin .75s linear infinite}
+@keyframes tfl-spin{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){
+  .tfl-loading>i{animation:none;border-color:var(--green);border-right-color:transparent;border-bottom-color:transparent}
+}
