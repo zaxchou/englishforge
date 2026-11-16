@@ -7,8 +7,10 @@ import { createPlayer } from './number-trainer-audio.mjs';
 const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const LS_CFG = 'nt:cfg';
+const LS_THEME = 'nt:theme';
 const SS_RUN = 'nt:run';
 const API = '/api/number-trainer';
+let theme = 'light';
 
 const S = {
   mounted: false, token: 0, screen: 'home',
@@ -27,6 +29,20 @@ function cfgLoad() {
   try { const c = JSON.parse(localStorage.getItem(LS_CFG) || 'null');if (c && typeof c === 'object') S.cfg = { ...S.cfg, ...c }; } catch { /* 忽略 */ }
 }
 function cfgSave() { try { localStorage.setItem(LS_CFG, JSON.stringify(S.cfg)); } catch { /* 忽略 */ } }
+function themeLoad() {
+  try { theme = localStorage.getItem(LS_THEME) === 'dark' ? 'dark' : 'light'; } catch { theme = 'light'; }
+  themeApply();
+}
+function themeApply() {
+  const view = document.getElementById('v-number-trainer');
+  if (view) view.setAttribute('data-theme', theme);
+}
+function themeToggle() {
+  theme = theme === 'dark' ? 'light' : 'dark';
+  try { localStorage.setItem(LS_THEME, theme); } catch { /* 忽略 */ }
+  themeApply();
+  render();
+}
 function saveRun() {
   try {
     if (S.screen !== 'train' || !S.session) return;
@@ -45,6 +61,11 @@ async function api(p, body) {
 const ICON_BACK = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 5.5 8 12l6.5 6.5"/></svg>';
 const ICON_GEAR = '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1.11 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H9a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V9a1.7 1.7 0 0 0 1.55 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1Z"/></svg>';
 const ICON_SPEAKER = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9.5h3L12 5v14l-5-4.5H4z"/><path d="M16 8.5a5 5 0 0 1 0 7"/></svg>';
+const ICON_SUN = '<svg class="nt-theme-sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M2.5 12h2M19.5 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/></svg>';
+const ICON_MOON = '<svg class="nt-theme-moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z"/></svg>';
+const themeButton = () => theme === 'dark'
+  ? `<button class="nt-ico nt-theme" data-act="theme" aria-label="切换到亮色主题" title="切换到亮色主题">${ICON_SUN}</button>`
+  : `<button class="nt-ico nt-theme" data-act="theme" aria-label="切换到深色主题" title="切换到深色主题">${ICON_MOON}</button>`;
 
 const FEATURE_HINT = {
   teenTy: '末两位里 -teen 和 -ty 只差一个音，最容易被听成另一个数，要盯住结尾。',
@@ -73,7 +94,8 @@ function render() {
 }
 function headHTML(title, { back = true, gear = true } = {}) {
   const left = back ? `<button class="nt-ico" data-act="back" aria-label="返回">${ICON_BACK}</button>` : '<span class="nt-ico-space" aria-hidden="true"></span>';
-  const right = gear ? `<button class="nt-ico" data-act="settings" aria-label="设置">${ICON_GEAR}</button>` : '<span class="nt-ico-space" aria-hidden="true"></span>';
+  const buttons = `${gear ? `<button class="nt-ico" data-act="settings" aria-label="设置">${ICON_GEAR}</button>` : ''}${themeButton()}`;
+  const right = gear || buttons ? `<div class="nt-top-right">${buttons}</div>` : '<span class="nt-ico-space" aria-hidden="true"></span>';
   return `<div class="nt-top">${left}<b>${esc(title)}</b>${right}</div>`;
 }
 function tiles(s, accLabel = '单听准确', label = '已练题数') {
@@ -91,7 +113,8 @@ function homeHTML() {
   const rec = S.summary?.recommendedDigits;
   const last = (S.history?.rounds || []).find(r => r.settled >= 5 && (phone ? r.mode === 'phone' : r.mode !== 'phone'));
   const has = (s?.total?.settled || 0) > 0;
-  return `<div class="nt-pad">
+  return `<div class="nt-top"><span></span>${themeButton()}</div>
+  <div class="nt-pad">
     <h1 class="nt-h1">数字敏感度训练</h1>
     <p class="nt-lead">${phone
       ? '逐个数字播放，像听电话号码一样。长度不固定，前面的 0 也要写出来。'
@@ -335,6 +358,7 @@ function act(a) {
   if (a === 'home') { S.screen = 'home';S.session = null;S.result = null;S.input = '';render();refreshHistory();return; }
   if (a === 'history') return openHistory();
   if (a === 'settings') return toast('在上方切换位数和每轮题数。');
+  if (a === 'theme') return themeToggle();
   if (a === 'srchint') return toast(SOURCE_HINT[currentQ()?.source] || '这轮按记录自动配题。');
   if (a === 'play') return playCurrent();
   if (a === 'retryAudio') return loadAndPlay(currentQ());
@@ -546,7 +570,7 @@ export async function mount(el) {
   if (S.mounted && root === el) return;
   if (S.mounted) leave();
   root = el;S.mounted = true;S.token++;
-  cfgLoad();
+  cfgLoad();themeLoad();
   player = createPlayer();
   queue = createQueue({ onChange: n => { S.pending = n;if (S.screen === 'home') render(); } });
   document.addEventListener('visibilitychange', onVisibility);

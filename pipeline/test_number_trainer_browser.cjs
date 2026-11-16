@@ -56,6 +56,25 @@ async function typeValue(page, value) {
       await page.locator('.nt-h1').waitFor();
       assert.match(await page.locator('.nt-h1').textContent(), /数字敏感度训练/);
 
+      // 亮色主题：默认亮色，可切换到深色、持久化，并真实改变配色；不留溢出
+      assert.equal(await page.locator('#v-number-trainer').getAttribute('data-theme'), 'light', 'default theme is light');
+      const lightBg = await page.locator('.nt').evaluate(el => getComputedStyle(el).backgroundColor);
+      const shotLight = path.join(out, 'light-' + w + '.png');
+      await page.screenshot({ path: shotLight });
+      result.screenshots.push(shotLight);
+      const lightOverflow = await page.evaluate(() => ({ w: innerWidth, s: document.documentElement.scrollWidth }));
+      assert(lightOverflow.s <= lightOverflow.w, 'light theme no horizontal overflow ' + JSON.stringify(lightOverflow));
+      await page.locator('[data-act="theme"]').click();
+      assert.equal(await page.locator('#v-number-trainer').getAttribute('data-theme'), 'dark', 'theme toggled to dark');
+      assert.equal(await page.evaluate(() => localStorage.getItem('nt:theme')), 'dark', 'theme saved to localStorage');
+      const darkBg = await page.locator('.nt').evaluate(el => getComputedStyle(el).backgroundColor);
+      assert.notEqual(lightBg, darkBg, 'theme changes panel background: ' + lightBg + ' -> ' + darkBg);
+      await page.reload();
+      await page.locator('.nt-h1').waitFor();
+      assert.equal(await page.locator('#v-number-trainer').getAttribute('data-theme'), 'dark', 'theme survives reload');
+      await page.locator('[data-act="theme"]').click();
+      assert.equal(await page.locator('#v-number-trainer').getAttribute('data-theme'), 'light', 'theme toggled back to light');
+
       // 10 题一轮，全部输入正确答案
       await page.locator('[data-count="10"]').click();
       await page.locator('[data-auto="off"]').click();   // 先用手动确认，便于逐题断言
