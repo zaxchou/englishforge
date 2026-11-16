@@ -22,6 +22,7 @@
 import { createCoursePlanHandler, Model as CoursePlanModel, ensurePlans, applyPlanAttempt, publicPlan, attemptFingerprint, questionSignature } from './course-plan.mjs';
 import { createRootPractice } from './root-practice.mjs';
 import { createNumberTrainer } from './number-trainer.mjs';
+import { createLocalAudio } from './number-trainer-audio.mjs';
 import { createRootDict } from './root-dict.mjs';
 import { createReviewHub } from './review-hub.mjs';
 import * as LessonVocab from './lesson-vocab.mjs';
@@ -1862,7 +1863,11 @@ const COURSE_PLAN=createCoursePlanHandler({records:()=>RECORDS,setRecords:x=>{RE
   gradeRootWord:rootGradeWord,now:()=>Date.now()});
 const REVIEW_HUB=createReviewHub({web:WEB_DIR,records:()=>RECORDS,setRecords:x=>{RECORDS=x;},save:recordsSave,recordAttempt:serverRecAttempt,quizzes:()=>GQ_STORE,banks:()=>[...REVIEW_BANKS.values()],reviewEvents:()=>REVIEW_EVENTS,ai:AI_CFG});
 /* 数字听写：独立分账目录 number-trainer/，不写 RECORDS 的词汇/课程/考试字段。 */
-const NUMBER_TRAINER=createNumberTrainer({recordsDir:RECORDS_DIR,ttsConfigured:!!(TTS_CFG.key&&TTS_CFG.url),ttsSynth:ttsSynthToFile,now:()=>Date.now(),audioPrefetch:true});
+const NT_LOCAL_AUDIO = (() => {
+  try { return createLocalAudio({ digitAudioDir: path.join(WEB_DIR, 'nt-digits'), cacheDir: path.join(RECORDS_DIR, 'number-trainer', 'audio-local') }); }
+  catch (e) { console.error('[number-trainer] 本地音源不可用:', e.message); return null; }
+})();
+const NUMBER_TRAINER=createNumberTrainer({recordsDir:RECORDS_DIR,ttsConfigured:!!(TTS_CFG.key&&TTS_CFG.url),ttsSynth:ttsSynthToFile,now:()=>Date.now(),audioPrefetch:true,localAudio:NT_LOCAL_AUDIO});
 
 /* ---------- HTTP 基础 ---------- */
 const MIME = {

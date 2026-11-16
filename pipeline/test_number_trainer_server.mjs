@@ -210,4 +210,38 @@ ok('电话号: 7位会话、单数字音频、空格容忍、前导零严格、�
   ok('音频预热: 失败不影响会话，端点按需重试');
 }
 
+// 全本地音源：音源配置、会话音频不接 AI、试听端点
+{
+  const { createLocalAudio } = await import('../number-trainer-audio.mjs');
+  const dir4 = fs.mkdtempSync(path.join(os.tmpdir(), 'nt-voice-'));
+  const digitsDir = path.join(process.cwd(), 'web', 'nt-digits');
+  const la = createLocalAudio({ digitAudioDir: digitsDir, cacheDir: path.join(dir4, 'cache') });
+  let aiCalls = 0;
+  const synth4 = async () => { aiCalls++;return wav; };
+  const nt4 = createNumberTrainer({ recordsDir: dir4, ttsConfigured: true, ttsSynth: synth4, now, random: Math.random, audioPrefetch: true, localAudio: la });
+  const cfg4 = await call(nt4, 'GET', '/api/number-trainer/config');
+  assert.equal(cfg4.data.localAudio, true);
+  const loc = await call(nt4, 'POST', '/api/number-trainer/sessions', { mode: 'phone', voice: 'local', phoneMin: 7, phoneMax: 11, count: 5 });
+  assert.equal(loc.data.config.voice, 'local');
+  const rep = await nt4.waitPrefetch(loc.data.id);
+  assert.equal(rep, null, 'no prefetch for local source');
+  const locAudio = await call(nt4, 'GET', loc.data.questions[0].audioUrl);
+  assert.equal(locAudio.status, 200);
+  assert.equal(locAudio.raw.subarray(0, 4).toString('ascii'), 'RIFF');
+  assert.equal(aiCalls, 0, 'local source never calls AI');
+  const prevLocal = await call(nt4, 'GET', '/api/number-trainer/preview?voice=local&digits=8597390274');
+  assert.equal(prevLocal.status, 200);
+  assert.equal(prevLocal.raw.subarray(0, 4).toString('ascii'), 'RIFF');
+  const prevBad = await call(nt4, 'GET', '/api/number-trainer/preview?voice=local&digits=abc');
+  assert.equal(prevBad.status, 400);
+  const nat = await call(nt4, 'POST', '/api/number-trainer/sessions', { mode: 'phone', voice: 'natural', phoneMin: 7, phoneMax: 11, count: 5 });
+  assert.equal(nat.data.config.voice, 'natural');
+  assert.notEqual(loc.data.questions[0].audioUrl, nat.data.questions[0].audioUrl, 'URL hash isolates voice source');
+  const natAudio = await call(nt4, 'GET', nat.data.questions[0].audioUrl);
+  assert.equal(natAudio.status, 200);
+  assert(aiCalls >= 1, 'natural source calls AI');
+  fs.rmSync(dir4, { recursive: true, force: true });
+  ok('全本地音源: 配置/不接AI/URL隔离/试听端点');
+}
+
 console.log(`\n${pass} groups passed`);

@@ -16,7 +16,7 @@ const ERROR_TO_FEATURE = {
   zeroDrop: 'zeroGap', zeroInsert: 'zeroGap', missingDigits: 'zeroGap', extraDigits: 'zeroGap',
   transposition: 'distinctDigits',
 };
-export function createNumberTrainer({ recordsDir, ttsConfigured = false, ttsSynth = null, now = () => Date.now(), random = Math.random, audioPrefetch = false } = {}) {
+export function createNumberTrainer({ recordsDir, ttsConfigured = false, ttsSynth = null, now = () => Date.now(), random = Math.random, audioPrefetch = false, localAudio = null } = {}) {
   const store = createStore({ recordsDir, now });
   store.ensure();
   /* 一轮的音频在开轮时并行预热：TTS 每次冷合成约 1.2s，20 题逐题等就是 24s。
@@ -25,6 +25,7 @@ export function createNumberTrainer({ recordsDir, ttsConfigured = false, ttsSynt
      失败只记录数量、不影响会话：音频端点仍会按需重试。 */
   const prefetched = new Map();
   function prefetchAudio(session) {
+    if (session.config?.voice === 'local') return;   // 本地音源无需预热，片段已在内存
     if (!audioPrefetch || !ttsConfigured || typeof ttsSynth !== 'function') return;
     const texts = [...new Set(session.questions.map(q => String(q.text || '')).filter(Boolean))];
     let done = 0, failed = 0, next = 0;
@@ -53,6 +54,7 @@ export function createNumberTrainer({ recordsDir, ttsConfigured = false, ttsSynt
       readingVersion: M.READING_VERSION, gradingVersion: M.GRADE_VERSION,
       phoneMin: M.PHONE_MIN, phoneMax: M.PHONE_MAX,
       tts: !!ttsConfigured,
+      localAudio: !!localAudio,               // 首页是否提供「本地逐位」音源
       thresholds: M.THRESHOLDS,
     };
   }
@@ -69,6 +71,7 @@ export function createNumberTrainer({ recordsDir, ttsConfigured = false, ttsSynt
       phoneMax: Math.max(phoneMin, num(input.phoneMax, M.PHONE_MIN, M.PHONE_MAX, 11)),
       count: num(input.count, 5, 60, 20),
       rate: [0.8, 1].includes(Number(input.rate)) ? Number(input.rate) : 1,
+      voice: localAudio && input.voice === 'local' ? 'local' : 'natural',
     };
   }
 
@@ -113,7 +116,7 @@ export function createNumberTrainer({ recordsDir, ttsConfigured = false, ttsSynt
         questions: phoneQuestions,
         state: 'active', finishedAt: null,
       };
-      for (const q of session.questions) q.audioUrl = audioUrlFor(id, q);
+      for (const q of session.questions) q.audioUrl = audioUrlFor(id, q, config.voice);
       store.saveSession(session);
       store.pruneSessions(30);
       prefetchAudio(session);
@@ -157,13 +160,13 @@ export function createNumberTrainer({ recordsDir, ttsConfigured = false, ttsSynt
       id, config, createdAt: session.createdAt,
       plan: session.plan,
       advice: M.buildAdvice(summary),
-      questions: session.questions.map(q => ({ ...q, audioUrl: audioUrlFor(id, q) })),
+      questions: session.questions.map(q => ({ ...q, audioUrl: audioUrlFor(id, q, config.voice) })),
     };
   }
 
   /** 音频地址带读音文本摘要：读音文本一变 URL 就变，浏览器不会复用旧读音的缓存。 */
-  function audioUrlFor(sessionId, q) {
-    const v = crypto.createHash('sha1').update(String(q.text || '') + '|' + (q.readingVersion || '')).digest('hex').slice(0, 10);
+  function audioUrlFor(sessionId, q, voice = '') {
+    const v = crypto.createHash('sha1').update(String(q.text || '') + '|' + (q.readingVersion || '') + '|' + (voice || '')).digest('hex').slice(0, 10);
     return `/api/number-trainer/audio?s=${encodeURIComponent(sessionId)}&q=${encodeURIComponent(q.id)}&v=${v}`;
   }
   function sessionView(session) {
@@ -177,7 +180,7 @@ export function createNumberTrainer({ recordsDir, ttsConfigured = false, ttsSynt
     return {
       id: session.id, config: session.config, createdAt: session.createdAt, plan: session.plan,
       state: session.state, finishedAt: session.finishedAt, answered,
-      questions: session.questions.map(q => ({ ...q, audioUrl: audioUrlFor(session.id, q) })),
+      questions: session.questions.map(q => ({ ...q, audioUrl: audioUrlFor(session.id, q, session.config?.voice) })),
     };
   }
 
@@ -235,6 +238,7 @@ export function createNumberTrainer({ recordsDir, ttsConfigured = false, ttsSynt
       sessionOne: /^\/api\/number-trainer\/sessions\/([a-z0-9-]{6,64})$/i.exec(p),
       finish: /^\/api\/number-trainer\/sessions\/([a-z0-9-]{6,64})\/finish$/i.exec(p),
       audio: p === '/api/number-trainer/audio',
+      preview: p === '/api/number-trainer/preview',
       attempt: p === '/api/number-trainer/attempt',
       summary: p === '/api/number-trainer/summary',
       attempts: p === '/api/number-trainer/attempts',
@@ -287,11 +291,36 @@ export function createNumberTrainer({ recordsDir, ttsConfigured = false, ttsSynt
         if (!s) { sendJSON(res, 404, { error: 'SESSION_NOT_FOUND' });return true; }
         const q = s.questions.find(x => x.id === qid);
         if (!q) { sendJSON(res, 404, { error: 'QUESTION_NOT_FOUND' });return true; }
-        if (!ttsConfigured || typeof ttsSynth !== 'function') { sendJSON(res, 503, { error: 'TTS_NOT_CONFIGURED' });return true; }
         let file;
-        try { file = await ttsSynth(q.text); }
-        catch (e) { sendJSON(res, 502, { error: 'TTS_FAILED', message: String(e.message || e).slice(0, 120) });return true; }
+        if (s.config?.voice === 'local' && localAudio) {
+          // 全本地音源：固化片段拼接，不接 AI；整数与电话都按位/数值逐位读
+          try { file = localAudio.synthDigits(q.value).file; }
+          catch (e) { sendJSON(res, 502, { error: 'LOCAL_AUDIO_FAILED', message: String(e.message || e).slice(0, 120) });return true; }
+        } else {
+          if (!ttsConfigured || typeof ttsSynth !== 'function') { sendJSON(res, 503, { error: 'TTS_NOT_CONFIGURED' });return true; }
+          try { file = await ttsSynth(q.text); }
+          catch (e) { sendJSON(res, 502, { error: 'TTS_FAILED', message: String(e.message || e).slice(0, 120) });return true; }
+        }
         res.setHeader('Cache-Control', 'private, max-age=604800');
+        sendFile(req, res, file);
+        return true;
+      }
+      if (m.preview) {
+        // 首页试听：不建会话，直接给一段号码的两种音源，方便用户对比后选择
+        if (!localAudio) { sendJSON(res, 404, { error: 'LOCAL_AUDIO_NOT_AVAILABLE' });return true; }
+        const voice = url.searchParams.get('voice') === 'local' ? 'local' : 'natural';
+        const digits = String(url.searchParams.get('digits') || '').replace(/[^0-9]/g, '').slice(0, 12);
+        if (!/^[0-9]{3,12}$/.test(digits)) { sendJSON(res, 400, { error: 'BAD_DIGITS' });return true; }
+        let file;
+        try {
+          if (voice === 'local') file = localAudio.synthDigits(digits).file;
+          else {
+            if (!ttsConfigured || typeof ttsSynth !== 'function') { sendJSON(res, 503, { error: 'TTS_NOT_CONFIGURED' });return true; }
+            const words = ['oh','one','two','three','four','five','six','seven','eight','nine'];
+            file = await ttsSynth([...digits].map(d => words[+d]).join(' '));
+          }
+        } catch (e) { sendJSON(res, 502, { error: 'PREVIEW_FAILED', message: String(e.message || e).slice(0, 120) });return true; }
+        res.setHeader('Cache-Control', 'private, max-age=86400');
         sendFile(req, res, file);
         return true;
       }

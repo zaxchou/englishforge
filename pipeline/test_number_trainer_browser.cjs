@@ -85,6 +85,19 @@ async function typeValue(page, value) {
       assert(chipGroups.length >= 4, 'home has option rows: ' + JSON.stringify(chipGroups));
       for (const ws of chipGroups) assert(Math.max(...ws) - Math.min(...ws) <= 2, 'chip row equal width ' + JSON.stringify(ws));
 
+      // 读音来源：默认自然连读，可切本地逐位；两个试听按钮存在且请求试听端点
+      if (await page.locator('[data-voice="local"]').count()) {
+        assert.equal(await page.locator('[data-voice="natural"]').evaluate(el => el.classList.contains('on')), true, 'natural voice default');
+        const previews = [];
+        page.on('request', r => { if (r.url().includes('/api/number-trainer/preview')) previews.push(r.url()); });
+        await page.locator('[data-preview="local"]').click();
+        await page.waitForTimeout(250);
+        assert(previews.some(u => u.includes('voice=local')), 'local preview requested: ' + JSON.stringify(previews));
+        await page.locator('[data-voice="local"]').click();
+        assert.equal(await page.locator('[data-voice="local"]').evaluate(el => el.classList.contains('on')), true, 'local voice selected');
+        await page.locator('[data-voice="natural"]').click(); // 还原，避免影响后续轮次断言
+      }
+
       // 10 题一轮，全部输入正确答案
       await page.locator('[data-count="10"]').click();
       await page.locator('[data-auto="off"]').click();   // 先用手动确认，便于逐题断言

@@ -14,7 +14,7 @@ let theme = 'light';
 
 const S = {
   mounted: false, token: 0, screen: 'home',
-  cfg: { mode: 'smart', digits: 3, count: 20, rate: 1, auto: true, phoneMin: 7, phoneMax: 11 },
+  cfg: { mode: 'smart', digits: 3, count: 20, rate: 1, auto: true, phoneMin: 7, phoneMax: 11, voice: 'natural' },
   meta: null, summary: null, history: null,
   session: null, index: 0, input: '', caret: 0, answers: [], autoTimer: null,
   playState: 'idle', endedAt: 0, firstAt: 0, replay: false, hint: false, plays: 0,
@@ -146,6 +146,11 @@ function homeHTML() {
       <button class="nt-chip${S.cfg.auto ? ' on' : ''}" data-auto="on">自动下一题</button>
       <button class="nt-chip${S.cfg.auto ? '' : ' on'}" data-auto="off">手动确认</button>
     </div></div>
+    ${S.meta?.localAudio ? `<div class="nt-field"><span class="nt-label">读音</span><div class="nt-chips cols-2" role="group" aria-label="读音来源">
+      <button class="nt-chip${S.cfg.voice === 'natural' ? ' on' : ''}" data-voice="natural">自然连读</button>
+      <button class="nt-chip${S.cfg.voice === 'local' ? ' on' : ''}" data-voice="local">本地逐位</button>
+    </div><span class="nt-note">${S.cfg.voice === 'local' ? '本地固化音频逐位拼接，不接 AI、即点即播；读得慢一些、字与字更分明。' : 'AI 自然连读，语速接近真人；开轮后已后台缓存，答题不等待。'}</span>
+    <div class="nt-previews"><button class="nt-pill" data-act="preview" data-preview="natural">▶ 试听自然连读</button><button class="nt-pill" data-act="preview" data-preview="local">▶ 试听本地逐位</button></div></div>` : ''}
     <button class="nt-primary" data-act="start">开始训练</button>
     ${last ? `<button class="nt-last" data-act="history">
       <span><b>上次训练</b><small>${esc(dayLabel(last.endedAt))} · ${last.settled} 题 · ${Math.round((last.accuracy || 0) * 100)}%${last.medianMs ? ' · ' + M.fmtSec(last.medianMs) : ''}</small></span>
@@ -287,6 +292,17 @@ function doneHTML() {
 
 /* ---------- 交互 ---------- */
 function currentQ() { return S.session?.questions[S.index] || null; }
+/* 首页试听：独立音频元素，不动会话与计时。固定号码，两种音源可直接对比。 */
+let previewEl = null;
+async function previewAudio(voice) {
+  const src = `${API}/preview?voice=${encodeURIComponent(voice)}&digits=8597390274`;
+  toast(voice === 'local' ? '播放本地逐位试听…' : '播放自然连读试听…');
+  try {
+    if (!previewEl) { previewEl = new Audio();previewEl.preload = 'auto'; }
+    previewEl.pause();previewEl.src = src;
+    await previewEl.play();
+  } catch { toast('试听播放失败，请再点一次。'); }
+}
 function bind() {
   root.querySelectorAll('[data-digit]').forEach(b => b.onclick = () => pressDigit(b.dataset.digit));
   root.querySelectorAll('[data-slot]').forEach(b => b.onclick = () => {
@@ -314,6 +330,8 @@ function bind() {
   });
   root.querySelectorAll('[data-fixed]').forEach(b => b.onclick = () => { S.cfg.mode = 'fixed';S.cfg.digits = Number(b.dataset.fixed);cfgSave();render(); });
   root.querySelectorAll('[data-count]').forEach(b => b.onclick = () => { S.cfg.count = Number(b.dataset.count);cfgSave();render(); });
+  root.querySelectorAll('[data-voice]').forEach(b => b.onclick = () => { S.cfg.voice = b.dataset.voice === 'local' ? 'local' : 'natural';cfgSave();render(); });
+  root.querySelectorAll('[data-preview]').forEach(b => b.onclick = () => previewAudio(b.dataset.preview));
 }
 function pressDigit(d) {
   if (S.result || S.input.length >= 12) return;

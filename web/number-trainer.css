@@ -124,6 +124,8 @@
 #v-number-trainer .nt-chip:hover{color:var(--nt-ink)}
 #v-number-trainer .nt-chip.on{background:var(--nt-green);color:var(--nt-green-ink);font-weight:600;box-shadow:0 1px 3px #0002}
 #v-number-trainer .nt-chip.on:hover{color:var(--nt-green-ink)}
+#v-number-trainer .nt-previews{display:flex;gap:8px;flex-wrap:wrap;margin-top:7px}
+#v-number-trainer .nt-previews .nt-pill{cursor:pointer}
 #v-number-trainer .nt-primary{min-height:52px;border-radius:12px;background:var(--nt-green);color:var(--nt-green-ink);font-weight:600;font-size:15px;border:1px solid var(--nt-green);margin-top:2px}
 #v-number-trainer .nt-primary:hover{filter:brightness(1.04)}
 #v-number-trainer .nt-secondary{min-height:52px;border-radius:12px;background:var(--nt-surface2);color:var(--nt-ink);border:1px solid var(--nt-line2);font-size:15px;font-weight:500}
