@@ -28,6 +28,17 @@ test('every loading prompt uses the shared tfl-loading component',()=>{
   assert.ok(count>=20,`expected all loading prompts, found ${count}`);
 });
 
+test('episode/home loading prompts also use the shared component',()=>{
+  const s=read('web/index.html');
+  for(const text of ['加载本期数据…','加载中…','正在确认本节练习…','家族加载中…','核对讲义页码中…']){
+    const i=s.indexOf(text);
+    assert.ok(i>0,`missing prompt: ${text}`);
+    const lineStart=s.lastIndexOf('\n',i)+1;
+    const line=s.slice(lineStart,s.indexOf('\n',i));
+    assert.match(line,/tfl-loading/,`loading prompt without shared class: ${text}`);
+  }
+});
+
 test('both style systems define the component and reduced-motion fallback',()=>{
   for(const f of ['web/desk.css','root-universe/public/style.css']){
     const css=read(f);

@@ -146,7 +146,7 @@ details.ai-tsec[open] summary{margin-bottom:8px}
 <div class="view on" id="v-home">
   <header class="lead"><div class="desk-kicker">TOEFL · 听 / 读 / 写 / 说</div>
     <h1>开始今天的练习<span class="heading-dot">.</span></h1>
-    <p id="home-sub">加载中…</p></header>
+    <p id="home-sub" class="tfl-loading"><i aria-hidden="true"></i>加载中…</p></header>
   <section class="checkin" id="checkin" hidden></section>
   <section class="controw" id="hm-continue"></section>
   <section class="card hprog"><div class="phead"><div class="l"><b>真题训练 · 四科进度</b></div>
@@ -2578,7 +2578,7 @@ function renderGenQuiz() {
   const st = GQ_UI, qz = st.quiz;
   $('gq-meta').textContent = qz ? (qz.questions.length - (qz.bad || []).length + ' 题') : '';
   const rootLoading=typeof RP_STATE!=='undefined'&&csSel.c==='cfcm-01'&&RP_STATE.lesson===csSel.l+1&&RP_STATE.loading;
-  if(rootLoading){body.innerHTML='<p class="gq-note">正在确认本节练习…</p>';return;}
+  if(rootLoading){body.innerHTML='<p class="gq-note tfl-loading"><i aria-hidden="true"></i>正在确认本节练习…</p>';return;}
   const rootArchive=typeof RP_STATE!=='undefined'&&csSel.c==='cfcm-01'&&RP_STATE.lesson===csSel.l+1&&!!RP_STATE.data;
   const card=body.closest('.gq-card');
   if(card){card.querySelector('.phead b').textContent=rootArchive?'原配套题 · 历史回看':(csSel.c==='cfcm-01'?'课后练 · 老师出的本节配套练习':'课后练 · 按本节教材生成');}
@@ -3702,7 +3702,7 @@ window.renderEplodMain=async function(c){
   epLeave();
   const l=c.lessons[Math.max(0,Math.min(csSel.l==null?0:csSel.l,c.lessons.length-1))];
   const isCurrent=()=>request===EP.loadId&&document.querySelector('#v-course.on')&&csSel.c===c.id&&c.lessons[csSel.l]?.id===l.id;
-  el.innerHTML='<div class="cs-stick ep"><div class="card" style="padding:32px;text-align:center;color:var(--t2)">加载本期数据…</div></div>';
+  el.innerHTML='<div class="cs-stick ep"><div class="card tfl-loading" style="padding:32px;text-align:center;color:var(--t2)"><i aria-hidden="true"></i>加载本期数据…</div></div>';
   let d=EP.cache[l.ep];
   if(!d){
     try{d=EP.cache[l.ep]=await api('/api/eplod/lesson/'+String(l.ep).padStart(4,'0'),{signal:AbortSignal.timeout(15000)});}
@@ -5202,7 +5202,7 @@ function renderCourseMain(){
         <div class="r" id="cs-mat-r">${originals.map(x=>`<a class="orig-link" href="${esc(x.url)}" target="_blank" rel="noopener">原版：${esc(x.file.split('/').pop())} ↗</a>`).join(' ')}</div></div>
       <div id="cs-mat-handout">    ${cur?.notes_verified&&cur.key_points?.length?`<div class="handout" style="margin:16px 0 0"><h5>本节学习提示</h5><ul>${cur.key_points.map(point=>`<li style="margin:8px 0;line-height:1.7">${esc(point)}</li>`).join('')}</ul><p style="font-size:12px;color:var(--t2)">依据讲义整理，不是老师逐字原话。来源：${esc(cur.notes_source||'课程讲义')}</p></div>`:''}
 <div class="handout-scroll"><div class="handout" id="cs-handout" style="background:none;border-radius:0"><div class="skl"><i style="width:62%"></i><i style="width:88%"></i><i style="width:76%"></i><i style="width:38%"></i></div></div></div></div>
-      <div id="cs-mat-script" style="display:none"><div class="md-body" id="cs-script-body"><p class="gq-note">加载中…</p></div></div>
+      <div id="cs-mat-script" style="display:none"><div class="md-body" id="cs-script-body"><p class="gq-note tfl-loading"><i aria-hidden="true"></i>加载中…</p></div></div>
       <div id="cs-mat-practice" style="display:none">    ${cur&&cur.practice?`<div class="cs-act"><div class="l"><span class="k">看完练</span><b>${esc(cur.practice.label)}</b>
       <span class="why">${esc(cur.why||'')}</span></div>
       <button class="pri" id="cs-goquiz">练这组 →</button></div>`:''}
@@ -5295,7 +5295,7 @@ function renderCourseMain(){
   const mappedIds=hm?.page?[...new Set((hm.segments||[{nid:hm.nid}]).map(r=>r.nid))]:[];
   const notesIds=mappedIds.length&&mappedIds.every(id=>(c.notes_ids||[]).includes(id))?mappedIds:(c.notes_ids||[]).includes(l.id)?[l.id]:(c.notes_ids||[]);
   let readerLabel=null;
-  if(originals.length){const reader=document.createElement('div');reader.className='cs-reader-tools';reader.innerHTML='<span id="cs-reader-scope">核对讲义页码中…</span><button id="cs-reader-view" disabled>提取文本</button>';$('cs-mat-handout').prepend(reader);readerLabel=$('cs-reader-scope');$('cs-reader-view').onclick=()=>{const text=hand.classList.toggle('text-mode');$('cs-reader-view').textContent=text?'讲义页图':'提取文本';};}
+  if(originals.length){const reader=document.createElement('div');reader.className='cs-reader-tools';reader.innerHTML='<span id="cs-reader-scope" class="tfl-loading"><i aria-hidden="true"></i>核对讲义页码中…</span><button id="cs-reader-view" disabled>提取文本</button>';$('cs-mat-handout').prepend(reader);readerLabel=$('cs-reader-scope');$('cs-reader-view').onclick=()=>{const text=hand.classList.toggle('text-mode');$('cs-reader-view').textContent=text?'讲义页图':'提取文本';};}
 
   if((c.notes_ids||[]).length||l.handout_file){
     let handoutRequest=0;
@@ -5439,7 +5439,7 @@ async function fetchFamilies() {
 async function renderFamilies() {
   const list = $('rv-list'), stats = $('rv-stats');
   $('rv-ph-t').textContent = '词根家族';
-  list.innerHTML = '<div class="empty">家族加载中…</div>';
+  list.innerHTML = '<div class="empty tfl-loading"><i aria-hidden="true"></i>家族加载中…</div>';
   let fams;
   try { fams = await fetchFamilies(); }
   catch (e) { list.innerHTML = '<div class="empty">' + esc(e.message || '加载失败') + '</div>'; return; }
