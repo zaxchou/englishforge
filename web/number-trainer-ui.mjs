@@ -18,7 +18,7 @@ const S = {
   meta: null, summary: null, history: null,
   session: null, index: 0, input: '', caret: 0, answers: [], autoTimer: null,
   playState: 'idle', endedAt: 0, firstAt: 0, replay: false, hint: false, plays: 0,
-  timingValid: true, invalidReason: null, result: null, assistedThis: false,
+  timingValid: true, invalidReason: null, result: null, assistedThis: false, audioToken: 0,
   browserVoice: false, pending: 0, note: '', finishSummary: null, finishState: 'idle',
 };
 
@@ -27,6 +27,7 @@ const CARET = '<i class="nt-caret" aria-hidden="true"></i>';
 
 function cfgLoad() {
   try { const c = JSON.parse(localStorage.getItem(LS_CFG) || 'null');if (c && typeof c === 'object') S.cfg = { ...S.cfg, ...c }; } catch { /* 忽略 */ }
+  S.cfg.rate = M.normalizeRate(S.cfg.rate);
 }
 function cfgSave() { try { localStorage.setItem(LS_CFG, JSON.stringify(S.cfg)); } catch { /* 忽略 */ } }
 function themeLoad() {
@@ -151,11 +152,14 @@ function homeHTML() {
       <button class="nt-chip${S.cfg.voice === 'local' ? ' on' : ''}" data-voice="local">本地逐位</button>
     </div><span class="nt-note">${S.cfg.voice === 'local' ? '本地固化音频逐位拼接，不接 AI、即点即播；读得慢一些、字与字更分明。' : 'AI 自然连读，语速接近真人；开轮后已后台缓存，答题不等待。'}</span>
     <div class="nt-previews"><button class="nt-pill" data-act="preview" data-preview="natural">▶ 试听自然连读</button><button class="nt-pill" data-act="preview" data-preview="local">▶ 试听本地逐位</button></div></div>` : ''}
+    <div class="nt-field"><span class="nt-label">语速</span><div class="nt-chips cols-3" role="group" aria-label="播放语速">
+      ${M.PLAYBACK_RATES.map(rate => `<button class="nt-chip${S.cfg.rate === rate ? ' on' : ''}" data-rate="${rate}" aria-pressed="${S.cfg.rate === rate}">${rate === 1 ? '1.0× 正常' : rate === 0.8 ? '0.8× 稍慢' : '0.6× 慢速'}</button>`).join('')}
+    </div><span class="nt-note">试听与训练使用同一语速。听不清时建议先选 0.8×，保留原音色。</span></div>
     <button class="nt-primary" data-act="start">开始训练</button>
     ${last ? `<button class="nt-last" data-act="history">
       <span><b>上次训练</b><small>${esc(dayLabel(last.endedAt))} · ${last.settled} 题 · ${Math.round((last.accuracy || 0) * 100)}%${last.medianMs ? ' · ' + M.fmtSec(last.medianMs) : ''}</small></span>
       <span class="nt-last-go">看记录 →</span></button>` : ''}
-    <p class="nt-fine">${S.meta?.tts === false ? '当前使用浏览器朗读，声音与速度因设备而异。' : phone ? '整串逐位朗读，0 读作 oh；不按整数连读。' : '音频为固定音色与读法；加载时间不计入反应时间。'}</p>
+    <p class="nt-fine">${S.cfg.voice === 'local' && S.meta?.localAudio ? '使用完整的本地数字原音，0 读作 oh；重复数字之间保留停顿。' : S.meta?.tts === false ? '当前使用浏览器朗读，声音与速度因设备而异。' : phone ? '整串逐位朗读，0 读作 oh；不按整数连读。' : '音频为固定音色与读法；加载时间不计入反应时间。'}</p>
     ${S.pending ? `<p class="nt-fine nt-warn">${S.pending} 条作答待同步，联网后自动补传。</p>` : ''}
   </div>`;
 }
@@ -180,7 +184,7 @@ function trainHTML() {
   const phoneStyle = q?.mode === 'phone';
   return `${headHTML('正在练习', { gear: false })}
   <div class="nt-bars" role="progressbar" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${S.index + (S.result ? 1 : 0)}"><i style="width:${pct}%"></i></div>
-  <div class="nt-meta-row"><span>${S.index + 1} / ${total}</span><button class="nt-src" data-act="srchint">${esc(M.SOURCE_LABELS[q?.source] || '')} ⓘ</button></div>
+  <div class="nt-meta-row"><span>${S.index + 1} / ${total} · ${playbackRate().toFixed(1)}×</span><button class="nt-src" data-act="srchint">${esc(M.SOURCE_LABELS[q?.source] || '')} ⓘ</button></div>
   <div class="nt-stage">
     <div class="nt-digits${phoneStyle ? ' phone' : ''}" aria-live="polite">${inputBoxes()}</div>
     ${S.result ? resultHTML() : stateHTML(heard)}
@@ -255,7 +259,7 @@ function keysHTML(showResult, heard) {
   const canConfirm = heard && !showResult && S.input.length > 0;
   const last = showResult && S.index + 1 >= (S.session?.questions.length || 0);
   const next = showResult
-    ? `<button class="nt-key confirm wide2" data-act="next">${last ? '看本轮结果' : '下一题'}</button>`
+    ? `<button class="nt-key confirm wide2" data-act="next" ${S.playState === 'playing' ? 'disabled' : ''}>${last ? '看本轮结果' : '下一题'}</button>`
     : `<button class="nt-key confirm" data-act="confirm" ${canConfirm ? '' : 'disabled'}>确认</button>`;
   const lock = showResult ? 'disabled' : '';
   return `<div class="nt-keys">
@@ -292,17 +296,32 @@ function doneHTML() {
 
 /* ---------- 交互 ---------- */
 function currentQ() { return S.session?.questions[S.index] || null; }
-/* 首页试听：独立音频元素，不动会话与计时。固定号码，两种音源可直接对比。 */
-let previewEl = null;
+function playbackRate() { return M.normalizeRate(S.session?.config?.rate ?? S.cfg.rate); }
+function usesFileAudio() { return S.session?.config?.voice === 'local' || !!S.meta?.tts; }
+/* 首页试听独立于会话；开始训练、离页或换设置时必须停止，避免叠播。 */
+let previewEl = null, previewToken = 0;
+function stopPreview() {
+  previewToken++;
+  if (previewEl) { previewEl.pause();previewEl.removeAttribute('src');previewEl.load(); }
+}
+function stopPlayback() {
+  S.audioToken++;
+  if (player) player.stop();
+  if (S.browserVoice && 'speechSynthesis' in window) speechSynthesis.cancel();
+}
 async function previewAudio(voice) {
+  stopPreview();
+  const token = previewToken;
   const version = voice === 'local' ? `&v=${encodeURIComponent(S.meta?.localAudioVersion || '')}` : '';
-  const src = `${API}/preview?voice=${encodeURIComponent(voice)}&digits=8597390274${version}`;
-  toast(voice === 'local' ? '播放本地逐位试听…' : '播放自然连读试听…');
+  const src = `${API}/preview?voice=${encodeURIComponent(voice)}&digits=1002211007${version}`;
+  toast(`试听 100 221 1007 · ${S.cfg.rate.toFixed(1)}×`);
   try {
     if (!previewEl) { previewEl = new Audio();previewEl.preload = 'auto'; }
-    previewEl.pause();previewEl.src = src;
+    previewEl.src = src;
+    previewEl.playbackRate = M.normalizeRate(S.cfg.rate);
+    previewEl.preservesPitch = true;
     await previewEl.play();
-  } catch { toast('试听播放失败，请再点一次。'); }
+  } catch { if (token === previewToken && S.mounted && S.screen === 'home') toast('试听播放失败，请再点一次。'); }
 }
 function bind() {
   root.querySelectorAll('[data-digit]').forEach(b => b.onclick = () => pressDigit(b.dataset.digit));
@@ -331,7 +350,8 @@ function bind() {
   });
   root.querySelectorAll('[data-fixed]').forEach(b => b.onclick = () => { S.cfg.mode = 'fixed';S.cfg.digits = Number(b.dataset.fixed);cfgSave();render(); });
   root.querySelectorAll('[data-count]').forEach(b => b.onclick = () => { S.cfg.count = Number(b.dataset.count);cfgSave();render(); });
-  root.querySelectorAll('[data-voice]').forEach(b => b.onclick = () => { S.cfg.voice = b.dataset.voice === 'local' ? 'local' : 'natural';cfgSave();render(); });
+  root.querySelectorAll('[data-voice]').forEach(b => b.onclick = () => { stopPreview();S.cfg.voice = b.dataset.voice === 'local' ? 'local' : 'natural';cfgSave();render(); });
+  root.querySelectorAll('[data-rate]').forEach(b => b.onclick = () => { stopPreview();S.cfg.rate = M.normalizeRate(b.dataset.rate);cfgSave();render(); });
   root.querySelectorAll('[data-preview]').forEach(b => b.onclick = () => previewAudio(b.dataset.preview));
 }
 function pressDigit(d) {
@@ -393,6 +413,7 @@ function act(a) {
 }
 
 async function startSession(override = null) {
+  stopPreview();stopPlayback();
   const token = ++S.token;
   cancelAutoNext();clearRun();S.screen = 'loading';S.result = null;S.answers = [];S.index = 0;S.input = '';S.caret = 0;render();
   try {
@@ -407,6 +428,7 @@ async function startSession(override = null) {
   }
 }
 function resetQuestionState() {
+  stopPlayback();S.browserVoice = false;
   cancelAutoNext();S.input = '';S.caret = 0;S.result = null;S.endedAt = 0;S.firstAt = 0;S.submitMs = null;
   S.replay = false;S.hint = false;S.plays = 0;S.timingValid = true;S.invalidReason = null;S.assistedThis = false;
   S.playState = 'idle';S.note = '';
@@ -417,17 +439,18 @@ async function enterQuestion({ draft = '' } = {}) {
   await loadAndPlay(q);
 }
 async function loadAndPlay(q) {
-  const token = S.token;
+  const token = S.token, audioToken = ++S.audioToken;
+  const current = () => token === S.token && audioToken === S.audioToken && q === currentQ();
   S.playState = 'loading';render();
-  if (!S.meta?.tts) { await playCurrent();return; }   // 只有服务端明确没有语音时才用浏览器朗读
+  if (!usesFileAudio()) { await playCurrent();return; }
   try {
     let ok = await player.load(q.audioUrl);
-    if (token !== S.token) return;
+    if (!current()) return;
     if (!ok.ok) {                                     // 冷缓存偶发慢，重试一次再报错
       await new Promise(r => setTimeout(r, 250));
-      if (token !== S.token) return;
+      if (!current()) return;
       ok = await player.load(q.audioUrl);
-      if (token !== S.token) return;
+      if (!current()) return;
     }
     if (!ok.ok) {
       S.playState = 'error';S.note = '音频没准备好，点下面重试';S.timingValid = false;S.invalidReason = 'audio_load';
@@ -435,7 +458,7 @@ async function loadAndPlay(q) {
     }
     await playCurrent();
   } catch {
-    if (token !== S.token) return;
+    if (!current()) return;
     S.playState = 'error';S.note = '音频加载失败，点下面重试';S.timingValid = false;S.invalidReason = 'audio_load';
     render();
   }
@@ -445,27 +468,28 @@ async function playCurrent(isReplay = false) {
   if (S.result && !isReplay) return;
   cancelAutoNext();   // 想再听就别把题换掉
   if (isReplay || S.plays > 0) S.replay = true;
-  const token = S.token;
+  stopPlayback();
+  const token = S.token, audioToken = S.audioToken;
   S.playState = 'playing';render();
-  if (!S.meta?.tts) {
+  if (!usesFileAudio()) {
     if (!('speechSynthesis' in window)) { S.playState = 'error';S.note = '此设备不支持朗读';render();return; }
     S.browserVoice = true;
     await new Promise(resolve => {
-      const u = new SpeechSynthesisUtterance(q.text.replace(/-/g, ' '));u.lang = 'en-US';u.rate = S.cfg.rate;
+      const u = new SpeechSynthesisUtterance(q.text.replace(/-/g, ' '));u.lang = 'en-US';u.rate = playbackRate();
       try { const v = speechSynthesis.getVoices().find(x => /^en(-|_)/i.test(x.lang));if (v) u.voice = v; } catch { /* 忽略 */ }
       u.onend = () => resolve(true);u.onerror = () => resolve(false);
       speechSynthesis.cancel();speechSynthesis.speak(u);
       setTimeout(() => resolve(false), 15000);
     }).then(ok => {
-      if (token !== S.token) return;
+      if (token !== S.token || audioToken !== S.audioToken) return;
       if (!ok) { S.playState = 'error';S.note = '朗读失败，可重试';S.timingValid = false;S.invalidReason = 'browser_voice'; }
       else { S.plays++;S.endedAt = performance.now();S.playState = 'ready'; }
       render();
     });
     return;
   }
-  const out = await player.play({ rate: S.cfg.rate });
-  if (token !== S.token) return;
+  const out = await player.play({ rate: playbackRate() });
+  if (token !== S.token || audioToken !== S.audioToken) return;
   if (out.ok) { S.plays++;S.endedAt = performance.now();S.playState = 'ready'; }
   else if (out.reason === 'autoplay') S.playState = 'blocked';
   else if (out.reason === 'stopped') { /* 已被新题替换 */ }
@@ -475,6 +499,8 @@ async function playCurrent(isReplay = false) {
 function submit(skip) {
   if (S.result) return;
   const q = currentQ();if (!q) return;
+  if (!skip && S.playState !== 'ready' && S.playState !== 'done') { toast('请听完整段，再确认。');return; }
+  if (skip) { stopPlayback();S.playState = 'done'; }
   if (!skip && !S.input.trim()) { toast('先输入数字，或点跳过。');return; }
   const nowP = performance.now();
   S.submitMs = S.endedAt ? Math.round(nowP - S.endedAt) : null;
@@ -488,7 +514,7 @@ function submit(skip) {
   persist(skip);
   scheduleAutoNext();
   const next = S.session?.questions?.[S.index + 1];
-  if (next && S.meta?.tts && player) player.warm(next.audioUrl);
+  if (next && usesFileAudio() && player) player.warm(next.audioUrl);
 }
 function persist(skip) {
   const q = currentQ();
@@ -501,7 +527,7 @@ function persist(skip) {
     submitMs: S.submitMs,
     timingValid: S.timingValid && S.submitMs != null,
     invalidReason: S.invalidReason,
-    rate: S.cfg.rate, voice: S.browserVoice ? 'browser' : 'server',
+    rate: playbackRate(), voice: S.browserVoice ? 'browser' : 'server',
     device: matchMedia('(pointer:coarse)').matches ? 'touch' : 'pointer',
     clientAt: new Date().toISOString(),
   };
@@ -522,10 +548,10 @@ function retryErrors() {
 function scheduleAutoNext() {
   cancelAutoNext();
   if (!S.cfg.auto || !S.result?.correct || S.result.skip) return;
-  const tryAdvance = (left = 40) => {
+  const tryAdvance = () => {
     S.autoTimer = null;
     if (S.screen !== 'train' || !S.result?.correct) return;
-    if (S.playState === 'playing' && left > 0) { S.autoTimer = setTimeout(() => tryAdvance(left - 1), 300);return; }
+    if (S.playState === 'playing') { S.autoTimer = setTimeout(tryAdvance, 300);return; }
     nextQuestion();
   };
   S.autoTimer = setTimeout(() => tryAdvance(), 900);
@@ -534,6 +560,7 @@ function cancelAutoNext() {
   if (S.autoTimer) { clearTimeout(S.autoTimer);S.autoTimer = null; }
 }
 function nextQuestion() {
+  if (S.playState === 'playing') { toast('请听完整段，再进入下一题。');return; }
   cancelAutoNext();
   if (S.index + 1 >= (S.session?.questions.length || 0)) return finishRound();
   S.index++;S.result = null;enterQuestion();
@@ -558,7 +585,7 @@ function leaveToHome(confirmLeave) {
     if (!window.confirm('这一轮还没做完。离开后本轮记录会保留，但要重新开始一轮。')) return;
   }
   cancelAutoNext();clearRun();S.token++;S.screen = 'home';S.session = null;S.result = null;S.input = '';S.caret = 0;
-  if (player) player.stop();
+  stopPreview();stopPlayback();
   S.pending = queue ? queue.pendingCount() : 0;
   refreshSummary();refreshHistory();render();
 }
@@ -605,6 +632,7 @@ export async function mount(el) {
   resumeRun();
 }
 export function leave() {
+  stopPreview();stopPlayback();
   S.mounted = false;S.token++;
   document.removeEventListener('visibilitychange', onVisibility);
   window.removeEventListener('pagehide', onPageHide);
@@ -616,11 +644,12 @@ export const isActive = () => S.mounted;
 
 function onVisibility() {
   if (document.visibilityState !== 'hidden') return;
-  if (player && S.screen === 'train' && S.playState === 'playing') {
-    player.stop();S.playState = 'paused';S.timingValid = false;S.invalidReason = 'hidden';render();
+  stopPreview();
+  if (S.screen === 'train' && ['loading', 'playing'].includes(S.playState)) {
+    stopPlayback();S.playState = 'paused';S.timingValid = false;S.invalidReason = 'hidden';render();
   }
 }
-function onPageHide() { if (player) player.stop(); }
+function onPageHide() { stopPreview();stopPlayback(); }
 function onKeydown(e) {
   if (!S.mounted || e.metaKey || e.ctrlKey || e.altKey) return;
   const tag = (e.target?.tagName || '').toLowerCase();

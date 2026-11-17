@@ -4,6 +4,11 @@ import * as M from '../web/number-trainer-model.mjs';
 let pass = 0;
 const ok = (name) => { pass++;console.log('ok', name); };
 
+assert.deepEqual(M.PLAYBACK_RATES, [0.6, 0.8, 1]);
+for (const rate of [0.6, 0.8, 1]) assert.equal(M.normalizeRate(String(rate)), rate);
+for (const rate of [0, -1, 2, 'bad', undefined]) assert.equal(M.normalizeRate(rate), 1);
+ok('语速: 三档共享配置、非法值回到正常速度');
+
 // 读法
 assert.equal(M.readNumber(0), 'zero');
 assert.equal(M.readNumber(7), 'seven');

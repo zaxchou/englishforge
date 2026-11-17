@@ -7,6 +7,11 @@ export const CLASSIFY_VERSION = 'nt-classify-v1';
 export const PLAN_VERSION = 'nt-plan-v1';
 export const DIGIT_MIN = 1;
 export const DIGIT_MAX = 6;
+export const PLAYBACK_RATES = [0.6, 0.8, 1];
+export function normalizeRate(value) {
+  const rate = Number(value);
+  return PLAYBACK_RATES.includes(rate) ? rate : 1;
+}
 
 const ONES = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten',
   'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];

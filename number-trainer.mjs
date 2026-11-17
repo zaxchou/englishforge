@@ -71,7 +71,7 @@ export function createNumberTrainer({ recordsDir, ttsConfigured = false, ttsSynt
       phoneMin,
       phoneMax: Math.max(phoneMin, num(input.phoneMax, M.PHONE_MIN, M.PHONE_MAX, 11)),
       count: num(input.count, 5, 60, 20),
-      rate: [0.8, 1].includes(Number(input.rate)) ? Number(input.rate) : 1,
+      rate: M.normalizeRate(input.rate),
       voice: localAudio && input.voice === 'local' ? 'local' : 'natural',
     };
   }
@@ -212,7 +212,7 @@ export function createNumberTrainer({ recordsDir, ttsConfigured = false, ttsSynt
       inputMs: Number.isFinite(input.inputMs) ? Math.round(input.inputMs) : null,
       submitMs: Number.isFinite(input.submitMs) ? Math.round(input.submitMs) : null,
       timingValid, invalidReason: typeof input.invalidReason === 'string' ? input.invalidReason.slice(0, 40) : null,
-      rate: Number(input.rate) === 0.8 ? 0.8 : 1,
+      rate: M.normalizeRate(input.rate ?? session.config?.rate),
       voice: input.voice === 'browser' ? 'browser' : 'server',
       device: typeof input.device === 'string' ? input.device.slice(0, 40) : null,
       clientAt: typeof input.clientAt === 'string' ? input.clientAt.slice(0, 40) : null,
@@ -294,7 +294,8 @@ export function createNumberTrainer({ recordsDir, ttsConfigured = false, ttsSynt
         const q = s.questions.find(x => x.id === qid);
         if (!q) { sendJSON(res, 404, { error: 'QUESTION_NOT_FOUND' });return true; }
         let file;
-        if (s.config?.voice === 'local' && localAudio) {
+        if (s.config?.voice === 'local') {
+          if (!localAudio) { sendJSON(res, 503, { error: 'LOCAL_AUDIO_NOT_AVAILABLE' });return true; }
           // 全本地音源：固化片段拼接，不接 AI；整数与电话都按位/数值逐位读
           try { file = localAudio.synthDigits(q.value).file; }
           catch (e) { sendJSON(res, 502, { error: 'LOCAL_AUDIO_FAILED', message: String(e.message || e).slice(0, 120) });return true; }

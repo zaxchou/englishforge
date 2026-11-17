@@ -244,6 +244,19 @@ ok('电话号: 7位会话、单数字音频、空格容忍、前导零严格、�
   assert.equal(prevLocal.raw.subarray(0, 4).toString('ascii'), 'RIFF');
   const prevBad = await call(nt4, 'GET', '/api/number-trainer/preview?voice=local&digits=abc');
   assert.equal(prevBad.status, 400);
+  for (const rate of [0.6, 0.8, 1]) {
+    const round = await call(nt4, 'POST', '/api/number-trainer/sessions', { mode: 'phone', voice: 'local', count: 5, rate });
+    assert.equal(round.data.config.rate, rate, 'session retains selected playback rate');
+    const q = round.data.questions[0], eventId = 'rate-' + Math.round(rate * 100);
+    const graded = await call(nt4, 'POST', '/api/number-trainer/attempt', { eventId, sessionId: round.data.id, questionId: q.id, raw: q.value, rate, submitMs: 1200, timingValid: true });
+    assert.equal(graded.status, 200);
+    assert.equal(nt4.store.findEvent(eventId, '2026-11-16').rate, rate, 'stored event retains selected playback rate');
+  }
+  const unavailable = createNumberTrainer({ recordsDir: dir4, ttsConfigured: true, ttsSynth: synth4, now });
+  const missingLocal = await call(unavailable, 'GET', loc.data.questions[0].audioUrl);
+  assert.equal(missingLocal.status, 503, 'missing local source must not silently switch voice');
+  assert.equal(aiCalls, 0, 'slow playback and missing local source do not trigger AI');
+  ok('语速: 0.6/0.8/1 写入会话和作答，本地不可用不换音源');
   const nat = await call(nt4, 'POST', '/api/number-trainer/sessions', { mode: 'phone', voice: 'natural', phoneMin: 7, phoneMax: 11, count: 5 });
   assert.equal(nat.data.config.voice, 'natural');
   assert.notEqual(loc.data.questions[0].audioUrl, nat.data.questions[0].audioUrl, 'URL hash isolates voice source');
