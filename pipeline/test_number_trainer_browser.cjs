@@ -85,9 +85,13 @@ async function typeValue(page, value) {
       assert(chipGroups.length >= 4, 'home has option rows: ' + JSON.stringify(chipGroups));
       for (const ws of chipGroups) assert(Math.max(...ws) - Math.min(...ws) <= 2, 'chip row equal width ' + JSON.stringify(ws));
 
-      // 读音来源：默认自然连读，可切本地逐位；两个试听按钮存在且请求试听端点
+      // 读音来源：按练习类型自动分配（数字→自然连读，电话号码→本地逐位），点选后固定
       if (await page.locator('[data-voice="local"]').count()) {
-        assert.equal(await page.locator('[data-voice="natural"]').evaluate(el => el.classList.contains('on')), true, 'natural voice default');
+        assert.equal(await page.locator('[data-voice="natural"]').evaluate(el => el.classList.contains('on')), true, 'integer practice defaults to natural');
+        await page.locator('[data-kind="phone"]').click();
+        assert.equal(await page.locator('[data-voice="local"]').evaluate(el => el.classList.contains('on')), true, 'phone practice auto-selects local clips');
+        await page.locator('[data-kind="number"]').click();
+        assert.equal(await page.locator('[data-voice="natural"]').evaluate(el => el.classList.contains('on')), true, 'back to integer keeps auto natural');
         const previews = [];
         page.on('request', r => { if (r.url().includes('/api/number-trainer/preview')) previews.push(r.url()); });
         await page.locator('[data-preview="local"]').click();
@@ -95,7 +99,11 @@ async function typeValue(page, value) {
         assert(previews.some(u => u.includes('voice=local')), 'local preview requested: ' + JSON.stringify(previews));
         await page.locator('[data-voice="local"]').click();
         assert.equal(await page.locator('[data-voice="local"]').evaluate(el => el.classList.contains('on')), true, 'local voice selected');
-        await page.locator('[data-voice="natural"]').click(); // 还原，避免影响后续轮次断言
+        assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('nt:cfg')).voiceChosen), true, 'explicit choice remembered');
+        await page.locator('[data-kind="phone"]').click();
+        assert.equal(await page.locator('[data-voice="local"]').evaluate(el => el.classList.contains('on')), true, 'explicit choice survives mode switch');
+        await page.locator('[data-voice="natural"]').click(); // 还原为自然连读，避免影响后续整数轮次断言
+        await page.locator('[data-kind="number"]').click();
       }
 
       // 10 题一轮，全部输入正确答案

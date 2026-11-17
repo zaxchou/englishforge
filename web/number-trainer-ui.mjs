@@ -14,7 +14,7 @@ let theme = 'light';
 
 const S = {
   mounted: false, token: 0, screen: 'home',
-  cfg: { mode: 'smart', digits: 3, count: 20, rate: 1, auto: true, phoneMin: 7, phoneMax: 11, voice: 'natural' },
+  cfg: { mode: 'smart', digits: 3, count: 20, rate: 1, auto: true, phoneMin: 7, phoneMax: 11, voice: 'auto', voiceChosen: false },
   meta: null, summary: null, history: null,
   session: null, index: 0, input: '', caret: 0, answers: [], autoTimer: null,
   playState: 'idle', endedAt: 0, firstAt: 0, replay: false, hint: false, plays: 0,
@@ -28,6 +28,8 @@ const CARET = '<i class="nt-caret" aria-hidden="true"></i>';
 function cfgLoad() {
   try { const c = JSON.parse(localStorage.getItem(LS_CFG) || 'null');if (c && typeof c === 'object') S.cfg = { ...S.cfg, ...c }; } catch { /* 忽略 */ }
   S.cfg.rate = M.normalizeRate(S.cfg.rate);
+  // 旧存档没有 voiceChosen 标记：视作未主动选择，进入按练习类型自动分配（电话→本地逐位）。
+  if (!S.cfg.voiceChosen) S.cfg.voice = 'auto';
 }
 function cfgSave() { try { localStorage.setItem(LS_CFG, JSON.stringify(S.cfg)); } catch { /* 忽略 */ } }
 function themeLoad() {
@@ -148,9 +150,11 @@ function homeHTML() {
       <button class="nt-chip${S.cfg.auto ? '' : ' on'}" data-auto="off">手动确认</button>
     </div></div>
     ${S.meta?.localAudio ? `<div class="nt-field"><span class="nt-label">读音</span><div class="nt-chips cols-2" role="group" aria-label="读音来源">
-      <button class="nt-chip${S.cfg.voice === 'natural' ? ' on' : ''}" data-voice="natural">自然连读</button>
-      <button class="nt-chip${S.cfg.voice === 'local' ? ' on' : ''}" data-voice="local">本地逐位</button>
-    </div><span class="nt-note">${S.cfg.voice === 'local' ? '本地固化音频逐位拼接，不接 AI、即点即播；读得慢一些、字与字更分明。' : 'AI 自然连读，语速接近真人；开轮后已后台缓存，答题不等待。'}</span>
+      <button class="nt-chip${effectiveVoice() === 'natural' ? ' on' : ''}" data-voice="natural">自然连读</button>
+      <button class="nt-chip${effectiveVoice() === 'local' ? ' on' : ''}" data-voice="local">本地逐位</button>
+    </div><span class="nt-note">${S.cfg.voice === 'auto'
+      ? `自动分配：${S.cfg.mode === 'phone' ? '电话号码用本地逐位——AI 整串朗读实测会随机多字或吞字，无法从文本层避免' : '数字练习用自然连读'}；点选任意一项可固定。`
+      : S.cfg.voice === 'local' ? '本地固化音频逐位拼接，不接 AI、即点即播；读得慢一些、字与字更分明。' : 'AI 自然连读，语速接近真人；开轮后已后台缓存，答题不等待。'}</span>
     <div class="nt-previews"><button class="nt-pill" data-act="preview" data-preview="natural">▶ 试听自然连读</button><button class="nt-pill" data-act="preview" data-preview="local">▶ 试听本地逐位</button></div></div>` : ''}
     <div class="nt-field"><span class="nt-label">语速</span><div class="nt-chips cols-3" role="group" aria-label="播放语速">
       ${M.PLAYBACK_RATES.map(rate => `<button class="nt-chip${S.cfg.rate === rate ? ' on' : ''}" data-rate="${rate}" aria-pressed="${S.cfg.rate === rate}">${rate === 1 ? '1.0× 正常' : rate === 0.8 ? '0.8× 稍慢' : '0.6× 慢速'}</button>`).join('')}
@@ -159,7 +163,7 @@ function homeHTML() {
     ${last ? `<button class="nt-last" data-act="history">
       <span><b>上次训练</b><small>${esc(dayLabel(last.endedAt))} · ${last.settled} 题 · ${Math.round((last.accuracy || 0) * 100)}%${last.medianMs ? ' · ' + M.fmtSec(last.medianMs) : ''}</small></span>
       <span class="nt-last-go">看记录 →</span></button>` : ''}
-    <p class="nt-fine">${S.cfg.voice === 'local' && S.meta?.localAudio ? '使用完整的本地数字原音，0 读作 oh；重复数字之间保留停顿。' : S.meta?.tts === false ? '当前使用浏览器朗读，声音与速度因设备而异。' : phone ? '整串逐位朗读，0 读作 oh；不按整数连读。' : '音频为固定音色与读法；加载时间不计入反应时间。'}</p>
+    <p class="nt-fine">${effectiveVoice() === 'local' && S.meta?.localAudio ? '使用完整的本地数字原音，0 读作 oh；重复数字之间保留停顿。' : S.meta?.tts === false ? '当前使用浏览器朗读，声音与速度因设备而异。' : phone ? '整串逐位朗读，0 读作 oh；不按整数连读。' : '音频为固定音色与读法；加载时间不计入反应时间。'}</p>
     ${S.pending ? `<p class="nt-fine nt-warn">${S.pending} 条作答待同步，联网后自动补传。</p>` : ''}
   </div>`;
 }
@@ -298,6 +302,12 @@ function doneHTML() {
 function currentQ() { return S.session?.questions[S.index] || null; }
 function playbackRate() { return M.normalizeRate(S.session?.config?.rate ?? S.cfg.rate); }
 function usesFileAudio() { return S.session?.config?.voice === 'local' || !!S.meta?.tts; }
+/* 未主动选择音源时按练习类型分配：电话号用本地逐位（AI 裸数字串会随机多字/吞字，
+   批量实测两种文本格式都无法避免），整数读法是完整句子、继续用自然连读。 */
+function effectiveVoice() {
+  if (S.cfg.voice === 'local' || S.cfg.voice === 'natural') return S.cfg.voice;
+  return S.cfg.mode === 'phone' && S.meta?.localAudio ? 'local' : 'natural';
+}
 /* 首页试听独立于会话；开始训练、离页或换设置时必须停止，避免叠播。 */
 let previewEl = null, previewToken = 0;
 function stopPreview() {
@@ -352,7 +362,7 @@ function bind() {
   });
   root.querySelectorAll('[data-fixed]').forEach(b => b.onclick = () => { S.cfg.mode = 'fixed';S.cfg.digits = Number(b.dataset.fixed);cfgSave();render(); });
   root.querySelectorAll('[data-count]').forEach(b => b.onclick = () => { S.cfg.count = Number(b.dataset.count);cfgSave();render(); });
-  root.querySelectorAll('[data-voice]').forEach(b => b.onclick = () => { stopPreview();S.cfg.voice = b.dataset.voice === 'local' ? 'local' : 'natural';cfgSave();render(); });
+  root.querySelectorAll('[data-voice]').forEach(b => b.onclick = () => { stopPreview();S.cfg.voice = b.dataset.voice === 'local' ? 'local' : 'natural';S.cfg.voiceChosen = true;cfgSave();render(); });
   root.querySelectorAll('[data-rate]').forEach(b => b.onclick = () => { stopPreview();S.cfg.rate = M.normalizeRate(b.dataset.rate);cfgSave();render(); });
   root.querySelectorAll('[data-preview]').forEach(b => b.onclick = () => previewAudio(b.dataset.preview));
 }
@@ -419,7 +429,7 @@ async function startSession(override = null) {
   const token = ++S.token;
   cancelAutoNext();clearRun();S.screen = 'loading';S.result = null;S.answers = [];S.index = 0;S.input = '';S.caret = 0;render();
   try {
-    const data = await api('/sessions', override || S.cfg);
+    const data = await api('/sessions', override || { ...S.cfg, voice: effectiveVoice() });
     if (token !== S.token) return;
     S.session = data;S.screen = 'train';S.finishSummary = null;
     S.index = 0;S.answers = [];
