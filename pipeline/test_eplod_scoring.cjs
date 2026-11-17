@@ -329,6 +329,24 @@ test('r25: -ie/-y homophone spellings match in both voice and typing', () => {
   assert.equal(E.lcsAcc(official, spoken), 1, 'dictation accepts the dictionary-variant spelling too');
   assert.ok(E.scoreTokens('the movie', 'the movey', true).acc < 1, 'unrelated words stay strict');
 });
+test('r27: bracketed stage directions never count as scoring tokens', () => {
+  const official = "Don't you worry, I'll take care of everything! ( starts cutting) Oh my god!";
+  const spoken = "Don't worry, I'll take care of everything. Oh my god.";
+  // 括号说明词不进分母: 只剩真实的 you 一个 miss。
+  const voice = E.scoreTokens(official, spoken, true);
+  assert.deepEqual(voice.marks.filter(m => !m).length, 1, 'only the real you is missed');
+  assert.ok(!E.normTokens(official).includes('cutting'));
+  assert.ok(!E.normTokens(official).includes('starts'));
+  // 显示层: 括号文本落在无 token 段, 不会渲染波浪线。
+  const plain = E.tokenSegments(official).filter(s => !s.tokens.length && /\(|cutting|starts/.test(s.text));
+  assert.equal(plain.length, 1);
+  assert.deepEqual(plain[0].tokens, []);
+  // 未闭合括号到串尾同样剥离; 其他台词词不受影响。
+  assert.deepEqual(E.normTokens('hello world (fade out'), ['hello', 'world']);
+  assert.deepEqual(E.normTokens('open the door [kick sound] now'), ['open', 'the', 'door', 'now']);
+  // 台词里普通词照常计分, 引擎不受无括号文本影响。
+  assert.equal(E.lcsAcc('I love your curly hair', 'I love your curly hair'), 1);
+});
 test('r11: whole-recite report gives accuracy, speed, fluency and a total', () => {
   const official = 'I know, and I apologize for the delay. But some things were just beyond my control.';
   const perfect = E.wholeReport(official, official, 19, 19);
