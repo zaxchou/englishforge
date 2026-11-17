@@ -229,6 +229,16 @@ ok('电话号: 7位会话、单数字音频、空格容忍、前导零严格、�
   assert.equal(locAudio.status, 200);
   assert.equal(locAudio.raw.subarray(0, 4).toString('ascii'), 'RIFF');
   assert.equal(aiCalls, 0, 'local source never calls AI');
+  assert.equal(cfg4.data.localAudioVersion, la.version, 'preview cache exposes current local audio version');
+  const oldRenderer = createNumberTrainer({ recordsDir: dir4, now, localAudio: { ...la, version: 'nt-local-v1' } });
+  const oldView = await call(oldRenderer, 'GET', '/api/number-trainer/sessions/' + loc.data.id);
+  const currentView = await call(nt4, 'GET', '/api/number-trainer/sessions/' + loc.data.id);
+  assert.notEqual(oldView.data.questions[0].audioUrl, currentView.data.questions[0].audioUrl, 'same question gets a fresh URL after renderer upgrade');
+  assert.equal(currentView.data.questions[0].audioUrl, loc.data.questions[0].audioUrl, 'resuming uses current renderer version');
+  const repeatedPreview = await call(nt4, 'GET', '/api/number-trainer/preview?voice=local&digits=1002211007');
+  assert.equal(repeatedPreview.status, 200);
+  assert(repeatedPreview.raw.equals(fs.readFileSync(la.synthDigits('1002211007').file)), 'preview serves the complete repeat-aware waveform');
+  assert.equal(aiCalls, 0, 'repeat preview stays fully local');
   const prevLocal = await call(nt4, 'GET', '/api/number-trainer/preview?voice=local&digits=8597390274');
   assert.equal(prevLocal.status, 200);
   assert.equal(prevLocal.raw.subarray(0, 4).toString('ascii'), 'RIFF');

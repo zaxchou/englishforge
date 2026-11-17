@@ -295,7 +295,8 @@ function currentQ() { return S.session?.questions[S.index] || null; }
 /* 首页试听：独立音频元素，不动会话与计时。固定号码，两种音源可直接对比。 */
 let previewEl = null;
 async function previewAudio(voice) {
-  const src = `${API}/preview?voice=${encodeURIComponent(voice)}&digits=8597390274`;
+  const version = voice === 'local' ? `&v=${encodeURIComponent(S.meta?.localAudioVersion || '')}` : '';
+  const src = `${API}/preview?voice=${encodeURIComponent(voice)}&digits=8597390274${version}`;
   toast(voice === 'local' ? '播放本地逐位试听…' : '播放自然连读试听…');
   try {
     if (!previewEl) { previewEl = new Audio();previewEl.preload = 'auto'; }

@@ -55,6 +55,7 @@ export function createNumberTrainer({ recordsDir, ttsConfigured = false, ttsSynt
       phoneMin: M.PHONE_MIN, phoneMax: M.PHONE_MAX,
       tts: !!ttsConfigured,
       localAudio: !!localAudio,               // 首页是否提供「本地逐位」音源
+      localAudioVersion: localAudio?.version || '',
       thresholds: M.THRESHOLDS,
     };
   }
@@ -164,9 +165,10 @@ export function createNumberTrainer({ recordsDir, ttsConfigured = false, ttsSynt
     };
   }
 
-  /** 音频地址带读音文本摘要：读音文本一变 URL 就变，浏览器不会复用旧读音的缓存。 */
+  /** 文本、音源或本地拼接规则变化时换 URL，续做旧会话也不会命中旧音频。 */
   function audioUrlFor(sessionId, q, voice = '') {
-    const v = crypto.createHash('sha1').update(String(q.text || '') + '|' + (q.readingVersion || '') + '|' + (voice || '')).digest('hex').slice(0, 10);
+    const source = String(q.text || '') + '|' + (q.readingVersion || '') + '|' + (voice || '');
+    const v = crypto.createHash('sha1').update(source + (voice === 'local' ? '|' + localAudio?.version : '')).digest('hex').slice(0, 10);
     return `/api/number-trainer/audio?s=${encodeURIComponent(sessionId)}&q=${encodeURIComponent(q.id)}&v=${v}`;
   }
   function sessionView(session) {

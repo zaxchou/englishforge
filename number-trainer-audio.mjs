@@ -5,9 +5,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const RATE = 24000, CH = 1, BITS = 16;
-const GAP_MS = 55;          // 位与位之间的停顿
-const TRIM_DB = 0.010;      // 静音阈值
-const EDGE_PAD_MS = 8;      // 裁静音后两端保留
+const VERSION = 'nt-local-v2';
+const GAP_MS = 55;          // 不同数字之间的停顿
+const REPEAT_GAP_MS = 180;  // 相同数字需明确分界，避免听成一个拖长音
 
 function parseWav(buf) {
   if (buf.length < 44 || buf.toString('ascii', 0, 4) !== 'RIFF' || buf.toString('ascii', 8, 12) !== 'WAVE') throw new Error('NOT_WAV');
@@ -34,15 +34,12 @@ export function createLocalAudio({ digitAudioDir, cacheDir = null } = {}) {
     const raw = buf.subarray(dataOff, dataOff + dataBytes);
     const pcm = new Int16Array(dataBytes / 2);
     for (let i = 0; i < pcm.length; i++) pcm[i] = raw.readInt16LE(i * 2);
-    // 裁掉首尾静音，两端各留一小段，避免爆音与吞字
-    let s = 0, e = pcm.length - 1;
-    while (s < pcm.length && Math.abs(pcm[s]) / 32768 < TRIM_DB) s++;
-    while (e > s && Math.abs(pcm[e]) / 32768 < TRIM_DB) e--;
-    const pad = Math.round(EDGE_PAD_MS / 1000 * RATE);
-    s = Math.max(0, s - pad); e = Math.min(pcm.length - 1, e + pad);
-    clips.set(w, pcm.subarray(s, e + 1));
+    // 保留完整原音：低振幅也可能是辅音或尾音，不能按音量当静音切掉。
+    clips.set(w, pcm);
   }
   const gap = new Int16Array(Math.round(GAP_MS / 1000 * RATE));
+  const repeatGap = new Int16Array(Math.round(REPEAT_GAP_MS / 1000 * RATE));
+  const gapAt = (digits, i) => digits[i] === digits[i - 1] ? repeatGap : gap;
   const assembled = new Map();
 
   function wavBuffer(samples) {
@@ -64,7 +61,7 @@ export function createLocalAudio({ digitAudioDir, cacheDir = null } = {}) {
     const parts = [];
     let total = 0;
     for (let i = 0; i < key.length; i++) {
-      if (i) { parts.push(gap); total += gap.length; }
+      if (i) { const pause = gapAt(key, i); parts.push(pause); total += pause.length; }
       const c = clips.get(words[+key[i]]);
       parts.push(c); total += c.length;
     }
@@ -81,14 +78,18 @@ export function createLocalAudio({ digitAudioDir, cacheDir = null } = {}) {
   function writeOut(key, buf) {
     if (!cacheDir) throw new Error('cacheDir required for local audio output');
     fs.mkdirSync(cacheDir, { recursive: true });
-    const file = path.join(cacheDir, 'local-' + key + '.wav');
+    const file = path.join(cacheDir, VERSION + '-' + key + '.wav');
     const tmp = file + '.tmp';
     fs.writeFileSync(tmp, buf); fs.renameSync(tmp, file);
     return file;
   }
-  return { synthDigits, words: [...words], durationMs: (digits) => {
+  return { version: VERSION, synthDigits, words: [...words], durationMs: (digits) => {
     const key = String(digits).replace(/[^0-9]/g, '');
-    let n = 0; for (const ch of key) n += clips.get(words[+ch]).length;
-    return Math.round((n + gap.length * Math.max(0, key.length - 1)) / RATE * 1000);
+    let n = 0;
+    for (let i = 0; i < key.length; i++) {
+      n += clips.get(words[+key[i]]).length;
+      if (i) n += gapAt(key, i).length;
+    }
+    return Math.round(n / RATE * 1000);
   } };
 }

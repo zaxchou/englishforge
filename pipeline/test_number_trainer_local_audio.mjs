@@ -30,6 +30,37 @@ assert(r.durationMs > 3000 && r.durationMs < 8000, 'duration plausible: ' + r.du
 assert.equal(r.cached, false);
 ok('本地音频: 合法 WAV、时长随位数、无 AI');
 
+// 连续相同数字必须保留两/三个完整原音，并留出能听清次数的分界。
+// 原音的弱辅音与衰减尾音也属于单字，不能用振幅阈值裁掉。
+function sourcePcm(word) {
+  const bytes = fs.readFileSync(path.join(digitsDir, word + '.wav'));
+  let off = 12;
+  while (off + 8 <= bytes.length) {
+    const size = bytes.readUInt32LE(off + 4);
+    if (bytes.toString('ascii', off, off + 4) === 'data')
+      return bytes.subarray(off + 8, off + 8 + Math.min(size, bytes.length - off - 8));
+    off += 8 + size + size % 2;
+  }
+  throw new Error('missing source PCM: ' + word);
+}
+for (const [digit, word] of la.words.entries()) {
+  const original = sourcePcm(word);
+  for (const count of [2, 3]) {
+    const rec = la.synthDigits(String(digit).repeat(count));
+    const pcm = fs.readFileSync(rec.file).subarray(44);
+    const gapBytes = (pcm.length - original.length * count) / (count - 1);
+    assert(gapBytes >= 24000 * 2 * 0.16, `${word}×${count}: repeated sounds need a clear boundary; gap=${gapBytes / 48}ms`);
+    assert.equal(gapBytes % 2, 0, 'gap aligned to whole PCM frames');
+    for (let i = 0; i < count; i++) {
+      const at = i * (original.length + gapBytes);
+      assert(pcm.subarray(at, at + original.length).equals(original), `${word}×${count}: full source clip ${i + 1} preserved`);
+      if (i < count - 1)
+        assert(pcm.subarray(at + original.length, at + original.length + gapBytes).every(b => b === 0), 'clean separation between repeated sounds');
+    }
+  }
+}
+ok('本地音频: 0–9 双音/三连音完整保留，重复音分界清晰');
+
 // 缓存命中：同一号码不再重写文件
 const r2 = la.synthDigits('8597390274');
 assert.equal(r2.cached, true);
