@@ -312,7 +312,9 @@ function stopPlayback() {
 async function previewAudio(voice) {
   stopPreview();
   const token = previewToken;
-  const version = voice === 'local' ? `&v=${encodeURIComponent(S.meta?.localAudioVersion || '')}` : '';
+  const version = voice === 'local'
+    ? `&v=${encodeURIComponent(S.meta?.localAudioVersion || '')}`
+    : `&v=${encodeURIComponent(S.meta?.audioVersion || '')}`;
   const src = `${API}/preview?voice=${encodeURIComponent(voice)}&digits=1002211007${version}`;
   toast(`试听 100 221 1007 · ${S.cfg.rate.toFixed(1)}×`);
   try {

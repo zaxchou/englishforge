@@ -5,6 +5,15 @@ import * as M from './web/number-trainer-model.mjs';
 import { createStore } from './number-trainer-store.mjs';
 
 const MAX_RAW = 24;
+/* Qwen3-TTS 对无标点的裸数字串会在尾部续读出多余的词（实测 6997591 末尾多读 "year"），
+   加句号后同一段文本复核干净。句号只用于合成，不改存储的读音文本与反馈展示。
+   合成文本变了，浏览器与缓存也要丢弃旧音频，故音频 URL 摘要含独立版本。 */
+const AUDIO_VERSION = 'nt-tts-period-v1';
+function ttsText(text) {
+  const s = String(text || '').trim();
+  if (!s) return s;
+  return /[.!?。！？]$/.test(s) ? s : s + '.';
+}
 
 function sha(s) { return crypto.createHash('sha256').update(s).digest('hex'); }
 function isObject(v) { return v && typeof v === 'object' && !Array.isArray(v); }
@@ -34,7 +43,7 @@ export function createNumberTrainer({ recordsDir, ttsConfigured = false, ttsSynt
         const t = texts[next++];
         let ok = false;
         for (let attempt = 0; attempt < 3 && !ok; attempt++) {
-          try { await ttsSynth(t); ok = true; }
+          try { await ttsSynth(ttsText(t)); ok = true; }
           catch { if (attempt < 2) await new Promise(r => setTimeout(r, 250 * (attempt + 1))); }
         }
         if (ok) done++; else failed++;
@@ -54,6 +63,7 @@ export function createNumberTrainer({ recordsDir, ttsConfigured = false, ttsSynt
       readingVersion: M.READING_VERSION, gradingVersion: M.GRADE_VERSION,
       phoneMin: M.PHONE_MIN, phoneMax: M.PHONE_MAX,
       tts: !!ttsConfigured,
+      audioVersion: AUDIO_VERSION,
       localAudio: !!localAudio,               // 首页是否提供「本地逐位」音源
       localAudioVersion: localAudio?.version || '',
       thresholds: M.THRESHOLDS,
@@ -167,7 +177,7 @@ export function createNumberTrainer({ recordsDir, ttsConfigured = false, ttsSynt
 
   /** 文本、音源或本地拼接规则变化时换 URL，续做旧会话也不会命中旧音频。 */
   function audioUrlFor(sessionId, q, voice = '') {
-    const source = String(q.text || '') + '|' + (q.readingVersion || '') + '|' + (voice || '');
+    const source = String(q.text || '') + '|' + (q.readingVersion || '') + '|' + (voice || '') + '|' + AUDIO_VERSION;
     const v = crypto.createHash('sha1').update(source + (voice === 'local' ? '|' + localAudio?.version : '')).digest('hex').slice(0, 10);
     return `/api/number-trainer/audio?s=${encodeURIComponent(sessionId)}&q=${encodeURIComponent(q.id)}&v=${v}`;
   }
@@ -301,7 +311,7 @@ export function createNumberTrainer({ recordsDir, ttsConfigured = false, ttsSynt
           catch (e) { sendJSON(res, 502, { error: 'LOCAL_AUDIO_FAILED', message: String(e.message || e).slice(0, 120) });return true; }
         } else {
           if (!ttsConfigured || typeof ttsSynth !== 'function') { sendJSON(res, 503, { error: 'TTS_NOT_CONFIGURED' });return true; }
-          try { file = await ttsSynth(q.text); }
+          try { file = await ttsSynth(ttsText(q.text)); }
           catch (e) { sendJSON(res, 502, { error: 'TTS_FAILED', message: String(e.message || e).slice(0, 120) });return true; }
         }
         res.setHeader('Cache-Control', 'private, max-age=604800');
@@ -320,7 +330,7 @@ export function createNumberTrainer({ recordsDir, ttsConfigured = false, ttsSynt
           else {
             if (!ttsConfigured || typeof ttsSynth !== 'function') { sendJSON(res, 503, { error: 'TTS_NOT_CONFIGURED' });return true; }
             const words = ['oh','one','two','three','four','five','six','seven','eight','nine'];
-            file = await ttsSynth([...digits].map(d => words[+d]).join(' '));
+            file = await ttsSynth(ttsText([...digits].map(d => words[+d]).join(' ')));
           }
         } catch (e) { sendJSON(res, 502, { error: 'PREVIEW_FAILED', message: String(e.message || e).slice(0, 120) });return true; }
         res.setHeader('Cache-Control', 'private, max-age=86400');

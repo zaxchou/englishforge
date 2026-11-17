@@ -19,7 +19,8 @@ const wav = path.join(dir, 'fake.wav');
   fs.writeFileSync(wav, Buffer.concat([h, data]));
 }
 let synthCalls = 0;
-const synth = async () => { synthCalls++;return wav; };
+const synthTexts = [];
+const synth = async (text) => { synthCalls++;synthTexts.push(text);return wav; };
 
 function mkRes() {
   const res = { status: 0, body: null, headers: {}, writeHead(c, h) { this.status = c;Object.assign(this.headers, h || {}); return this; }, end(b) { this.body = b; }, setHeader(k, v) { this.headers[k] = v; } };
@@ -45,6 +46,7 @@ let nt = createNumberTrainer({ recordsDir: dir, ttsConfigured: true, ttsSynth: s
 
 const cfg = await call(nt, 'GET', '/api/number-trainer/config');
 assert.equal(cfg.status, 200);assert.equal(cfg.data.digitMax, 6);assert.equal(cfg.data.tts, true);
+assert.equal(cfg.data.audioVersion, 'nt-tts-period-v1', 'audio version exposed so browser drops stale audio');
 ok('config: 能力与版本');
 
 const created = await call(nt, 'POST', '/api/number-trainer/sessions', { mode: 'fixed', digits: 3, count: 10 });
@@ -56,6 +58,8 @@ ok('session: 固定3位、题数、音频地址');
 const sid = created.data.id, qs = created.data.questions;
 const audio = await call(nt, 'GET', qs[0].audioUrl);
 assert.equal(audio.status, 200);assert.equal(synthCalls, 1);
+assert(/[.!?]$/.test(synthTexts[0]), 'TTS input ends with terminal punctuation to avoid trailing hallucination: ' + synthTexts[0]);
+assert.equal(qs[0].text, synthTexts[0].replace(/\.$/, ''), 'stored reading text stays unpunctuated for display');
 const badAudio = await call(nt, 'GET', '/api/number-trainer/audio?s=' + sid + '&q=q99');
 assert.equal(badAudio.status, 404);
 const otherAudio = await call(nt, 'GET', '/api/number-trainer/audio?s=nosuchsession&q=q1');
