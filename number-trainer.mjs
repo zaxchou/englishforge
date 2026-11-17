@@ -8,11 +8,16 @@ const MAX_RAW = 24;
 /* Qwen3-TTS 对无标点的裸数字串会在尾部续读出多余的词（实测 6997591 末尾多读 "year"），
    加句号后同一段文本复核干净。句号只用于合成，不改存储的读音文本与反馈展示。
    合成文本变了，浏览器与缓存也要丢弃旧音频，故音频 URL 摘要含独立版本。 */
-const AUDIO_VERSION = 'nt-tts-period-v1';
+const AUDIO_VERSION = 'nt-tts-repeat-v1';
 function ttsText(text) {
   const s = String(text || '').trim();
   if (!s) return s;
   return /[.!?。！？]$/.test(s) ? s : s + '.';
+}
+/** 合成文本：电话号用带重复停顿的逐位读法，整数沿用原文；末尾句号避免尾部续读。 */
+function ttsTextFor(q) {
+  if (q?.mode === 'phone' && q.value) return M.speechPhoneDigits(q.value);
+  return ttsText(q?.text || '');
 }
 
 function sha(s) { return crypto.createHash('sha256').update(s).digest('hex'); }
@@ -36,14 +41,14 @@ export function createNumberTrainer({ recordsDir, ttsConfigured = false, ttsSynt
   function prefetchAudio(session) {
     if (session.config?.voice === 'local') return;   // 本地音源无需预热，片段已在内存
     if (!audioPrefetch || !ttsConfigured || typeof ttsSynth !== 'function') return;
-    const texts = [...new Set(session.questions.map(q => String(q.text || '')).filter(Boolean))];
+    const texts = [...new Set(session.questions.map(q => ttsTextFor(q)).filter(Boolean))];
     let done = 0, failed = 0, next = 0;
     const runner = async () => {
       while (next < texts.length) {
         const t = texts[next++];
         let ok = false;
         for (let attempt = 0; attempt < 3 && !ok; attempt++) {
-          try { await ttsSynth(ttsText(t)); ok = true; }
+          try { await ttsSynth(t); ok = true; }
           catch { if (attempt < 2) await new Promise(r => setTimeout(r, 250 * (attempt + 1))); }
         }
         if (ok) done++; else failed++;
@@ -311,7 +316,7 @@ export function createNumberTrainer({ recordsDir, ttsConfigured = false, ttsSynt
           catch (e) { sendJSON(res, 502, { error: 'LOCAL_AUDIO_FAILED', message: String(e.message || e).slice(0, 120) });return true; }
         } else {
           if (!ttsConfigured || typeof ttsSynth !== 'function') { sendJSON(res, 503, { error: 'TTS_NOT_CONFIGURED' });return true; }
-          try { file = await ttsSynth(ttsText(q.text)); }
+          try { file = await ttsSynth(ttsTextFor(q)); }
           catch (e) { sendJSON(res, 502, { error: 'TTS_FAILED', message: String(e.message || e).slice(0, 120) });return true; }
         }
         res.setHeader('Cache-Control', 'private, max-age=604800');
@@ -329,8 +334,7 @@ export function createNumberTrainer({ recordsDir, ttsConfigured = false, ttsSynt
           if (voice === 'local') file = localAudio.synthDigits(digits).file;
           else {
             if (!ttsConfigured || typeof ttsSynth !== 'function') { sendJSON(res, 503, { error: 'TTS_NOT_CONFIGURED' });return true; }
-            const words = ['oh','one','two','three','four','five','six','seven','eight','nine'];
-            file = await ttsSynth(ttsText([...digits].map(d => words[+d]).join(' ')));
+            file = await ttsSynth(M.speechPhoneDigits(digits));
           }
         } catch (e) { sendJSON(res, 502, { error: 'PREVIEW_FAILED', message: String(e.message || e).slice(0, 120) });return true; }
         res.setHeader('Cache-Control', 'private, max-age=86400');

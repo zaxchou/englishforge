@@ -198,6 +198,20 @@ export function groupDigits(digits) {
 export function readPhoneDigits(digits) {
   return [...String(digits)].map(d => (d === '0' ? 'oh' : DIGIT_WORDS[+d])).join(' ');
 }
+/** TTS 专用：连续相同数字之间加逗号停顿。0 读 oh，两个 oh 连读会糊成一个长音，
+   实测 6600547 原音被听成 660547；加逗号后每个数字独立成段，可完整听出。 */
+export function speechPhoneDigits(digits) {
+  const s = String(digits), parts = [];
+  let i = 0;
+  while (i < s.length) {
+    let j = i;while (j < s.length && s[j] === s[i]) j++;
+    const run = j - i, word = s[i] === '0' ? 'oh' : DIGIT_WORDS[+s[i]];
+    if (run > 1) for (let k = 0; k < run; k++) parts.push(j < s.length || k < run - 1 ? word + ',' : word);
+    else parts.push(word);
+    i = j;
+  }
+  return parts.join(' ') + '.';
+}
 export function phoneFeatures(value) {
   const s = String(value), tags = [];
   if (/^0/.test(s)) tags.push('leadingZero');

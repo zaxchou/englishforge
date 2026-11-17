@@ -46,7 +46,7 @@ let nt = createNumberTrainer({ recordsDir: dir, ttsConfigured: true, ttsSynth: s
 
 const cfg = await call(nt, 'GET', '/api/number-trainer/config');
 assert.equal(cfg.status, 200);assert.equal(cfg.data.digitMax, 6);assert.equal(cfg.data.tts, true);
-assert.equal(cfg.data.audioVersion, 'nt-tts-period-v1', 'audio version exposed so browser drops stale audio');
+assert.equal(cfg.data.audioVersion, 'nt-tts-repeat-v1', 'audio version exposed so browser drops stale audio');
 ok('config: 能力与版本');
 
 const created = await call(nt, 'POST', '/api/number-trainer/sessions', { mode: 'fixed', digits: 3, count: 10 });
@@ -221,7 +221,8 @@ ok('电话号: 7位会话、单数字音频、空格容忍、前导零严格、�
   const digitsDir = path.join(process.cwd(), 'web', 'nt-digits');
   const la = createLocalAudio({ digitAudioDir: digitsDir, cacheDir: path.join(dir4, 'cache') });
   let aiCalls = 0;
-  const synth4 = async () => { aiCalls++;return wav; };
+  const voiceTexts = [];
+  const synth4 = async (text) => { aiCalls++;voiceTexts.push(text);return wav; };
   const nt4 = createNumberTrainer({ recordsDir: dir4, ttsConfigured: true, ttsSynth: synth4, now, random: Math.random, audioPrefetch: true, localAudio: la });
   const cfg4 = await call(nt4, 'GET', '/api/number-trainer/config');
   assert.equal(cfg4.data.localAudio, true);
@@ -246,8 +247,8 @@ ok('电话号: 7位会话、单数字音频、空格容忍、前导零严格、�
   const prevLocal = await call(nt4, 'GET', '/api/number-trainer/preview?voice=local&digits=8597390274');
   assert.equal(prevLocal.status, 200);
   assert.equal(prevLocal.raw.subarray(0, 4).toString('ascii'), 'RIFF');
-  const prevBad = await call(nt4, 'GET', '/api/number-trainer/preview?voice=local&digits=abc');
-  assert.equal(prevBad.status, 400);
+const prevBad = await call(nt4, 'GET', '/api/number-trainer/preview?voice=local&digits=abc');
+assert.equal(prevBad.status, 400);
   for (const rate of [0.6, 0.8, 1]) {
     const round = await call(nt4, 'POST', '/api/number-trainer/sessions', { mode: 'phone', voice: 'local', count: 5, rate });
     assert.equal(round.data.config.rate, rate, 'session retains selected playback rate');
@@ -267,8 +268,17 @@ ok('电话号: 7位会话、单数字音频、空格容忍、前导零严格、�
   const natAudio = await call(nt4, 'GET', nat.data.questions[0].audioUrl);
   assert.equal(natAudio.status, 200);
   assert(aiCalls >= 1, 'natural source calls AI');
+
+  // 自然音源试听也走带停顿的逐位读法；相邻 0 必须被逗号分隔，独立 trainer 不影响上面的计数
+  {
+    const seen = [];
+    const nt5 = createNumberTrainer({ recordsDir: dir4, ttsConfigured: true, ttsSynth: async text => { seen.push(text);return wav; }, now, random: Math.random, localAudio: la });
+    const prevRepeat = await call(nt5, 'GET', '/api/number-trainer/preview?voice=natural&digits=6600547');
+    assert.equal(prevRepeat.status, 200, 'repeat preview served');
+    assert.equal(seen.at(-1), 'six, six, oh, oh, five four seven.', 'natural preview separates adjacent zeros');
+  }
   fs.rmSync(dir4, { recursive: true, force: true });
-  ok('全本地音源: 配置/不接AI/URL隔离/试听端点');
+  ok('全本地音源: 配置/不接AI/URL隔离/试听端点/重复读法');
 }
 
 console.log(`\n${pass} groups passed`);

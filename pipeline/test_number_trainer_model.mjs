@@ -197,4 +197,13 @@ for (let k = 0; k < 200; k++) {
 assert.equal(M.makePhoneQuestion({ min: 10, max: 10, rng: rng(9) }).value.length, 10);
 ok('电话号: 逐位读法/前导零/分组/长度范围/精确判分');
 
+// TTS 专用逐位读法：连续相同数字加逗号停顿，避免两个 oh 连成一个音；显示文本不受影响
+assert.equal(M.speechPhoneDigits('6600547'), 'six, six, oh, oh, five four seven.');
+assert.equal(M.speechPhoneDigits('1234567'), 'one two three four five six seven.');
+assert.equal(M.speechPhoneDigits('6062940400'), 'six oh six two nine four oh four oh, oh.');
+assert.equal(M.speechPhoneDigits('7777778'), 'seven, seven, seven, seven, seven, seven, eight.');
+assert(M.speechPhoneDigits('6600547').includes('oh, oh,'), 'adjacent zeros separated by commas');
+assert.equal(M.readPhoneDigits('6600547'), 'six six oh oh five four seven', 'display text stays unpunctuated');
+ok('电话号TTS: 连续相同数字加停顿，显示文本不变');
+
 console.log(`\n${pass} groups passed`);
