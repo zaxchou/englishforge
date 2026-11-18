@@ -347,6 +347,19 @@ test('r27: bracketed stage directions never count as scoring tokens', () => {
   // 台词里普通词照常计分, 引擎不受无括号文本影响。
   assert.equal(E.lcsAcc('I love your curly hair', 'I love your curly hair'), 1);
 });
+test('r28: dosage abbreviation mg expands to the spoken milligram reading', () => {
+  const official = "Let's see. Okay, so 50 mg of Prozac, would you prefer this in capsule or tablet?";
+  // 原音读全称复数(0084 双引擎取证); ASR 存的转写是单数。
+  for (const spoken of ['fifty milligram of Prozac', 'fifty milligrams of Prozac']) {
+    const voice = E.scoreTokens(official, 'Let\'s see. Okay, so ' + spoken + ', would you prefer this in capsule or tablet?', true);
+    assert.equal(voice.acc, 1, spoken);
+    assert.deepEqual(voice.extras, []);
+  }
+  assert.deepEqual(E.normTokens('mg'), ['milligram'], 'mg reads as the full word, not letters');
+  assert.deepEqual(E.normTokens('50 mg of Prozac'), ['fifty', 'milligram', 'of', 'Prozac'].map(w => w.toLowerCase()));
+  // 无关缩写不跟进: km/ml 未确认读法前保持原词。
+  assert.deepEqual(E.normTokens('5 km'), ['five', 'km']);
+});
 test('r11: whole-recite report gives accuracy, speed, fluency and a total', () => {
   const official = 'I know, and I apologize for the delay. But some things were just beyond my control.';
   const perfect = E.wholeReport(official, official, 19, 19);

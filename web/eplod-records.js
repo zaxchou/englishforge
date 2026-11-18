@@ -2,7 +2,7 @@
   'use strict';
   const copy=x=>x===undefined?undefined:JSON.parse(JSON.stringify(x));
   const object=x=>x&&typeof x==='object'&&!Array.isArray(x);
-  const SCORING_VERSION=18;
+  const SCORING_VERSION=19;
   /* 判分归一分词(r19): 官方文本的 "5:58" 分词成 [5,58], ASR/用户输入是 [five,fifty,eight],
      形状不同会白扣分——数字 token 统一展开成读法单词; oh 与 zero 互通(两侧同变换, 只增匹配不改错配)。 */
   const NUM1={0:'zero',1:'one',2:'two',3:'three',4:'four',5:'five',6:'six',7:'seven',8:'eight',9:'nine',10:'ten',11:'eleven',12:'twelve',13:'thirteen',14:'fourteen',15:'fifteen',16:'sixteen',17:'seventeen',18:'eighteen',19:'nineteen',20:'twenty'};   /* 20 曾缺表, expandNum 兜底成 "20" 配不上 twenty(r2 2026-10-30) */
@@ -101,6 +101,10 @@
        与序数 seventieth 在语音赦免里互认。只认 20s–90s, 年份 1970s 不在此列。 */
     const decade=bare.match(/^([2-9]0)'?s$/);
     if(decade)return [NUM10[+decade[1][0]].replace(/y$/,'ies')];
+    /* 剂量单位缩写(r28 2026-11-18, 0084 实测): 官方印刷 "50 mg", 原音读全称 "fifty milligrams"
+       (whisper 词级 15.06s + 生产 ASR 切句双引擎一致); 弱读的复数 z 被 ASR 写成单/复两种。
+       mg 展开成 milligram, milligrams 同折叠到单数, 两侧同变换只增匹配。全库官方文本仅此一处。 */
+    if(bare==='mg')return ['milligram'];
     /* 字母+数字代码(r12 2026-11-10): B2/H1B/F1 签证代码官方写字母数字连写, ASR/用户读作
        "B two"/"H one B"。以字母开头且含数字的 token 按段展开(字母段保留 + 数字段读法),
        两侧同变换只增匹配; 数字在前的序数已由上一分支展开。 */
@@ -122,7 +126,7 @@
     if(GEEZ.test(bare))return ['geez'];
     /* 同音称呼两侧同变换, 不按大写猜测姓名。 */
     if(bare==='miss')return ['ms'];else if(bare==='misses')return ['mrs'];
-    return [bare==='oh'?'zero':usSpelling(bare)];
+    return [bare==='oh'?'zero':usSpelling(bare==='milligrams'?'milligram':bare)];
   }
   /* 评分与显示共享的原文词段。折叠时保留每个字符的原文范围, 因而 d + 空格 + U+0301
      + ecor 是同一段, 不能按空格拆开后分别归一。分隔符不消耗 marks; 数字/缩写可消耗多个。 */
