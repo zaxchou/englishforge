@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>查一个词，记住一组词 · TOEFL Lab</title><link rel="icon" href="brand.png"><link rel="stylesheet" href="style.css"><script src="app.js" defer></script></head>
+<body>
+<aside class="sidebar">
+  <a class="brand" href="/"><img src="brand.png" alt=""><b>TOEFL <span>Lab</span></b></a>
+  <div class="side-label">词根词典</div><button class="new-search" data-reset>⌕ 查一个词</button>
+  <div class="journey-label">理解，再记住</div>
+  <nav class="journey-nav" aria-label="学习阶段"><button data-step="meaning"><span>1</span><div>词义与用法<small>先知道它在说什么</small></div></button><button data-step="origin"><span>2</span><div>构词来由<small>这个意思怎样形成</small></div></button><button data-step="family"><span>3</span><div>词根与词族<small>把相关的词连起来</small></div></button><button data-step="practice"><span>4</span><div>回忆与应用<small>试着独立用出来</small></div></button></nav>
+  <div class="side-footer"><p>从一个词出发，带着关系记住它。</p><a href="https://192.168.31.246:8018/dict/" target="_blank" rel="noopener">打开正式词典 ↗</a></div>
+</aside>
+<div class="mobile-brand"><a class="brand" href="/"><img src="brand.png" alt=""><b>TOEFL <span>Lab</span></b></a><span>词根词典</span></div>
+<main class="main">
+  <header class="search-header"><form id="search-form" role="search"><label for="search" class="sr-only">查一个单词、词根或中文含义</label><span class="search-icon" aria-hidden="true">⌕</span><input id="search" placeholder="输入单词，如 contradict" autocomplete="off" spellcheck="false" maxlength="120"><button class="primary" type="submit">查词</button></form><div id="suggestions" class="suggestions" hidden></div></header>
+  <section id="welcome"><div class="welcome-title"><span class="eyebrow">一个入口，一路看懂</span><h1>先查一个词。<br>再弄懂它为什么这样表达。</h1><p>从词义和用法，到构词来由、同族词，最后试着回忆和应用。</p></div><div class="try-words"><span>从这些词开始</span><button data-lookup="Ldict:contradict"><b>contradict</b><small>反驳 · 与…矛盾</small><span aria-hidden="true">→</span></button><button data-lookup="P0001:s0003"><b>unpredictable</b><small>不可预测的</small><span aria-hidden="true">→</span></button><button data-lookup="Lcfcm-01:fix"><b>fix</b><small>固定 · 修理</small><span aria-hidden="true">→</span></button></div><button class="link" id="browse-roots">已经知道词根？直接找词根 →</button></section>
+  <section id="results" class="results" hidden aria-live="polite"></section>
+  <section id="study" hidden>
+    <div class="breadcrumbs"><button class="link" data-reset>查词</button><span aria-hidden="true">›</span><span id="breadcrumb-word"></span><span aria-hidden="true">›</span><span id="breadcrumb-step"></span></div>
+    <div class="word-heading"><div><div class="word-title"><h1 id="word-title"></h1><button class="pronounce" id="pronounce" aria-label="听单词发音">听发音</button></div><p id="word-meaning"></p></div><span class="word-role" id="word-role"></span></div>
+    <nav class="mobile-steps" aria-label="学习阶段"><button data-step="meaning">1 词义</button><button data-step="origin">2 来由</button><button data-step="family">3 词族</button><button data-step="practice">4 应用</button></nav>
+    <div id="stage" aria-live="polite"></div><div id="next-action"></div>
+  </section>
+  <div id="notice" hidden role="status"></div>
+  <footer class="source-footer">词源依据来自 <a href="https://en.wiktionary.org/" target="_blank" rel="noopener">English Wiktionary</a> · CC BY-SA 4.0。中文释义与理解线索为整理内容；历史来源按词条说明。</footer>
+</main>
+</body></html>
