@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const assert = require('node:assert/strict');
+const {getEventListeners} = require('node:events');
 const {spawnSync} = require('node:child_process');
 const root = path.resolve(__dirname, '..');
 const html = fs.readFileSync(path.join(root, 'web/index.html'), 'utf8');
@@ -343,11 +344,28 @@ async function main() {
     await h.advance(4800); await h.ctx.epWholeToggle(); await h.advance(0);
     assertWholeCaptureError(h, 'silent-audio', /没有检测到声音|麦克风可能没开/);
   });
-  await run('R20 a quiet but nonzero waveform is speech and reaches ASR', async () => {
-    // 峰值 5: 旧 peak<8 规则会把这样的微弱声音误判成静音
-    const h = harness(undefined, {amplitude: 133});
-    await h.ctx.epWholeToggle(); await h.advance(4900); await h.ctx.epWholeToggle(); await h.advance(0);
-    assertWholeScored(h);
+  await run('R20 sustained low peaks of 1 through 7 each reach ASR', async () => {
+    for (let peak = 1; peak <= 7; peak++) {
+      const h = harness(undefined, {amplitude: 128 + peak});
+      await h.ctx.epWholeToggle(); await h.advance(4900); await h.ctx.epWholeToggle(); await h.advance(0);
+      assertWholeScored(h);
+    }
+  });
+  await run('R20 a recorder stop exception releases capture subscriptions without an onstop event', async () => {
+    const h = harness();
+    await h.ctx.epWholeToggle(); await h.advance(500);
+    const track = h.streams[0].track;
+    function listenerCounts() {
+      return [h.doc.listeners.get('visibilitychange')?.size ?? 0, getEventListeners(h.meter, 'statechange').length,
+        ...['ended', 'mute', 'unmute'].map(type => getEventListeners(track, type).length)];
+    }
+    assert.deepEqual(listenerCounts(), [1, 1, 1, 1, 1]);
+    h.recorders[0].stop = () => {throw Error('synthetic stop failure');};
+    await h.ctx.epWholeToggle(); await h.advance(0);
+    assert.equal(h.st.wpTake.code, 'capture-stop');
+    assert.deepEqual(listenerCounts(), [0, 0, 0, 0, 0]);
+    assert.equal(track.stopped, true); assert.equal(h.graphs[0].connected, false);
+    assert.equal(h.clock.jobs.size, 0); assert.equal(h.calls.filter(c => c.route).length, 0);
   });
   function visibleMicStatus(h) {
     const status = h.node('ep-whole').querySelector('#ep-whole-mic-status');
