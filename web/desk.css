@@ -2532,6 +2532,7 @@ html.sb-min .nav-label{display:none!important}   /* 收缩侧栏只留图标 */
 .wp-live .rt{font-variant-numeric:tabular-nums;font-size:13px;color:var(--t1)}
 .wp-live p{flex-basis:100%;margin:0;font-size:12px;color:var(--t3)}
 .wp-live .lv{flex:none;width:90px;height:6px;border-radius:3px;background:var(--line);overflow:hidden}
+.wp-live .wp-live-hint{color:var(--warn,#8A5A0B)}
 .wp-live .lv i{display:block;height:100%;width:0;background:var(--acc)}
 .wp-result .wp-hero b{display:block;font-size:16px;color:var(--t1)}
 .wp-result.pass .wp-hero b{color:var(--acc)}

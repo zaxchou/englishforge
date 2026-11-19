@@ -75,18 +75,18 @@ function harness(st = lesson(), opts = {}) {
   class Recorder {
     static isTypeSupported() {return true;}
     constructor(stream) {this.stream = stream; this.state = 'inactive'; this.mimeType = 'audio/webm'; recorders.push(this);}
-    start() {assert.equal(this.state, 'inactive'); assert.equal(this.stream.track.stopped, false); this.state = 'recording';}
+    start() {if(opts.startError)throw Error('synthetic start failure'); assert.equal(this.state, 'inactive'); assert.equal(this.stream.track.stopped, false); this.state = 'recording';}
     stop() {
       if (this.state === 'inactive') throw Object.assign(Error('inactive'), {name: 'InvalidStateError'});
       this.state = 'inactive';
       schedule(() => {
-        this.ondataavailable?.({data: new Blob(['synthetic audio only'])});
+        this.ondataavailable?.({data: new Blob(opts.empty ? [] : ['synthetic audio only'])});
         Promise.resolve(this.onstop?.()).catch(e => {calls.push({uncaught: e.message});});
       }, 0);
     }
   }
   class AC {
-    constructor() {this.state = 'running';}
+    constructor() {this.state = opts.suspended ? 'suspended' : 'running';}
     createAnalyser() {return {frequencyBinCount: 256, getByteTimeDomainData(a) {a.fill(opts.silent ? 128 : 145);}};}
     createMediaStreamSource(stream) {
       const graph = {stream, connected: false, connect() {this.connected = true;}, disconnect() {this.connected = false;}};
@@ -208,8 +208,10 @@ async function main() {
     assert.equal(h.calls.filter(c => c.route).length, 0, 'short take never reaches ASR');
     assert.equal(h.st.p.drill.wp, undefined, 'short take writes no score');
     assert.equal(h.st.wpTake.phase, 'error');
-    assert.match(h.st.wpTake.error, /短太多/);
-    assert.match(h.st.wpTake.error, /录音 1，比原文 5 短太多/);   // 测试桩 fmtDur 原样输出秒数, 应用里渲染为 0:01/0:05
+    assert.equal(h.st.wpTake.code, 'too-short');
+    assert.match(h.st.wpTake.error, /不足原音时长的 90%/);
+    assert.match(h.st.wpTake.error, /至少 5/);   // 测试桩 fmtDur 原样输出秒数, 应用里渲染为 0:01/0:05
+    assert.match(h.node('ep-whole').innerHTML, /这次没有计入/);
     assert.equal(h.recorders[0].state, 'inactive');
     assert.equal(h.streams[0].track.stopped, true);
     assert.equal(h.intervals(), 0);
@@ -219,15 +221,132 @@ async function main() {
     assert.equal(h2.calls.filter(c => c.route === '/api/eplod/asr').length, 1, 'near-source take still goes to scoring');
     assert.equal(h2.st.wpTake.phase, 'result');
   });
-  await run('R11 silent whole take returns to the entry card instead of hanging at 正在转写', async () => {
+  await run('R11 silent whole take keeps an explicit error panel instead of silently returning to the entry card', async () => {
     const h = harness(undefined, {silent: true});
     await h.ctx.epWholeToggle(); await h.advance(1200); await h.ctx.epWholeToggle(); await h.advance(0);
-    assert.equal(h.st.wpTake, null, 'panel state handed back after the silence guard');
-    assert.match(h.node('ep-whole').innerHTML, /整篇背诵|重新背诵/, 'entry card is back');
+    assert.equal(h.st.wpTake.phase, 'error');
+    assert.equal(h.st.wpTake.code, 'silent-audio');
+    assert.match(h.st.wpTake.error, /麦克风可能没开|没有检测到声音/);
+    const panel = h.node('ep-whole').innerHTML;
+    assert.match(panel, /这次没有计入/);
+    assert.match(panel, /role="alert"/);
     assert.equal(h.calls.filter(c => c.route).length, 0, 'silent take never reaches ASR');
     assert.equal(h.recorders[0].state, 'inactive');
     assert.equal(h.streams[0].track.stopped, true);
     assert.equal(h.intervals(), 0);
+  });
+  await run('R19 whole empty/start/interruption failures stay visible and write no score; diagnostics note the cause', async () => {
+    for (const [opts, code, trigger] of [
+      [{empty: true}, 'empty-audio', 'stop'],
+      [{startError: true}, 'capture-start', 'start'],
+      [{}, 'capture-interrupted', 'recerror'],
+    ]) {
+      const h = harness(undefined, opts);
+      const diagnostics = [];
+      h.ctx.localStorage.setItem = (key, value) => diagnostics.push({key, value: JSON.parse(value)});
+      await h.ctx.epWholeToggle(); await h.advance(4900);
+      if (trigger === 'stop') await h.ctx.epWholeToggle();
+      else if (trigger === 'recerror') h.recorders[0].onerror({error: {message: 'synthetic device lost'}});
+      await h.advance(0);
+      assert.equal(h.st.wpTake.phase, 'error', code);
+      assert.equal(h.st.wpTake.code, code, code);
+      assert.match(h.node('ep-whole').innerHTML, /这次没有计入/, code);
+      assert.match(h.node('ep-whole').innerHTML, /重新背诵/, code);
+      assert.equal(h.calls.filter(c => c.route).length, 0, code);
+      assert.equal(h.st.p.drill.wp, undefined, code);
+      assert.equal(h.streams[0].track.stopped, true, code);
+      assert.equal(h.intervals(), 0, code);
+      const last = diagnostics.at(-1);
+      assert.equal(last?.value.code, code, 'failure reason persisted for diagnosis');
+      assert.equal(last?.value.lesson, h.st.l.id);
+      assert.equal(last.value.text, undefined, 'diagnostics contain no transcript');
+      assert.equal(last.value.audio, undefined, 'diagnostics contain no audio');
+    }
+  });
+  await run('R20 suspended analyser does not label a valid whole recording as silent', async () => {
+    const h = harness(undefined, {silent: true, suspended: true});
+    await h.ctx.epWholeToggle(); await h.advance(4900); await h.ctx.epWholeToggle(); await h.advance(0);
+    assert.equal(h.st.wpTake.phase, 'result', 'suspended meter is not evidence of silence');
+    assert.equal(h.calls.filter(c => c.route === '/api/eplod/asr').length, 1);
+    assert.equal(h.streams[0].track.stopped, true);
+  });
+  await run('R21 live mic hint appears after ~2s of silence and clears with sound', async () => {
+    const h = harness(undefined, {silent: true});
+    await h.ctx.epWholeToggle(); await h.advance(400);
+    const hintEl = () => h.node('ep-whole').querySelector('.wp-live-hint');
+    assert.equal(hintEl().hidden, true, 'hidden right after start');
+    await h.advance(1800);
+    assert.equal(hintEl().hidden, false, 'shown after ~2s without sound');
+    // 有声时不弹: 用正常(非 silent)harness 验证整段录音期间提示保持隐藏。
+    const h2 = harness();
+    await h2.ctx.epWholeToggle(); await h2.advance(2000);
+    assert.equal(h2.node('ep-whole').querySelector('.wp-live-hint').hidden, true, 'no hint when sound is present');
+  });
+  await run('R22 whole error survives Space (no accidental clear) and repeat-Space cannot trigger the focused stop', async () => {
+    const h = harness(undefined, {empty: true});
+    h.load('EP.keyHandler=e=>{', "document.addEventListener('keydown',EP.keyHandler)");
+    await h.ctx.epWholeToggle(); await h.advance(4900); await h.ctx.epWholeToggle(); await h.advance(0);
+    const failure = h.st.wpTake;
+    for (const repeat of [true, false]) {
+      let prevented = false;
+      h.ctx.EP.keyHandler({key: ' ', code: 'Space', repeat, target: {tagName: 'BODY'}, preventDefault() {prevented = true;}});
+      assert.equal(prevented, true);
+      assert.equal(h.st.wpTake, failure, 'error panel survives Space');
+    }
+    // Esc 收起后, 「重新背诵」按钮直接开录而不是只回入口卡。
+    h.ctx.EP.keyHandler({key: 'Escape', target: {tagName: 'BODY'}, preventDefault() {}});
+    assert.equal(h.st.wpTake, null);
+    const streamsBefore = h.streams.length;
+    h.node('ep-whole').querySelector('#ep-whole-retry').onclick();
+    await flush();
+    assert.equal(h.st.wpTake.phase, 'rec', 'retry button starts a fresh capture');
+    assert.equal(h.streams.length, streamsBefore + 1);
+    await h.advance(400);
+    h.ctx.epCancelRecording(h.st); await h.advance(0);
+  });
+  await run('R23 Esc-closed whole recitation: Space reopens the panel instead of playing audio; other keys restore default Space', async () => {
+    const h = harness();
+    h.load('EP.keyHandler=e=>{', "document.addEventListener('keydown',EP.keyHandler)");
+    await h.ctx.epWholeToggle(); await h.advance(1200); await h.ctx.epWholeToggle(); await h.advance(0);
+    h.st.wpTake = {phase: 'result', result: {id: 'x', at: 1, mode: 'whole', text: 'The decor is beautiful. Please wait here.', acc: 1, dur: 9, per: [{i: 0, acc: 1}, {i: 1, acc: 1}], extra: []}};
+    h.ctx.epWholeUpdate();
+    h.ctx.EP.keyHandler({key: 'Escape', target: {tagName: 'BODY'}, preventDefault() {}});
+    assert.equal(h.st.wpTake, null);
+    assert.equal(h.st.wpReopen, true, 'Esc marks the reopen intent');
+    const stopBefore = h.streams.length;
+    h.ctx.EP.keyHandler({key: ' ', code: 'Space', repeat: false, target: {tagName: 'BODY'}, preventDefault() {}});
+    await h.advance(400);
+    assert.equal(h.st.wpReopen, false, 'Space consumed the reopen intent');
+    assert.equal(h.st.wpTake?.phase, 'rec', 'Space reopened the recitation panel');
+    assert.equal(h.streams.length, stopBefore + 1, 'a fresh capture started');
+    // 第二份 harness: Esc 收起后按其他键(如方向键)清除意图, 空格回到默认语义(这里仅断言意图清除, 播放分支不在本测试装配内)。
+    const h2 = harness();
+    h2.load('EP.keyHandler=e=>{', "document.addEventListener('keydown',EP.keyHandler)");
+    h2.ctx.epGo = () => {};   // 方向键分支只需要「意图被清除」这一断言
+    await h2.ctx.epWholeToggle(); await h2.advance(1200); await h2.ctx.epWholeToggle(); await h2.advance(0);
+    h2.st.wpTake = {phase: 'result', result: {id: 'y', at: 2, mode: 'whole', text: 'The decor is beautiful. Please wait here.', acc: 1, dur: 9, per: [{i: 0, acc: 1}, {i: 1, acc: 1}], extra: []}};
+    h2.ctx.epWholeUpdate();
+    h2.ctx.EP.keyHandler({key: 'Escape', target: {tagName: 'BODY'}, preventDefault() {}});
+    h2.ctx.EP.keyHandler({key: 'ArrowLeft', target: {tagName: 'BODY'}, preventDefault() {}});
+    assert.equal(h2.st.wpReopen, false, 'other keys drop the reopen intent');
+  });
+  await run('R24 selecting the current lesson preserves an active whole capture and pending ASR', async () => {
+    const h = harness(); h.ctx.csSel = {l: 0};
+    h.ctx.EP.cache = {}; h.ctx.EP.loadId = 0;   // renderEplodMain 的装配缓存
+    const start = html.indexOf('window.renderEplodMain=async function(c){');
+    const end = html.indexOf('function epWire(', start);
+    assert.ok(end > start);
+    vm.runInContext(html.slice(html.indexOf('function epWholeLocked('), html.indexOf('function epWholeIsolation(')), h.ctx);   // 守卫引用
+    vm.runInContext(html.slice(start, end), h.ctx);
+    const course = {lessons: [{id: h.st.l.id}]};
+    await h.ctx.epWholeToggle(); await h.advance(400);
+    const take = h.st.wpTake;
+    await h.ctx.window.renderEplodMain(course);
+    assert.equal(h.st.wpTake, take); assert.equal(take.rec.state, 'recording');
+    h.st.wpTake = {phase: 'processing', from: take};
+    await h.ctx.window.renderEplodMain(course);
+    assert.equal(h.st.wpTake.from, take);
+    h.st.wpTake = take; h.ctx.epCancelRecording(h.st); await h.advance(0);
   });
   await run('C2 pending permission and active whole cancel both release resources without ASR', async () => {
     for (const kind of ['whole', 'sentence']) {
