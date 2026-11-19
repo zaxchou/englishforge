@@ -30,7 +30,16 @@ class Element {
     this.classList = {add() {}, remove() {}, toggle() {}};
   }
   querySelector(selector) {
-    if (!this.children.has(selector)) this.children.set(selector, new Element());
+    if (!this.children.has(selector)) {
+      const child = new Element();
+      if (selector === '#ep-whole-mic-status') {
+        const match = this.innerHTML.match(/<[^>]*\bid="ep-whole-mic-status"([^>]*)>([^<]*)</);
+        if (!match) return null;
+        child.hidden = /\bhidden\b/.test(match[1]);
+        child.textContent = match[2];
+      }
+      this.children.set(selector, child);
+    }
     return this.children.get(selector);
   }
   querySelectorAll() {return [];}
@@ -67,15 +76,20 @@ function harness(st = lesson(), opts = {}) {
   const node = id => {if (!nodes.has(id)) nodes.set(id, new Element()); return nodes.get(id);};
   const streams = [], recorders = [], graphs = [], calls = [], fetches = [], audios = [], urls = [];
   let gumDeferred = null;
-  class Track {
-    constructor() {this.stopped = false; this.listeners = new Map();}
-    stop() {this.stopped = true;}
-    addEventListener(type, fn) {if (!this.listeners.has(type)) this.listeners.set(type, new Set()); this.listeners.get(type).add(fn);}
-    emit(type) {for (const fn of [...(this.listeners.get(type) || [])]) fn({type});}
+  class Track extends EventTarget {
+    constructor() {
+      super(); this.stopped = false; this.readyState = opts.ended ? 'ended' : 'live'; this.muted = !!opts.muted;
+    }
+    stop() {this.stopped = true; this.readyState = 'ended';}
+    emit(type) {
+      if (type === 'mute' || type === 'unmute') this.muted = type === 'mute';
+      if (type === 'ended') this.readyState = 'ended';
+      this.dispatchEvent(new Event(type));
+    }
   }
   const gum = () => {
     const track = new Track();
-    const stream = {track, getTracks: () => [track]}; streams.push(stream);
+    const stream = {track, getTracks: () => [track], getAudioTracks: () => [track]}; streams.push(stream);
     return gumDeferred ? gumDeferred.promise.then(() => stream) : Promise.resolve(stream);
   };
   class Recorder {
@@ -91,9 +105,16 @@ function harness(st = lesson(), opts = {}) {
       }, 0);
     }
   }
-  class AC {
-    constructor() {this.state = opts.suspended ? 'suspended' : 'running';}
-    createAnalyser() {return {frequencyBinCount: 256, getByteTimeDomainData(a) {a.fill(opts.silent ? 128 : 145);}};}
+  let meter;
+  class AC extends EventTarget {
+    constructor() {
+      super(); meter = this; this.state = opts.suspended ? 'suspended' : 'running'; this.silent = !!opts.silent;
+    }
+    setState(state) {
+      if (state === this.state) return;
+      this.state = state; this.dispatchEvent(new Event('statechange'));
+    }
+    createAnalyser() {return {frequencyBinCount: 256, getByteTimeDomainData: a => a.fill(this.silent ? 128 : opts.amplitude ?? 145)};}
     createMediaStreamSource(stream) {
       const graph = {stream, connected: false, connect() {this.connected = true;}, disconnect() {this.connected = false;}};
       graphs.push(graph); return graph;
@@ -157,6 +178,7 @@ function harness(st = lesson(), opts = {}) {
     clock.now = end; await flush();
   }
   return {ctx, st, node, doc, streams, recorders, graphs, calls, fetches, audios, urls, clock, mainAudio, advance, load,
+    get meter() {return meter;},
     delayPermission() {gumDeferred = deferred(); return gumDeferred;},
     intervals: () => [...clock.jobs.values()].filter(j => j.period).length};
 }
@@ -269,81 +291,216 @@ async function main() {
       assert.equal(last.value.audio, undefined, 'diagnostics contain no audio');
     }
   });
-  await run('R20 suspended analyser does not label a valid whole recording as silent', async () => {
-    const h = harness(undefined, {silent: true, suspended: true});
-    await h.ctx.epWholeToggle(); await h.advance(4900); await h.ctx.epWholeToggle(); await h.advance(0);
-    assert.equal(h.st.wpTake.phase, 'result', 'suspended meter is not evidence of silence');
-    assert.equal(h.calls.filter(c => c.route === '/api/eplod/asr').length, 1);
-    assert.equal(h.streams[0].track.stopped, true);
+  function assertCaptureReleased(h) {
+    assert.ok(h.recorders.every(r => r.state === 'inactive'));
+    assert.ok(h.streams.every(s => s.track.stopped));
+    assert.ok(h.graphs.every(g => !g.connected));
+    assert.equal(h.clock.jobs.size, 0, 'capture timers released');
+  }
+  function assertWholeScored(h) {
+    const requests = h.calls.filter(c => c.route);
+    assert.deepEqual(requests.map(c => c.route), ['/api/eplod/asr']);
+    assert.ok(requests[0].body.audio, 'ASR received the synthetic recording');
+    assert.equal(h.st.wpTake.phase, 'result');
+    assert.equal(h.st.p.drill.wp.best.acc, 1);
+    assertCaptureReleased(h);
+  }
+  function assertWholeCaptureError(h, code, reason) {
+    assert.equal(h.st.wpTake.phase, 'error');
+    assert.equal(h.st.wpTake.code, code);
+    assert.match(h.st.wpTake.error, reason);
+    const panel = h.node('ep-whole').innerHTML;
+    assert.ok(panel.includes(h.st.wpTake.error), 'reason visible in the failure panel');
+    assert.match(panel, /重新背诵/);
+    assert.equal(h.calls.filter(c => c.route || c.stamp).length, 0);
+    assert.equal(h.st.p.drill.wp, undefined);
+    assertCaptureReleased(h);
+  }
+  for (const [scenario, periods] of [
+    ['analyser suspended throughout', [['suspended', 5000]]],
+    ['silent warm-up then no recording samples', [['running', 200], ['suspended', 4800]]],
+    ['only the beginning of the recording sampled', [['running', 1100], ['suspended', 3900]]],
+    ['only the end of the recording sampled', [['suspended', 3900], ['running', 1100]]],
+    ['middle of the recording unsampled', [['running', 1600], ['suspended', 1800], ['running', 1600]]],
+  ]) {
+    await run('R20 valid audio reaches ASR with ' + scenario, async () => {
+      const h = harness(undefined, {silent: true, suspended: periods[0][0] === 'suspended'});
+      await h.ctx.epWholeToggle();
+      for (const [state, ms] of periods) {
+        h.meter.setState(state);
+        await h.advance(ms);
+      }
+      assert.equal(h.recorders[0].state, 'recording');
+      await h.ctx.epWholeToggle(); await h.advance(0);
+      assertWholeScored(h);
+    });
+  }
+  await run('R20 full silent coverage fails even with sound during warm-up', async () => {
+    const h = harness();
+    await h.ctx.epWholeToggle(); await h.advance(200);
+    assert.equal(h.recorders[0].state, 'inactive');
+    h.meter.silent = true;
+    await h.advance(4800); await h.ctx.epWholeToggle(); await h.advance(0);
+    assertWholeCaptureError(h, 'silent-audio', /没有检测到声音|麦克风可能没开/);
   });
-  await run('R21 quiet pauses never warn; device-level mute terminates with mic-muted reason', async () => {
-    // 整段无声(用户犹豫/想事情)不弹任何实时提示, 录音照常继续——停顿不该被当成设备故障。
+  await run('R20 a quiet but nonzero waveform is speech and reaches ASR', async () => {
+    // 峰值 5: 旧 peak<8 规则会把这样的微弱声音误判成静音
+    const h = harness(undefined, {amplitude: 133});
+    await h.ctx.epWholeToggle(); await h.advance(4900); await h.ctx.epWholeToggle(); await h.advance(0);
+    assertWholeScored(h);
+  });
+  function visibleMicStatus(h) {
+    const status = h.node('ep-whole').querySelector('#ep-whole-mic-status');
+    return status.hidden ? '' : status.textContent.trim();
+  }
+  await run('R21 a normal pause gives no microphone warning and speech resumes', async () => {
     const h = harness(undefined, {silent: true});
     await h.ctx.epWholeToggle(); await h.advance(4000);
-    assert.doesNotMatch(h.node('ep-whole').innerHTML, /没有检测到声音/, 'no volume-silence nagging during pauses');
-    assert.equal(h.st.wpTake.phase, 'rec', 'recording continues through pauses');
-    assert.equal(h.calls.filter(c => c.route).length, 0, 'pause alone triggers nothing');
-    // 设备级静音(track mute)才立即终止, 并给出明确原因。
-    h.streams[0].track.emit('mute');
-    await h.advance(0);
-    assert.equal(h.st.wpTake.phase, 'error');
-    assert.equal(h.st.wpTake.code, 'mic-muted');
-    assert.match(h.st.wpTake.error, /已被系统静音或断开/);
-    assert.match(h.node('ep-whole').innerHTML, /这次没有计入/);
-    assert.equal(h.calls.filter(c => c.route).length, 0, 'muted take never reaches ASR');
-    assert.equal(h.streams[0].track.stopped, true);
-    assert.equal(h.intervals(), 0);
-    // 重复安全: mute 后再次 emit 不再改变状态。
-    h.streams[0].track.emit('mute'); await h.advance(0);
-    assert.equal(h.st.wpTake.code, 'mic-muted');
+    assert.doesNotMatch(h.node('ep-whole').innerHTML, /没有检测到声音/);
+    assert.equal(visibleMicStatus(h), '');
+    assert.equal(h.st.wpTake.phase, 'rec');
+    assert.equal(h.calls.filter(c => c.route).length, 0);
+    h.meter.silent = false;
+    await h.advance(1000); await h.ctx.epWholeToggle(); await h.advance(0);
+    assertWholeScored(h);
   });
-  await run('R22 whole error survives Space (no accidental clear) and repeat-Space cannot trigger the focused stop', async () => {
-    const h = harness(undefined, {empty: true});
-    h.load('EP.keyHandler=e=>{', "document.addEventListener('keydown',EP.keyHandler)");
-    await h.ctx.epWholeToggle(); await h.advance(4900); await h.ctx.epWholeToggle(); await h.advance(0);
-    const failure = h.st.wpTake;
-    for (const repeat of [true, false]) {
-      let prevented = false;
-      h.ctx.EP.keyHandler({key: ' ', code: 'Space', repeat, target: {tagName: 'BODY'}, preventDefault() {prevented = true;}});
-      assert.equal(prevented, true);
-      assert.equal(h.st.wpTake, failure, 'error panel survives Space');
+  await run('R21 repeated mute and unmute keep the same recorder and score recovered speech', async () => {
+    const h = harness(undefined, {silent: true});
+    await h.ctx.epWholeToggle(); await h.advance(500);
+    const recorder = h.recorders[0], track = recorder.stream.track;
+    for (let i = 0; i < 2; i++) {
+      h.meter.silent = true;
+      track.emit('mute'); await h.advance(1200);
+      assert.equal(h.st.wpTake.phase, 'rec');
+      assert.equal(recorder.state, 'recording');
+      assert.equal(track.stopped, false);
+      assert.match(visibleMicStatus(h), /麦克风|输入设备|静音/);
+      track.emit('unmute'); h.meter.silent = false; await h.advance(1200);
+      assert.equal(visibleMicStatus(h), '');
+      assert.equal(recorder.state, 'recording');
     }
-    // Esc 收起后, 「重新背诵」按钮直接开录而不是只回入口卡。
-    h.ctx.EP.keyHandler({key: 'Escape', target: {tagName: 'BODY'}, preventDefault() {}});
-    assert.equal(h.st.wpTake, null);
-    const streamsBefore = h.streams.length;
-    h.node('ep-whole').querySelector('#ep-whole-retry').onclick();
-    await flush();
-    assert.equal(h.st.wpTake.phase, 'rec', 'retry button starts a fresh capture');
-    assert.equal(h.streams.length, streamsBefore + 1);
-    await h.advance(400);
+    assert.equal(h.recorders.length, 1); assert.equal(h.streams.length, 1);
+    await h.ctx.epWholeToggle(); await h.advance(0);
+    assertWholeScored(h);
+  });
+  await run('R21 an initially muted track can recover and a final mute preserves earlier speech', async () => {
+    const h = harness(undefined, {silent: true, muted: true});
+    await h.ctx.epWholeToggle(); await h.advance(700);
+    const recorder = h.recorders[0], track = recorder.stream.track;
+    assert.match(visibleMicStatus(h), /麦克风|输入设备|静音/);
+    track.emit('unmute'); h.meter.silent = false; await h.advance(4200);
+    assert.equal(visibleMicStatus(h), '');
+    h.meter.silent = true; track.emit('mute'); await h.advance(350);
+    assert.match(visibleMicStatus(h), /麦克风|输入设备|静音/);
+    assert.equal(recorder.state, 'recording');
+    await h.ctx.epWholeToggle(); await h.advance(0);
+    assertWholeScored(h);
+  });
+  for (const initiallyMuted of [true, false]) {
+    await run('R21 no input while muted ' + (initiallyMuted ? 'from the start' : 'after a quiet opening'), async () => {
+      const h = harness(undefined, {silent: true, muted: initiallyMuted, suspended: initiallyMuted});
+      await h.ctx.epWholeToggle(); await h.advance(600);
+      if (!initiallyMuted) h.streams[0].track.emit('mute');
+      await h.advance(4400);
+      assert.equal(h.recorders[0].state, 'recording');
+      assert.match(visibleMicStatus(h), /麦克风|输入设备|静音/);
+      await h.ctx.epWholeToggle(); await h.advance(0);
+      assertWholeCaptureError(h, 'mic-muted', /静音|未恢复/);
+    });
+  }
+  for (const timing of ['initially ended', 'ended during warm-up', 'ended during recording']) {
+    await run('R21 ' + timing + ' releases capture and explains the interruption', async () => {
+      const h = harness(undefined, {ended: timing === 'initially ended'});
+      await h.ctx.epWholeToggle();
+      if (timing !== 'initially ended') {
+        await h.advance(timing === 'ended during warm-up' ? 100 : 800);
+        h.streams[0].track.emit('ended');
+      }
+      await h.advance(0);
+      assertWholeCaptureError(h, 'capture-interrupted', /中断|断开|连接/);
+    });
+  }
+  function wireReviewKeyboard(h) {
+    const tabs = {};
+    for (const m of ['listen', 'train', 'chunks']) {
+      tabs[m] = new Element(); tabs[m].dataset.m = m;
+    }
+    h.node('ep-tabs').querySelectorAll = () => Object.values(tabs);
+    h.load('function epWire(', '/* ---- 四步进度');
+    h.load('function epPlaybackTarget(', 'function epFitInput(');
+    h.ctx.epWire(); tabs.train.onclick();
+    function press(key, target = h.doc.body, repeat = false) {
+      let prevented = false;
+      h.doc.emit('keydown', {key, code: key === ' ' ? 'Space' : key, repeat, target, preventDefault() {prevented = true;}});
+      return prevented;
+    }
+    return {tabs, press};
+  }
+  await run('R22 held Space on the focused stop button keeps recording; visible retry starts a new take', async () => {
+    const h = harness(undefined, {empty: true}), {press, tabs} = wireReviewKeyboard(h);
+    const host = h.node('ep-whole'), stop = host.querySelector('#ep-whole-stop');
+    stop.tagName = 'BUTTON'; stop.focus = () => {h.doc.activeElement = stop;};
+    await h.ctx.epWholeToggle(); await h.advance(4900);
+    assert.equal(h.doc.activeElement, stop);
+    assert.equal(press(' ', h.doc.activeElement, true), true, 'prevent native Space activation on the focused button');
+    assert.equal(h.recorders[0].state, 'recording');
+    assert.equal(press(' ', stop), false, 'a distinct press can activate the stop button');
+    await stop.onclick(); await h.advance(0);
+    const failure = h.st.wpTake;
+    assert.equal(failure.phase, 'error');
+    assert.equal(press(' '), true);
+    assert.equal(h.st.wpTake, failure);
+    for (const tab of [tabs.listen, tabs.chunks]) {
+      tab.onclick();
+      assert.equal(h.node('ep-train').style.display, 'none');
+      assert.equal(press('Escape'), false, 'Escape leaves the hidden error alone');
+      assert.equal(press(' '), true); assert.equal(h.mainAudio.paused, false, 'Space plays on the visible tab');
+      press(' '); assert.equal(h.mainAudio.paused, true);
+      assert.equal(h.st.wpTake, failure);
+    }
+    tabs.train.onclick();
+    assert.equal(h.node('ep-train').style.display, '');
+    assert.match(host.innerHTML, /id="ep-whole-retry"/);
+    /* 重试按钮 fire-and-forget 开录: 先让 getUserMedia 微任务调度 250ms 启动定时器, 再推进时钟 */
+    host.querySelector('#ep-whole-retry').onclick(); await h.advance(0); await h.advance(400);
+    assert.equal(h.streams.length, 2); assert.equal(h.recorders[1].state, 'recording');
+    assert.equal(h.st.wpTake.phase, 'rec');
     h.ctx.epCancelRecording(h.st); await h.advance(0);
   });
-  await run('R23 Esc-closed whole recitation: Space reopens the panel instead of playing audio; other keys restore default Space', async () => {
-    const h = harness();
-    h.load('EP.keyHandler=e=>{', "document.addEventListener('keydown',EP.keyHandler)");
-    await h.ctx.epWholeToggle(); await h.advance(1200); await h.ctx.epWholeToggle(); await h.advance(0);
-    h.st.wpTake = {phase: 'result', result: {id: 'x', at: 1, mode: 'whole', text: 'The decor is beautiful. Please wait here.', acc: 1, dur: 9, per: [{i: 0, acc: 1}, {i: 1, acc: 1}], extra: []}};
-    h.ctx.epWholeUpdate();
-    h.ctx.EP.keyHandler({key: 'Escape', target: {tagName: 'BODY'}, preventDefault() {}});
-    assert.equal(h.st.wpTake, null);
-    assert.equal(h.st.wpReopen, true, 'Esc marks the reopen intent');
-    const stopBefore = h.streams.length;
-    h.ctx.EP.keyHandler({key: ' ', code: 'Space', repeat: false, target: {tagName: 'BODY'}, preventDefault() {}});
-    await h.advance(400);
-    assert.equal(h.st.wpReopen, false, 'Space consumed the reopen intent');
-    assert.equal(h.st.wpTake?.phase, 'rec', 'Space reopened the recitation panel');
-    assert.equal(h.streams.length, stopBefore + 1, 'a fresh capture started');
-    // 第二份 harness: Esc 收起后按其他键(如方向键)清除意图, 空格回到默认语义(这里仅断言意图清除, 播放分支不在本测试装配内)。
-    const h2 = harness();
-    h2.load('EP.keyHandler=e=>{', "document.addEventListener('keydown',EP.keyHandler)");
-    h2.ctx.epGo = () => {};   // 方向键分支只需要「意图被清除」这一断言
-    await h2.ctx.epWholeToggle(); await h2.advance(1200); await h2.ctx.epWholeToggle(); await h2.advance(0);
-    h2.st.wpTake = {phase: 'result', result: {id: 'y', at: 2, mode: 'whole', text: 'The decor is beautiful. Please wait here.', acc: 1, dur: 9, per: [{i: 0, acc: 1}, {i: 1, acc: 1}], extra: []}};
-    h2.ctx.epWholeUpdate();
-    h2.ctx.EP.keyHandler({key: 'Escape', target: {tagName: 'BODY'}, preventDefault() {}});
-    h2.ctx.EP.keyHandler({key: 'ArrowLeft', target: {tagName: 'BODY'}, preventDefault() {}});
-    assert.equal(h2.st.wpReopen, false, 'other keys drop the reopen intent');
+  await run('R23 Escape then Space reopens once; clicking another tab restores playback', async () => {
+    const h = harness(), {press, tabs} = wireReviewKeyboard(h);
+    await h.ctx.epWholeToggle(); await h.advance(4900); await h.ctx.epWholeToggle(); await h.advance(0);
+    assert.equal(h.st.wpTake.phase, 'result');
+    press('Escape'); assert.equal(h.st.wpTake, null); assert.equal(h.st.wpReopen, true);
+    press(' '); await h.advance(400);
+    assert.equal(h.st.wpReopen, false); assert.equal(h.st.wpTake.phase, 'rec');
+    assert.equal(h.recorders.length, 2); assert.equal(h.mainAudio.playCalls, 0);
+    press('Escape'); await h.advance(0); assert.equal(h.st.wpReopen, true);
+    tabs.listen.onclick(); press(' ');
+    assert.equal(h.mainAudio.paused, false); assert.equal(h.st.wpReopen, false);
+    tabs.train.onclick(); press(' ');
+    assert.equal(h.mainAudio.paused, false, 'returning to training keeps the normal dictation playback shortcut');
+    assert.equal(h.st.wpTake, null); assert.equal(h.recorders.length, 2);
+  });
+  await run('R23 selecting a sentence after Escape makes Space record that sentence', async () => {
+    const h = harness(), {press} = wireReviewKeyboard(h);
+    h.load('function epWireRow(', 'function epCoveredToday(');
+    h.load('function epGo(', 'function epPlaybackTarget(');
+    h.load('function epAnchored(', 'function epSenseOf(');
+    const card = h.node('ep-blist').querySelector('.ep-bcard');
+    h.ctx.epRenderList = () => {card.dataset.i = String(h.st.ai); card.dataset.mode = h.st.lastMode;};
+    card.getBoundingClientRect = () => ({top: 200});
+    h.node('ep-stage').getBoundingClientRect = () => ({top: 500});
+    const row = new Element(); row.dataset.i = '1'; h.ctx.epWireRow(row);
+    await h.ctx.epWholeToggle(); await h.advance(400); press('Escape'); await h.advance(0);
+    assert.equal(h.st.wpReopen, true);
+    row.onclick(); press(' '); await h.advance(0); await h.advance(400);
+    assert.equal(h.st.recording?.i, 1); assert.equal(h.st.wpTake, null);
+    assert.equal(h.recorders[1].state, 'recording'); assert.equal(h.st.wpReopen, false);
+    press('Escape'); await h.advance(0);
+    await h.ctx.epWholeToggle(); await h.advance(400); press('Escape'); await h.advance(0);
+    press('ArrowLeft');
+    assert.equal(h.st.wpReopen, false); assert.equal(h.st.ai, 0);
   });
   await run('R24 selecting the current lesson preserves an active whole capture and pending ASR', async () => {
     const h = harness(); h.ctx.csSel = {l: 0};

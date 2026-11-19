@@ -3697,10 +3697,10 @@ function selectLessonHandoutPages(notes,hm){
 const EP={cache:{},st:null,keyHandler:null};
 window.renderEplodMain=async function(c){
   const l=c.lessons[Math.max(0,Math.min(csSel.l==null?0:csSel.l,c.lessons.length-1))];
-  /* 重复选择当前课=原地刷新而非重进: 整篇录音/转写进行中不得被 epLeave 掐断(2026-11-19 回归加回) */
-  if(EP.st?.active&&EP.st.l.id===l.id&&epWholeLocked(EP.st))return;
-  $('cs-main').classList.add('ep-page');document.querySelector('.wrap')?.classList.add('ep-page');
   const el=$('cs-main');
+  el.classList.add('ep-page');document.querySelector('.wrap')?.classList.add('ep-page');
+  /* renderCourse 先重置布局；同课重选只恢复布局，保留进行中的整篇录音或转写。 */
+  if(EP.st?.active&&EP.st.l.id===l.id&&epWholeLocked(EP.st))return;
   const request=EP.loadId=(EP.loadId||0)+1;
   epLeave();
   const isCurrent=()=>request===EP.loadId&&document.querySelector('#v-course.on')&&csSel.c===c.id&&c.lessons[csSel.l]?.id===l.id;
@@ -3991,34 +3991,33 @@ function epWire(){
   /* 键盘: 空格播放/暂停 · Z 重听 · X 循环 · C 揭示 */
   if(EP.keyHandler)document.removeEventListener('keydown',EP.keyHandler);
   EP.keyHandler=e=>{
-    if(!EP.st||!document.querySelector('#v-course.on'))return;
+    const st=EP.st;if(!st||st.active===false||!document.querySelector('#v-course.on'))return;
+    const space=e.key===' '||e.code==='Space';
+    if(st.wpReopen&&!space)st.wpReopen=false;
     /* 输入类目标不接管任何键(听写里空格/字母正常输入) */
     if(e.target&&/^(INPUT|SELECT|TEXTAREA)$/.test(e.target.tagName))return;
     if(e.target&&e.target.isContentEditable)return;
-    const st=EP.st;
-    if(e.repeat&&(e.key===' '||e.code==='Space')){e.preventDefault();return;}
+    if(e.repeat&&space){e.preventDefault();return;}
+    const w=st.wpTake;
+    const wholePanel=st.tab==='train'&&(st.wpPending||['rec','processing','result','error'].includes(w?.phase));
     /* Esc 必须早于 BUTTON 守卫: 录音开始后焦点在「停止/录音」按钮上(代码主动 focus),
        BUTTON 提前 return 会让 Esc 失效(2026-11-09 自查发现)。整篇与单句都在这里统一取消。 */
     if(e.key==='Escape'){
-      const w0=st.wpTake;
-      if(st.wpPending||(w0&&['rec','processing','result','error'].includes(w0.phase))){
+      if(wholePanel){
         e.preventDefault();
-        if(w0&&(w0.phase==='result'||w0.phase==='error')){st.wpTake=null;st.wpReopen=true;epWholeUpdate();}
-        else if(w0&&w0.phase==='processing'){/* 转写中不可取消, 等结果 */}
+        if(w?.phase==='result'||w?.phase==='error'){st.wpTake=null;st.wpReopen=true;epWholeUpdate();}
+        else if(w?.phase==='processing'){/* 转写中不可取消, 等结果 */}
         else{epCancelRecording(st);st.wpReopen=true;epWholeUpdate();epNote('已取消本次录音，不会上传判分。',st);}
       }else if(st.recording||st.recPending){
         e.preventDefault();epCancelRecording(st);epNote('已取消本次录音，不会上传判分。',st);
       }
       return;
     }
-    /* 其他任意按键都算「用户已离开整篇上下文」: 之后空格回到默认的播放/朗读语义(2026-11-19) */
-    if(st.wpReopen&&e.key!==' ')st.wpReopen=false;
     /* 其余按键交给聚焦控件原生处理(按钮空格=点击等), 避免双触发 */
     if(e.target&&/^(BUTTON|SUMMARY|AUDIO)$/.test(e.target.tagName))return;
     /* 整篇背诵空格=开始/结束，结果页=重背；失败原因保留到明确重试或收起。 */
-    const w=st.wpTake;
-    if(st.wpPending||(w&&['rec','processing','result','error'].includes(w.phase))){
-      if(e.key===' '||e.code==='Space'){
+    if(wholePanel){
+      if(space){
         e.preventDefault();
         if(st.wpPending||!w||w.phase==='processing')return;
         if(w.phase==='result'){st.wpTake=null;epWholeToggle();return;}
@@ -4031,13 +4030,11 @@ function epWire(){
     if(epWholeLocked(st))return;
     const a2=$('ep-audio');if(!a2)return;
     /* Esc 收起整篇后, 空格=重新进入背诵而不是误播放音频(2026-11-19 用户反馈) */
-    if(e.key===' '&&st.wpReopen){
-      e.preventDefault();st.wpReopen=false;
-      if(epRdPassed(st))epWholeToggle();
-      return;
+    if(space&&st.tab==='train'&&st.wpReopen&&epRdPassed(st)){
+      e.preventDefault();st.wpReopen=false;epWholeToggle();return;
     }
     /* 单句朗读: 空格=开始/停止录音(其它模式仍是播放/暂停) */
-    if(e.key===' '){
+    if(space){
       const vcard=st.tab==='train'?$('ep-blist')?.querySelector('.ep-bcard'):null;
       if(vcard&&vcard.dataset.mode==='voice'){e.preventDefault();epRecToggle(st.ai,vcard);}
       else{e.preventDefault();epTogglePlayback();}
@@ -4068,6 +4065,7 @@ function epWire(){
 function epTab(m){
   const tabs=$('ep-tabs');if(!tabs||epWholeLocked())return;
   if(!['listen','train','chunks'].includes(m))m='listen';
+  EP.st.wpReopen=false;
   if(EP.st.tab!==m){epCancelRecording();epStopOriginal();epStopReplay();}
   EP.st.tab=m;
   if(m==='train')requestAnimationFrame(()=>$('ep-train')?.querySelectorAll('.dt').forEach(epFitInput));
@@ -4151,6 +4149,7 @@ function epReleaseCapture(r){
   if(!r||r.released)return;
   r.released=true;
   clearTimeout(r.startTimer);clearInterval(r.levelTimer);clearTimeout(r.limitTimer);
+  r.removeCaptureListeners?.();
   r.srcNode?.disconnect?.();
   r.stream?.getTracks().forEach(t=>t.stop());
 }
@@ -4397,6 +4396,7 @@ function epRenderList(){
 
 function epGo(i,play){
   const st=EP.st;if(!st||epWholeLocked(st))return;
+  st.wpReopen=false;
   const n=st.d.dialogue.length;
   i=Math.max(0,Math.min(n-1,i));
   if(st.ai!==i){epCancelRecording(st);epStopReplay();}
@@ -4502,6 +4502,7 @@ function epWireCard(card){
   card.querySelector('.bl').onclick=()=>epStartPlayback({seg:'dg',i,t0:u.t0,t1:u.t1},{loop:true});
   /* 三练法切换: 听写 / 朗读 / 默写 */
   card.querySelectorAll('.bmode button').forEach(b=>b.onclick=()=>{
+    st.wpReopen=false;
     if((st.amode[i]||st.lastMode)!==b.dataset.m){epCancelRecording(st);epStopOriginal(st);epStopReplay();}
     /* 2026-11-09 用户要求: 练习方式全课一次切换(点朗读=整课朗读, 点听写=整课听写),
        不再逐句设置; 其它句的 amode 覆盖一并清掉, 内容/草稿不动 */
@@ -4727,7 +4728,7 @@ function epWholeLive(host,st){
   const t=st.wpTake;host.hidden=false;
   if(t.phase==='rec'){
     const minimum=epWholeMinDuration(st);
-    host.innerHTML='<div class="wp-live"><b class="ing"><span class="wp-dot"></span>背诵中</b><span class="rt">0:00</span><span class="lv"><i></i></span><button class="pri" id="ep-whole-stop">停止并检测</button><button id="ep-whole-cancel">取消</button><p>脱稿背完整课对话，停止后检测整篇。'+(minimum?'本课建议至少录满 '+fmtDur(Math.ceil(minimum))+'。':'')+'<span class="ep-kbd-hint">空格 停止 · Esc 取消本次录音</span></p></div>';
+    host.innerHTML='<div class="wp-live"><b class="ing"><span class="wp-dot"></span>背诵中</b><span class="rt">0:00</span><span class="lv"><i></i></span><button class="pri" id="ep-whole-stop">停止并检测</button><button id="ep-whole-cancel">取消</button><p>脱稿背完整课对话，停止后检测整篇。'+(minimum?'本课建议至少录满 '+fmtDur(Math.ceil(minimum))+'。':'')+'<span class="ep-kbd-hint">空格 停止 · Esc 取消本次录音</span></p><p id="ep-whole-mic-status" role="status"'+(t.micStatus?'':' hidden')+'>'+esc(t.micStatus||'')+'</p></div>';
     host.querySelector('#ep-whole-stop').onclick=()=>epWholeToggle();
     host.querySelector('#ep-whole-cancel').onclick=()=>{epCancelRecording(st);epWholeUpdate();};
     host.querySelector('#ep-whole-stop').focus?.();
@@ -4781,6 +4782,9 @@ async function epWholeToggle(){
   if(!st||!st.active||st.tab!=='train')return;
   const t=st.wpTake;
   if(t&&t.phase==='rec'){   // 开录后停止才送转写; 缓冲期内停止直接释放资源
+    t.stoppedAt=Date.now();t.sampleLevel?.();
+    if(t.track?.readyState==='ended'){t.interrupted();return;}
+    if(!t.started&&t.micStatus){epReleaseCapture(t);epWholeFail(st,'mic-muted','录音开始前麦克风已被系统静音。请恢复麦克风输入后重录。');return;}
     epStopCapture(st,t,true);epWholeUpdate();return;
   }
   if(st.wpTake||st.wpPending||st.recording||st.recPending)return;
@@ -4801,59 +4805,80 @@ async function epWholeToggle(){
   let rec;
   try{rec=new MediaRecorder(stream,mime?{mimeType:mime}:{});}
   catch(e){stream.getTracks().forEach(x=>x.stop());epWholeFail(st,'capture-start','录音启动失败：'+e.message);return;}
-  const chunks=[],r={rec,stream,id,at,t0:at,mime:rec.mimeType||'audio/webm',phase:'rec'};
-  st.wpTake=r;epWholeUpdate();   /* 必须是本体: 音量计/停止/取消都以 st.wpTake===r 判定(r11 2026-11-01) */
-  let analyser=null,buf=null,peak=0,levelSamples=0;
+  const track=stream.getAudioTracks?.()[0]||stream.getTracks()[0];
+  const muteNotice='系统已暂停麦克风输入。恢复输入后可继续本次背诵，已录内容会保留。';
+  const chunks=[],r={rec,stream,track,id,at,t0:at,mime:rec.mimeType||'audio/webm',phase:'rec',micStatus:track?.muted?muteNotice:''};
+  st.wpTake=r;epWholeUpdate();   /* 音量计、停止和取消共享同一条录音。 */
+  let ac,analyser,peak=0,levelSamples=0,lastLevelAt,continuous=false,hadUnmutedInput=false;
+  const checkMeterState=()=>{if(ac?.state!=='running'||document.hidden)continuous=false;};
   try{
-    const ac=epSharedAC();
-    analyser=ac.createAnalyser();analyser.fftSize=512;
-    r.srcNode=ac.createMediaStreamSource(stream);r.srcNode.connect(analyser);buf=new Uint8Array(analyser.frequencyBinCount);
-    r.levelTimer=setInterval(()=>{
-      if(st.wpTake!==r)return;
-      let mx=0;
-      /* 音频图被系统挂起(如后台标签)时采样不到任何数据: 不采样也不据此判静音, 避免误报 */
-      if(ac.state==='running'){
-        analyser.getByteTimeDomainData(buf);levelSamples++;
-        for(let k=0;k<buf.length;k++)mx=Math.max(mx,Math.abs(buf[k]-128));
-        peak=Math.max(peak,mx);
+    ac=epSharedAC();analyser=ac.createAnalyser();analyser.fftSize=16384;
+    r.srcNode=ac.createMediaStreamSource(stream);
+    const buf=new Uint8Array(analyser.fftSize);
+    // 相邻采样的波形窗口应相接，后台定时器延迟或音频图挂起都会留下未测区间。
+    const maxGap=Math.min(250,1000*buf.length/(ac.sampleRate||48000));
+    r.sampleLevel=()=>{
+      if(st.wpTake!==r||rec.state!=='recording')return;
+      const now=Date.now();let mx=0;
+      if(now-lastLevelAt>maxGap||now<lastLevelAt)continuous=false;
+      checkMeterState();
+      if(ac.state==='running'&&!document.hidden){
+        try{
+          analyser.getByteTimeDomainData(buf);levelSamples++;
+          for(let k=0;k<buf.length;k++)mx=Math.max(mx,Math.abs(buf[k]-128));
+          if(!r.micStatus)peak=Math.max(peak,mx);
+        }catch(e){continuous=false;}
       }
+      lastLevelAt=now;
       const box=$('ep-whole'),bar=box?.querySelector('.lv i');if(bar)bar.style.width=Math.min(100,Math.round(mx/128*100))+'%';
-      const rt=box?.querySelector('.rt');if(rt)rt.textContent=fmtDur(Math.floor((Date.now()-r.t0)/1000));
-      /* 停顿不提示(2026-11-19 用户反馈): 音量静默无法区分「没说话」和「麦克风没开」, 只统计不提醒;
-         设备级断开由下方 track mute/ended 事件负责。 */
-    },150);
+      const rt=box?.querySelector('.rt');if(rt)rt.textContent=fmtDur(Math.floor((now-r.t0)/1000));
+    };
+    r.levelTimer=setInterval(r.sampleLevel,150);
   }catch(e){}
-  r.limitTimer=setTimeout(()=>{if(st.wpTake===r){epStopCapture(st,r,true);epWholeUpdate();}},240000);
+  r.limitTimer=setTimeout(()=>{if(st.wpTake===r)epWholeToggle();},240000);
   rec.ondataavailable=e=>{if(e.data?.size)chunks.push(e.data);};
-  rec.onerror=e=>{
+  const failCapture=reason=>{
     if(r.cancelled||r.released)return;
-    r.captureError='录音设备出错：'+(e.error?.message||e.error?.name||'录音中断，请检查麦克风后重录。');
+    r.captureError=reason;
     if(rec.state!=='inactive')epStopCapture(st,r,true);
+    else if(!r.started){epReleaseCapture(r);epWholeFail(st,'capture-interrupted',reason);}
   };
-  /* 设备级断开(系统静音麦克风/拔设备/切输入)才终止并提示; 正常停顿永不触发(2026-11-19) */
-  for(const track of stream.getTracks()){
-    track.addEventListener?.('ended',()=>{
-      if(!r.cancelled&&!r.released)r.captureError='麦克风连接已中断，本次没有计入。请检查设备连接后重录。';
-      if(!r.cancelled&&!r.released&&rec.state!=='inactive')epStopCapture(st,r,true);
-    },{once:true});
-    track.addEventListener?.('mute',()=>{
-      if(r.cancelled||r.released)return;
-      r.micMuted=true;
-      r.captureError='麦克风已被系统静音或断开，本次没有录入声音。请检查输入设备后重录。';
-      if(rec.state!=='inactive')epStopCapture(st,r,true);
-    },{once:true});
-  }
+  rec.onerror=e=>failCapture('录音设备出错：'+(e.error?.message||e.error?.name||'录音中断，请检查麦克风后重录。'));
+  r.interrupted=()=>failCapture('麦克风连接已中断，本次没有计入。请检查设备连接后重录。');
+  const setMuted=muted=>{
+    if(st.wpTake!==r||r.released||r.cancelled)return;
+    if(muted)r.sampleLevel?.();
+    r.micStatus=muted?muteNotice:'';
+    if(!muted&&rec.state==='recording')hadUnmutedInput=true;
+    const status=$('ep-whole')?.querySelector('#ep-whole-mic-status');
+    if(status){status.textContent=r.micStatus;status.hidden=!muted;}
+  };
+  if(!track||track.readyState==='ended'){r.interrupted();return;}
+  const onMute=()=>setMuted(true),onUnmute=()=>setMuted(false);
+  track.addEventListener?.('ended',r.interrupted,{once:true});
+  track.addEventListener?.('mute',onMute);
+  track.addEventListener?.('unmute',onUnmute);
+  r.removeCaptureListeners=()=>{
+    track.removeEventListener?.('ended',r.interrupted);
+    track.removeEventListener?.('mute',onMute);
+    track.removeEventListener?.('unmute',onUnmute);
+    document.removeEventListener?.('visibilitychange',checkMeterState);
+    ac?.removeEventListener?.('statechange',checkMeterState);
+  };
   rec.onstop=async()=>{
+    if(!r.released&&track.readyState==='ended')r.interrupted();
     epReleaseCapture(r);
     /* 停止按钮可能已把 wpTake 换成 from=r 的「转写中」占位: 一律先归还, 保护分支才能回入口卡 */
     if(st.wpTake&&(st.wpTake===r||st.wpTake.from===r))st.wpTake=null;
     if(r.cancelled){epWholeUpdate();return;}
     const blob=new Blob(chunks,{type:r.mime});
-    const taken=Math.max(.01,(Date.now()-r.t0)/1000),detail={dur:taken,bytes:blob.size,peak,levelSamples};
-    /* 用户定案(2026-11-19): 所有失败都必须留在错误面板上说明原因, 不许静默弹回入口卡 */
-    if(r.captureError){epWholeFail(st,r.micMuted?'mic-muted':'capture-interrupted',r.captureError,detail);return;}
+    const taken=Math.max(.01,((r.stoppedAt??Date.now())-r.t0)/1000),detail={dur:taken,bytes:blob.size,peak,levelSamples};
+    // 只有从实际开录到停止都测到、且持续多个采样周期的录音，才能据电平判静音。
+    const silent=continuous&&r.stoppedAt!=null&&levelSamples>=4&&taken>=.6&&peak===0;
+    if(r.captureError){epWholeFail(st,'capture-interrupted',r.captureError,detail);return;}
+    if(r.micStatus&&(!hadUnmutedInput||!blob.size||silent)){epWholeFail(st,'mic-muted','停止时麦克风仍被系统静音，这次未检测到可用声音。请恢复麦克风输入后重录。',detail);return;}
     if(!blob.size){epWholeFail(st,'empty-audio','这次没有生成录音文件——请检查麦克风是否已打开、浏览器是否授权，然后重录。',detail);return;}
-    if(levelSamples&&peak<8){epWholeFail(st,'silent-audio','整段录音没有检测到声音——麦克风可能没开或选错了输入设备。本次未送检测，请开麦后重录。',detail);return;}
+    if(silent){epWholeFail(st,'silent-audio','整段录音没有检测到声音——麦克风可能没开或选错了输入设备。本次未送检测，请开麦后重录。',detail);return;}
     if(blob.size>8*1024*1024){epWholeFail(st,'audio-too-large','录音超过 8MB，无法上传，本次未送检测。请重新录音。',detail);return;}
     /* 用户定案(2026-11-02): 背诵只会比原音慢, 录音明显短于原文=肯定没背完, 不送检测直接判失败重录 */
     const minimum=epWholeMinDuration(st);
@@ -4870,8 +4895,15 @@ async function epWholeToggle(){
     if(st.wpTake!==r||r.cancelled||!st.active||EP.st!==st||st.tab!=='train'){
       r.cancelled=true;epReleaseCapture(r);if(st.wpTake===r)st.wpTake=null;epWholeUpdate();return;
     }
-    try{r.t0=Date.now();rec.start();}
-    catch(e){epReleaseCapture(r);epWholeFail(st,'capture-start','录音启动失败：'+e.message);}
+    if(track.readyState==='ended'){r.interrupted();return;}
+    try{rec.start();r.started=true;lastLevelAt=r.t0=Date.now();hadUnmutedInput=!r.micStatus;}
+    catch(e){epReleaseCapture(r);epWholeFail(st,'capture-start','录音启动失败：'+e.message);return;}
+    try{
+      r.srcNode.connect(analyser);
+      continuous=ac.state==='running'&&!document.hidden;
+      document.addEventListener('visibilitychange',checkMeterState);
+      ac.addEventListener?.('statechange',checkMeterState);
+    }catch(e){continuous=false;}
   },250);
 }
 async function epWholeProcess(st,take){
