@@ -67,8 +67,14 @@ function harness(st = lesson(), opts = {}) {
   const node = id => {if (!nodes.has(id)) nodes.set(id, new Element()); return nodes.get(id);};
   const streams = [], recorders = [], graphs = [], calls = [], fetches = [], audios = [], urls = [];
   let gumDeferred = null;
+  class Track {
+    constructor() {this.stopped = false; this.listeners = new Map();}
+    stop() {this.stopped = true;}
+    addEventListener(type, fn) {if (!this.listeners.has(type)) this.listeners.set(type, new Set()); this.listeners.get(type).add(fn);}
+    emit(type) {for (const fn of [...(this.listeners.get(type) || [])]) fn({type});}
+  }
   const gum = () => {
-    const track = {stopped: false, stop() {this.stopped = true;}};
+    const track = new Track();
     const stream = {track, getTracks: () => [track]}; streams.push(stream);
     return gumDeferred ? gumDeferred.promise.then(() => stream) : Promise.resolve(stream);
   };
@@ -270,17 +276,26 @@ async function main() {
     assert.equal(h.calls.filter(c => c.route === '/api/eplod/asr').length, 1);
     assert.equal(h.streams[0].track.stopped, true);
   });
-  await run('R21 live mic hint appears after ~2s of silence and clears with sound', async () => {
+  await run('R21 quiet pauses never warn; device-level mute terminates with mic-muted reason', async () => {
+    // 整段无声(用户犹豫/想事情)不弹任何实时提示, 录音照常继续——停顿不该被当成设备故障。
     const h = harness(undefined, {silent: true});
-    await h.ctx.epWholeToggle(); await h.advance(400);
-    const hintEl = () => h.node('ep-whole').querySelector('.wp-live-hint');
-    assert.equal(hintEl().hidden, true, 'hidden right after start');
-    await h.advance(1800);
-    assert.equal(hintEl().hidden, false, 'shown after ~2s without sound');
-    // 有声时不弹: 用正常(非 silent)harness 验证整段录音期间提示保持隐藏。
-    const h2 = harness();
-    await h2.ctx.epWholeToggle(); await h2.advance(2000);
-    assert.equal(h2.node('ep-whole').querySelector('.wp-live-hint').hidden, true, 'no hint when sound is present');
+    await h.ctx.epWholeToggle(); await h.advance(4000);
+    assert.doesNotMatch(h.node('ep-whole').innerHTML, /没有检测到声音/, 'no volume-silence nagging during pauses');
+    assert.equal(h.st.wpTake.phase, 'rec', 'recording continues through pauses');
+    assert.equal(h.calls.filter(c => c.route).length, 0, 'pause alone triggers nothing');
+    // 设备级静音(track mute)才立即终止, 并给出明确原因。
+    h.streams[0].track.emit('mute');
+    await h.advance(0);
+    assert.equal(h.st.wpTake.phase, 'error');
+    assert.equal(h.st.wpTake.code, 'mic-muted');
+    assert.match(h.st.wpTake.error, /已被系统静音或断开/);
+    assert.match(h.node('ep-whole').innerHTML, /这次没有计入/);
+    assert.equal(h.calls.filter(c => c.route).length, 0, 'muted take never reaches ASR');
+    assert.equal(h.streams[0].track.stopped, true);
+    assert.equal(h.intervals(), 0);
+    // 重复安全: mute 后再次 emit 不再改变状态。
+    h.streams[0].track.emit('mute'); await h.advance(0);
+    assert.equal(h.st.wpTake.code, 'mic-muted');
   });
   await run('R22 whole error survives Space (no accidental clear) and repeat-Space cannot trigger the focused stop', async () => {
     const h = harness(undefined, {empty: true});
