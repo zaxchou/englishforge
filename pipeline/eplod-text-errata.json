@@ -3,7 +3,12 @@
  "note": "全库文本勘误表(2026-11-08 全库审计产物)。每期一组字符串替换, apply_errata 在解析/重用/落盘前递归应用(正文/词块例句/意群/讲解引用/中文)。来源: whisper+qwen 双引擎无偏置 ASR 与官方文本逐句比对(见 build/qa/eplod-text-audit/)。",
  "episodes": {
   "0076": {
-   "replacements": [["One hundred and forty four!", "One forty four!"]],
+   "replacements": [
+    [
+     "One hundred and forty four!",
+     "One forty four!"
+    ]
+   ],
    "note": "2026-11-15 第10句配音读作 one forty-four（144），未说 hundred and；用户听辨与无偏置 Qwen 切句转写一致，small.en 宽窗转写为144。正文与意群按原音修正，中文数值仍为一百四十四，保留已复核时间轴。"
   },
   "0047": {
@@ -1050,6 +1055,20 @@
     ]
    ],
    "note": "官方 PDF 漏 h(2026-11-14): 印刷件即为 neigbourhood, 原音与 ASR 均为 neighborhood; 英美拼写中 neighborhood 是规范形。"
+  },
+  "0087": {
+   "reviewed": "2026-11-21",
+   "reason": "Sentence 8 official PDF text disagrees with the dub. Four unbiased transcriptions (small.en full take, small.en narrow windows x2, qwen3-asr-flash clip) all hear \"...Star Trek fan who can actually act, OK?\" with no \"actor\" and a trailing \"act\"; syllable durations agree (can 0.2s, actually 0.45s). User dictation confirmed the trailing act. Fix the fan-actor wording; Chinese line already reads 真正能演的 and stays.",
+   "replacements": [
+    [
+     "fan actor who actually can, OK?",
+     "fan who can actually act, OK?"
+    ],
+    [
+     "Fan actor who actually can, OK?",
+     "Fan who can actually act, OK?"
+    ]
+   ]
   }
  }
 }
