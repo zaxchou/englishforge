@@ -525,6 +525,24 @@ test('r5: historical scores for 6\'1" lines rescore to the spoken form six one',
   assert.equal(dict.course['eplod-0039'].drill.dd[0].acc, 1);
 });
 
+test('0087: Klingon proper-noun recognizer variants clear voice but not typed spelling', () => {
+  // 原音与用户录音的无偏置 ASR 各自猜拼: Kor→Kaur/Kohr, Klothos→Kodos/Kothos/Kottos。
+  const official = 'I am Captain Kor of the ship Klothos. Your ship attacked our search party...';
+  for (const spoken of [
+    "I'm Captain Kohr of the ship Kottos. Your ship attacked our search party.",
+    'I am Captain Kaur of the ship Kothos. Your ship attacked our search party.',
+    'I am Captain Kor of the ship Kodos. Your ship attacked our search party.',
+  ]) {
+    const voice = E.scoreTokens(official, spoken, true);
+    assert.equal(voice.acc, 1, spoken);
+    assert.deepEqual(voice.extras, []);
+  }
+  // 打字路径仍严格: 猜拼写法不赦免。
+  const typed = "I'm Captain Kohr of the ship Kottos. Your ship attacked our search party.";
+  assert.ok(E.scoreTokens(official, typed, false).acc < 1);
+  // 相邻词不可借别名混过: 换成无关的其他名字仍判错。
+  assert.ok(E.lcsAccFuzzy(official, 'I am Captain Thor of the ship Klothos. Your ship attacked our search party.') < 1);
+});
 test('0076: Kadlec/Cadillac recognizer alias clears both voice sentences but not typed spelling', () => {
   for (const official of ['Sorry Miss Kadlec.', "Miss Kadlec always asks Crystal; she's such a teacher's pet."]) {
     const spoken = official.replace('Kadlec', 'Cadillac');
