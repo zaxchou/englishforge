@@ -16,3 +16,4 @@
 - 新增服务端文件必须同时进 `deploy/Dockerfile` 与 `deploy/prepare-release.sh`（含 manifest），否则镜像启动即 import 失败
 - 改 `deploy/*.sh` 禁用 Python 文本模式写文件（CRLF 会让 NAS 的 sh 跑挂），必须二进制写回 LF
 - TTS 输入必须带终止标点、连续相同数字需显式分隔（裸数字串会被续读/糊音，事故记录在 build/qa/number-trainer/）
+- EnglishPod 时间轴校对走 `pipeline/audit_eplod_timing.py`（每日 05:30 定时自动校对后 3 天新课）：只改时间戳不改正文；已校准课受保护（漂移只记 needs-review），新课需全课+窄窗双证据一致才写回；needs-review 由人工按 0087 多方取证流程裁决

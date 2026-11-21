@@ -4344,6 +4344,130 @@
      54.46
     ]
    ]
+  },
+  "0088": {
+   "reviewed": "2026-11-21",
+   "reason": "Automated full-take word-level audit (small.en); narrow-window re-check agreed on all moved boundaries (tolerance 0.2s). Only timestamps changed; needs-review items, if any, were not applied. Evidence: build/qa/eplod-audit/.",
+   "audioSha256": "6341e4f8fd6cd321c43fe0cfc02107127ef1f7ee91ea2f6459bd0ccbe5ff60e3",
+   "dialogueSha256": "8a71559498e5bd844835a1302e3a6f94768155b5b2cad1536a4c1b914d259c29",
+   "bounds": [
+    [
+     10.12,
+     12.4
+    ],
+    [
+     12.9,
+     19.08
+    ],
+    [
+     19.6,
+     20.64
+    ],
+    [
+     23.04,
+     24.8
+    ],
+    [
+     25.12,
+     26.26
+    ],
+    [
+     27.38,
+     41.64
+    ],
+    [
+     42.26,
+     46.94
+    ],
+    [
+     47.46,
+     54.94
+    ],
+    [
+     56.98,
+     57.46
+    ]
+   ]
+  },
+  "0092": {
+   "reviewed": "2026-11-21",
+   "reason": "Automated full-take word-level audit (small.en); narrow-window re-check agreed on all moved boundaries (tolerance 0.2s). Only timestamps changed; needs-review items, if any, were not applied. Evidence: build/qa/eplod-audit/.",
+   "audioSha256": "62a949d862b179a7df7c6283d95db7223e561495f74ea5b184e5a22d8c893af9",
+   "dialogueSha256": "bc1dae06741b753162cc9d848d8ee983dbb540155b0210354d2c9bf21a6e385e",
+   "bounds": [
+    [
+     8.2,
+     9.14
+    ],
+    [
+     9.4,
+     10.3
+    ],
+    [
+     11.2,
+     14.64
+    ],
+    [
+     14.94,
+     18.74
+    ],
+    [
+     19.58,
+     23.36
+    ],
+    [
+     23.8,
+     27.48
+    ],
+    [
+     27.86,
+     28.82
+    ],
+    [
+     29.62,
+     31.5
+    ],
+    [
+     32.24,
+     33.62
+    ]
+   ]
+  },
+  "0101": {
+   "reviewed": "2026-11-21",
+   "reason": "Automated full-take word-level audit (small.en); narrow-window re-check agreed on all moved boundaries (tolerance 0.2s). Only timestamps changed; needs-review items, if any, were not applied. Evidence: build/qa/eplod-audit/.",
+   "audioSha256": "d9326a7eb1620337f26da09d484ef4a6246ad27c11584a96752eb8b1f3d2bc36",
+   "dialogueSha256": "f43b4506d57ced1e7cbe300a362ddee3ff6aac86073a1bc3a91e7acaf440f817",
+   "bounds": [
+    [
+     7.9,
+     9.18
+    ],
+    [
+     10.14,
+     13.08
+    ],
+    [
+     13.64,
+     17.32
+    ],
+    [
+     18.18,
+     26.86
+    ],
+    [
+     26.94,
+     35.54
+    ],
+    [
+     36.0,
+     45.3
+    ],
+    [
+     45.6,
+     47.04
+    ]
+   ]
   }
  }
 }
