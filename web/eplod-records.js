@@ -2,7 +2,7 @@
   'use strict';
   const copy=x=>x===undefined?undefined:JSON.parse(JSON.stringify(x));
   const object=x=>x&&typeof x==='object'&&!Array.isArray(x);
-  const SCORING_VERSION=21;
+  const SCORING_VERSION=22;
   /* 判分归一分词(r19): 官方文本的 "5:58" 分词成 [5,58], ASR/用户输入是 [five,fifty,eight],
      形状不同会白扣分——数字 token 统一展开成读法单词; oh 与 zero 互通(两侧同变换, 只增匹配不改错配)。 */
   const NUM1={0:'zero',1:'one',2:'two',3:'three',4:'four',5:'five',6:'six',7:'seven',8:'eight',9:'nine',10:'ten',11:'eleven',12:'twelve',13:'thirteen',14:'fourteen',15:'fifteen',16:'sixteen',17:'seventeen',18:'eighteen',19:'nineteen',20:'twenty'};   /* 20 曾缺表, expandNum 兜底成 "20" 配不上 twenty(r2 2026-10-30) */
@@ -184,7 +184,7 @@
      Kothos(small.en 对原音)/Kottos(用户), KL 辅音丛连演员都读得含糊。仅语音路径互认,
      打字仍要求正确写法; 变体 token 全库只出现在 0087 三句。 */
   const NAME_ALIASES=[['julianne','julian'],['mcnealy','mclean'],['kadlec','cadillac'],
-    ['kor','kaur','kohr'],['klothos','kodos','kothos','kottos']];
+    ['kor','kaur','kohr','cor'],['klothos','kodos','kothos','kottos','clothos']];
   /* 序数词尾 -tieth 常被 ASR 转写成 -ties(0044 "70th"→"seventies" 实测); 只在语音判分里
      互认, 默写打字仍要求正确写法。 */
   const ASR_ORDINAL_ALIASES=[['twenties','twentieth'],['thirties','thirtieth'],['forties','fortieth'],

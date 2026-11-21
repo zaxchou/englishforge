@@ -532,6 +532,7 @@ test('0087: Klingon proper-noun recognizer variants clear voice but not typed sp
     "I'm Captain Kohr of the ship Kottos. Your ship attacked our search party.",
     'I am Captain Kaur of the ship Kothos. Your ship attacked our search party.',
     'I am Captain Kor of the ship Kodos. Your ship attacked our search party.',
+    "I'm Captain Cor of the ship Clothos. Your ship attacked our search party.",
   ]) {
     const voice = E.scoreTokens(official, spoken, true);
     assert.equal(voice.acc, 1, spoken);
