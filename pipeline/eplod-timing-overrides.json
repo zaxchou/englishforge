@@ -4300,6 +4300,50 @@
      87.52
     ]
    ]
+  },
+  "0087": {
+   "reviewed": "2026-11-21",
+   "reason": "Full-take word-level small.en plus narrow-window re-checks and unbiased production ASR. Old 7/8/9 boundaries interleaved: sentence 7 swallowed the director's \"No!\" (42.70-43.02), sentence 8 started 0.72s late (missing \"No!\") and ended 1.06s early (dropping \"OK?\" 50.06-50.34), sentence 9 started 1.35s early (swallowing \"OK?\") and included a 54.5-54.86 interjection that is not line-9 dialogue. New bounds: cut-off half syllable ends 42.84 (stays in sentence 7), sentence 8 42.84-50.34, sentence 9 50.36-54.46. Sentences 1-6 shift <=0.3s to measured word boundaries. Evidence: build/qa/eplod-0087/.",
+   "audioSha256": "a3747bb06907bff3e2fd0b01fc05fcfb0ea52a99906f007007f1100383692ccd",
+   "dialogueSha256": "c262a88a2215089246e5f3f0539a7615576aa7b0c60e6ea7c386787c851388c8",
+   "bounds": [
+    [
+     7.46,
+     10.46
+    ],
+    [
+     11.12,
+     11.74
+    ],
+    [
+     12.7,
+     16.1
+    ],
+    [
+     16.8,
+     28.64
+    ],
+    [
+     29.1,
+     33.1
+    ],
+    [
+     33.66,
+     38.56
+    ],
+    [
+     39.56,
+     42.84
+    ],
+    [
+     42.84,
+     50.34
+    ],
+    [
+     50.36,
+     54.46
+    ]
+   ]
   }
  }
 }

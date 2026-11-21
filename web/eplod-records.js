@@ -2,7 +2,7 @@
   'use strict';
   const copy=x=>x===undefined?undefined:JSON.parse(JSON.stringify(x));
   const object=x=>x&&typeof x==='object'&&!Array.isArray(x);
-  const SCORING_VERSION=19;
+  const SCORING_VERSION=20;
   /* 判分归一分词(r19): 官方文本的 "5:58" 分词成 [5,58], ASR/用户输入是 [five,fifty,eight],
      形状不同会白扣分——数字 token 统一展开成读法单词; oh 与 zero 互通(两侧同变换, 只增匹配不改错配)。 */
   const NUM1={0:'zero',1:'one',2:'two',3:'three',4:'four',5:'five',6:'six',7:'seven',8:'eight',9:'nine',10:'ten',11:'eleven',12:'twelve',13:'thirteen',14:'fourteen',15:'fifteen',16:'sixteen',17:'seventeen',18:'eighteen',19:'nineteen',20:'twenty'};   /* 20 曾缺表, expandNum 兜底成 "20" 配不上 twenty(r2 2026-10-30) */
@@ -159,9 +159,15 @@
     }
     for(const open of openStack)skipSpans.push([open,folded.length]);
     const inStageDirections=index=>skipSpans.some(([a,b])=>index>=a&&index<=b);
+    /* 被抢话截断的半音节残词不判分(r29 2026-11-21, 0087 实测 "Your sh..."): 原音里词只发了
+       半个音节就被下一个角色打断, 背诵者无从发音、ASR 也无法转写出独立的 "sh"——不进准确率
+       分母, 显示保留原文。模式仅限行尾 sh+省略号; 全库唯一命中 0087 第 7 句,
+       MacDonald's/you'll/okay/O-K 等完整发音的行尾省略词不在此列, 不做宽泛泛化。 */
+    const cutOff=/\bsh(?:\.{2,}|…+)\s*$/.exec(folded);
     let cursor=0;
     for(const match of folded.matchAll(/[a-z0-9']+/g)){
       if(inStageDirections(match.index))continue;
+      if(cutOff&&match.index===cutOff.index)continue;
       const start=starts[match.index],end=ends[match.index+match[0].length-1];
       if(start>cursor)segments.push({text:text.slice(cursor,start),tokens:[]});
       segments.push({text:text.slice(start,end),tokens:wordTokens(match[0])});

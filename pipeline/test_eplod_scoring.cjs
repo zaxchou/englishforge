@@ -347,6 +347,26 @@ test('r27: bracketed stage directions never count as scoring tokens', () => {
   // 台词里普通词照常计分, 引擎不受无括号文本影响。
   assert.equal(E.lcsAcc('I love your curly hair', 'I love your curly hair'), 1);
 });
+test('r29: an interrupted half-syllable (0087 "Your sh...") never enters the scoring denominator', () => {
+  const official = 'I am Captain Kor of the ship Klothos. Your sh...';
+  // 原音里 ship 只发半个音节即被抢话截断; 背诵到 Your 结束就是完整台词。
+  assert.deepEqual(E.normTokens(official), ['i', 'am', 'captain', 'kor', 'of', 'the', 'ship', 'klothos', 'your']);
+  const stopped = E.scoreTokens(official, 'I am Captain Kor of the ship Klothos. Your');
+  assert.equal(stopped.acc, 1, 'stopping at Your scores 100%');
+  // 用户哼出半个音、ASR 写 sh: 仍满分, sh 只进 extras 展示, 不扣分。
+  const hummed = E.scoreTokens(official, 'I am Captain Kor of the ship Klothos. Your sh');
+  assert.equal(hummed.acc, 1);
+  assert.deepEqual(hummed.extras, ['sh']);
+  // 显示层: 原文完整保留, sh 与省略号落在无 token 段, 不渲染波浪线。
+  const segments = E.tokenSegments(official);
+  assert.equal(segments.map(s => s.text).join(''), official);
+  assert.ok(segments.some(s => s.text.includes('sh') && !s.tokens.length));
+  // 完整发音的行尾省略词不受影响, 不做宽泛泛化(you'll 走既有缩写展开成 you will)。
+  assert.ok(E.normTokens("the entire class lunch at MacDonald's...").includes("macdonald's"));
+  assert.deepEqual(E.normTokens("Just watch... I'm ok..."), ['just', 'watch', 'i', 'am', 'ok']);
+  assert.deepEqual(E.normTokens("ata from nineteen seventy-five you'll..."),
+    ['ata', 'from', 'nineteen', 'seventy', 'five', 'you', 'will']);
+});
 test('r28: dosage abbreviation mg expands to the spoken milligram reading', () => {
   const official = "Let's see. Okay, so 50 mg of Prozac, would you prefer this in capsule or tablet?";
   // 原音读全称复数(0084 双引擎取证); ASR 存的转写是单数。
