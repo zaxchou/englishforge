@@ -2,7 +2,7 @@
   'use strict';
   const copy=x=>x===undefined?undefined:JSON.parse(JSON.stringify(x));
   const object=x=>x&&typeof x==='object'&&!Array.isArray(x);
-  const SCORING_VERSION=22;
+  const SCORING_VERSION=23;
   /* 判分归一分词(r19): 官方文本的 "5:58" 分词成 [5,58], ASR/用户输入是 [five,fifty,eight],
      形状不同会白扣分——数字 token 统一展开成读法单词; oh 与 zero 互通(两侧同变换, 只增匹配不改错配)。 */
   const NUM1={0:'zero',1:'one',2:'two',3:'three',4:'four',5:'five',6:'six',7:'seven',8:'eight',9:'nine',10:'ten',11:'eleven',12:'twelve',13:'thirteen',14:'fourteen',15:'fifteen',16:'sixteen',17:'seventeen',18:'eighteen',19:'nineteen',20:'twenty'};   /* 20 曾缺表, expandNum 兜底成 "20" 配不上 twenty(r2 2026-10-30) */
@@ -197,6 +197,28 @@
       ASR_ORDINAL_ALIASES.some(group=>group.includes(a)&&group.includes(b))||
       ASR_VERB_ALIASES.some(group=>group.includes(a)&&group.includes(b)));
   }
+  /* 对话衔接豁免(r31 2026-11-21, 0087 实测): 逐句背诵是整段对话的切片, 用户在句首/句尾
+     自然带上相邻句的边界词(第 8 句尾 "OK?" 接第 9 句), 背了正确内容却被计成多出词——
+     判分语义错误。仅语音路径剥离句首与上一句尾 / 句尾与下一句头的 ≤2 个归一词;
+     听写打字不剥离; 整篇(全文本)无需剥离; 历史重算与本处同源。 */
+  function stripAdjacentSpans(mine,prevText,nextText){
+    const mineTokens=normTokens(mine);
+    const prevTail=typeof prevText==='string'?normTokens(prevText).slice(-2):[];
+    const nextHead=typeof nextText==='string'?normTokens(nextText).slice(0,2):[];
+    let head=0;
+    for(let k=Math.min(2,prevTail.length,mineTokens.length);k>=1;k--){
+      if(mineTokens.slice(0,k).every((t,idx)=>t===prevTail[prevTail.length-k+idx])){head=k;break;}
+    }
+    let tail=0;
+    const rest=mineTokens.slice(head);
+    for(let k=Math.min(2,nextHead.length,rest.length);k>=1;k--){
+      if(rest.slice(rest.length-k).every((t,idx)=>t===nextHead[idx])){tail=k;break;}
+    }
+    return rest.slice(0,rest.length-tail).join(' ');
+  }
+  function scoreTokensAdjacent(official,mine,prevText,nextText){
+    return scoreTokens(official,stripAdjacentSpans(mine,prevText,nextText),true);
+  }
   /* 复合词分写等价(r8 2026-11-09): 官方 "voice mail" vs ASR/用户 "voicemail"——相邻两 token
      拼接等于另一侧单 token 即互配(双向)。护栏: 拼接≥5 字符且 pair 首词非虚词/非前缀语素
      (挡 to+get↔together / a+lone↔alone / re+sign↔resign 这类真词误并; over/anti/out 等
@@ -326,7 +348,7 @@
         const rescore=(result,resultPath)=>{
           if(!hasText(result.text)){skip(resultPath,'transcript-unavailable');return;}
           if(scoringVersion(result)>SCORING_VERSION){skip(resultPath,'newer-scoring-version');return;}
-          write(result,'acc',lcsAccFuzzy(official,result.text),resultPath,'normalized-voice-transcript');
+          write(result,'acc',scoreTokensAdjacent(official,result.text,dialogue[i-1]&&dialogue[i-1].text,dialogue[+i+1]&&dialogue[+i+1].text).acc,resultPath,'normalized-voice-transcript');
           write(result,'scoringVersion',SCORING_VERSION,resultPath,'verified-voice-scoring-version');
           if(Number.isFinite(row.acc)&&result.acc>row.acc&&hasText(row.rec)&&hasText(result.id)&&time(result.at)>0&&
              row.recAttemptId===result.id&&time(row.recAt)===time(result.at)&&
@@ -347,7 +369,7 @@
           }else if(scoringVersion(row.latest)>SCORING_VERSION||Number(row.lastScoringVersion)>SCORING_VERSION){
             skip([...path,'lastAcc'],'newer-scoring-version');
           }else{
-            write(row,'lastAcc',lcsAccFuzzy(official,row.last),path,'voice-transcript-mirror');
+            write(row,'lastAcc',scoreTokensAdjacent(official,row.last,dialogue[i-1]&&dialogue[i-1].text,dialogue[+i+1]&&dialogue[+i+1].text).acc,path,'voice-transcript-mirror');
             write(row,'lastScoringVersion',SCORING_VERSION,path,'verified-voice-mirror-version');
           }
         }
@@ -710,7 +732,7 @@
     }
     return changed;
   }
-  const api={SCORING_VERSION,mergeDrill,mergeLesson,reconcile,saveAttempt,speedPassed,repairSpeedScores,repairOkayScores,repairNumberScores,repairSpellingScores,repairFillerScores,repairVoiceScores,repairVoiceFuzzyScores,repairSlangScores,scoreTokens,lcsAcc,lcsAccFuzzy,fuzzyEqual,tokenSegments,normTokens,usSpelling,coverProgress,wholeReport};
+  const api={SCORING_VERSION,mergeDrill,mergeLesson,reconcile,saveAttempt,speedPassed,repairSpeedScores,repairOkayScores,repairNumberScores,repairSpellingScores,repairFillerScores,repairVoiceScores,repairVoiceFuzzyScores,repairSlangScores,scoreTokens,lcsAcc,lcsAccFuzzy,fuzzyEqual,tokenSegments,normTokens,usSpelling,coverProgress,wholeReport,scoreTokensAdjacent};
   if(typeof module==='object'&&module.exports)module.exports=api;
   else root.EplodRecords=api;
 })(typeof globalThis==='object'?globalThis:this);

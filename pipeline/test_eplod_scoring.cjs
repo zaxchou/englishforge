@@ -525,6 +525,28 @@ test('r5: historical scores for 6\'1" lines rescore to the spoken form six one',
   assert.equal(dict.course['eplod-0039'].drill.dd[0].acc, 1);
 });
 
+test('r31: dialogue junction words from the neighboring sentence are stripped for voice scoring only', () => {
+  // 0087 实测: 背第 9 句时带上第 8 句尾 "OK?", 背了正确内容却被计多出词。
+  const prev = "No! If you can't do a Klingon voice, I'll have to find a more serious Star Trek fan who can actually act, OK?";
+  const official = 'But... but... I already bought the Klingon suit! And the wig...';
+  const next = '...';
+  const mine = 'okay? But but I already bought a clean non-suit and the wig.';
+  const junction = E.scoreTokensAdjacent(official, mine, prev, next);
+  assert.ok(!junction.extras.includes('ok'), 'trailing word of the previous sentence is not an extra');
+  const plain = E.scoreTokens(official, mine, true);
+  assert.ok(plain.extras.includes('ok'), 'without context the junction word still counts');
+  assert.equal(junction.acc, plain.acc, 'acc tracks official hits only; stripping fixes the extras list, not the score');
+  // 只剥相邻句的 ≤2 个词; 与相邻句无关的开头词仍计多出。
+  const unrelated = E.scoreTokensAdjacent(official, 'well then But but I already bought the Klingon suit.', prev, next);
+  assert.ok(unrelated.extras.includes('well'), 'words that do not match the neighbor stay extras');
+  // 无相邻文本(首句/末句)不剥离。
+  assert.deepEqual(E.scoreTokensAdjacent(official, 'okay? But but I already bought the Klingon suit.', null, null).extras, ['ok']);
+  // 下一句头部词在句尾同样豁免。
+  const withNextHead = E.scoreTokensAdjacent('The decor is beautiful.', 'The decor is beautiful. Please', null, 'Please wait here.');
+  assert.equal(withNextHead.acc, 1);
+  // 打字路径无此豁免。
+  assert.ok(E.scoreTokens(official, mine, false).acc < 1);
+});
 test('0087: Klingon proper-noun recognizer variants clear voice but not typed spelling', () => {
   // 原音与用户录音的无偏置 ASR 各自猜拼: Kor→Kaur/Kohr, Klothos→Kodos/Kothos/Kottos。
   const official = 'I am Captain Kor of the ship Klothos. Your ship attacked our search party...';

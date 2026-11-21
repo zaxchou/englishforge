@@ -360,7 +360,7 @@ details.ai-tsec[open] summary{margin-bottom:8px}
 
 </div>
 
-<script src="eplod-records.js?v=34"></script>
+<script src="eplod-records.js?v=35"></script>
 <script src="course-plan-model.js?v=20261029r8"></script>
 <script src="course-plan-ui.js?v=20261113r11"></script>
 <script src="root-practice-ui.js?v=e3203ffa489d"></script>
@@ -4105,11 +4105,14 @@ function epStepsUpdate(){
   epWholeUpdate();   // 逐句背诵通过数变化 → 整篇背诵解锁态随之刷新
 }
 
-/* ---- 听写 diff: 词级 LCS(含复合词分写等价), 返回逐词对错与多写词 ---- */
-function epDiff(official,mine,fuzzy){
+/* ---- 听写 diff: 词级 LCS(含复合词分写等价), 返回逐词对错与多写词 ----
+   语音路径带相邻句文本: 句首/句尾自然衔接上一句尾/下一句头的词不计多出(r31 0087) */
+function epDiff(official,mine,fuzzy,adjPrev,adjNext){
   /* r8: 判分统一走 EplodRecords.scoreTokens(复合词合并等价+姓名赦免同一口径),
      本函数只保留展示所需的 acc/marks/extras 形状。 */
-  const r=EplodRecords.scoreTokens(official,mine,!!fuzzy);
+  const r=fuzzy&&(adjPrev||adjNext)
+    ?EplodRecords.scoreTokensAdjacent(official,mine,adjPrev,adjNext)
+    :EplodRecords.scoreTokens(official,mine,!!fuzzy);
   return {acc:r.acc,marks:r.marks,extras:r.extras};
 }
 
@@ -4239,9 +4242,9 @@ async function epReplay(i){
   document.querySelectorAll('.elisten-me,.elisten-row').forEach(b=>b.classList.toggle('playing',+b.dataset.i===i));
   try{await a.play();}catch(e){if(current())await recover();}
 }
-function epResultHTML(text,result){
+function epResultHTML(text,result,adjPrev,adjNext){
   if(!result)return '';
-  const r=epDiff(text,result.text||'',result&&result.mode==='voice');   /* 语音结果展示走赦免, 默写保持精确 */
+  const r=epDiff(text,result.text||'',result&&result.mode==='voice',adjPrev,adjNext);   /* 语音结果展示走赦免, 默写保持精确 */
   /* R7: 显示与判分共用 tokenSegments 的词段切分, 避免「d ́ecor」类伪影词被拆片后索引错位 */
   let at=0;
   const marked=EplodRecords.tokenSegments(text).map(seg=>{
@@ -4272,7 +4275,7 @@ function epVoiceFeedback(st,i){
   if(!take&&reading?.recAttemptId&&reading.recAttemptId!==result?.id)return '<p class="ep-note">最新录音已保存，尚无对应识别结果；可回听或重新朗读。上方为历史最好成绩。</p>'+archive;
   if(!result)return archive;
   const duration=Number(result.dur),sourceDur=u.t1-u.t0;
-  return epResultHTML(u.text,result)+(duration>0?'<p class="ep-note">用时 '+fmtDur(duration)+(u.t0!=null&&sourceDur>0?' / 原句 '+fmtDur(sourceDur)+(result.speed?' · ✓ 本次同速达成':result.acc>=.9?' · 可重录练同速':''):' · 本句尚无音频定位，暂不判断同速')+'</p>':'')+archive;
+  return epResultHTML(u.text,result,st.d.dialogue[i-1]?.text,st.d.dialogue[i+1]?.text)+(duration>0?'<p class="ep-note">用时 '+fmtDur(duration)+(u.t0!=null&&sourceDur>0?' / 原句 '+fmtDur(sourceDur)+(result.speed?' · ✓ 本次同速达成':result.acc>=.9?' · 可重录练同速':''):' · 本句尚无音频定位，暂不判断同速')+'</p>':'')+archive;
 }
 function epRefreshSentence(st,i){
   if(EP.st!==st&&EP.st?.active&&EP.st.l.id===st.l.id)st=EP.st;
@@ -5027,7 +5030,7 @@ async function epProcessTake(st,take){
     if(!j.ok)throw Error(j.error||'转写失败');
     const text=String(j.text||'').trim();
     if(!text)throw Error('没有识别到内容，请回听录音后重试识别或重新朗读');
-    const u=st.d.dialogue[take.i],r=epDiff(u.text,text,true),sourceDur=u.t1-u.t0;
+    const u=st.d.dialogue[take.i],r=epDiff(u.text,text,true,st.d.dialogue[take.i-1]?.text,st.d.dialogue[take.i+1]?.text),sourceDur=u.t1-u.t0;
     const speed=r.acc>=.9&&u.t0!=null&&Number.isFinite(sourceDur)&&sourceDur>0&&take.dur>0&&take.dur<=sourceDur*1.15+.5;
     const result={id:take.id,at:take.at,mode:'voice',text,acc:r.acc,dur:take.dur,speed,scoringVersion:EplodRecords.SCORING_VERSION};
     st.p.drill.rd[take.i]=EplodRecords.saveAttempt(st.p.drill.rd[take.i],result);
