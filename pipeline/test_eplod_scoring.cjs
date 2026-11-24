@@ -121,6 +121,17 @@ test('common contractions equal their full forms without erasing grammar or cont
   assert.ok(E.scoreTokens("The customer's calling.", 'The customer is calling.', false).acc < 1, 'typing keeps noun +\'s distinct');
 });
 
+test('0092: how’re and doin’ score as how are and doing in dictation', () => {
+  const official = "Heya, Tracy. How are you doin'?";
+  const typed = 'heya, tracy, how’re you doing';
+  const result = E.scoreTokens(official, typed, false);
+  assert.equal(result.acc, 1);
+  assert.ok(result.marks.every(Boolean));
+  assert.deepEqual(result.extras, []);
+  assert.equal(E.lcsAcc(official, 'Tracy, how are you doing?'), 5 / 6);
+  assert.ok(E.lcsAcc(official, 'Heya, Tracy. How were you doing?') < 1);
+});
+
 test('contraction rescoring repairs evidenced voice/whole takes and blocks version-1 snapshots', () => {
   const text = 'I see. So you are calling in sick?', old = whole('contracted-whole', 12, text, 6 / 7,
     {scoringVersion: 1, per: [{i: 0, acc: 6 / 7}], extra: ['you', 'are']});
