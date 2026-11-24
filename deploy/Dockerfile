@@ -5,17 +5,16 @@
 FROM node:22-alpine
 WORKDIR /app
 ENV NODE_ENV=production TZ=Asia/Shanghai
-COPY server.mjs review-hub.mjs course-plan.mjs root-practice.mjs root-dict.mjs lesson-vocab.mjs number-trainer.mjs number-trainer-store.mjs number-trainer-audio.mjs VERSION ./
-COPY web ./web
-COPY data ./data
-COPY build ./build
-COPY root-universe ./root-universe
-COPY pipeline/root-universe/validate-kit.cjs ./pipeline/root-universe/validate-kit.cjs
-# 与 .env 的 CONTAINER_UID/GID 一致（zaxchou 1026:100，已在 NAS 核实），
-# records/ 由 compose 挂载进来，属主须与运行身份一致才能写。
+# 与 .env 的 CONTAINER_UID/GID 一致。复制时设置属主，避免递归 chown 再写一层。
+# records/ 由 compose 挂载进来，写权限由宿主目录决定。
 ARG CONTAINER_UID=1026
 ARG CONTAINER_GID=100
-RUN chown -R ${CONTAINER_UID}:${CONTAINER_GID} /app
+COPY --chown=${CONTAINER_UID}:${CONTAINER_GID} server.mjs review-hub.mjs course-plan.mjs root-practice.mjs root-dict.mjs lesson-vocab.mjs number-trainer.mjs number-trainer-store.mjs number-trainer-audio.mjs VERSION ./
+COPY --chown=${CONTAINER_UID}:${CONTAINER_GID} web ./web
+COPY --chown=${CONTAINER_UID}:${CONTAINER_GID} data ./data
+COPY --chown=${CONTAINER_UID}:${CONTAINER_GID} build ./build
+COPY --chown=${CONTAINER_UID}:${CONTAINER_GID} root-universe ./root-universe
+COPY --chown=${CONTAINER_UID}:${CONTAINER_GID} pipeline/root-universe/validate-kit.cjs ./pipeline/root-universe/validate-kit.cjs
 EXPOSE 8018
 USER ${CONTAINER_UID}:${CONTAINER_GID}
 # 自签 TLS 下健康探针要 --no-check-certificate；两种协议都试，先 https 后 http

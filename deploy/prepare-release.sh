@@ -18,7 +18,14 @@ CUR=$(cat "$PROJ/VERSION")
 rm -rf "$REL"
 mkdir -p "$REL"
 cp "$PROJ/server.mjs" "$PROJ/review-hub.mjs" "$PROJ/course-plan.mjs" "$PROJ/root-practice.mjs" "$PROJ/root-dict.mjs" "$PROJ/lesson-vocab.mjs" "$PROJ/number-trainer.mjs" "$PROJ/number-trainer-store.mjs" "$PROJ/number-trainer-audio.mjs" "$PROJ/VERSION" "$REL/"
-cp -r "$PROJ/web" "$PROJ/data" "$PROJ/build" "$PROJ/root-universe" "$REL/"
+cp -r "$PROJ/web" "$PROJ/data" "$PROJ/root-universe" "$REL/"
+# QA 只在开发目录保留，连发布包的复制和构建上下文传输都跳过。
+mkdir "$REL/build"
+for entry in "$PROJ/build/"* "$PROJ/build/".[!.]* "$PROJ/build/"..?*; do
+  [ -e "$entry" ] || [ -L "$entry" ] || continue
+  [ "${entry##*/}" != qa ] || continue
+  cp -r "$entry" "$REL/build/"
+done
 mkdir -p "$REL/pipeline/root-universe"
 cp "$PROJ/pipeline/root-universe/validate-kit.cjs" "$REL/pipeline/root-universe/"
 # 已知调试残留不进发布包（工作树里的原件不动，等用户手动清理）
@@ -30,7 +37,7 @@ rm -f "$REL/web/_desk_body.html"
   echo "  \"version\": \"$VER\","
   echo "  \"created\": \"$(date '+%F %T')\","
   echo "  \"contents\": [\"server.mjs\", \"review-hub.mjs\", \"course-plan.mjs\", \"root-practice.mjs\", \"root-dict.mjs\", \"lesson-vocab.mjs\", \"number-trainer.mjs\", \"number-trainer-store.mjs\", \"number-trainer-audio.mjs\", \"VERSION\", \"web/\", \"data/\", \"build/\", \"root-universe/\", \"pipeline/root-universe/validate-kit.cjs\"],"
-  echo "  \"excluded\": [\"records\", \"docs\", \"pipeline\", \"deploy\", \"releases\", \"skills\", \"server.log\"]"
+  echo "  \"excluded\": [\"build/qa\", \"records\", \"docs\", \"pipeline\", \"deploy\", \"releases\", \"skills\", \"server.log\"]"
   echo "}"
 } > "$REL/manifest.release.json"
 

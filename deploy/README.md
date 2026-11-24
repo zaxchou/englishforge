@@ -40,6 +40,9 @@ ssh nas:  sudo sh toefl-lab/deploy/nas-rollback.sh <旧版本标签>
   也不要顺手 `--remove-orphans`（会杀掉别家容器）。
 - NAS 上 zaxchou 不在 docker 组，docker 命令需 sudo；`deploy/*.sh` 已把
   `/usr/local/bin` 补进 PATH（非交互 shell 找不到 docker）。
+- `sync.sh` 先写版本号、在 NAS 打发布包，然后才部署。若部署步骤开始前就失败（NAS 的 SSH
+  偶发中断，报 `kex_exchange_identification`），线上没有变化，用同一标签重跑
+  `sh deploy/sync.sh <标签>` 即可；切换过程中失败由脚本自动恢复上一版配置。
 - 本地开发服务（`node server.mjs --port 8018`，读写 `toefl-lab/records/`）与 NAS 生产
   是两套记录。要清本地测试痕迹：先关所有本地页面（防旧标签页回传），再重置 records.json
   并**重启本地服务**（只改文件会被内存里的旧数据写回）。
