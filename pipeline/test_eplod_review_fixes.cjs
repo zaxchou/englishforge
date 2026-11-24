@@ -33,8 +33,10 @@ class Element {
   querySelector(selector) {
     if (!this.children.has(selector)) {
       const child = new Element();
-      if (selector === '#ep-whole-mic-status') {
-        const match = this.innerHTML.match(/<[^>]*\bid="ep-whole-mic-status"([^>]*)>([^<]*)</);
+      // 整篇面板里的状态行(系统静音提示 / 长时间无声提醒): 从 innerHTML 读初始 hidden 与文字
+      const id = /^#(ep-whole-mic-status|ep-whole-signal-note)$/.exec(selector)?.[1];
+      if (id) {
+        const match = this.innerHTML.match(new RegExp('<[^>]*\\bid="' + id + '"([^>]*)>([^<]*)<'));
         if (!match) return null;
         child.hidden = /\bhidden\b/.test(match[1]);
         child.textContent = match[2];
@@ -167,6 +169,7 @@ function harness(st = lesson(), opts = {}) {
   load('async function epRecToggle(', 'function epRecLabel(');
   load('function epSeg(', 'function epHighlight(');
   async function advance(ms) {
+    await flush();   // fire-and-forget starts (getUserMedia) settle before the clock moves
     const end = clock.now + ms;
     for (let count = 0; count < 100000; count++) {
       let selected = null;
@@ -219,6 +222,7 @@ async function main() {
     assert.equal(h.recorders[0].state, 'inactive'); assert.equal(h.streams[0].track.stopped, true);
     assert.equal(h.intervals(), 0); assert.equal(h.graphs[0].connected, false);
     assert.equal(h.calls.filter(c => c.route).length, 0);
+    assert.equal(h.clock.jobs.size, 0, 'the microphone-check timeout is cleared too');
   });
   await run('C1 whole normal stop sends exactly one unbiased synthetic ASR and stamps the day', async () => {
     const h = harness(); await h.ctx.epWholeToggle(); await h.advance(4900); await h.ctx.epWholeToggle(); await h.advance(0);
@@ -233,7 +237,7 @@ async function main() {
     assert.ok(stamps.every(c => c.stamp === h.st.l.id));
   });
   await run('R10 whole take clearly shorter than the source fails fast without ASR; near-source length still scores', async () => {
-    const h = harness(); await h.ctx.epWholeToggle(); await h.advance(1200); await h.ctx.epWholeToggle(); await h.advance(0);
+    const h = harness(); await speakOnce(h, false); await h.advance(900); await h.ctx.epWholeToggle(); await h.advance(0);
     assert.equal(h.calls.filter(c => c.route).length, 0, 'short take never reaches ASR');
     assert.equal(h.st.p.drill.wp, undefined, 'short take writes no score');
     assert.equal(h.st.wpTake.phase, 'error');
@@ -246,23 +250,39 @@ async function main() {
     assert.equal(h.intervals(), 0);
     const h2 = harness();
     h2.st.d.dialogue = [{text: 'Short line.', t0: 0, t1: 0.6}, {text: 'Another one.', t0: 1, t1: 1.2}];
-    await h2.ctx.epWholeToggle(); await h2.advance(1200); await h2.ctx.epWholeToggle(); await h2.advance(0);
+    await speakOnce(h2, false); await h2.advance(1200); await h2.ctx.epWholeToggle(); await h2.advance(0);
     assert.equal(h2.calls.filter(c => c.route === '/api/eplod/asr').length, 1, 'near-source take still goes to scoring');
     assert.equal(h2.st.wpTake.phase, 'result');
   });
-  await run('R11 silent whole take keeps an explicit error panel instead of silently returning to the entry card', async () => {
+  await run('R11 a silent microphone warns in place at six seconds and the take is never submitted', async () => {
     const h = harness(undefined, {silent: true});
-    await h.ctx.epWholeToggle(); await h.advance(1200); await h.ctx.epWholeToggle(); await h.advance(0);
-    assert.equal(h.st.wpTake.phase, 'error');
-    assert.equal(h.st.wpTake.code, 'silent-audio');
-    assert.match(h.st.wpTake.error, /麦克风可能没开|没有检测到声音/);
-    const panel = h.node('ep-whole').innerHTML;
-    assert.match(panel, /这次没有计入/);
-    assert.match(panel, /role="alert"/);
-    assert.equal(h.calls.filter(c => c.route).length, 0, 'silent take never reaches ASR');
+    await h.ctx.epWholeToggle(); await h.advance(400);
+    assert.equal(h.st.wpTake.phase, 'rec', 'recording starts without a speech gate');
+    assert.equal(signalNote(h), '');
+    await h.advance(6100);
+    assert.match(signalNote(h), /还没收到麦克风的声音/);
+    await h.ctx.epWholeToggle(); await h.advance(0);
+    assertWholeCaptureError(h, 'silent-audio', /没有检测到声音|麦克风可能没开/);
+  });
+  await run('R11 the start warning clears once sound arrives and the take scores normally', async () => {
+    const h = harness(undefined, {silent: true});
+    await h.ctx.epWholeToggle(); await h.advance(6500);
+    assert.match(signalNote(h), /还没收到麦克风的声音/);
+    h.meter.silent = false; await h.advance(400);
+    assert.equal(signalNote(h), '');
+    assert.equal(h.st.wpTake.phase, 'rec');
+    await h.advance(4400); await h.ctx.epWholeToggle(); await h.advance(0);
+    assertWholeScored(h);
+  });
+  await run('R11 a silent take stopped early explains itself without reaching ASR', async () => {
+    const h = harness(undefined, {silent: true});
+    await h.ctx.epWholeToggle(); await h.advance(1000);
+    await h.ctx.epWholeToggle(); await h.advance(0);
+    assertWholeCaptureError(h, 'silent-audio', /没有检测到声音/);
     assert.equal(h.recorders[0].state, 'inactive');
     assert.equal(h.streams[0].track.stopped, true);
-    assert.equal(h.intervals(), 0);
+    assert.equal(h.intervals(), 0); assert.equal(h.clock.jobs.size, 0);
+    assert.equal(h.calls.filter(c => c.route).length, 0);
   });
   await run('R19 whole empty/start/interruption failures stay visible and write no score; diagnostics note the cause', async () => {
     for (const [opts, code, trigger] of [
@@ -298,6 +318,20 @@ async function main() {
     assert.ok(h.graphs.every(g => !g.connected));
     assert.equal(h.clock.jobs.size, 0, 'capture timers released');
   }
+  /* 开录前自检(2026-11-24): 必须先收到声音才会开始录制。需要"已经在录"的用例先开口一次。 */
+  async function speakOnce(h, quietAgain = true) {
+    const quiet = h.meter && h.meter.silent;
+    if (quiet) h.meter.silent = false;   // a silent harness has an AudioContext already; speak now
+    else { await h.ctx.epWholeToggle(); h.meter.silent = false; }
+    if (quiet) await h.ctx.epWholeToggle();
+    await h.advance(300);
+    assert.equal(h.st.wpTake.phase, 'rec', 'sound starts the recording');
+    if (quietAgain) h.meter.silent = true;
+  }
+  function signalNote(h) {
+    const note = h.node('ep-whole').querySelector('#ep-whole-signal-note');
+    return note.hidden ? '' : note.textContent.trim();
+  }
   function assertWholeScored(h) {
     const requests = h.calls.filter(c => c.route);
     assert.deepEqual(requests.map(c => c.route), ['/api/eplod/asr']);
@@ -325,8 +359,9 @@ async function main() {
     ['middle of the recording unsampled', [['running', 1600], ['suspended', 1800], ['running', 1600]]],
   ]) {
     await run('R20 valid audio reaches ASR with ' + scenario, async () => {
-      const h = harness(undefined, {silent: true, suspended: periods[0][0] === 'suspended'});
-      await h.ctx.epWholeToggle();
+      const h = harness(undefined, {suspended: false});
+      await h.ctx.epWholeToggle(); await h.advance(300);
+      h.meter.silent = true;
       for (const [state, ms] of periods) {
         h.meter.setState(state);
         await h.advance(ms);
@@ -336,18 +371,45 @@ async function main() {
       assertWholeScored(h);
     });
   }
-  await run('R20 full silent coverage fails even with sound during warm-up', async () => {
+  await run('R20 a line that goes flat right after recording starts warns in place, then fails on stop', async () => {
     const h = harness();
-    await h.ctx.epWholeToggle(); await h.advance(200);
-    assert.equal(h.recorders[0].state, 'inactive');
-    h.meter.silent = true;
-    await h.advance(4800); await h.ctx.epWholeToggle(); await h.advance(0);
-    assertWholeCaptureError(h, 'silent-audio', /没有检测到声音|麦克风可能没开/);
+    await speakOnce(h);
+    await h.advance(7000);
+    assert.equal(signalNote(h), '', 'a pause shorter than the quiet limit gives no warning');
+    await h.advance(1300);
+    assert.match(signalNote(h), /还没收到麦克风的声音/);
+    assert.equal(h.st.wpTake.phase, 'rec', 'the warning does not stop the recording');
+    await h.ctx.epWholeToggle(); await h.advance(0);
+    assertWholeCaptureError(h, 'mic-went-quiet', /一直没有收到麦克风的声音/);
   });
-  await run('R20 sustained low peaks of 1 through 7 each reach ASR', async () => {
-    for (let peak = 1; peak <= 7; peak++) {
+  await run('R20 speaking again clears the in-place warning without touching the recording', async () => {
+    const h = harness();
+    await speakOnce(h);
+    await h.advance(8400);
+    assert.match(signalNote(h), /还没收到麦克风的声音/);
+    h.meter.silent = false; await h.advance(400);
+    assert.equal(signalNote(h), '');
+    assert.equal(h.st.wpTake.phase, 'rec');
+    await h.ctx.epWholeToggle(); await h.advance(0);
+    assertWholeScored(h);
+  });
+  await run('R20 sub-signal noise floors warn in place and never reach ASR', async () => {
+    for (let peak = 1; peak <= 7; peak += 3) {
       const h = harness(undefined, {amplitude: 128 + peak});
-      await h.ctx.epWholeToggle(); await h.advance(4900); await h.ctx.epWholeToggle(); await h.advance(0);
+      await h.ctx.epWholeToggle(); await h.advance(400);
+      assert.equal(h.st.wpTake.phase, 'rec', 'recording runs; the level watcher judges instead');
+      await h.advance(6200);
+      assert.match(signalNote(h), /还没收到麦克风的声音/);
+      await h.ctx.epWholeToggle(); await h.advance(0);
+      assertWholeCaptureError(h, 'mic-went-quiet', /一直没有收到麦克风的声音/);
+    }
+  });
+  await run('R20 sustained low peaks of 10 through 17 each reach ASR', async () => {
+    for (let peak = 10; peak <= 17; peak += 7) {
+      const h = harness(undefined, {amplitude: 128 + peak});
+      await h.ctx.epWholeToggle(); await h.advance(400);
+      assert.equal(h.st.wpTake.phase, 'rec', 'peak ' + peak + ' counts as signal');
+      await h.advance(4500); await h.ctx.epWholeToggle(); await h.advance(0);
       assertWholeScored(h);
     }
   });
@@ -369,12 +431,13 @@ async function main() {
   });
   function visibleMicStatus(h) {
     const status = h.node('ep-whole').querySelector('#ep-whole-mic-status');
-    return status.hidden ? '' : status.textContent.trim();
+    return !status || status.hidden ? '' : status.textContent.trim();
   }
   await run('R21 a normal pause gives no microphone warning and speech resumes', async () => {
     const h = harness(undefined, {silent: true});
-    await h.ctx.epWholeToggle(); await h.advance(4000);
-    assert.doesNotMatch(h.node('ep-whole').innerHTML, /没有检测到声音/);
+    await speakOnce(h);
+    await h.advance(4000);
+    assert.equal(signalNote(h), '', 'a normal pause shows no in-place warning');
     assert.equal(visibleMicStatus(h), '');
     assert.equal(h.st.wpTake.phase, 'rec');
     assert.equal(h.calls.filter(c => c.route).length, 0);
@@ -384,7 +447,7 @@ async function main() {
   });
   await run('R21 repeated mute and unmute keep the same recorder and score recovered speech', async () => {
     const h = harness(undefined, {silent: true});
-    await h.ctx.epWholeToggle(); await h.advance(500);
+    await speakOnce(h); await h.advance(200);
     const recorder = h.recorders[0], track = recorder.stream.track;
     for (let i = 0; i < 2; i++) {
       h.meter.silent = true;
@@ -401,31 +464,30 @@ async function main() {
     await h.ctx.epWholeToggle(); await h.advance(0);
     assertWholeScored(h);
   });
-  await run('R21 an initially muted track can recover and a final mute preserves earlier speech', async () => {
-    const h = harness(undefined, {silent: true, muted: true});
-    await h.ctx.epWholeToggle(); await h.advance(700);
+  await run('R21 an initially muted track explains itself at once; after unmute the speech is kept', async () => {
+    const h = harness(undefined, {muted: true});
+    await h.ctx.epWholeToggle(); await h.advance(400);
     const recorder = h.recorders[0], track = recorder.stream.track;
     assert.match(visibleMicStatus(h), /麦克风|输入设备|静音/);
-    track.emit('unmute'); h.meter.silent = false; await h.advance(4200);
+    assert.equal(h.st.wpTake.phase, 'rec');
+    track.emit('unmute'); await h.advance(600);
     assert.equal(visibleMicStatus(h), '');
-    h.meter.silent = true; track.emit('mute'); await h.advance(350);
+    h.meter.silent = true; track.emit('mute'); await h.advance(4700);
     assert.match(visibleMicStatus(h), /麦克风|输入设备|静音/);
     assert.equal(recorder.state, 'recording');
     await h.ctx.epWholeToggle(); await h.advance(0);
     assertWholeScored(h);
   });
-  for (const initiallyMuted of [true, false]) {
-    await run('R21 no input while muted ' + (initiallyMuted ? 'from the start' : 'after a quiet opening'), async () => {
-      const h = harness(undefined, {silent: true, muted: initiallyMuted, suspended: initiallyMuted});
-      await h.ctx.epWholeToggle(); await h.advance(600);
-      if (!initiallyMuted) h.streams[0].track.emit('mute');
-      await h.advance(4400);
-      assert.equal(h.recorders[0].state, 'recording');
-      assert.match(visibleMicStatus(h), /麦克风|输入设备|静音/);
-      await h.ctx.epWholeToggle(); await h.advance(0);
-      assertWholeCaptureError(h, 'mic-muted', /静音|未恢复/);
-    });
-  }
+  await run('R21 a track muted from the start is called out at stop and never submitted', async () => {
+    const h = harness(undefined, {muted: true});
+    await h.ctx.epWholeToggle(); await h.advance(400);
+    assert.match(visibleMicStatus(h), /麦克风|输入设备|静音/);
+    await h.advance(4600);
+    await h.ctx.epWholeToggle(); await h.advance(0);
+    assertWholeCaptureError(h, 'mic-muted', /静音|未恢复/);
+  });
+  /* 旧场景"静音开场后一直静音 -> mic-muted"在新流程下不存在: 自检必须先听到未静音的声音,
+     hadUnmutedInput 因此为真; 末尾静音保留先前语音由上一用例覆盖。 */
   for (const timing of ['initially ended', 'ended during warm-up', 'ended during recording']) {
     await run('R21 ' + timing + ' releases capture and explains the interruption', async () => {
       const h = harness(undefined, {ended: timing === 'initially ended'});

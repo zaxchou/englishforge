@@ -844,3 +844,19 @@ test('same-attempt whole best/latest merges discard the stale score before best 
   assert.deepEqual(mixed.best, unprovenOtherBest, 'A different historical take without transcript is retained');
   assert.equal(mixed.latest.id, corrected.id);
 });
+
+test('R31: the dy-no-mite printing form equals the spoken dynamite on both sides', () => {
+  const official = 'Well, Jim went to the rink with Sherry and he said it was dy-no-mite! He was low on bread.';
+  const voice = 'Well, Jim went to the rink with Sherry, and he said it was dynamite. He was low on bread.';
+  const score = E.scoreTokens(official, voice, true);
+  assert.equal(score.acc, 1, 'the stylized printing form scores against the spoken word');
+  assert.deepEqual(score.extras, [], 'dynamite is not an extra word');
+  assert.equal(E.lcsAccFuzzy(official, voice), 1);
+  assert.deepEqual(E.normTokens('dynamite'), ['dy', 'no', 'mite']);
+  assert.deepEqual(E.normTokens('Dy-No-Mite'), ['dy', 'no', 'mite'], 'capitalization folds before the expansion');
+  // 同词两侧同形互认: 万词班词库例句不受影响
+  assert.equal(E.scoreTokens('The crew used dynamite to blast.', 'The crew used dynamite to blast.', true).acc, 1);
+  assert.equal(E.scoreTokens('used dynamite to blast', 'used dy no mite to blast', true).acc, 1, 'the three-part reading matches the single word');
+  // 无关词不被牵连
+  assert.equal(E.scoreTokens('it was dy-no-mite!', 'it was night to might!', true).acc, 2 / 5, 'only it/was match; mite alone does not rescue night or might');
+});

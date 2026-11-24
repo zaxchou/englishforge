@@ -8,7 +8,7 @@
 <link rel="icon" type="image/png" sizes="96x96" href="/assets/brand/t-dot-v1/t-dot-96.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/assets/brand/t-dot-v1/t-dot-180.png">
 <title>TOEFL Lab · 托福自学练习</title>
-<link rel="stylesheet" href="desk.css?v=20261119r2">
+<link rel="stylesheet" href="desk.css?v=20261125r4">
 <link rel="stylesheet" href="lesson-vocab.css?v=20261116r1">
 <link rel="stylesheet" href="number-trainer.css?v=20261116r6">
 <style>
@@ -360,7 +360,7 @@ details.ai-tsec[open] summary{margin-bottom:8px}
 
 </div>
 
-<script src="eplod-records.js?v=36"></script>
+<script src="eplod-records.js?v=37"></script>
 <script src="course-plan-model.js?v=20261029r8"></script>
 <script src="course-plan-ui.js?v=20261113r11"></script>
 <script src="root-practice-ui.js?v=e3203ffa489d"></script>
@@ -4704,6 +4704,13 @@ function epWholeFail(st,code,error,detail={}){
   try{localStorage.setItem('tfl.epWholeFailure',JSON.stringify({at:Date.now(),lesson:st.l.id,code,...detail}));}catch(e){}
   epWholeUpdate();
 }
+/* 麦克风被动监测(2026-11-25 用户定案: 不强制先说话, 直接开录): 起始 6s 或中途断声 8s 完全无信号才原位提醒,
+   提醒不打断录音; 停止时整段无声/仍处于失声状态的整段不送检。 */
+const EP_MIC_SIGNAL=10,EP_MIC_FIRST_MS=6000,EP_MIC_QUIET_MS=8000;
+function epWholeQuietNote(r,on){
+  const el=$('ep-whole')?.querySelector('#ep-whole-signal-note');
+  if(el)el.hidden=!on;
+}
 function epWholeUpdate(){
   const st=EP.st,host=$('ep-whole');if(!host||!st||!st.d)return;
   epWholeIsolation(st);
@@ -4738,7 +4745,7 @@ function epWholeLive(host,st){
   const t=st.wpTake;host.hidden=false;
   if(t.phase==='rec'){
     const minimum=epWholeMinDuration(st);
-    host.innerHTML='<div class="wp-live"><b class="ing"><span class="wp-dot"></span>背诵中</b><span class="rt">0:00</span><span class="lv"><i></i></span><button class="pri" id="ep-whole-stop">停止并检测</button><button id="ep-whole-cancel">取消</button><p>脱稿背完整课对话，停止后检测整篇。'+(minimum?'本课建议至少录满 '+fmtDur(Math.ceil(minimum))+'。':'')+'<span class="ep-kbd-hint">空格 停止 · Esc 取消本次录音</span></p><p id="ep-whole-mic-status" role="status"'+(t.micStatus?'':' hidden')+'>'+esc(t.micStatus||'')+'</p></div>';
+    host.innerHTML='<div class="wp-live"><b class="ing"><span class="wp-dot"></span>背诵中</b><span class="rt">0:00</span><span class="lv"><i></i></span><button class="pri" id="ep-whole-stop">停止并检测</button><button id="ep-whole-cancel">取消</button><p>脱稿背完整课对话，停止后检测整篇。'+(minimum?'本课建议至少录满 '+fmtDur(Math.ceil(minimum))+'。':'')+'<span class="ep-kbd-hint">空格 停止 · Esc 取消本次录音</span></p><p class="wp-signal" id="ep-whole-signal-note" role="status" hidden>还没收到麦克风的声音。请检查麦克风是否打开、是否被静音，或换一个输入设备——录音没有中断，开口后这句会自动消失。</p><p id="ep-whole-mic-status" role="status"'+(t.micStatus?'':' hidden')+'>'+esc(t.micStatus||'')+'</p></div>';
     host.querySelector('#ep-whole-stop').onclick=()=>epWholeToggle();
     host.querySelector('#ep-whole-cancel').onclick=()=>{epCancelRecording(st);epWholeUpdate();};
     host.querySelector('#ep-whole-stop').focus?.();
@@ -4817,18 +4824,23 @@ async function epWholeToggle(){
   catch(e){stream.getTracks().forEach(x=>x.stop());epWholeFail(st,'capture-start','录音启动失败：'+e.message);return;}
   const track=stream.getAudioTracks?.()[0]||stream.getTracks()[0];
   const muteNotice='系统已暂停麦克风输入。恢复输入后可继续本次背诵，已录内容会保留。';
-  const chunks=[],r={rec,stream,track,id,at,t0:at,mime:rec.mimeType||'audio/webm',phase:'rec',micStatus:track?.muted?muteNotice:''};
+  const chunks=[],r={rec,stream,track,id,at,t0:at,mime:rec.mimeType||'audio/webm',phase:'rec',micStatus:track?.muted?muteNotice:'',lastSignalAt:null,quietWarned:false};
+  /* 被动监测: 开录即背, 电平全程盯; 提醒只在原位出现, 不打断录音。 */
   st.wpTake=r;epWholeUpdate();   /* 音量计、停止和取消共享同一条录音。 */
   let ac,analyser,peak=0,levelSamples=0,lastLevelAt,continuous=false,hadUnmutedInput=false;
   const checkMeterState=()=>{if(ac?.state!=='running'||document.hidden)continuous=false;};
   try{
     ac=epSharedAC();analyser=ac.createAnalyser();analyser.fftSize=16384;
     r.srcNode=ac.createMediaStreamSource(stream);
+    r.srcNode.connect(analyser);
+    continuous=ac.state==='running'&&!document.hidden;
+    document.addEventListener('visibilitychange',checkMeterState);
+    ac.addEventListener?.('statechange',checkMeterState);
     const buf=new Uint8Array(analyser.fftSize);
     // 相邻采样的波形窗口应相接，后台定时器延迟或音频图挂起都会留下未测区间。
     const maxGap=Math.min(250,1000*buf.length/(ac.sampleRate||48000));
     r.sampleLevel=()=>{
-      if(st.wpTake!==r||rec.state!=='recording')return;
+      if(st.wpTake!==r||rec.state!=='recording'&&r.phase!=='check')return;
       const now=Date.now();let mx=0;
       if(now-lastLevelAt>maxGap||now<lastLevelAt)continuous=false;
       checkMeterState();
@@ -4842,10 +4854,17 @@ async function epWholeToggle(){
       lastLevelAt=now;
       const box=$('ep-whole'),bar=box?.querySelector('.lv i');if(bar)bar.style.width=Math.min(100,Math.round(mx/128*100))+'%';
       const rt=box?.querySelector('.rt');if(rt)rt.textContent=fmtDur(Math.floor((now-r.t0)/1000));
+      /* 被动检测: 系统报告静音时电平不可信, 不算信号; 起始 6s 或断声 8s 完全平线才提醒, 出声即撤 */
+      if(mx>=EP_MIC_SIGNAL&&!r.micStatus){
+        r.lastSignalAt=now;
+        if(r.quietWarned){r.quietWarned=false;epWholeQuietNote(r,false);}
+      }else if(!r.micStatus&&!r.quietWarned){
+        const since=r.lastSignalAt==null?now-r.t0:now-r.lastSignalAt;
+        if(since>=(r.lastSignalAt==null?EP_MIC_FIRST_MS:EP_MIC_QUIET_MS)){r.quietWarned=true;epWholeQuietNote(r,true);}
+      }
     };
     r.levelTimer=setInterval(r.sampleLevel,150);
   }catch(e){}
-  r.limitTimer=setTimeout(()=>{if(st.wpTake===r)epWholeToggle();},240000);
   rec.ondataavailable=e=>{if(e.data?.size)chunks.push(e.data);};
   const failCapture=reason=>{
     if(r.cancelled||r.released)return;
@@ -4875,6 +4894,15 @@ async function epWholeToggle(){
     document.removeEventListener?.('visibilitychange',checkMeterState);
     ac?.removeEventListener?.('statechange',checkMeterState);
   };
+  r.startTimer=setTimeout(()=>{
+    if(st.wpTake!==r||r.cancelled||!st.active||EP.st!==st||st.tab!=='train'){
+      r.cancelled=true;epReleaseCapture(r);if(st.wpTake===r)st.wpTake=null;epWholeUpdate();return;
+    }
+    if(track.readyState==='ended'){r.interrupted();return;}
+    try{rec.start();r.started=true;lastLevelAt=r.t0=Date.now();hadUnmutedInput=!r.micStatus;}
+    catch(e){epReleaseCapture(r);epWholeFail(st,'capture-start','录音启动失败：'+e.message);return;}
+  },250);
+  r.limitTimer=setTimeout(()=>{if(st.wpTake===r)epWholeToggle();},240000);   // 4 分钟兜底, 防止忘记停止
   rec.onstop=async()=>{
     if(!r.released&&track.readyState==='ended')r.interrupted();
     epReleaseCapture(r);
@@ -4889,6 +4917,8 @@ async function epWholeToggle(){
     if(r.micStatus&&(!hadUnmutedInput||!blob.size||silent)){epWholeFail(st,'mic-muted','停止时麦克风仍被系统静音，这次未检测到可用声音。请恢复麦克风输入后重录。',detail);return;}
     if(!blob.size){epWholeFail(st,'empty-audio','这次没有生成录音文件——请检查麦克风是否已打开、浏览器是否授权，然后重录。',detail);return;}
     if(silent){epWholeFail(st,'silent-audio','整段录音没有检测到声音——麦克风可能没开或选错了输入设备。本次未送检测，请开麦后重录。',detail);return;}
+    /* 开头有声音、随后设备失灵: 整段 peak 不为 0, 但停止时仍处于"长时间没有信号"(背诵中已原位提醒过), 同样不计入 */
+    if(r.quietWarned){epWholeFail(st,'mic-went-quiet','录音后段一直没有收到麦克风的声音，这段内容没有录进去。请检查麦克风是否被静音或断开后重录。',detail);return;}
     if(blob.size>8*1024*1024){epWholeFail(st,'audio-too-large','录音超过 8MB，无法上传，本次未送检测。请重新录音。',detail);return;}
     /* 用户定案(2026-11-02): 背诵只会比原音慢, 录音明显短于原文=肯定没背完, 不送检测直接判失败重录 */
     const minimum=epWholeMinDuration(st);
@@ -4901,20 +4931,6 @@ async function epWholeToggle(){
       await epWholeProcess(st,{id,at,dur:taken,audio});
     }catch(e){epWholeFail(st,'audio-read',e.message,detail);}
   };
-  r.startTimer=setTimeout(()=>{
-    if(st.wpTake!==r||r.cancelled||!st.active||EP.st!==st||st.tab!=='train'){
-      r.cancelled=true;epReleaseCapture(r);if(st.wpTake===r)st.wpTake=null;epWholeUpdate();return;
-    }
-    if(track.readyState==='ended'){r.interrupted();return;}
-    try{rec.start();r.started=true;lastLevelAt=r.t0=Date.now();hadUnmutedInput=!r.micStatus;}
-    catch(e){epReleaseCapture(r);epWholeFail(st,'capture-start','录音启动失败：'+e.message);return;}
-    try{
-      r.srcNode.connect(analyser);
-      continuous=ac.state==='running'&&!document.hidden;
-      document.addEventListener('visibilitychange',checkMeterState);
-      ac.addEventListener?.('statechange',checkMeterState);
-    }catch(e){continuous=false;}
-  },250);
 }
 async function epWholeProcess(st,take){
   try{
