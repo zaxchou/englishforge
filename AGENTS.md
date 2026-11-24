@@ -16,4 +16,7 @@
 - 新增服务端文件必须同时进 `deploy/Dockerfile` 与 `deploy/prepare-release.sh`（含 manifest），否则镜像启动即 import 失败
 - 改 `deploy/*.sh` 禁用 Python 文本模式写文件（CRLF 会让 NAS 的 sh 跑挂），必须二进制写回 LF
 - TTS 输入必须带终止标点、连续相同数字需显式分隔（裸数字串会被续读/糊音，事故记录在 build/qa/number-trainer/）
-- EnglishPod 时间轴校对走 `pipeline/audit_eplod_timing.py`（每日 05:30 定时自动校对后 3 天新课）：只改时间戳不改正文；已校准课受保护（漂移只记 needs-review），新课需全课+窄窗双证据一致才写回；needs-review 由人工按 0087 多方取证流程裁决
+- 每日 05:30 复核 EnglishPod 后 3 天的新课。先 `python -X utf8 -I pipeline/audit_eplod_timing.py --auto --days 3 --list`：`pipeline/eplod-timing-overrides.json` 里 `reviewed` 在 3 天内且无新反馈的课跳过，不重复校对。
+- 取证用同一脚本不带 `--list`（只读，输出 `build/qa/eplod-audit-<日期>/`）：按原文锚定的多窗口词级时间 + 能量停顿给候选切点，small.en 与 large-v3 逐片转写。`high` 标记（首尾词未识别、语音超出识别词范围、音频哈希不符）必须逐个 `--eps NNNN --view a b` 看能量图定夺；`note` 标记（连续语流换人点、转写拼写差异）核对后可接受。
+- 句子起止以能量图上的语音起止为准，转写与原文一致只是必要条件（句尾被截 0.2s 时转写仍认得出那个词）。正文差异要两个模型系列多窗口一致才改（`--words a b --variants`），纯犹豫音（um/uh）按转写惯例不加，有争议的保留原文并报告。
+- 写回只用 `python -X utf8 -I pipeline/apply_eplod_corrections.py <plan.json>`（先 `--dry-run`），它同步正文、词块例句、意群和背单词词库例句。之后在隔离记录上实测播放、核对测试退出码，再按授权发布；没有改动不发版。
