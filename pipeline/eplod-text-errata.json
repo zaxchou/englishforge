@@ -1069,6 +1069,44 @@
      "Fan who can actually act, OK?"
     ]
    ]
+  },
+  "0088": {
+   "reviewed": "2026-11-23",
+   "reason": "Sentence 2: independently transcribed wide and exact dialogue clips agree on “a quiet evening”.",
+   "replacements": [
+    [
+     "an quiet evening",
+     "a quiet evening"
+    ]
+   ]
+  },
+  "0103": {
+   "reviewed": "2026-11-24",
+   "reason": "First review. Sentence 8 (Honey...) had no anchors and could not be played; almost every sentence end clipped 0.1-0.3s of its last word. Text adds the spoken well after appreciate... : a 0.4s voiced syllable between two pauses, heard as well by small.en, large-v3, base, base.en, tiny and tiny.en.",
+   "replacements": [
+    [
+     "appreciate... maybe",
+     "appreciate... well, maybe"
+    ]
+   ]
+  },
+  "0110": {
+   "reviewed": "2026-11-24",
+   "reason": "First review. Sentence 5 now starts before Yes (it had fallen into no clip); sentence 8 keeps the end of minor; sentence 10 ends after start. Text adds the spoken that in sentences 4 and 6 (seven local Whisper variants, three windows each; sentence 6 also shows the stop closure) and you'll have to -> you have to in sentence 10 (every variant hears no will).",
+   "replacements": [
+    [
+     "and you are in your second year",
+     "and that you are in your second year"
+    ],
+    [
+     "the list of courses you want",
+     "the list of courses that you want"
+    ],
+    [
+     "you'll have to make",
+     "you have to make"
+    ]
+   ]
   }
  }
 }

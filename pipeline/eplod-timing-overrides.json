@@ -4346,126 +4346,242 @@
    ]
   },
   "0088": {
-   "reviewed": "2026-11-21",
-   "reason": "Automated full-take word-level audit (small.en); narrow-window re-check agreed on all moved boundaries (tolerance 0.2s). Only timestamps changed; needs-review items, if any, were not applied. Evidence: build/qa/eplod-audit/.",
+   "reviewed": "2026-11-23",
+   "reason": "Exact clips and wider windows preserve the Jennifer opening, the vocalization before okay, and both bursts at the end. The last clip has two hesitant sounds but the models disagree on lexical rendering.",
    "audioSha256": "6341e4f8fd6cd321c43fe0cfc02107127ef1f7ee91ea2f6459bd0ccbe5ff60e3",
-   "dialogueSha256": "8a71559498e5bd844835a1302e3a6f94768155b5b2cad1536a4c1b914d259c29",
+   "dialogueSha256": "18bc49cb607935341bd84c799de42255a564805adfc67ace0109e7095eb60701",
    "bounds": [
     [
-     10.12,
-     12.4
+     10.03,
+     12.58
     ],
     [
      12.9,
-     19.08
+     19.23
     ],
     [
-     19.6,
-     20.64
+     19.43,
+     20.87
     ],
     [
-     23.04,
-     24.8
+     22.37,
+     25.02
     ],
     [
-     25.12,
-     26.26
+     25.05,
+     26.56
     ],
     [
-     27.38,
-     41.64
+     26.84,
+     41.82
     ],
     [
-     42.26,
-     46.94
+     42.12,
+     47.18
     ],
     [
-     47.46,
-     54.94
+     47.32,
+     55.17
     ],
     [
-     56.98,
-     57.46
+     55.26,
+     57.23
     ]
    ]
   },
   "0092": {
-   "reviewed": "2026-11-21",
-   "reason": "Automated full-take word-level audit (small.en); narrow-window re-check agreed on all moved boundaries (tolerance 0.2s). Only timestamps changed; needs-review items, if any, were not applied. Evidence: build/qa/eplod-audit/.",
+   "reviewed": "2026-11-23",
+   "reason": "Each exact clip was retranscribed. Wide and isolated windows show the first greeting before 8.20 s and line 4 Also around 19 s. Keep those words and pad Sandy, guys, who and pipsqueak.",
    "audioSha256": "62a949d862b179a7df7c6283d95db7223e561495f74ea5b184e5a22d8c893af9",
    "dialogueSha256": "bc1dae06741b753162cc9d848d8ee983dbb540155b0210354d2c9bf21a6e385e",
    "bounds": [
     [
-     8.2,
-     9.14
+     7.55,
+     9.25
     ],
     [
-     9.4,
-     10.3
+     9.31,
+     10.58
     ],
     [
-     11.2,
-     14.64
+     10.99,
+     14.72
     ],
     [
-     14.94,
-     18.74
+     14.86,
+     19.54
     ],
     [
-     19.58,
-     23.36
+     19.5,
+     23.5
     ],
     [
-     23.8,
-     27.48
+     23.69,
+     27.72
     ],
     [
-     27.86,
-     28.82
+     27.81,
+     29.08
     ],
     [
-     29.62,
-     31.5
+     29.52,
+     31.78
     ],
     [
-     32.24,
-     33.62
+     32.08,
+     33.82
     ]
    ]
   },
   "0101": {
-   "reviewed": "2026-11-21",
-   "reason": "Automated full-take word-level audit (small.en); narrow-window re-check agreed on all moved boundaries (tolerance 0.2s). Only timestamps changed; needs-review items, if any, were not applied. Evidence: build/qa/eplod-audit/.",
+   "reviewed": "2026-11-24",
+   "reason": "Second review with text-anchored multi-window word times plus the energy envelope (the first review trusted ASR transcripts of the clips, which still recognise a word whose tail is cut). Sentence 1 now keeps the end of hanging? (speech runs to 9.86); sentence 5 starts at the onset of Right (26.90) instead of 0.1s into it; sentence 7 keeps the end of starving.",
    "audioSha256": "d9326a7eb1620337f26da09d484ef4a6246ad27c11584a96752eb8b1f3d2bc36",
    "dialogueSha256": "f43b4506d57ced1e7cbe300a362ddee3ff6aac86073a1bc3a91e7acaf440f817",
    "bounds": [
     [
-     7.9,
-     9.18
+     7.85,
+     9.94
     ],
     [
-     10.14,
-     13.08
+     9.94,
+     13.32
     ],
     [
-     13.64,
-     17.32
+     13.37,
+     17.58
     ],
     [
-     18.18,
-     26.86
+     18.03,
+     26.92
     ],
     [
-     26.94,
-     35.54
+     26.9,
+     35.82
     ],
     [
-     36.0,
-     45.3
+     35.87,
+     45.32
     ],
     [
-     45.6,
-     47.04
+     45.33,
+     47.8
+    ]
+   ]
+  },
+  "0103": {
+   "reviewed": "2026-11-24",
+   "reason": "First review. Sentence 8 (Honey...) had no anchors and could not be played; almost every sentence end clipped 0.1-0.3s of its last word. Text adds the spoken well after appreciate... : a 0.4s voiced syllable between two pauses, heard as well by small.en, large-v3, base, base.en, tiny and tiny.en.",
+   "audioSha256": "b0afbf3113f3f59ddbb411995fc394d135a4953bc1294b81058b8f7cf1215932",
+   "dialogueSha256": "9d7af1048521e3f2e751009457881b6d100e0d5484d0fbcb0bc77f904c00ac5e",
+   "bounds": [
+    [
+     16.4,
+     18.53
+    ],
+    [
+     18.88,
+     21.28
+    ],
+    [
+     21.58,
+     23.03
+    ],
+    [
+     23.03,
+     23.98
+    ],
+    [
+     25.15,
+     32.0
+    ],
+    [
+     32.0,
+     33.64
+    ],
+    [
+     33.95,
+     37.88
+    ],
+    [
+     37.88,
+     38.53
+    ],
+    [
+     38.85,
+     47.36
+    ],
+    [
+     47.36,
+     49.43
+    ],
+    [
+     49.43,
+     49.98
+    ],
+    [
+     49.98,
+     52.4
+    ],
+    [
+     52.53,
+     54.5
+    ],
+    [
+     54.75,
+     56.42
+    ],
+    [
+     56.42,
+     59.5
+    ]
+   ]
+  },
+  "0110": {
+   "reviewed": "2026-11-24",
+   "reason": "First review. Sentence 5 now starts before Yes (it had fallen into no clip); sentence 8 keeps the end of minor; sentence 10 ends after start. Text adds the spoken that in sentences 4 and 6 (seven local Whisper variants, three windows each; sentence 6 also shows the stop closure) and you'll have to -> you have to in sentence 10 (every variant hears no will).",
+   "audioSha256": "cf49f7902f6ea47d784c2bb92a89c423c2ab35b38024f17433327428be87c7fd",
+   "dialogueSha256": "5ac5337c9640d85844e92194cd70c3f5dea5262cf715db753323919c2f5fe366",
+   "bounds": [
+    [
+     9.2,
+     13.83
+    ],
+    [
+     14.23,
+     17.58
+    ],
+    [
+     17.85,
+     18.53
+    ],
+    [
+     18.9,
+     26.7
+    ],
+    [
+     26.9,
+     31.98
+    ],
+    [
+     31.98,
+     36.28
+    ],
+    [
+     36.35,
+     42.0
+    ],
+    [
+     42.13,
+     45.44
+    ],
+    [
+     45.44,
+     52.64
+    ],
+    [
+     52.9,
+     64.2
     ]
    ]
   }
