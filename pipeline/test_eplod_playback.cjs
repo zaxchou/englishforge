@@ -20,12 +20,16 @@ const {chromium}=require(process.env.TFL_PLAYWRIGHT||'C:/Users/zeroz/AppData/Loc
  await p.locator('.ep-settings summary').click();await p.locator('.ep-dmode [data-m="free"]').click();await p.locator('.ep-settings summary').click();
  await p.locator('#ep-blist .ep-brow[data-i="6"]').click();
  const state=()=>p.evaluate(()=>({t:document.querySelector('#ep-audio').currentTime,paused:document.querySelector('#ep-audio').paused,loop:EP.st.loop,range:EP.st.range,ai:EP.st.ai}));
+ // 句尾精度: 单句播放须在终点后 60ms 内停下(timeupdate 约 250ms 一次, 页面另有 25ms 补查), 不得带出下一句的开头
+ await p.evaluate(()=>{const a=document.querySelector('#ep-audio'),pause=a.pause.bind(a);window.__stops=[];a.pause=()=>{window.__stops.push(a.currentTime);return pause();};});
  await p.locator('.ep-bcard .bp').click();
  await p.waitForFunction(()=>!document.querySelector('#ep-audio').paused&&document.querySelector('#ep-audio').currentTime>=30.3);
  await p.waitForFunction(()=>document.querySelector('#ep-audio').currentTime>33.5,{},{timeout:8000});
  const once=await state();assert.ok(once.t<35.4,JSON.stringify(once));
  await p.waitForFunction(()=>document.querySelector('#ep-audio').paused,{},{timeout:5000});
  assert.ok(Math.abs((await state()).t-30.3)<.1);
+ const stopAt=await p.evaluate(()=>Math.max(...window.__stops));
+ assert.ok(stopAt>=once.range[1]-0.05&&stopAt<=once.range[1]+0.06,`single-sentence play stopped at ${stopAt} for range end ${once.range[1]}`);
  await p.locator('.ep-bcard .bp').click();await p.waitForFunction(()=>!document.querySelector('#ep-audio').paused);
  await p.locator('.ep-bcard .bl').click();await p.waitForFunction(()=>document.querySelector('#ep-audio').currentTime>34.5);
  await p.waitForFunction(()=>document.querySelector('#ep-audio').currentTime<32&&!document.querySelector('#ep-audio').paused);

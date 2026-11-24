@@ -360,7 +360,7 @@ details.ai-tsec[open] summary{margin-bottom:8px}
 
 </div>
 
-<script src="eplod-records.js?v=35"></script>
+<script src="eplod-records.js?v=36"></script>
 <script src="course-plan-model.js?v=20261029r8"></script>
 <script src="course-plan-ui.js?v=20261113r11"></script>
 <script src="root-practice-ui.js?v=e3203ffa489d"></script>
@@ -3961,11 +3961,18 @@ function epWire(){
       if((REC.study.total||0)%15===0)recSave();}},1000);});
   a.addEventListener('pause',()=>{STU=false;epSavePos();});
   a.addEventListener('ended',()=>{if(st.playSession)st.playSession.completed=true;if(st.range&&st.stopAtEnd){try{st.seekPosition(st.range[0]);}catch(e){}}});
-  let posT=0;
+  let posT=0,epEndPoll=0;
+  /* 单句/循环的终点: timeupdate 约 250ms 一次, 会在终点后多播最多 0.25s(句尾带出下一句的开头); 播放中每 25ms 补查一次 */
+  const epRangePoll=()=>{
+    if(EP.st!==st||a.paused||!st.range||!(st.stopAtEnd||st.loop)){clearInterval(epEndPoll);epEndPoll=0;return;}
+    if(a.seeking||st.seekPending)return;
+    if(a.currentTime>=st.range[1]-0.03){clearInterval(epEndPoll);epEndPoll=0;a.dispatchEvent(new Event('timeupdate'));}
+  };
   a.addEventListener('timeupdate',()=>{
     if(EP.st!==st)return;
     const now=Date.now();
     if(now-posT>5000){posT=now;epSavePos();}
+    if(st.range&&(st.stopAtEnd||st.loop)&&!a.paused&&!epEndPoll)epEndPoll=setInterval(epRangePoll,25);
     if(!a.seeking&&!st.seekPending&&st.range&&a.currentTime>=st.range[1]-0.03){
       const target=st.playTarget;
       if(st.playSession)st.playSession.completed=true;
