@@ -49,6 +49,22 @@ test('R6: only confirmed name aliases are forgiven, in both directions and only 
   assert.equal(E.fuzzyEqual('julianne', 'julianna'), false, 'Unconfirmed similar names are not silently added');
 });
 
+test('yeah and yes match in voice recitation while dictation preserves the spoken wording', () => {
+  for (const [official, mine] of [['Yeah, I know.', 'Yes, I know.'], ['Yes, I know.', 'Yeah, I know.']]) {
+    const score = E.scoreTokensAdjacent(official, mine, 'Did you hear?', 'Let me explain.');
+    assert.equal(score.acc, 1);
+    assert.deepEqual(score.extras, []);
+    assert.equal(E.lcsAcc(official, mine), 2 / 3);
+  }
+
+  const official = 'Yes, I know. Yeah, we can go.';
+  const mine = 'Yeah, I know. Yes, we can go.';
+  assert.equal(E.wholeReport(official, mine, 3, 3).accuracy, 100);
+  assert.deepEqual(E.scoreTokens(official, mine, true).extras, []);
+  assert.equal(E.scoreTokens('Yes, I know.', 'I know.', true).acc, 2 / 3);
+  assert.deepEqual(E.scoreTokens('Yes, I know.', 'No, I know.', true).extras, ['no']);
+});
+
 test('normalization retains spelling, number readings, fillers, slang, accents and apostrophes', () => {
   for (const [a, b] of [
     ['The cancelled programme is grey.', 'The canceled program is gray.'],

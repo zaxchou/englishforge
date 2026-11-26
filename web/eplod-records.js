@@ -2,7 +2,7 @@
   'use strict';
   const copy=x=>x===undefined?undefined:JSON.parse(JSON.stringify(x));
   const object=x=>x&&typeof x==='object'&&!Array.isArray(x);
-  const SCORING_VERSION=25;
+  const SCORING_VERSION=26;
   /* 判分归一分词(r19): 官方文本的 "5:58" 分词成 [5,58], ASR/用户输入是 [five,fifty,eight],
      形状不同会白扣分——数字 token 统一展开成读法单词; oh 与 zero 互通(两侧同变换, 只增匹配不改错配)。 */
   const NUM1={0:'zero',1:'one',2:'two',3:'three',4:'four',5:'five',6:'six',7:'seven',8:'eight',9:'nine',10:'ten',11:'eleven',12:'twelve',13:'thirteen',14:'fourteen',15:'fifteen',16:'sixteen',17:'seventeen',18:'eighteen',19:'nineteen',20:'twenty'};   /* 20 曾缺表, expandNum 兜底成 "20" 配不上 twenty(r2 2026-10-30) */
@@ -243,11 +243,13 @@
   function mergeEqual(concat,single){return concat===single||(single.length>=5&&concat===single+'s');}
   function scoreTokens(official,mine,fuzzy=false){
     const a=normTokens(official),b=normTokens(mine),n=a.length,m=b.length;
+    /* 语音背诵里的 yeah 和 yes 都是肯定应答，按同词对齐。听写仍区分原文措辞。 */
+    const sameWord=(x,y)=>x===y||(fuzzy&&((x==='yeah'&&y==='yes')||(x==='yes'&&y==='yeah')));
     /* 前缀 dp[i][j]=LCS(a[0..i-1],b[0..j-1]), 含复合词 2↔1 合并分支(官方对计 2 分) */
     const dp=Array.from({length:n+1},()=>new Array(m+1).fill(0));
     for(let i=1;i<=n;i++)for(let j=1;j<=m;j++){
       let best=Math.max(dp[i-1][j],dp[i][j-1]);
-      if(a[i-1]===b[j-1])best=Math.max(best,dp[i-1][j-1]+1);
+      if(sameWord(a[i-1],b[j-1]))best=Math.max(best,dp[i-1][j-1]+1);
       if(i>=2&&compoundOK(a[i-2],a[i-2]+a[i-1])&&mergeEqual(a[i-2]+a[i-1],b[j-1]))best=Math.max(best,dp[i-2][j-1]+2);
       if(fuzzy&&i>=2&&ASR_PHRASE_MERGES[a[i-2]+a[i-1]]===b[j-1])best=Math.max(best,dp[i-2][j-1]+2);
       if(j>=2&&compoundOK(b[j-2],b[j-2]+b[j-1])&&mergeEqual(b[j-2]+b[j-1],a[i-1]))best=Math.max(best,dp[i-1][j-2]+1);
@@ -263,7 +265,7 @@
     /* 后向回溯, 与旧实现同优先级: 先单匹配(重复 token 归属语义不变), 再合并 span, 再跳 */
     let i=n,j=m;
     while(i>0&&j>0){
-      if(a[i-1]===b[j-1]){marks[i-1]=true;matched[j-1]=true;pairs.push([i-1,j-1]);i--;j--;continue;}
+      if(sameWord(a[i-1],b[j-1])){marks[i-1]=true;matched[j-1]=true;pairs.push([i-1,j-1]);i--;j--;continue;}
       if(i>=2&&compoundOK(a[i-2],a[i-2]+a[i-1])&&mergeEqual(a[i-2]+a[i-1],b[j-1])){
         marks[i-2]=true;marks[i-1]=true;matched[j-1]=true;pairs.push([i-2,j-1],[i-1,j-1]);i-=2;j--;continue;
       }
@@ -594,10 +596,14 @@
     if(wp)out.wp=wp;else delete out.wp;
     return out;
   }
-  function coverProgress(drill,total,today){
+  function coverProgress(drill,total,today,projectDay){
     drill=object(drill)?drill:{};
     const need=total,days=drill.stampDays||{};   /* 一遍=当天过完全部句子(用户口径 2026-10-28) */
     const count=v=>Array.isArray(v)?new Set(v.filter(i=>Number.isInteger(i)&&i>=0&&i<total)).size:0;
+    const projectDue=(anchor,gap)=>{
+      const due=new Date(Date.parse(anchor+'T00:00:00Z')+gap*864e5).toISOString().slice(0,10);
+      return projectDay?projectDay(due,anchor,today):due;
+    };
     const dates=need>0?Object.keys(days).filter(day=>count(days[day])>=need).sort():[];
     const recovered=!!drill.recoveredCover;
     const fullPasses=dates.length+(recovered?1:0);
@@ -606,8 +612,7 @@
        遍1 由历史补认(recovered)而无日期时不锚定, 展示层退化成"待复背"。到期日当天起随时可背。 */
     let nextDue=null,dueToday=false;
     if(completed>0&&completed<3&&dates.length){
-      const gap=completed===1?2:6;
-      nextDue=new Date(Date.parse(dates[0]+'T00:00:00Z')+gap*864e5).toISOString().slice(0,10);
+      nextDue=projectDue(dates[0],completed===1?2:6);
       dueToday=nextDue<=today;
     }
     /* 第四遍为可选加练: 三遍仍毕业, 建议第三遍 +7 天再背, 不做不丢星。 */
@@ -615,7 +620,7 @@
     const extraDate=extra?dates[3-(recovered?1:0)]:null;
     let extraDue=null,extraToday=false;
     if(completed>=3&&!extra&&dates.length){
-      extraDue=new Date(Date.parse(dates[dates.length-1]+'T00:00:00Z')+7*864e5).toISOString().slice(0,10);
+      extraDue=projectDue(dates[dates.length-1],7);
       extraToday=extraDue<=today;
     }
     return {total,need,dates,recovered,completed,todayN:count(days[today]),todayStamped:dates.includes(today),nextDue,dueToday,extra,extraDate,extraDue,extraToday};
