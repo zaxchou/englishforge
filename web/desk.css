@@ -2466,10 +2466,15 @@ html.sb-min .nav-label{display:none!important}   /* 收缩侧栏只留图标 */
   padding:0 10px;border:1px solid var(--line);border-radius:12px;background:var(--sunk);
   color:var(--t1);font-size:12.5px;font-weight:600;cursor:pointer}
 .cp-bell.has-due{border-color:var(--badln);background:var(--badbg);color:var(--bad)}
-.cp-bell.is-paused #cp-bell-n::before{content:'Ⅱ';font-size:12px}
+/* 暂停状态: 铃铛整体换成通用「双竖条暂停」图标(r2 2026-11-27 用户反馈不认识 Ⅱ 字符),
+   虚线边框做辅助暗示; 语义由 aria-label 与展开态文字承载, 图标只负责一眼认出。 */
+.cp-bell.is-paused{border-style:dashed}
+.cp-bell.is-paused .cp-ico-bell{display:none}
+.cp-bell .cp-ico-pause{display:none}
+.cp-bell.is-paused .cp-ico-pause{display:block}
 /* 可选第四遍只在有到期项时显示为圆点。 */
 .cp-bell.has-opt #cp-bell-n::after{content:'●';color:var(--warn);font-size:8px;margin-left:4px;vertical-align:1px}
-.cp-bell .cp-bell-t,.cp-bell:not(.is-paused) #cp-bell-n:empty{display:none}
+.cp-bell .cp-bell-t,.cp-bell #cp-bell-n:empty{display:none}
 .cp-bell[hidden]{display:none}
 @media(max-width:700px){
   .cp-bell.is-paused .cp-bell-t{display:inline;white-space:nowrap}
