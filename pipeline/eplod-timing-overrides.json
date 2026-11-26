@@ -4584,6 +4584,138 @@
      64.2
     ]
    ]
+  },
+  "0111": {
+   "reviewed": "2026-11-27",
+   "reason": "2026-11-27 audit: recover sentence 4 lead-in clipped by the music sting boundary; fix official-text typos confirmed by small.en+large-v3 across windows (gentlemen, vying, we're, par four).",
+   "audioSha256": "0169bf9fc82d12522bd65db1c04f53e690af8bd90a479c612a379604394a3788",
+   "dialogueSha256": "b65d890447494b2a0aa9af9445fe85255c9cb1f8b4132ff92278929ed856a074",
+   "bounds": [
+    [
+     4.11,
+     12.21
+    ],
+    [
+     12.25,
+     22.51
+    ],
+    [
+     22.51,
+     28.53
+    ],
+    [
+     32.4,
+     45.41
+    ],
+    [
+     47.61,
+     55.79
+    ],
+    [
+     58.71,
+     69.42
+    ],
+    [
+     70.41,
+     78.15
+    ],
+    [
+     78.15,
+     82.8
+    ]
+   ]
+  },
+  "0113": {
+   "reviewed": "2026-11-27",
+   "reason": "2026-11-27 audit: re-time all clips from energy-anchored multi-window evidence; recover the miles tail and the Guys onset. No text change: Jo called confirmed (clip-context So-called was a boundary artifact), disputed Oh kept out.",
+   "audioSha256": "8f0d532405cbedc5bff113c5d0dc102804465427c8dbb2b7f8a7548d1ae6346a",
+   "dialogueSha256": "df3fbe30421a25886c56c737567b83fc48172e66fb4790c43c354119cb6aff8b",
+   "bounds": [
+    [
+     11.15,
+     14.45
+    ],
+    [
+     14.45,
+     18.7
+    ],
+    [
+     19.17,
+     23.43
+    ],
+    [
+     24.14,
+     31.14
+    ],
+    [
+     31.47,
+     36.43
+    ],
+    [
+     38.14,
+     51.0
+    ],
+    [
+     51.0,
+     59.87
+    ]
+   ]
+  },
+  "0115": {
+   "reviewed": "2026-11-27",
+   "reason": "2026-11-27 audit: recover the Ugh groan at sentence 2; adopt dub wording hit up / And tell me confirmed by small.en+large-v3 in two contexts; drop the建档 extra like before a gallon.",
+   "audioSha256": "19457bfbe13c58114ef3ec39d93dde20eec13c4b2cb3414ee5c468f0f2ab4cef",
+   "dialogueSha256": "44dbbc4fabde5c416a7a8879d24321900134efe6dee209a8fc21a1ca07d66b30",
+   "bounds": [
+    [
+     13.76,
+     16.6
+    ],
+    [
+     16.84,
+     23.09
+    ],
+    [
+     23.09,
+     25.08
+    ],
+    [
+     25.21,
+     34.8
+    ],
+    [
+     34.8,
+     38.53
+    ],
+    [
+     38.53,
+     41.95
+    ],
+    [
+     41.95,
+     43.71
+    ],
+    [
+     43.71,
+     48.77
+    ],
+    [
+     48.77,
+     49.6
+    ],
+    [
+     49.81,
+     58.76
+    ],
+    [
+     58.76,
+     63.0
+    ],
+    [
+     63.0,
+     64.42
+    ]
+   ]
   }
  }
 }

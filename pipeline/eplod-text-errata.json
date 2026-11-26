@@ -1107,6 +1107,46 @@
      "you have to make"
     ]
    ]
+  },
+  "0111": {
+   "reviewed": "2026-11-27",
+   "reason": "2026-11-27 audit: recover sentence 4 lead-in clipped by the music sting boundary; fix official-text typos confirmed by small.en+large-v3 across windows (gentlemen, vying, we're, par four).",
+   "replacements": [
+    [
+     "ladies and gentleman,",
+     "ladies and gentlemen,"
+    ],
+    [
+     "are trying to win",
+     "are vying to win"
+    ],
+    [
+     "were're",
+     "we're"
+    ],
+    [
+     "It's a par four, and has",
+     "It's par four, and has"
+    ]
+   ]
+  },
+  "0115": {
+   "reviewed": "2026-11-27",
+   "reason": "2026-11-27 audit: recover the Ugh groan at sentence 2; adopt dub wording hit up / And tell me confirmed by small.en+large-v3 in two contexts; drop the建档 extra like before a gallon.",
+   "replacements": [
+    [
+     "We hit a couple",
+     "We hit up a couple"
+    ],
+    [
+     "Tell me about it!",
+     "And tell me about it!"
+    ],
+    [
+     "I drank like a gallon",
+     "I drank a gallon"
+    ]
+   ]
   }
  }
 }
