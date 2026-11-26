@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import fs from 'node:fs';
-import { Model as M, ensurePlans, summary, startPlan, finishPlan, updateSettings, applyPlanAttempt, questionSignature } from '../course-plan.mjs';
+import { Model as M, ensurePlans, summary, publicPlan, startPlan, finishPlan, updateSettings, applyPlanAttempt, questionSignature } from '../course-plan.mjs';
 const NOW = Date.parse('2026-10-29T02:00:00Z'), DAY = M.DAY;
 const clone = x => structuredClone(x);
 function quiz(course = 'ndf-01', no = 1) { return { v: 2, at: NOW - DAY * 30, course, lessonNo: no, questions: [
@@ -80,6 +80,74 @@ test('historical schedules follow changed intervals and daily capacity without i
   assert.equal(ps[0].due,NOW+60*DAY);assert.equal(ps[1].due,NOW+60*DAY);
   assert.equal(M.dayStart(ps[2].due)-M.dayStart(ps[0].due),DAY);
   assert.ok(ps.every(p=>p.stamps.length===1&&p.stamps[0].at===null));
+});
+test('pause projects historical stamps and first-round migration slots without rewriting them', () => {
+  const { records: r, quizzes: qs } = fixture(3);
+  const historical = 'ndf-01-01', delayedFirst = 'ndf-01-03';
+  for (const lid of Object.keys(qs)) r.course[lid] = { done: true };
+  for (const q of M.coreQuestions(qs[historical])) r.attempts[M.qid(qs[historical], q)] = { history: [{ t: NOW - DAY }] };
+  ensurePlans(r, qs, NOW);
+  r.attempts['gen/ndf-01/3/quiz/1'] = { last: NOW };
+  r.studyPause = { revision: 1, windows: [{ start: NOW + DAY / 4, end: null }] };
+  const now = NOW + 4 * DAY, stored = clone(r.coursePlan);
+  const s = summary(r, qs, now);
+  assert.equal(s.pauseRevision, 1);
+  assert.equal(s.paused, true);
+  assert.deepEqual(s.recommendations, []);
+  for (const lid of [historical, delayedFirst]) {
+    const raw = stored.plans[lid].due, p = s.plans[lid];
+    assert.ok(raw < now);
+    assert.equal(p.due, raw + now - r.studyPause.windows[0].start);
+    assert.equal(p.dueRemaining, p.due - now);
+    assert.equal(p.paused, true);
+    assert.throws(() => startPlan(r, qs, { lessonId: lid }, now), e => e.code === 'plan_not_due');
+  }
+  assert.equal(s.plans[historical].pendingHistorical, true);
+  assert.equal(s.plans[delayedFirst].stamps.length, 0);
+  assert.deepEqual(r.coursePlan, stored);
+
+  r.studyPause = { revision: 2, windows: [{ start: NOW + DAY / 4, end: now }] };
+  const due = s.plans[historical].due;
+  const resumed = summary(r, qs, due);
+  assert.equal(resumed.paused, false);
+  assert.equal(resumed.pauseRevision, 2);
+  assert.equal(resumed.plans[historical].dueRemaining, 0);
+  assert.equal(resumed.plans[historical].pendingHistorical, false);
+  assert.ok(resumed.recommendations.includes(delayedFirst));
+  assert.ok(startPlan(r, qs, { lessonId: historical }, due).plan.active);
+});
+test('already-due rounds remain available and new schedules use their actual creation or finish time', () => {
+  const { records: r, quizzes: qs } = fixture();
+  const lid = 'ndf-01-01';
+  ensurePlans(r, qs, NOW);
+  r.attempts['gen/ndf-01/1/quiz/1'] = { last: NOW };
+  r.studyPause = { revision: 1, windows: [{ start: NOW + DAY, end: null }] };
+  const finishedAt = NOW + 2 * DAY;
+  let s = summary(r, qs, finishedAt);
+  assert.deepEqual(s.recommendations, [lid]);
+  assert.equal(s.plans[lid].dueRemaining, -DAY);
+
+  qs['ndf-01-02'] = quiz('ndf-01', 2);
+  ensurePlans(r, qs, finishedAt);
+  const added = publicPlan(r.coursePlan, 'ndf-01-02', finishedAt + DAY, r.studyPause);
+  assert.equal(added.due, finishedAt + DAY);
+  assert.equal(added.dueRemaining, 0);
+
+  const finished = finishRound(r, qs, finishedAt).plan;
+  assert.equal(finished.due, finishedAt + 3 * DAY);
+  const afterFinish = finishedAt + 4 * DAY;
+  let p = publicPlan(r.coursePlan, lid, afterFinish, r.studyPause);
+  assert.equal(p.due, afterFinish + 3 * DAY);
+  assert.equal(p.dueRemaining, 3 * DAY);
+  assert.equal(r.coursePlan.plans[lid].due, finished.due);
+  assert.equal(finishPlan(r, qs, { lessonId: lid, roundId: finished.stamps[0].id, rating: 'good' }, afterFinish).plan.due, p.due);
+  s = updateSettings(r, qs, { ...M.DEFAULTS, intervals: [5, 7] }, afterFinish);
+  assert.equal(r.coursePlan.plans[lid].due, finishedAt + 5 * DAY);
+  assert.equal(s.plans[lid].dueRemaining, 5 * DAY);
+  p = updateSettings(r, qs, { target: 1, intervals: [], daily: 1, mode: 'fixed', revision: 1 }, afterFinish).plans[lid];
+  assert.equal(p.complete, true);
+  assert.equal(p.due, null);
+  assert.equal(p.dueRemaining, null);
 });
 test('new course recommendations require exercise evidence, practice never counts toward a round', () => {
   const { records: r, quizzes: qs } = fixture(3); ensurePlans(r, qs, NOW);

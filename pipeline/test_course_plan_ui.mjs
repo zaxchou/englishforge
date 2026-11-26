@@ -2,8 +2,29 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
+import StudyPause from '../web/study-pause.js';
 const source=fs.readFileSync(new URL('../web/course-plan-ui.js',import.meta.url),'utf8');
-function context(){const state={lessonId:'ndf-01-01',quiz:{course:'ndf-01',lessonNo:1,questions:[{id:'q1'},{id:'q2'}]},phase:'ready'};const ctx=vm.createContext({console,Date,AbortSignal,JSON,Math,crypto:globalThis.crypto,fetch:()=>{},GQ_UI:state,recAttQueue:[],recFlushAttempts(){},gqScrollToCard(){},gqRefreshList(){},renderGenQuiz(){},gqStart(order){state.planRound=null;state.planPhase=null;state.order=order;state.answers={};state.phase='quiz';},gqQid(q,qst){return 'gen/'+q.course+'/'+q.lessonNo+'/quiz/'+qst.id.slice(1);},esc:x=>String(x),courseFind:()=>null,$:()=>null});vm.runInContext(source,ctx);return {ctx,state,run:s=>vm.runInContext(s,ctx)};}
+function context(){
+  const state={lessonId:'ndf-01-01',quiz:{course:'ndf-01',lessonNo:1,questions:[{id:'q1'},{id:'q2'}]},phase:'ready'};
+  const ctx=vm.createContext({console,Date,AbortSignal,CustomEvent,JSON,Math,crypto:globalThis.crypto,StudyPause,
+    window:new EventTarget(), document:{querySelector:()=>null},
+    fetch:()=>{},GQ_UI:state,recAttQueue:[],recFlushAttempts(){},gqScrollToCard(){},gqRefreshList(){},renderGenQuiz(){},
+    gqStart(order){state.planRound=null;state.planPhase=null;state.order=order;state.answers={};state.phase='quiz';},
+    gqQid(q,qst){return 'gen/'+q.course+'/'+q.lessonNo+'/quiz/'+qst.id.slice(1);},esc:x=>String(x),courseFind:()=>null,$:()=>null});
+  vm.runInContext(source,ctx);
+  return {ctx,state,run:s=>vm.runInContext(s,ctx)};
+}
+function mockBell(c){
+  const classes=new Set(),num={textContent:''},text={textContent:''};
+  const bell={hidden:true,title:'',classes,num,text,attrs:{},
+    classList:{toggle(name,value){if(value)classes.add(name);else classes.delete(name);}},
+    setAttribute(name,value){this.attrs[name]=value;},
+    querySelector:sel=>sel==='#cp-bell-n'?num:sel==='.cp-bell-t'?text:null};
+  c.ctx.$=id=>id==='cp-bell'?bell:null;
+  return bell;
+}
+function mockUnpaused(c){c.run('CP_PAUSE.state={revision:0,windows:[],paused:false,now:Date.now()}');}
+function pauseResponse(state,status=200){return {ok:status===200,status,json:async()=>state};}
 test('caption distinguishes scheduled first review and historical unknown date',()=>{const c=context();assert.match(c.run('cpCaption({stamps:[],due:Date.now()+86400000})'),/安排在/);assert.match(c.run('cpCaption({stamps:[{}],pendingHistorical:true})'),/历史已练/);});
 test('resume uses only current round and phase plus durable local pending answers',()=>{const c=context();c.ctx.recAttQueue.push({id:'pending',planRound:'round',planPhase:'main',ref:{qid:'gen/ndf-01/1/quiz/1'},answer:'A',ok:true});c.run("cpResume({active:{id:'round',phase:'main',order:['q1','q2'],answers:{},step:'q1'}})");assert.equal(c.state.ix,1);assert.equal(c.state.answers.q1.letter,'A');assert.equal(c.state.planRound,'round');c.ctx.recAttQueue[0].planPhase='main';c.run("cpResume({active:{id:'round',phase:'correction',order:['q1','q2'],correctionOrder:['q1'],answers:{q1:{letter:'B',ok:false}},corrections:{},step:'q1'}})");assert.equal(c.state.ix,0);assert.equal(c.state.answers.q1,undefined);});
 test('finish phase does not overwrite pending result state',()=>{const c=context();c.run("cpResume({active:{id:'round',phase:'finish',answers:{},order:['q1']}})");assert.equal(c.state.phase,'plan-finish');assert.equal(c.state.planRound,'round');});
@@ -56,22 +77,27 @@ test('due prompt picks the first unsnoozed lesson and snooze is one day with pru
   assert.equal(c.run("cpSnoozeLoad().a"),c.run("cpTodayKey()"));
   assert.equal(c.run("cpSnoozeLoad().stale"),undefined,'older snooze entries are pruned on write');
 });
-test('due badge reflects remaining recommendations and disappears when none',()=>{const c=context();
-  const num={textContent:''};
-  const bell={hidden:true,title:'',classList:{toggle(_c,v){this.on=v;}},querySelector:sel=>sel==='#cp-bell-n'?num:null};
-  c.ctx.$=id=>id==='cp-bell'?bell:null;
+test('bell keeps an accessible neutral entry when all clear or paused',()=>{const c=context();
+  const bell=mockBell(c);mockUnpaused(c);
   c.run("CP.data={recommendations:['a','b','c']};cpBadgeUpdate()");
-  assert.equal(bell.hidden,false,'badge shows when recommendations remain');
-  assert.equal(num.textContent,'3');
+  assert.equal(bell.hidden,false);
+  assert.equal(bell.classes.has('has-due'),true);
+  assert.equal(bell.num.textContent,'3');
   c.run("CP.data={recommendations:[]};cpBadgeUpdate()");
-  assert.equal(bell.hidden,true,'badge hides when nothing is due');
+  assert.equal(bell.hidden,false);
+  assert.equal(bell.classes.has('has-due'),false);
+  assert.equal(bell.num.textContent,'');
+  assert.equal(bell.attrs['aria-label'],'复习中心');
   c.run("CP.data={recommendations:['a','b','c','d','e','f','g','h','i','j']};cpBadgeUpdate()");
-  assert.equal(num.textContent,'9+','count caps at 9+');
+  assert.equal(bell.num.textContent,'9+','count caps at 9+');
+  c.run('CP_PAUSE.state.paused=true;cpBadgeUpdate()');
+  assert.deepEqual([...bell.classes],['is-paused']);
+  assert.equal(bell.text.textContent,'复习已暂停');
+  assert.equal(bell.attrs['aria-label'],'复习已暂停，打开复习中心');
+  assert.equal(bell.num.textContent,'');
 });
 test('badge counts every due lesson beyond the daily recommendation and adds EnglishPod passes',()=>{const c=context();
-  const num={textContent:''};
-  const bell={hidden:true,title:'',classList:{on:false,toggle(_c,v){this.on=v;}},querySelector:sel=>sel==='#cp-bell-n'?num:null};
-  c.ctx.$=id=>id==='cp-bell'?bell:null;
+  const bell=mockBell(c),num=bell.num;mockUnpaused(c);
   const past=Date.now()-60000;
   c.run(`CP.data={recommendations:['a'],plans:{
     a:{lessonId:'a',complete:false,begun:true,due:${past}},
@@ -87,31 +113,29 @@ test('badge counts every due lesson beyond the daily recommendation and adds Eng
   assert.equal(num.textContent,'4','red count only: plan 3 + EP due 1; optional fourth is excluded');
   assert.match(bell.title,/1 课覆盖背诵到期/);
   assert.match(bell.title,/另有 1 课可选第四遍（可选，不计入）/);
-  assert.equal(bell.classList.on,true,'optional presence shows as an amber dot class');
+  assert.equal(bell.classes.has('has-opt'),true,'optional presence shows as an amber dot class');
   c.run("cpBadgeUpdate()");   // idempotent re-render keeps the same count
   assert.equal(num.textContent,'4');
 });
 test('a lone optional fourth pass never lights the badge',()=>{const c=context();
-  const bell={hidden:true,title:'',classList:{on:false,toggle(_c,v){this.on=v;}},querySelector:()=>({textContent:''})};
-  c.ctx.$=id=>id==='cp-bell'?bell:null;
+  const bell=mockBell(c);mockUnpaused(c);
   c.run(`courseById=()=>({lessons:[{id:'eplod-0002',dialogue_count:2}]});
     EplodRecords={coverProgress:(drill)=>drill.fake};
     REC={course:{'eplod-0002':{drill:{fake:{dueToday:false,completed:3,extraToday:true}}}}};
     CP.data={recommendations:[],plans:{}};epDay=()=>'2026-11-13';cpBadgeUpdate()`);
-  assert.equal(bell.hidden,true,'optional only: badge stays hidden');
-  assert.equal(bell.title,'','no must-do title either');
+  assert.equal(bell.hidden,false,'optional only: review center entry stays visible');
+  assert.equal(bell.classes.size,0);
+  assert.equal(bell.title,'复习中心');
 });
 test('never-started lessons stay out of due counts and the review center even when overdue',()=>{const c=context();
-  const num={textContent:''};
-  const bell={hidden:true,title:'',classList:{toggle(_c,v){this.on=v;}},querySelector:sel=>sel==='#cp-bell-n'?num:null};
-  c.ctx.$=id=>id==='cp-bell'?bell:null;
+  const bell=mockBell(c),num=bell.num;mockUnpaused(c);
   const past=Date.now()-60000;
   /* 万词班 36 节误推回归(2026-11-13): 计划启用日给没学过的课也写了 due=启用日,
      徽标必须沿用服务端 begun 门槛, 否则未学过的万词班全部涌进提醒 */
   c.run(`CP.data={recommendations:[],plans:{
     fresh:{lessonId:'fresh',complete:false,begun:false,due:${past}},
     mistapped:{lessonId:'mistapped',complete:false,begun:false,active:{answers:{}},due:${past}}}};cpBadgeUpdate()`);
-  assert.equal(bell.hidden,true,'unbegun plans are never due, even with a zero-answer round');
+  assert.equal(bell.classes.has('has-due'),false,'unbegun plans are never due, even with a zero-answer round');
   c.run(`CP.data={recommendations:['started'],plans:{
     started:{lessonId:'started',complete:false,begun:true,due:${past}}}};cpBadgeUpdate()`);
   assert.equal(num.textContent,'1','begun and due lessons still count');
@@ -124,7 +148,8 @@ test('optional fourth pass shows in the badge but the popup only ever nudges sch
   assert.match(source,/kind==='optional'\).*不限时|第四遍可选（不限时）/,'review center marks the fourth pass optional');
   assert.doesNotMatch(source,/cpDuePick\([^)]*kind/, 'popup pick never sees optional entries');
 });
-test('badge click opens the single due item directly and the review center for several',()=>{const c=context();
+test('bell preserves the active single-due shortcut and opens the center in other states',()=>{const c=context();
+  mockUnpaused(c);
   let opened=[];c.ctx.nav=h=>opened.push(h);c.ctx.location={hash:''};
   c.run("courseById=()=>({lessons:[]});REC={course:{}};CP.data={recommendations:['a'],plans:{a:{lessonId:'a',complete:false,begun:true,due:Date.now()-1}}};cpBadgeGo()");
   assert.deepEqual(opened,['course/a'],'one due lesson opens it directly');
@@ -132,8 +157,105 @@ test('badge click opens the single due item directly and the review center for s
   c.run("courseById=()=>({lessons:[{id:'eplod-0001',dialogue_count:2}]});EplodRecords={coverProgress:d=>d.fake};REC={course:{'eplod-0001':{drill:{fake:{dueToday:true,completed:1}}}}};CP.data={recommendations:[],plans:{}};cpBadgeGo()");
   assert.deepEqual(opened,['eplod/eplod-0001'],'single EnglishPod due opens the lesson');
   c.run("courseById=()=>({lessons:[{id:'eplod-0001',dialogue_count:2},{id:'eplod-0002',dialogue_count:2}]});REC={course:{'eplod-0001':{drill:{fake:{dueToday:true,completed:1}}},'eplod-0002':{drill:{fake:{dueToday:true,completed:1}}}}};cpBadgeGo()");
-  assert.equal(c.ctx.location.hash,'#/course/review','several due items go to the review center via the router');
+  assert.equal(opened.at(-1),'course/review','several due items go to the review center');
+  c.run("CP_PAUSE.state.paused=true;REC.course={};CP.data={recommendations:['a']};cpBadgeGo()");
+  assert.equal(opened.at(-1),'course/review','paused bell always opens the center');
+  c.run('CP_PAUSE.state.paused=false;CP.data={recommendations:[]};cpBadgeGo()');
+  assert.equal(opened.at(-1),'course/review','neutral bell opens the center');
 });
+test('pause changes wait for POST and accept the canonical state on conflict',async()=>{
+  const c=context(),changes=[],signals=[];
+  c.ctx.window.addEventListener('study-pause-changed',e=>changes.push(e.detail.revision));
+  c.ctx.localStorage={setItem:(k,v)=>signals.push([k,v])};
+  const initial={revision:0,windows:[],paused:false,now:10};
+  c.ctx.fetch=async url=>{assert.equal(url,'/api/study-pause');return pauseResponse(initial);};
+  await c.run('studyPauseLoad()');
+  let resolve;
+  c.ctx.fetch=(url,request)=>{
+    assert.equal(url,'/api/study-pause');
+    assert.equal(request.method,'POST');
+    assert.deepEqual(JSON.parse(request.body),{paused:true,expectedRevision:0});
+    return new Promise(r=>{resolve=r;});
+  };
+  const pending=c.run('cpPauseToggle()');
+  assert.equal(c.run('studyPauseState().paused'),false);
+  assert.equal(c.run('CP_PAUSE.feedback'),'');
+  assert.deepEqual(changes,[0]);
+  const paused={revision:1,windows:[{start:20,end:null}],paused:true,now:20};
+  resolve(pauseResponse(paused));
+  await pending;
+  assert.equal(c.run('studyPauseState().paused'),true);
+  assert.match(c.run('CP_PAUSE.feedback'),/已暂停/);
+  assert.deepEqual(signals,[['tfl-study-pause-revision','1']]);
+  c.ctx.fetch=async (_url,request)=>{
+    assert.deepEqual(JSON.parse(request.body),{paused:false,expectedRevision:1});
+    return pauseResponse({error:'conflict',revision:3,windows:[{start:20,end:30},{start:40,end:null}],paused:true,now:41},409);
+  };
+  await c.run('cpPauseToggle()');
+  assert.equal(c.run('studyPauseState().revision'),3);
+  assert.match(c.run('CP_PAUSE.feedback'),/另一端/);
+  assert.deepEqual(changes,[0,1,3]);
+  assert.equal(signals.length,1);
+  c.ctx.fetch=async()=>pauseResponse({error:'unavailable'},503);
+  await c.run('cpPauseToggle()');
+  assert.equal(c.run('studyPauseState().revision'),3);
+  assert.match(c.run('CP_PAUSE.feedback'),/无法确认/);
+  assert.deepEqual(changes,[0,1,3]);
+});
+
+test('a cross-tab signal rejects the in-flight older read and closes reminders without snoozing',async()=>{
+  const c=context(),changes=[],writes=[],reads=[];
+  c.ctx.window.addEventListener('study-pause-changed',e=>changes.push(e.detail.revision));
+  c.ctx.document={addEventListener(){},querySelector:()=>null,getElementById:()=>null};
+  c.ctx.setInterval=()=>1;
+  c.ctx.location={hash:'#/course/review'};
+  c.ctx.localStorage={getItem:()=>null,setItem:(k,v)=>writes.push([k,v]),length:0};
+  c.ctx.fetch=url=>{
+    if(url==='/api/course-plan')return Promise.resolve(pauseResponse({recommendations:[],plans:{}}));
+    return new Promise(resolve=>reads.push(resolve));
+  };
+  mockUnpaused(c);
+  let closed=0;
+  c.ctx.closeReminder=()=>closed++;
+  c.run('CP.closePrompt=closeReminder;cpDueWatch()');
+  const first=c.run('CP_PAUSE.loading');
+  const event=Object.assign(new Event('storage'),{key:'tfl-study-pause-revision',newValue:'2'});
+  c.ctx.window.dispatchEvent(event);
+  reads[0](pauseResponse({revision:1,windows:[],paused:false,now:15}));
+  await assert.rejects(first,/正在同步/);
+  assert.equal(c.run('studyPauseState().revision'),0);
+  const second=c.run('CP_PAUSE.loading');
+  reads[1](pauseResponse({revision:2,windows:[{start:20,end:null}],paused:true,now:21}));
+  await second;
+  assert.equal(c.run('studyPauseState().revision'),2);
+  assert.deepEqual(changes,[2]);
+  assert.equal(closed,1);
+  assert.deepEqual(writes,[]);
+});
+
+test('paused schedule keeps already due and active plans while projecting weak and coverage dates',()=>{
+  const c=context();
+  c.run(`
+    const t=Date.now();
+    CP_PAUSE.state={revision:1,windows:[{start:t-10000,end:null}],paused:true,now:t};
+    CP.data={plans:{
+      due:{lessonId:'due',begun:true,due:t+1000,dueRemaining:-1},
+      later:{lessonId:'later',begun:true,due:t-1000,dueRemaining:1},
+      active:{lessonId:'active',begun:true,due:t+1000,dueRemaining:1,active:{id:'running'}}
+    }};
+    REC={mistakes:{m:{due:t-5000,last:t-20000},eligible:{due:t-5000,last:t-1000}},
+      families:{f:{due:t-5000,dueAnchor:t-20000,last:t-1000}}};
+    courseById=()=>({lessons:[{id:'eplod-0001',dialogue_count:1}]});
+    REC.course={'eplod-0001':{drill:{}}};
+    epDay=()=>'2026-11-27';
+    EplodRecords={coverProgress:(drill,total,today,projectDay)=>({dueToday:projectDay===studyPauseDay,completed:1})};
+  `);
+  assert.deepEqual(Array.from(c.run('cpDueAll().planIds')),['due','active']);
+  assert.equal(c.run('cpWeakDue().mistakes'),1);
+  assert.equal(c.run('cpWeakDue().families'),0);
+  assert.equal(c.run('cpEplodDue()[0].pass'),2);
+});
+
 test('due reminder ships with badge markup, boot watch and hidden-safe styles',()=>{
   const html=fs.readFileSync(new URL('../web/index.html',import.meta.url),'utf8');
   const css=fs.readFileSync(new URL('../web/desk.css',import.meta.url),'utf8');

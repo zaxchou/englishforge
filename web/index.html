@@ -8,7 +8,7 @@
 <link rel="icon" type="image/png" sizes="96x96" href="/assets/brand/t-dot-v1/t-dot-96.png">
 <link rel="apple-touch-icon" sizes="180x180" href="/assets/brand/t-dot-v1/t-dot-180.png">
 <title>TOEFL Lab · 托福自学练习</title>
-<link rel="stylesheet" href="desk.css?v=20261125r4">
+<link rel="stylesheet" href="desk.css?v=20261127r1">
 <link rel="stylesheet" href="lesson-vocab.css?v=20261116r1">
 <link rel="stylesheet" href="number-trainer.css?v=20261116r6">
 <style>
@@ -360,12 +360,13 @@ details.ai-tsec[open] summary{margin-bottom:8px}
 
 </div>
 
-<script src="eplod-records.js?v=37"></script>
+<script src="study-pause.js?v=1"></script>
+<script src="eplod-records.js?v=39"></script>
 <script src="course-plan-model.js?v=20261029r8"></script>
-<script src="course-plan-ui.js?v=20261113r11"></script>
+<script src="course-plan-ui.js?v=20261127r1"></script>
 <script src="root-practice-ui.js?v=e3203ffa489d"></script>
 <script src="speaking-ui.js?v=20261106r6"></script>
-<script src="lesson-vocab-ui.js?v=20261110r4"></script>
+<script src="lesson-vocab-ui.js?v=20261127r1"></script>
 <script>
 'use strict';
 /* ============================================================
@@ -1000,7 +1001,7 @@ function applyLocalAttempt(store, ref, inc) {
     store.mistakes[k] = (m && !m.cleared)
       ? { ...m, n_wrong: (m.n_wrong || 0) + 1, stage: 0, due: t + 864e5, last: t, set: ref.set, subj: ref.subj, mk: ref.mk, gkey: ref.gkey }
       : { n_wrong: 1, stage: 0, added: t, due: t + 864e5, last: t, set: ref.set, subj: ref.subj, mk: ref.mk, gkey: ref.gkey };
-  } else if (t >= revision && ok === true && inc.unsure!==true && m && !m.cleared && t >= (m.last||0) && t >= (m.due || 0)) {
+  } else if (t >= revision && ok === true && inc.unsure!==true && m && !m.cleared && t >= (m.last||0) && t >= reviewRecordDue(m,t)) {
     const next = [3, 7, 14][m.stage] || 14;
     m.stage = (m.stage || 0) + 1;
     if (m.stage >= 4) m.cleared = true;
@@ -1403,11 +1404,12 @@ function renderHome(){
   for(const [k,a] of scopedEntries(REC.attempts))
     if(a.last&&a.last>lastT){lastT=a.last;lastQ=k;}
   /* 今天的行动: 到期复习与背单词纳入首屏(有剩余才出现, 不造新任务) */
-  const dueNow=scopedEntries(REC.mistakes).filter(([,m])=>!m.cleared&&(m.due||0)<=Date.now()).length;
+  const reviewPaused=studyPauseState()?.paused,reviewNow=Date.now();
+  const dueNow=scopedEntries(REC.mistakes).filter(([,m])=>!m.cleared&&reviewRecordDue(m,reviewNow)<=reviewNow).length;
   const t0=new Date();t0.setHours(0,0,0,0);
   const vbQuota=(REC.vocabCfg&&Number.isFinite(Number(REC.vocabCfg.daily)))?REC.vocabCfg.daily:20;
   const vbNewToday=Object.values(REC.vocab||{}).filter(st=>Number(st.born||0)>=t0.getTime()).length;
-  const vbDueN=Object.values(REC.vocab||{}).filter(st=>Number(st.due||0)<=Date.now()).length;
+  const vbDueN=Object.values(REC.vocab||{}).filter(st=>vbDue(st,reviewNow)<=reviewNow).length;
   const vbNewLeft=Math.max(0,vbQuota-vbNewToday), vbLeft=vbDueN+vbNewLeft;
   // 视频与题取"更近"的那个做主卡, 另一个做副卡; 都没有则给引导
   let ch='';
@@ -1421,20 +1423,24 @@ function renderHome(){
   if(lastEL){
     const cp=REC.course[lastEL];
     const f=courseFind(lastEL);const total=f?f.c.lessons[f.ix].dialogue_count:0;
-    const cst=EplodRecords.coverProgress(cp.drill,total,epDay());
+    const cst=epCoverState(cp,total);
     const stars='★'.repeat(cst.completed)+'☆'.repeat(3-cst.completed);
     const watchingE=lastELT>=lastT&&lastELT>=lastVLT;
     const epMd=s=>s?Number(s.slice(5,7))+'/'+Number(s.slice(8,10)):'';
-    const sub=cst.completed>=3?(cst.extra?'★★★★ 四遍完成':'★★★ 三遍完成'+(cst.extraDue?' · '+(cst.extraToday?'第四遍可选':epMd(cst.extraDue)+' 起可选第四遍'):'')):cst.completed?`覆盖背诵 ${stars} · ${cst.dueToday?'今天该背':'待第'+(cst.completed+1)+'遍'+(cst.nextDue?'（'+epMd(cst.nextDue)+'）':'')}`:cp.done?'已学过 · 可开始背诵':(cp.pos>10?('听到 '+fmt(cp.pos)):'☆☆☆ 还没开始背');
+    const sub=reviewPaused&&cst.completed&&!cst.extra?('覆盖背诵 '+stars+' · 复习已暂停'):cst.completed>=3?(cst.extra?'★★★★ 四遍完成':'★★★ 三遍完成'+(cst.extraDue?' · '+(cst.extraToday?'第四遍可选':epMd(cst.extraDue)+' 起可选第四遍'):'')):cst.completed?`覆盖背诵 ${stars} · ${cst.dueToday?'今天该背':'待第'+(cst.completed+1)+'遍'+(cst.nextDue?'（'+epMd(cst.nextDue)+'）':'')}`:cp.done?'已学过 · 可开始背诵':(cp.pos>10?('听到 '+fmt(cp.pos)):'☆☆☆ 还没开始背');
     ch+=`<div class="cont${watchingE?'':' dim'}"><span class="pill t">EnglishPod</span>
       <div class="ct2"><b>${esc(lessonTitle(lastEL))}</b><span>${esc(sub)}</span></div>
       <button data-go="eplod/${encodeURIComponent(lastEL)}">继续精听 →</button></div>`;
   }
-  if(dueNow>0)
+  if(reviewPaused)
+    ch+=`<div class="cont"><span class="pill t">复习已暂停</span>
+      <div class="ct2"><b>复习计划</b><span>恢复后继续计算到期时间</span></div>
+      <button data-go="course/review">打开复习中心 →</button></div>`;
+  if(dueNow>0&&!reviewPaused)
     ch+=`<div class="cont"><span class="pill t">到期复习</span>
       <div class="ct2"><b>错题本</b><span>现在可复习 ${dueNow} 题</span></div>
       <button data-go="exam/review">去复习 →</button></div>`;
-  if(vbLeft>0)
+  if(vbLeft>0&&!reviewPaused)
     ch+=`<div class="cont"><span class="pill t">背单词</span>
       <div class="ct2"><b>今天的背单词</b><span>还剩 ${vbLeft} 张${vbDueN?('（到期 '+vbDueN+' · 新词 '+vbNewLeft+'）'):('（新词 '+vbNewLeft+'）')}</span></div>
       <button data-go="vocab">去背 →</button></div>`;
@@ -1487,10 +1493,10 @@ function renderHome(){
 
   /* ---- 错题本 / 视频课 待办 ---- */
   const ms=scopedEntries(REC.mistakes).filter(([,m])=>!m.cleared);
-  const dueN=ms.filter(([k,m])=>!cpManaged(k)&&(m.due||0)<=Date.now()).length;
-  $('hm-rv-ct').textContent=dueN?('现在可复习 '+dueN+' 题'):(ms.length?'今日已清 · 无到期':'今日无到期');
+  const dueN=ms.filter(([k,m])=>!cpManaged(k)&&reviewRecordDue(m)<=Date.now()).length;
+  $('hm-rv-ct').textContent=reviewPaused?'复习已暂停':dueN?('现在可复习 '+dueN+' 题'):(ms.length?'今日已清 · 无到期':'今日无到期');
   $('hm-review').innerHTML=`<div class="mini"><div class="mv${dueN?'':' zero'}">${dueN||ms.length||'0'}</div>
-      <div class="mk">${ms.length?(dueN?('现在可复习 · 共 '+ms.length+' 题在册'):('下次复习 · 最早 '+Math.max(1,Math.ceil((Math.min(...ms.map(([,m])=>m.due||Date.now()))-Date.now())/864e5))+' 天后')):'还没有错题'}</div>
+      <div class="mk">${reviewPaused?'复习已暂停':ms.length?(dueN?('现在可复习 · 共 '+ms.length+' 题在册'):('下次复习 · 最早 '+Math.max(1,Math.ceil((Math.min(...ms.map(([,m])=>reviewRecordDue(m)||reviewNow))-Date.now())/864e5))+' 天后')):'还没有错题'}</div>
       <button data-go="exam/review">${ms.length?'去复习 →':'查看 →'}</button></div>`;
   let nL=0,nC=0,nWatched=0;
   ((COURSES&&COURSES.series)||[]).forEach(s=>(s.courses||[]).forEach(c=>{if(c.kind==='eplod')return;nL+=c.lesson_count||0;nC++;}));   // EnglishPod 已独立成顶层入口, 不混入视频课计数
@@ -3096,7 +3102,7 @@ function gqConsumeRedo(lessonId) {
 /* ---------- 背单词（万词班词库 · SM-2 间隔重复, beizitie 同参数） ---------- */
 const VB = { bank:null, order:null, cur:null, revealed:false, hint:false, loading:false, err:'', rootMap:{} };
 let VB_TICK=null, VB_QUEUE_T=null, VB_WAKE=null, VB_FLUSHING=false, VB_SPOKEN=null;
-let LV_LESSONS=null, LV_LESSON_KEYS=new Set(), LV_BANNER_LESSON='cfcm-01-01';
+let LV_LESSONS=null, LV_LESSON_KEYS=new Set(), LV_BANNER_LESSON='cfcm-01-01', LV_LOAD=0;
 const VB_QKEY='tfl-vb-queue', VB_PREFIX='tfl-vb-event:';
 const VB_ACK={}, VB_DAYS={}, VB_SEEN=new Set();
 function vbKey(s){ return String(s||'').toLowerCase().replace(/\s+/g,''); }
@@ -3173,6 +3179,10 @@ function vbState(){
   }}catch(e){VB.err=e.message;}
   return state;
 }
+function vbDue(st,now=Date.now()){
+  const raw=Number(st.due||0),anchor=Number(st.at)||raw-Number(st.i)*60000;
+  return studyPauseDue(raw,anchor,now);
+}
 function vbCounts(){
   const now=Date.now(), today=vbDay(), state=vbState();
   let learn=0,due=0,newToday=0,total=0;
@@ -3180,7 +3190,7 @@ function vbCounts(){
   for(const [k,st] of Object.entries(state)){
     total++; if(st.born&&vbDay(st.born)===today)newToday++;
     if(LV_LESSON_KEYS.has(k)) continue;               // 课级词只在课程复习轮出现
-    if(Number(st.due||0)<=now){st.s===99?due++:learn++;}
+    if(vbDue(st,now)<=now){st.s===99?due++:learn++;}
   }
   let pendingNew=0;const seen=new Set([...Object.keys(REC.vocab||{}),...Object.keys(VB_ACK)]);
   try{for(const e of vbPending()){
@@ -3199,10 +3209,10 @@ function vbPick(){
   const now=Date.now(), V=vbState();
   let best=null;
   const own=k=>LV_LESSON_KEYS.has(k);
-  for(const c of VB.order){ if(own(c.k))continue; const st=V[c.k]; if(st&&st.s!==-1&&st.s!==99&&Number(st.due)<=now&&(!best||st.due<best.st.due)) best={c,st}; }
+  for(const c of VB.order){ if(own(c.k))continue; const st=V[c.k]; if(st&&st.s!==-1&&st.s!==99&&vbDue(st,now)<=now&&(!best||vbDue(st,now)<vbDue(best.st,now))) best={c,st}; }
   if(best) return best;                                          // 1) 学习阶梯到期(分钟级, 当场回收)
   best=null;
-  for(const c of VB.order){ if(own(c.k))continue; const st=V[c.k]; if(st&&st.s===99&&Number(st.due)<=now&&(!best||st.due<best.st.due)) best={c,st}; }
+  for(const c of VB.order){ if(own(c.k))continue; const st=V[c.k]; if(st&&st.s===99&&vbDue(st,now)<=now&&(!best||vbDue(st,now)<vbDue(best.st,now))) best={c,st}; }
   if(best) return best;                                          // 2) 已毕业到期(最久未复习优先)
   const quota=(REC.vocabCfg&&REC.vocabCfg.daily!=null)?Number(REC.vocabCfg.daily):20;
   if(vbCounts().newToday<quota){
@@ -3217,8 +3227,10 @@ function mountVocab(){
 }
 async function loadLVLessons(force){
   if(LV_LESSONS&&!force) return LV_LESSONS;
+  const load=++LV_LOAD;
   try{
     const d=await api('/api/vocab/lessons',{signal:AbortSignal.timeout(8000)});
+    if(load!==LV_LOAD)return LV_LESSONS;
     LV_LESSONS=d.lessons||[];
     LV_LESSON_KEYS=new Set(d.keys||[]);
     refreshLessonBanner();
@@ -3246,17 +3258,17 @@ async function refreshLessonBanner(){
     sub.textContent='到期词只走这一轮：两按钮 + 老师讲解，认出即延长间隔'+firstLeft;
     btn.textContent='继续再认';
   }else if(rv.due>0){
-    title.textContent=short+' · 今天 '+rv.due+' 词待再认';
+    title.textContent=short+' · '+(studyPauseState()?.paused?'可再认 ':'今天待再认 ')+rv.due+' 词';
     sub.textContent='到期词只走这一轮：两按钮 + 老师讲解，认出即延长间隔'+firstLeft;
     btn.textContent='开始再认';
   }else if(sess&&!sess.completedAt){
     title.textContent=short+' · 继续认读 '+sess.doneCount+'/'+pick.total;
-    sub.textContent='还剩 '+sess.remaining+' 词'+(rv.tomorrow?(' · 明天 '+rv.tomorrow+' 词到期'):'');
+    sub.textContent='还剩 '+sess.remaining+' 词'+(rv.tomorrow&&!studyPauseState()?.paused?(' · 明天 '+rv.tomorrow+' 词到期'):'');
     btn.textContent='继续认读';
   }else{
     title.textContent=short;
     sub.textContent=pick.total+' 词 · 正面只给英文，认识 / 不认识；不认识看老师讲解，当天再认'
-      +((sess&&rv.tomorrow)?(' · 明天还有 '+rv.tomorrow+' 词到期'):'');
+      +((sess&&rv.tomorrow&&!studyPauseState()?.paused)?(' · 明天还有 '+rv.tomorrow+' 词到期'):'');
     btn.textContent=sess?'查看认读':'开始认读';
   }
 }
@@ -3292,7 +3304,7 @@ function vbRender(){
   const top=(status?'<p role="status" class="vb-note">'+esc(status)+' <button id="vb-sync">重试保存</button> <button id="vb-export">导出待传记录</button></p>':'')+'<div class="vb-top">'
     + '<span class="vb-stat">到期 <b>'+c.due+'</b> · 学习中 <b>'+c.learn+'</b></span>'
     + '<span class="vb-stat">新词今天 <b>'+c.newToday+'</b>/'+quota+'</span>'
-    + '<span class="vb-stat">今天还剩 <b>'+(c.due+c.learn+Math.max(0,quota-c.newToday))+'</b> 张</span>'
+    + (studyPauseState()?.paused?'<span class="vb-stat">复习已暂停</span>':'<span class="vb-stat">今天还剩 <b>'+(c.due+c.learn+Math.max(0,quota-c.newToday))+'</b> 张</span>')
     + '<span class="vb-stat">连续 <b>'+c.streak+'</b> 天</span>'
     + '<span class="vb-quota">配额 <button id="vb-q-less" aria-label="减少新词配额">−</button><b id="vb-q-n">'+quota+'</b><button id="vb-q-more" aria-label="增加新词配额">+</button></span>'
     + '</div>';
@@ -3418,9 +3430,9 @@ async function vbFlushQueue(){
   }
 }
 function vbScheduleWake(){
-  if(lvActive()||document.hidden||!document.querySelector('#v-vocab.on'))return;
-  let wait=60000;
-  for(const st of Object.values(vbState()))if(st.due>Date.now())wait=Math.min(wait,st.due-Date.now());
+  if(studyPauseState()?.paused||lvActive()||document.hidden||!document.querySelector('#v-vocab.on'))return;
+  const now=Date.now();let wait=60000;
+  for(const st of Object.values(vbState())){const due=vbDue(st,now);if(due>now)wait=Math.min(wait,due-now);}
   VB_WAKE=setTimeout(()=>{VB_WAKE=null;vbRender();},Math.max(100,wait));
 }
 function vbStudyGate(){
@@ -3483,7 +3495,7 @@ function renderCourse(){
 function courseSeriesName(n){ return String(n||'').replace(/新D方/g,'新东方'); }
 const EP_LV=[[1,'初级','Elementary'],[2,'中级','Intermediate'],[3,'中高级','Upper Intermediate'],[4,'高级','Advance'],[5,'精通','Proficient']];
 const EP_STAR='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>';
-function epCoverState(lesson,total){return EplodRecords.coverProgress(lesson?.drill,total,epDay());}
+function epCoverState(lesson,total){return EplodRecords.coverProgress(lesson?.drill,total,epDay(),studyPauseDay);}
 function epWholePassed(drill){return Number.isFinite(drill?.wp?.best?.acc)&&drill.wp.best.acc>=.9;}
 /* 覆盖次数决定实心/空心; 整篇通过后, 目录与详情原位换成金色星形。 */
 function epCoverMarks(state,gold){
@@ -4975,6 +4987,8 @@ function epCoverUpdate(){
   /* 1-3-7 日程(2026-11-11): 下一次是第 3 天还是第 7 天; M/D 短日期 */
   const nextDayNo=n>=1&&n<3?(n===1?3:7):null;
   const md=s=>s?s.slice(5).replace('-','/'):'';
+  const paused=studyPauseState()?.paused;
+  const afterResume=day=>'恢复后 '+Math.max(1,(Date.parse(day)-Date.parse(epDay()))/864e5)+' 天';
   if(n>=3&&!st.p.done){   /* 三遍盖满即自动记为已学过, 目录勾与计数同步, 无需手动标记 */
     st.p.done=true;st.p.at=Date.now();recSave();renderCourseNav();
     const meta=$('cs-main')?.querySelector('.csp-meta');
@@ -4988,7 +5002,7 @@ function epCoverUpdate(){
     const done=k<=n,current=k===n+1;
     const date=dates[k-1-(recovered?1:0)];
     const detail=done?(recovered&&k===1?'历史补认':'<time>'+date.slice(5)+'</time>')
-      :current?(todayStamped?(nextDue?'第'+nextDayNo+'天 <time>'+md(nextDue)+'</time>':'待复背')
+      :current?(paused&&nextDue?(dueToday?'可复背':afterResume(nextDue)):todayStamped?(nextDue?'第'+nextDayNo+'天 <time>'+md(nextDue)+'</time>':'待复背')
         :dueToday?'今天到期'
         :todayN?'<span>今天</span><span>'+todayN+'/'+need+' 句</span>'
         :nextDue?'第'+nextDayNo+'天 <time>'+md(nextDue)+'</time>'
@@ -4997,10 +5011,10 @@ function epCoverUpdate(){
   }
   /* 三遍毕业后显示可选第四遍, 完成日期不随后续练习改变。 */
   if(n>=3){
-    const extraDetail=state.extra?'<time>'+md(state.extraDate)+'</time>':!todayStamped&&todayN?'今天 '+todayN+'/'+need+' 句':state.extraToday?'随时可背':state.extraDue?'<time>'+md(state.extraDue)+'</time>起':'随时可背';
+    const extraDetail=state.extra?'<time>'+md(state.extraDate)+'</time>':!todayStamped&&todayN?'今天 '+todayN+'/'+need+' 句':state.extraToday?'随时可背':state.extraDue?(paused?afterResume(state.extraDue):'<time>'+md(state.extraDue)+'</time>起'):'随时可背';
     stamps+='<div class="ep-cover-step extra'+(state.extra?' complete':'')+'"><span class="ep-round extra'+(gold?' gold':'')+(state.extra?' complete':'')+'" role="img" aria-label="第四遍（可选）'+(state.extra?'已完成':'未完成')+'">'+EP_STAR+'</span><span class="ep-cover-label"><b>第四遍</b><small><span>可选</span><span>'+extraDetail+'</span></small></span></div>';
   }
-  const msg=n>=3?(state.extra?'四遍已完成 · 已获第四颗星'
+  const msg=paused&&!state.extra&&(nextDue||state.extraDue)?'复习排期已暂停 · 可以主动练习':n>=3?(state.extra?'四遍已完成 · 已获第四颗星'
     :state.extraToday?'三遍复背已完成 · 可选背第四遍，再得一颗星'
     :state.extraDue?'三遍复背已完成 · 建议 '+md(state.extraDue)+' 再背一遍，可得第四颗星'
     :'三遍复背已完成')
@@ -5525,18 +5539,23 @@ document.querySelectorAll('#rv-seg button').forEach(b => {
     renderReview();
   };
 });
+function reviewRecordDue(record,now=Date.now()){
+  return studyPauseDue(Number(record?.due||0),Number(record?.dueAnchor||record?.last||record?.added),now);
+}
 function famStateOf(key) {
   return REC.families[key] || null;
 }
 function famAttempt(key, ok) {
-  const f = REC.families[key] = REC.families[key] || { added: Date.now(), stage: 0, n_wrong: 0, due: 0 };
-  f.last = Date.now();
-  if (ok === false) { f.n_wrong = (f.n_wrong || 0) + 1; f.stage = 0; f.due = Date.now() + 864e5; }
-  else if (Date.now() >= (f.due || 0)) {
+  const now=Date.now(),f=REC.families[key] ||= {added:now,stage:0,n_wrong:0,due:0};
+  const due=reviewRecordDue(f,now);
+  f.dueAnchor ||= f.last || f.added;
+  f.last=now;
+  if (ok === false) { f.n_wrong = (f.n_wrong || 0) + 1; f.stage = 0; f.due = now + 864e5; f.dueAnchor=now; }
+  else if (now >= due) {
     const next = [3, 7, 14][f.stage] || 14;
     f.stage = (f.stage || 0) + 1;
     if (f.stage >= 4) f.cleared = true;   // 毕业: 1/3/7/14 四轮通过
-    else f.due = Date.now() + next * 864e5;
+    else { f.due=now + next * 864e5; f.dueAnchor=now; }
   }
 }
 async function fetchFamilies() {
@@ -5555,7 +5574,7 @@ async function renderFamilies() {
   if (FAM_UI.key) return;   // 复习面板打开中, 不覆盖
   const live = fams.filter(f => { const st = famStateOf(f.key); return !(st && st.cleared); });
   const doneN = fams.length - live.length;
-  const dueN = live.filter(f => { const st = famStateOf(f.key); return !st || (st.due || 0) <= Date.now(); }).length;
+  const dueN = live.filter(f => { const st = famStateOf(f.key); return !st || reviewRecordDue(st) <= Date.now(); }).length;
   $('rv-ct').textContent = live.length + ' 家族 · 今日 ' + dueN;
   stats.innerHTML = [
     ['家族', live.length, ''],
@@ -5563,19 +5582,19 @@ async function renderFamilies() {
     ['已毕业', doneN, ''],
   ].map(([k, v, c]) => '<div class="wk"><div class="k" style="font-size:12px;color:var(--t2)">' + k + '</div>'
     + '<div style="font-size:20px;font-weight:500;line-height:1.2' + (c === 'warn' ? ';color:var(--warn)' : '') + '">' + v + '</div></div>').join('');
-  $('rv-due').textContent = dueN ? ('今天 ' + dueN + ' 家族到期') : '';
+  $('rv-due').textContent=studyPauseState()?.paused?'复习已暂停':dueN?('今天 '+dueN+' 家族到期'):'';
   if (!fams.length) {
     list.innerHTML = '<div class="empty">还没有家族数据——先去词汇课生成几节课后练，词根/词缀会自动归到这里。</div>';
     return;
   }
   const order = live.slice().sort((a, b) => {
     const sa = famStateOf(a.key), sb = famStateOf(b.key);
-    const da = sa ? (sa.due || 0) : 0, db = sb ? (sb.due || 0) : 0;   // 未复习过的排最前
+    const da=reviewRecordDue(sa), db=reviewRecordDue(sb);   // 未复习过的排最前
     return da - db;
   });
   list.innerHTML = order.map((f, ix) => {
     const st = famStateOf(f.key);
-    const due = st ? (st.due || 0) : 0;
+    const due=reviewRecordDue(st);
     const col = !st ? 'var(--acc)' : (due <= Date.now() ? 'var(--bad)' : (due <= Date.now() + 3 * 864e5 ? 'var(--warn)' : 'var(--ok)'));
     const dt = !st ? '新家族 · 未复习过' : (due <= Date.now() ? '现在可复习' : '距复习 ' + Math.max(1, Math.ceil((due - Date.now()) / 864e5)) + ' 天');
     return '<div class="famcard rise" style="border-left:3px solid ' + col + ';--i:' + ix + '">'
@@ -5677,8 +5696,8 @@ async function startDueReview(button){
   try{
     const have=await api('/api/ai/quiz');const revisions=have.revisions||{};
     const entries=[...scopedEntries(REC.mistakes),...Object.entries(REC.mistakes||{}).filter(([k])=>k.startsWith('gen/'))]
-      .filter(([k,m])=>!cpManaged(k)&&m&&!m.cleared&&(m.due||0)<=Date.now()&&(!revisions[k]||(m.last||0)>=revisions[k]))
-      .sort((a,b)=>(a[1].due||0)-(b[1].due||0));
+      .filter(([k,m])=>!cpManaged(k)&&m&&!m.cleared&&reviewRecordDue(m)<=Date.now()&&(!revisions[k]||(m.last||0)>=revisions[k]))
+      .sort((a,b)=>reviewRecordDue(a[1])-reviewRecordDue(b[1]));
     const dueKeys=new Set(entries.map(([k])=>k)),refs=[],seen=new Set(),quizzes=new Map(),skipped=[];
     for(const [key] of entries){
       if(seen.has(key))continue;
@@ -5919,7 +5938,7 @@ async function renderReview(){
   const ms=[...scopedEntries(REC.mistakes).filter(([k,m])=>!cpManaged(k)&&m&&!m.cleared),
             ...Object.entries(REC.mistakes||{}).filter(([k,m])=>k.startsWith('gen/')&&(!cpManaged(k)||window.cpShowWrong)&&m&&!m.cleared && (!revisions[k] || (m.last || 0) >= revisions[k])),
             ...Object.entries(REC.mistakes||{}).filter(([k,m])=>k.startsWith('exam/')&&m&&!m.cleared)];
-  const dueN=ms.filter(([k,m])=>!cpManaged(k)&&(m.due||0)<=Date.now()).length;
+  const dueN=ms.filter(([k,m])=>!cpManaged(k)&&reviewRecordDue(m)<=Date.now()).length;
   $('rv-stats').innerHTML=[
     ['题目错题',ms.length,''],
     ['现在可复习',dueN,dueN?'warn':''],
@@ -5927,7 +5946,7 @@ async function renderReview(){
     ['累计作答',reviewEntries(REC.attempts).reduce((a,[,x])=>a+(x.n||0),0),''],
   ].map(([k,v,c])=>`<div class="wk"><div class="k" style="font-size:12px;color:var(--t2)">${k}</div>
     <div style="font-size:20px;font-weight:500;line-height:1.2${c==='warn'?';color:var(--warn)':''}">${v}</div></div>`).join('');
-  $('rv-due').textContent=dueN?('今天 '+dueN+' 题到期'):'';
+  $('rv-due').textContent=studyPauseState()?.paused?'复习已暂停':dueN?('今天 '+dueN+' 题到期'):'';
   $('rv-ct').textContent=ms.length+' 题 · 今日 '+dueN;
   const batch=$('rv-batch');batch.hidden=!dueN;batch.disabled=false;
   batch.textContent='复习全部到期题 · '+dueN;
@@ -5936,7 +5955,7 @@ async function renderReview(){
     $('rv-list').innerHTML='<div class="empty">'+($('rv-voice')?.querySelector('.witem')?'暂无其他题目错题。':'还没有错题。做题答错会自动进这里。')+'</div>';
     return;
   }
-  ms.sort((a,b)=>(a[1].due||0)-(b[1].due||0));
+  ms.sort((a,b)=>reviewRecordDue(a[1])-reviewRecordDue(b[1]));
   await aiHave();   // 已生成清单, 按钮上标「已生成」
   /* 同源题收拢成组(真实题=套题·科目·模块; 课后练=课), 组可折叠; 组头给材料名, 行内不再显示 qid/材料名 */
   const groupOf = k => k.startsWith('gen/') ? 'gen/' + k.split('/')[1] + '/' + k.split('/')[2] : k.startsWith('exam/') ? 'exam/' + k.split('/')[1] : k.split('/').slice(0, 3).join('/');
@@ -5970,9 +5989,9 @@ async function renderReview(){
       </div></div>
     <div class="ai-explain" hidden></div>`;
   for (const [gk, g] of groups) {
-    const gDue = g.items.filter(([k, m]) => !cpManaged(k)&&(m.due || 0) <= Date.now()).length;
+    const gDue = g.items.filter(([k, m]) => !cpManaged(k)&&reviewRecordDue(m) <= Date.now()).length;
     const rows = g.items.map(([k, m]) => {
-      const due = m.due || 0;
+      const due=reviewRecordDue(m);
       const col = due <= Date.now() ? 'var(--bad)' : (due <= Date.now() + 3 * 864e5 ? 'var(--warn)' : 'var(--ok)');
       const dt = cpManaged(k)?'由本课盖章计划安排':due <= Date.now() ? '现在可复习' : '距复习 ' + Math.max(1, Math.ceil((due - Date.now()) / 864e5)) + ' 天';
       const [, subj] = k.split('/');
@@ -6050,9 +6069,9 @@ function renderStats(){
   const vwt=Object.values(REC.course||{}).reduce((a,c)=>a+(c.wt!=null?c.wt:Math.floor(c.pos||0)),0);
   $('st-vwt').textContent=fmt(vwt);   /* 审计: 与"今日学习/累计学习"统一为 00:00 族格式 */
   $('st-streak').textContent=String(st.days||0);
-  const dueN=msAll.filter(([,m])=>(m.due||0)<=Date.now()).length;
+  const dueN=msAll.filter(([,m])=>reviewRecordDue(m)<=Date.now()).length;
   $('st-mist').textContent=String(msAll.length);
-  $('st-mist-l').textContent=dueN?('现在可复习 '+dueN+' 题'):'待复习';
+  $('st-mist-l').textContent=studyPauseState()?.paused?'复习已暂停':dueN?('现在可复习 '+dueN+' 题'):'待复习';
   $('st-go-review').style.display=msAll.length?'':'none';
   $('st-go-review').onclick=()=>nav('review');
   /* 错题分布: 行可点 → 错题本 */
@@ -6156,7 +6175,7 @@ function renderStats(){
     epRD+=Object.values(dr.rd||{}).filter(v=>v&&v.acc!=null&&v.acc>=0.9).length;
     epSD+=Object.entries(dr.sd||{}).filter(([i,v])=>EplodRecords.speedPassed(v,dr.rd?.[i])).length;
     const f=courseFind(lid);const epTotal=f?f.c.lessons[f.ix].dialogue_count:0;
-    const stp=EplodRecords.coverProgress(dr,epTotal,epDay());
+    const stp=EplodRecords.coverProgress(dr,epTotal,epDay(),studyPauseDay);
     if(stp.completed>=3)epR3++;else if(stp.completed>=1||Object.keys(dr.stampDays||{}).length)epR2++;
   }
   const epTotalAll=(()=>{const c=courseById('eplod-01');return c?c.lessons.length:0;})();
@@ -6240,7 +6259,7 @@ async function boot(){
         }
       }catch(e){}},60000);
     }catch(e){}
-    await cpLoad().catch(()=>{});
+    await Promise.allSettled([cpLoad(),studyPauseLoad()]);
     renderHome();
     route();
     /* watch 放在 route 之后: 课程页刷新先让页面就位, 避免就位前弹窗 */
@@ -6268,6 +6287,14 @@ async function boot(){
   }
 }
 window.addEventListener('resize',()=>document.querySelectorAll('.seg').forEach(moveThumb));
+window.addEventListener('study-pause-changed',()=>{
+  if(document.querySelector('#v-home.on'))renderHome();
+  if(document.querySelector('#v-stats.on'))renderStats();
+  if(document.querySelector('#v-course.on')&&EP.st?.d&&$('ep-cov'))epCoverUpdate();
+  if(document.querySelector('#v-exam.on')&&!$('exam-pane-review').hidden&&!FAM_UI.key)renderReview();
+  if(document.querySelector('#v-vocab.on')&&!lvActive())vbRender();
+  if(LV_LESSONS||document.querySelector('#v-vocab.on'))loadLVLessons(true);
+});
 boot();
 </script>
 <script type="module">

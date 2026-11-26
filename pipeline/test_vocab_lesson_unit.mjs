@@ -166,6 +166,57 @@ const cont = (s, index, vocab, key) => LV.applyAction({ session: s, index, vocab
   assert.deepEqual(fams, [6, 5], '族 6 最久到期；上限只截掉后面的族');
 }
 
+// —— Pause-aware eligibility and review ordering, including the legacy SM-2 anchor.
+{
+  const cards = ['older-raw', 'newer-raw', 'held', 'due-before'].map((key, group) => ({ key, group }));
+  const index = LV.indexCards({ lessonId: 't', cards });
+  const vocab = {
+    'older-raw': { at: NOW - 4 * DAY, due: NOW - 2.125 * DAY },
+    'newer-raw': { at: NOW - 0.5 * DAY, due: NOW - 0.25 * DAY },
+    held: { i: 2 * 1440, due: NOW - 1.5 * DAY },
+    'due-before': { at: NOW - 4 * DAY, due: NOW - 3.5 * DAY }
+  };
+  const studyPause = { revision: 2, windows: [{ start: NOW - 3 * DAY, end: NOW - DAY }] };
+  const before = structuredClone(vocab);
+  assert.deepEqual(LV.reviewInfo(index, vocab, NOW, studyPause), {
+    due: 3, tomorrow: 1, nextDueAt: NOW + 0.5 * DAY, paused: false
+  });
+  assert.equal(LV.reviewInfo(index, vocab, NOW).due, 4);
+  const review = LV.createReviewSession(index, vocab, NOW, 'r1', { studyPause });
+  assert.deepEqual(review.order, ['due-before', 'newer-raw', 'older-raw']);
+  const paused = { revision: 1, windows: [{ start: NOW - 3 * DAY, end: null }] };
+  const during = NOW - DAY;
+  assert.deepEqual(LV.createReviewSession(index, vocab, during, 'r2', { studyPause: paused }).order, ['due-before']);
+  assert.equal(LV.reviewInfo(index, vocab, during, paused).paused, true);
+  assert.deepEqual(vocab, before);
+}
+
+// —— Finishing a session stores the raw deadline and the selected word's original anchor.
+{
+  const { index, session, vocab } = fresh(['held', 'overdue']);
+  vocab.held = { at: NOW - 3 * DAY, due: NOW - DAY };
+  vocab.overdue = { e: 2.5, i: 1440, s: 99, r: 1, n: 1, at: NOW - 4 * DAY, due: NOW - 3 * DAY };
+  const studyPause = { revision: 1, windows: [{ start: NOW - 2 * DAY, end: null }] };
+  const grade = key => LV.applyAction({ session, index, vocab, key, action: 'know', now: NOW, nextExisting: sm2Like, studyPause });
+  assert.equal(grade('held').wrote, false);
+  assert.equal(grade('overdue').wrote, true);
+  assert.equal(vocab.held.due, NOW - DAY);
+  assert.equal(vocab.overdue.at, NOW);
+  assert.equal(vocab.overdue.due, NOW + 2.5 * DAY);
+  assert.equal(session.nextDueAt, NOW - DAY);
+  assert.equal(session.nextDueAnchorAt, NOW - 3 * DAY);
+  assert.equal(LV.publicSession(session, { vocab, now: NOW, studyPause }).nextDueAt, NOW + DAY);
+
+  const legacy = { ...session };
+  delete legacy.nextDueAnchorAt;
+  assert.equal(LV.publicSession(legacy, { vocab, now: NOW, studyPause }).nextDueAt, NOW + DAY);
+  vocab.held = { at: NOW + DAY, due: NOW + 4 * DAY };
+  assert.equal(LV.publicSession(session, { vocab, now: NOW + DAY, studyPause }).nextDueAt, NOW + 2 * DAY);
+  const resumed = { revision: 2, windows: [{ start: NOW - 2 * DAY, end: NOW + DAY }] };
+  assert.equal(LV.publicSession(session, { vocab, now: NOW + 3 * DAY, studyPause: resumed }).nextDueAt, NOW + 2 * DAY);
+  assert.equal(session.nextDueAt, NOW - DAY);
+}
+
 // —— 事件幂等与冲突
 {
   const { index, session, vocab } = fresh(['a']);

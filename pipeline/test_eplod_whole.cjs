@@ -95,6 +95,7 @@ test('目录金星: 整篇通过门槛与覆盖次数分别保留', () => {
   sandbox.REC = { course: {} };
   sandbox.EP = { cache: {} };
   sandbox.epDay = () => '2026-11-02';
+  sandbox.studyPauseDay = due => due;
   vm.runInContext(html.slice(html.indexOf('const EP_STAR='), html.indexOf('function epNavCoverUpdate(')) + ';this.__navCover=epNavCoverHTML;', sandbox);
   const lesson = { id: 'eplod-0023', ep: '0023', dialogue_count: 3 };
   for (const [acc, gold] of [[undefined, false], [.899, false], [.9, true], [.98, true], [NaN, false], [Infinity, false], ['0.98', false]]) {

@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import Model from './web/course-plan-model.js';
+import StudyPause from './web/study-pause.js';
 export { Model };
 const clone = x => JSON.parse(JSON.stringify(x));
 function fail(message, code = 'plan_conflict', status = 409) { const e = new Error(message); e.code = code; e.status = status; throw e; }
@@ -51,11 +52,15 @@ function publicActive(round) {
     version: round.version, corrections: clone(round.corrections), step: p === 'main' ? round.order.find(id => !Object.hasOwn(round.answers, id)) :
       p === 'correction' ? corrections.find(id => !Object.hasOwn(round.corrections, id)) : null };
 }
-export function publicPlan(root, lid, now) {
+export function publicPlan(root, lid, now, studyPause) {
   const p = Object.hasOwn(root.plans, lid) ? root.plans[lid] : null; if (!p) return null;
-  const complete = p.stamps.length >= root.settings.target;
-  return { lessonId: lid, stamps: clone(p.stamps), target: root.settings.target, due: complete ? null : p.due,
-    complete, active: complete ? null : publicActive(p.active), pendingHistorical: !!p.stamps.at(-1)?.historical && !complete && p.due > now };
+  const last = p.stamps.at(-1), complete = p.stamps.length >= root.settings.target;
+  // Migrated slots count from activation. A new lesson's initial due is its creation time.
+  const anchor = last?.at ?? (last?.historical || p.historicalSlot != null ? root.activationAt : p.due);
+  const due = complete ? null : StudyPause.projectDue(studyPause, p.due, anchor, now);
+  return { lessonId: lid, stamps: clone(p.stamps), target: root.settings.target, due, dueRemaining: complete ? null : due - now,
+    paused: StudyPause.paused(studyPause), complete, active: complete ? null : publicActive(p.active),
+    pendingHistorical: !!last?.historical && !complete && due > now };
 }
 // All clocks are supplied by the server; the domain never consumes a client timestamp for scheduling.
 export function ensurePlans(records, quizzes, now, id = randomUUID) {
@@ -93,7 +98,7 @@ export function ensurePlans(records, quizzes, now, id = randomUUID) {
 export function summary(records, quizzes, now) {
   const root = records.coursePlan;
   const availableLessonIds = Object.keys(root.plans).filter(lid => Model.coreQuestions(quizzes[lid]).length);
-  const plans = Object.fromEntries(availableLessonIds.map(lid => [lid, publicPlan(root, lid, now)]));
+  const plans = Object.fromEntries(availableLessonIds.map(lid => [lid, publicPlan(root, lid, now, records.studyPause)]));
   const completed = new Set(Object.entries(root.plans).filter(([, p]) => p.stamps.some(s => !s.historical && s.at >= Model.dayStart(now) && s.at < Model.dayStart(now) + Model.DAY)).map(([lid]) => lid));
   const todayCompleted = completed.size, remainingToday = Math.max(0, root.settings.daily - todayCompleted);
   const engaged = engagement(records, root);
@@ -107,16 +112,18 @@ export function summary(records, quizzes, now) {
   // Resumable rounds remain visible even if another device used today's recommendation capacity.
   const active = eligible.filter(lid => plans[lid].active);
   const recommendations = [...active, ...eligible.filter(lid => !plans[lid].active && !completed.has(lid)).slice(0, Math.max(0, remainingToday - active.length))];
-  return { settings: clone(root.settings), plans, recommendations, todayCompleted, remainingToday, activationAt: root.activationAt, availableLessonIds };
+  return { settings: clone(root.settings), plans, recommendations, todayCompleted, remainingToday, activationAt: root.activationAt,
+    availableLessonIds, paused: StudyPause.paused(records.studyPause), pauseRevision: records.studyPause?.revision ?? 0 };
 }
 export function startPlan(records, quizzes, input, now, id = randomUUID) {
-  const root = records.coursePlan, p = Object.hasOwn(root.plans, input.lessonId) ? root.plans[input.lessonId] : null, quiz = quizzes[input.lessonId];
-  if (!p || !Model.coreQuestions(quiz).length) fail('lesson has no managed core questions', 'lesson_unavailable', 404);
-  if (p.active) return { plan: publicPlan(root, input.lessonId, now), settings: clone(root.settings) };
-  if (p.stamps.length >= root.settings.target) fail('course plan complete', 'plan_complete');
-  if (p.due > now) fail('course plan not due; autonomous practice is available', 'plan_not_due');
-  p.active = newRound(quiz, now, id);
-  return { plan: publicPlan(root, input.lessonId, now), settings: clone(root.settings) };
+  const root = records.coursePlan, quiz = quizzes[input.lessonId];
+  const plan = publicPlan(root, input.lessonId, now, records.studyPause);
+  if (!plan || !Model.coreQuestions(quiz).length) fail('lesson has no managed core questions', 'lesson_unavailable', 404);
+  if (plan.active) return { plan, settings: clone(root.settings) };
+  if (plan.complete) fail('course plan complete', 'plan_complete');
+  if (plan.dueRemaining > 0) fail('course plan not due; autonomous practice is available', 'plan_not_due');
+  root.plans[input.lessonId].active = newRound(quiz, now, id);
+  return { plan: publicPlan(root, input.lessonId, now, records.studyPause), settings: clone(root.settings) };
 }
 function interval(settings, stamp, count) {
   const base = settings.intervals[count - 1] || settings.intervals.at(-1) || 3;
@@ -130,7 +137,7 @@ export function finishPlan(records, quizzes, input, now) {
   const root = records.coursePlan, p = Object.hasOwn(root.plans, input.lessonId) ? root.plans[input.lessonId] : null;
   if (!['hard', 'good', 'easy'].includes(input.rating)) fail('invalid rating', 'invalid_rating', 400);
   if (!p || typeof input.roundId !== 'string') fail('round not found', 'round_mismatch');
-  if (p.stamps.some(s => s.id === input.roundId)) return { plan: publicPlan(root, input.lessonId, now), settings: clone(root.settings) };
+  if (p.stamps.some(s => s.id === input.roundId)) return { plan: publicPlan(root, input.lessonId, now, records.studyPause), settings: clone(root.settings) };
   if (!p.active || p.active.id !== input.roundId) fail('round no longer active', 'round_mismatch');
   if (!Model.coreQuestions(quizzes[input.lessonId]).length || p.active.version !== version(quizzes[input.lessonId])) fail('question version changed', 'question_version_changed');
   if (phase(p.active) !== 'finish') fail('core coverage and one correction per wrong/unsure answer required', 'round_incomplete');
@@ -140,7 +147,7 @@ export function finishPlan(records, quizzes, input, now) {
   if (quizzes[input.lessonId].src === 'root') { p.archivedRounds ||= []; p.archivedRounds.push({ ...p.active, finishedAt: now }); }
   p.stamps.push(stamp); p.active = null;
   p.due = now + interval(root.settings, stamp, p.stamps.length) * Model.DAY;
-  return { plan: publicPlan(root, input.lessonId, now), settings: clone(root.settings) };
+  return { plan: publicPlan(root, input.lessonId, now, records.studyPause), settings: clone(root.settings) };
 }
 export function updateSettings(records, quizzes, input, now) {
   const root = records.coursePlan;
@@ -179,7 +186,7 @@ export function applyPlanAttempt(records, quizzes, inc, now) {
     const archived = quiz?.src === 'root' && p?.archivedRounds?.find(r => r.id === inc.planRound);
     const accepted = archived?.[inc.planPhase === 'main' ? 'answers' : 'corrections']?.[parsed.id];
     if (!accepted || accepted.letter !== inc.answer || accepted.unsure !== (inc.unsure === true)) fail('round no longer active; only an accepted answer can be confirmed', 'round_mismatch');
-    return publicPlan(root, parsed.lessonId, now);
+    return publicPlan(root, parsed.lessonId, now, records.studyPause);
   }
   if (p.active.version !== version(quiz)) fail('question version changed', 'question_version_changed');
   const q = Model.coreQuestions(quiz).find(q => q.id === parsed.id);
@@ -193,7 +200,7 @@ export function applyPlanAttempt(records, quizzes, inc, now) {
     const ok = quiz.src === 'root' && q.kind === 'recall' ? inc.answer.trim().toLowerCase() === q.answer.toLowerCase() : inc.answer === q.answer;
     dest[q.id] = { letter: inc.answer, ok, unsure: inc.unsure === true };
   }
-  return publicPlan(root, parsed.lessonId, now);
+  return publicPlan(root, parsed.lessonId, now, records.studyPause);
 }
 export function createCoursePlanHandler(o) {
   function commit(next) {
@@ -252,13 +259,17 @@ export function createCoursePlanHandler(o) {
             round.wordGrades[q.word] = id;
           }
         }
-        out = { plan: publicPlan(work.coursePlan, input.lessonId, now), round: { ...publicActive(round), archived: !!archived,
+        out = { plan: publicPlan(work.coursePlan, input.lessonId, now, work.studyPause), round: { ...publicActive(round), archived: !!archived,
           finishedAt: round.finishedAt || null, completed: !!plan.stamps.find(s => s.id === round.id) },
           settings: clone(work.coursePlan.settings), vocab: work.vocab || {} };
       } else out = p.endsWith('/start') ? startPlan(work, quizzes, input, now) : p.endsWith('/finish') ? finishPlan(work, quizzes, input, now) :
         p.endsWith('/settings') ? updateSettings(work, quizzes, input, now) : summary(work, quizzes, now);
       commit(work); sendJSON(res, 200, out);
-    } catch (e) { sendJSON(res, e.status || 503, { error: e.message, code: e.code || 'plan_not_persisted', plan: publicPlan(o.records().coursePlan || { plans: {} }, input.lessonId, now) }); }
+    } catch (e) {
+      const records = o.records();
+      sendJSON(res, e.status || 503, { error: e.message, code: e.code || 'plan_not_persisted',
+        plan: publicPlan(records.coursePlan || { plans: {} }, input.lessonId, now, records.studyPause) });
+    }
     return true;
   } };
 }

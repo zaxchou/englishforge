@@ -155,7 +155,8 @@
     const base=s.nextDueAt||(now()+3*864e5), d=new Date(base);
     const due=(d.getMonth()+1)+' 月 '+d.getDate()+' 日';
     const overdue=base<now();
-    const dueLine=overdue?'这批词的复习时间已到 · 背单词页会出现它们。'
+    const paused=studyPauseState()?.paused;
+    const dueLine=paused?'复习排期已暂停。恢复后继续计算到期时间。':overdue?'这批词的复习时间已到 · 背单词页会出现它们。'
       :(review?'最近的到期日在 <b>'+due+'</b> · 届时仍先只见英文，想不起来再看卡。':'新认的词约 <b>'+due+'</b> 到期 · 到期时仍先只见英文，想不起来再看卡。');
     const remainDue=(reviewInfo&&reviewInfo.due)||0;
     /* 复习做完但本课认读还没过完 → 直接给认读入口，不必退回横幅 */
@@ -168,7 +169,7 @@
       + '<div><span>看卡后认出</span><b>'+later+'</b></div></div>'
       + hardPanel()
       + recallPanel()
-      + '<p class="lv-due">'+dueLine+((reviewInfo&&reviewInfo.tomorrow)?' · 明天还有 <b>'+reviewInfo.tomorrow+'</b> 词到期':'')+'</p>'
+      + '<p class="lv-due">'+dueLine+((!paused&&reviewInfo&&reviewInfo.tomorrow)?' · 明天还有 <b>'+reviewInfo.tomorrow+'</b> 词到期':'')+'</p>'
       + '<div class="lv-row">'
       + (remainDue>0?'<button class="lv-btn pri" type="button" data-lv="next-review"'+(busy?' disabled':'')+'>继续再认（还剩 '+remainDue+' 词）</button>':'')
       + (firstLeft>0?'<button class="lv-btn'+(remainDue>0?'':' pri')+'" type="button" data-lv="next-first"'+(busy?' disabled':'')+'>继续认读（还剩 '+firstLeft+' 词）</button>':'')
@@ -410,5 +411,16 @@
     else if(e.key==='2'){ e.preventDefault(); const b=document.querySelector('[data-lv="again"]'); if(b&&!busy) b.click(); }
   });
 
+  window.addEventListener('study-pause-changed',async({detail})=>{
+    if(!active||!session?.completedAt||busy)return;
+    const t=token;
+    try{
+      const result=await api('/api/vocab/lesson?id='+encodeURIComponent(lessonId),{signal:AbortSignal.timeout(8000)});
+      if(t!==token||!active||busy||!session?.completedAt||detail.revision!==studyPauseState()?.revision)return;
+      const current=slot==='review'?result.reviewSession:result.session;
+      if(!current||current.roundId!==session.roundId)return;
+      session=current;reviewInfo=result.review;render();
+    }catch{}
+  });
   window.LV={open,leave,isActive:()=>active};
 })();

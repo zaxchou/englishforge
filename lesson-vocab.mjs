@@ -4,6 +4,8 @@
    - tries=0 首次就认出：新词 3 天；到期旧词按良好延长；未到期旧词不写。
    - tries=1 看卡后认出：新词次日（1 天）；已有记录一律按遗忘处理（间隔重置 1 天、ease-0.2）。
    - tries>=2 或轮末再确认（rechecked）：只确认，不再写调度。 */
+import StudyPause from './web/study-pause.js';
+
 export const LESSON_ID = 'cfcm-01-01';
 export const FIRST_INTERVAL_MIN = 3 * 24 * 60;   // 首次认出约 3 天（用户定的策略）
 export const RELEARN_INTERVAL_MIN = 24 * 60;     // 看卡后认出：次日再确认
@@ -40,8 +42,26 @@ export function newSession(index, now, roundId) {
   };
 }
 
-export function publicSession(s) {
+function dueAnchor(st) {
+  return Number.isFinite(st.at) && st.at > 0 ? st.at : Number(st.due) - Number(st.i) * 60000;
+}
+
+function projectedDue(st, now, studyPause) {
+  return StudyPause.projectDue(studyPause, Number(st.due), dueAnchor(st), now);
+}
+
+export function publicSession(s, { vocab, now, studyPause } = {}) {
   if (!s) return null;
+  let nextDueAt = s.nextDueAt || null;
+  if (nextDueAt !== null && studyPause?.windows?.length) {
+    let anchor = s.nextDueAnchorAt;
+    if (!Number.isFinite(anchor)) {
+      // Older sessions saved only the raw deadline. Recover its word anchor if it still matches.
+      const word = s.order.map(key => vocab?.[key]).find(st => st && Number(st.due) === nextDueAt);
+      anchor = word ? dueAnchor(word) : s.completedAt;
+    }
+    nextDueAt = StudyPause.projectDue(studyPause, nextDueAt, anchor, now);
+  }
   const doneCount = Object.keys(s.done || {}).length;
   const current = s.queue[0] || null;
   const again = s.queue.filter(k => !s.done[k] && (s.tries[k] || 0) > 0).length;
@@ -50,7 +70,7 @@ export function publicSession(s) {
   return {
     roundId: s.roundId, phase: s.phase || 'first',
     startedAt: s.startedAt, updatedAt: s.updatedAt,
-    completedAt: s.completedAt || null, nextDueAt: s.nextDueAt || null,
+    completedAt: s.completedAt || null, nextDueAt,
     total: s.order.length, remaining: s.queue.length, doneCount, again,
     current, front: s.front ? 1 : 0,
     done: s.done, rechecked: s.rechecked || {},
@@ -65,23 +85,25 @@ export function publicSession(s) {
    到期量超过单轮上限也不会让同一族连续几轮被截掉），同一时刻到期的族随机排序。
    单轮上限只管条数，防洪峰。 */
 export function createReviewSession(index, vocab, now, roundId, opts = {}) {
-  const due = dueKeys(index, vocab, now);
-  if (!due.length) return null;
-  const cap = Math.max(1, Math.min(200, Number(opts.reviewCap) || REVIEW_CAP));
   const byGroup = new Map();
-  for (const k of due) {
-    const g = Number((index.byKey.get(k) || {}).group || 0);
-    if (!byGroup.has(g)) byGroup.set(g, []);
-    byGroup.get(g).push(k);
+  for (const [key, card] of index.byKey) {
+    const st = vocab?.[key];
+    if (!st) continue;
+    const due = projectedDue(st, now, opts.studyPause);
+    if (!(due <= now)) continue;
+    const group = Number(card.group || 0);
+    if (!byGroup.has(group)) byGroup.set(group, []);
+    byGroup.get(group).push({ key, due });
   }
+  if (!byGroup.size) return null;
+  const cap = Math.max(1, Math.min(200, Number(opts.reviewCap) || REVIEW_CAP));
   const blocks = [];
-  for (const [g, list] of byGroup) {
-    list.sort((a, b) => Number(vocab[a].due) - Number(vocab[b].due));
-    blocks.push({ list, due: Number(vocab[list[0]].due), tie: Math.random() });
+  for (const list of byGroup.values()) {
+    list.sort((a, b) => a.due - b.due);
+    blocks.push({ list, due: list[0].due, tie: Math.random() });
   }
   blocks.sort((a, b) => a.due - b.due || a.tie - b.tie);
-  const order = [];
-  for (const b of blocks) order.push(...b.list);
+  const order = blocks.flatMap(block => block.list.map(item => item.key));
   const picked = order.slice(0, cap);
   const fresh = newSession(index, now, roundId);
   fresh.phase = 'review';
@@ -103,13 +125,19 @@ export function planStart(existing, index, vocab, now, roundId, restart, opts = 
   return { session: fresh, resumed: false };
 }
 
-function dueKeys(index, vocab, now) {
-  const out = [];
-  for (const k of index.byKey.keys()) {
-    const st = vocab && vocab[k];
-    if (st && Number(st.due) <= now) out.push(k);
+export function reviewInfo(index, vocab, now, studyPause) {
+  let due = 0, tomorrow = 0, nextDueAt = null;
+  for (const key of index.byKey.keys()) {
+    const st = vocab?.[key];
+    if (!st) continue;
+    const at = projectedDue(st, now, studyPause);
+    if (at <= now) due++;
+    else if (at > now) {
+      if (at <= now + 86400000) tomorrow++;
+      if (nextDueAt === null || at < nextDueAt) nextDueAt = at;
+    }
   }
-  return out;
+  return { due, tomorrow, nextDueAt, paused: StudyPause.paused(studyPause) };
 }
 
 /* 首次认出（本来就认识/到期复习成功）：3 天。 */
@@ -131,7 +159,7 @@ export function lapsedKnown(existing, now) {
   };
 }
 
-export function applyAction({ session, index, vocab, key, action, now, nextExisting }) {
+export function applyAction({ session, index, vocab, key, action, now, nextExisting, studyPause }) {
   if (!ACTIONS.has(action)) throw httpError(400, 'invalid action');
   if (!index.byKey.has(key)) throw httpError(400, 'word not in lesson');
   if (session.completedAt) throw httpError(409, 'lesson already completed');
@@ -157,7 +185,7 @@ export function applyAction({ session, index, vocab, key, action, now, nextExist
       introduced = true;
     } else if (preTries >= 1 && !inRecheck) {   // 看卡任意多次后认出都是遗忘（R2.2-1）
       st = lapsedKnown(existing, now);            // 看卡后认出 = 遗忘信号（C1）
-    } else if (existing.due <= now) {
+    } else if (projectedDue(existing, now, studyPause) <= now) {
       st = nextExisting(existing, now);           // 到期正常成功
     }
     if (st) {
@@ -183,7 +211,9 @@ export function applyAction({ session, index, vocab, key, action, now, nextExist
         session.pendingRecheck = [];
       } else {
         session.completedAt = now;
-        session.nextDueAt = computeNextDue(session, vocab, now);
+        const next = nextDueWord(session, vocab, now, studyPause);
+        session.nextDueAt = next ? Number(next.due) : null;
+        session.nextDueAnchorAt = next ? dueAnchor(next) : null;
         session.history.push({
           completedAt: now, roundId: session.roundId, phase: session.phase,
           total: session.order.length, summary: publicSession(session).summary,
@@ -199,13 +229,18 @@ export function applyAction({ session, index, vocab, key, action, now, nextExist
   return { session, wrote: false, introduced: false, st: vocab[key] || null };
 }
 
-function computeNextDue(session, vocab, now) {
-  let min = null;
-  for (const k of session.order) {
-    const st = vocab && vocab[k];
-    if (st && Number(st.due) > now && (min === null || st.due < min)) min = st.due;
+function nextDueWord(session, vocab, now, studyPause) {
+  let next = null, earliest = Infinity;
+  for (const key of session.order) {
+    const st = vocab?.[key];
+    if (!st) continue;
+    const due = projectedDue(st, now, studyPause);
+    if (due > now && due < earliest) {
+      next = st;
+      earliest = due;
+    }
   }
-  return min;
+  return next;
 }
 
 export function acceptEvent(session, id, key, action, now) {

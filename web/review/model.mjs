@@ -1,7 +1,9 @@
-export function summarize(bank,events,now=Date.now()){
+export function summarize(bank,events,now=Date.now(),projectDue){
  return bank.units.map(u=>{const es=events.filter(e=>e.unit===u.id&&e.version===bank.version).sort((a,b)=>a.at-b.at);const last=es.at(-1);let streak=0;const days=new Set();for(let i=es.length-1;i>=0&&es[i].value==='good'&&es[i].coachVersion&&es[i].independent&&es[i].outcome==='independent_correct';i--){if(es[i].phase==='supplement')continue;const d=new Date(es[i].at+8*3600000).toISOString().slice(0,10);if(!days.has(d)){days.add(d);streak++;}}
  const interval=last?.coachVersion&&last.outcome!=='independent_correct'?1:last?.phase==='supplement'?1:last?.value==='good'?[2,5,10,20][Math.min(Math.max(streak-1,0),3)]:1;
- return {...u,count:es.length,checkCount:es.filter(e=>e.phase==='check'&&e.outcome!=='skipped').length,helpCount:es.filter(e=>e.phase==='supplement').length,last,due:last?last.at+interval*86400000:0,interval,status:evidenceLabel(last)};});
+ const rawDue=last?last.at+interval*86400000:0;
+ const due=last&&projectDue?projectDue(rawDue,last.at,now):rawDue;
+ return {...u,count:es.length,checkCount:es.filter(e=>e.phase==='check'&&e.outcome!=='skipped').length,helpCount:es.filter(e=>e.phase==='supplement').length,last,due,rawDue,interval,status:evidenceLabel(last)};});
 }
 export function selectRound(bank,events,now=Date.now(),unitIds=null,limit=3){
  const us=summarize(bank,events,now);const untouched=us.filter(u=>!u.checkCount);const weak=us.filter(u=>u.last&&u.last.value!=='good'&&u.due<=now).sort((a,b)=>a.due-b.due);
@@ -92,15 +94,15 @@ export function progression(bank,events,unitId){
  const base=u.questions.filter(q=>q.coachVersion&&!q.level),advanced=u.questions.filter(q=>q.level==='retrieve');
  return {unit:unitId,ready:base.length>=2&&base.every(passed),complete:advanced.length>=2&&advanced.every(passed),passed:advanced.filter(passed).map(q=>q.id),label:advanced.length&&advanced.every(passed)?'已在两种句子中补出表达，之后间隔复查':base.length>=2&&base.every(passed)?'基础辨认可用，可以试着自己补出表达':'先检查基础用法'};
 }
-export function selectLearningRound(bank,events,now=Date.now(),ids=null,mode='adaptive',count=6){
+export function selectLearningRound(bank,events,now=Date.now(),ids=null,mode='adaptive',count=6,schedule){
  if(![1,2,3,4,5,6,7,8,9].includes(count))throw Error('invalid round size');
- const states=bank.pilotUnits.map(id=>progression(bank,events,id));
  if(!ids){
-  const due=summarize(bank,events,now).filter(u=>bank.pilotUnits.includes(u.id)&&u.due<=now&&u.count).map(u=>u.id);
-  const progressing=states.filter(s=>!s.complete).map(s=>s.unit);
-  const other=summarize(bank,events,now).filter(u=>!bank.pilotUnits.includes(u.id)).sort((a,b)=>a.checkCount-b.checkCount||a.due-b.due).map(u=>u.id);
-  const seen=new Set(events.filter(e=>e.version===bank.version&&e.phase==='check'&&reviewDay(e.at)===reviewDay(now)).map(e=>e.unit));
-  ids=[...new Set([...due,...progressing,...other])].filter(id=>!seen.has(id)).slice(0,count);
+  const available=availableUnits(bank,events,now,schedule);
+  const eligible=new Set(available.map(u=>u.id));
+  const due=available.filter(u=>bank.pilotUnits.includes(u.id)&&u.due<=now&&u.count).map(u=>u.id);
+  const progressing=bank.pilotUnits.filter(id=>eligible.has(id)&&!progression(bank,events,id).complete);
+  const other=available.filter(u=>!bank.pilotUnits.includes(u.id)).sort((a,b)=>a.checkCount-b.checkCount||a.due-b.due).map(u=>u.id);
+  ids=[...new Set([...due,...progressing,...other])].slice(0,count);
   if(!ids.length)return [];
  }
  return selectRound(bank,events,now,ids,count).map(item=>{
@@ -112,6 +114,11 @@ export function selectLearningRound(bank,events,now=Date.now(),ids=null,mode='ad
 }
 
 function reviewDay(at){return new Date(at+8*3600000).toISOString().slice(0,10);}
-export function remainingToday(bank,events,now=Date.now()){
- const seen=new Set(events.filter(e=>e.version===bank.version&&e.phase==='check'&&reviewDay(e.at)===reviewDay(now)).map(e=>e.unit));return bank.units.filter(u=>!seen.has(u.id)).length;
+function availableUnits(bank,events,now,{paused=false,projectDue}={}){
+ if(paused)return [];
+ const seen=new Set(events.filter(e=>e.version===bank.version&&e.phase==='check'&&reviewDay(e.at)===reviewDay(now)).map(e=>e.unit));
+ return summarize(bank,events,now,projectDue).filter(u=>!seen.has(u.id)&&(u.due===u.rawDue||u.due<=now));
+}
+export function remainingToday(bank,events,now=Date.now(),schedule){
+ return availableUnits(bank,events,now,schedule).length;
 }

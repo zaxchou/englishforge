@@ -27,6 +27,7 @@ import { createRootDict } from './root-dict.mjs';
 import { createReviewHub } from './review-hub.mjs';
 import * as LessonVocab from './lesson-vocab.mjs';
 import EplodRecords from './web/eplod-records.js';
+import StudyPause from './web/study-pause.js';
 import { validateEvent, linkCoachEvidence } from './web/review/model.mjs';
 import http from 'node:http';
 import https from 'node:https';
@@ -1048,7 +1049,7 @@ function defaultLessonId() { const ids = lessonIds(); return ids.includes('cfcm-
 function lessonIndexFor(id) { loadLessonIndexes(); const index = LESSON_INDEXES.get(id); if (!index) throw LessonVocab.httpError(400, 'unknown lesson'); return index; }
 /* 另一会话位的进度摘要：复习完成页要据此给出「继续认读（还剩 N 词）」 */
 function sessionBrief(s) {
-  const pub = LessonVocab.publicSession(s);
+  const pub = lessonPublicSession(s);
   return pub ? { phase: pub.phase, doneCount: pub.doneCount, remaining: pub.remaining, completedAt: pub.completedAt } : null;
 }
 function lessonMeta(id) { loadLessonIndexes(); return LESSON_METAS.get(id) || null; }
@@ -1069,7 +1070,7 @@ function lessonSummaries() {
     const index = lessonIndexFor(id);
     const session = (RECORDS.vocabLesson || {})[id] || null;
     const reviewSession = (RECORDS.vocabLessonReview || {})[id] || null;
-    const brief = s => { const pub = LessonVocab.publicSession(s); return pub ? { ...sessionBrief(s), current: pub.current } : null; };
+    const brief = s => { const pub = lessonPublicSession(s); return pub ? { ...sessionBrief(s), current: pub.current } : null; };
     out.push({ ...lessonMeta(id),
       session: brief(session),
       reviewSession: brief(reviewSession),
@@ -1077,17 +1078,11 @@ function lessonSummaries() {
   }
   return out;
 }
-/* 课级复习概览：到期/24 小时内到期数量 + 上一轮看卡最多的词（给横幅与完成页） */
-function lessonReviewInfo(index, vocab) {
-  const now = Date.now();
-  let due = 0, tomorrow = 0;
-  for (const k of index.byKey.keys()) {
-    const st = vocab && vocab[k];
-    if (!st) continue;
-    if (Number(st.due) <= now) due++;
-    else if (Number(st.due) <= now + 86400000) tomorrow++;
-  }
-  return { due, tomorrow };
+function lessonReviewInfo(index,vocab,now=Date.now()) {
+  return LessonVocab.reviewInfo(index,vocab,now,RECORDS.studyPause);
+}
+function lessonPublicSession(session,now=Date.now()) {
+  return LessonVocab.publicSession(session,{vocab:RECORDS.vocab,now,studyPause:RECORDS.studyPause});
 }
 function lessonHardWords(index, session) {
   const last = session && (session.history || []).at(-1);
@@ -1693,7 +1688,8 @@ function serverRecAttempt(store, ref, inc) {
     store.mistakes[k] = (m && !m.cleared)
       ? { ...m, n_wrong: (m.n_wrong || 0) + 1, stage: 0, due: t + 864e5, last: t, set: ref.set, subj: ref.subj, mk: ref.mk, gkey: ref.gkey }
       : { n_wrong: 1, stage: 0, added: t, due: t + 864e5, last: t, set: ref.set, subj: ref.subj, mk: ref.mk, gkey: ref.gkey };
-  } else if (t >= revision && ok === true && inc.unsure!==true && m && !m.cleared && t >= (m.last||0) && t >= (m.due || 0)) {
+  } else if (t >= revision && ok === true && inc.unsure!==true && m && !m.cleared && t >= (m.last||0) &&
+      t >= StudyPause.projectDue(store.studyPause, Number(m.due || 0), Number(m.last || m.added), t)) {
     const next = [3, 7, 14][m.stage] || 14;
     m.stage = (m.stage || 0) + 1;
     if (m.stage >= 4) m.cleared = true;
@@ -1861,7 +1857,7 @@ if(repairedSpeed){
 const COURSE_PLAN=createCoursePlanHandler({records:()=>RECORDS,setRecords:x=>{RECORDS=x;},save:recordsSave,quizzes:coursePlanQuizzes,
   rootQuizVersion:(lid,v)=>/^cfcm-01-\d{2}$/.test(lid)?ROOT_PRACTICE.lessonVersion(Number(lid.slice(-2)),v)?.quiz:null,
   gradeRootWord:rootGradeWord,now:()=>Date.now()});
-const REVIEW_HUB=createReviewHub({web:WEB_DIR,records:()=>RECORDS,setRecords:x=>{RECORDS=x;},save:recordsSave,recordAttempt:serverRecAttempt,quizzes:()=>GQ_STORE,banks:()=>[...REVIEW_BANKS.values()],reviewEvents:()=>REVIEW_EVENTS,ai:AI_CFG});
+const REVIEW_HUB=createReviewHub({web:WEB_DIR,records:()=>RECORDS,setRecords:x=>{RECORDS=x;},save:recordsSave,recordAttempt:serverRecAttempt,quizzes:()=>GQ_STORE,banks:()=>[...REVIEW_BANKS.values()],reviewEvents:()=>REVIEW_EVENTS,pause:()=>RECORDS.studyPause,ai:AI_CFG});
 /* 数字听写：独立分账目录 number-trainer/，不写 RECORDS 的词汇/课程/考试字段。 */
 const NT_LOCAL_AUDIO = (() => {
   try { return createLocalAudio({ digitAudioDir: path.join(WEB_DIR, 'nt-digits'), cacheDir: path.join(RECORDS_DIR, 'number-trainer', 'audio-local') }); }
@@ -2094,6 +2090,27 @@ const handler = async (req, res) => {
     }
 
     /* ---- API: 学习记录 ---- */
+    if(p==='/api/study-pause'){
+      const publicPause=(state,now)=>({...state,paused:StudyPause.paused(state),now});
+      if(req.method==='GET')return sendJSON(res,200,publicPause(RECORDS.studyPause||StudyPause.EMPTY,Date.now()));
+      if(req.method!=='POST')return sendJSON(res,405,{error:'method not allowed'});
+      const origin=req.headers.origin;
+      if(origin&&origin!==`http://${req.headers.host}`&&origin!==`https://${req.headers.host}`)return sendJSON(res,403,{error:'cross-origin write rejected'});
+      if(!(req.headers['content-type']||'').toLowerCase().startsWith('application/json'))return sendJSON(res,415,{error:'application/json required'});
+      let input;
+      try{input=JSON.parse(await readBody(req,4096));}catch{return sendJSON(res,400,{error:'bad json'});}
+      if(typeof input?.paused!=='boolean'||!Number.isSafeInteger(input.expectedRevision)||input.expectedRevision<0){
+        return sendJSON(res,400,{error:'invalid pause state or revision'});
+      }
+      const state=RECORDS.studyPause||StudyPause.EMPTY,now=Date.now();
+      if(input.expectedRevision!==state.revision)return sendJSON(res,409,{error:'另一端已更新复习状态',...publicPause(state,now)});
+      const updated=StudyPause.transition(state,input.paused,now);
+      if(updated===state)return sendJSON(res,200,publicPause(state,now));
+      const next={...RECORDS,studyPause:updated,revision:(RECORDS.revision||0)+1,saved_at:new Date(now).toISOString()};
+      try{recordsSave(next);}catch(e){console.error('[study-pause]',e.message);return sendJSON(res,503,{error:'复习状态未保存，请重试'});}
+      RECORDS=next;
+      return sendJSON(res,200,publicPause(updated,now));
+    }
     if(await COURSE_PLAN.handle(req,res,p,readBody,sendJSON))return;
     if(await REVIEW_HUB.handle(req,res,p,readBody,sendJSON))return;
     if(await NUMBER_TRAINER.handle(req,res,p,readBody,sendJSON,sendFile))return;
@@ -2160,7 +2177,7 @@ const handler = async (req, res) => {
       if (inc.secs !== undefined && (!Number.isFinite(inc.secs) || inc.secs < 0 || inc.secs > 86400)) return sendJSON(res,400,{error:'invalid seconds'});
       if (['__proto__','constructor','prototype'].includes(inc.id)) return sendJSON(res,400,{error:'invalid event id'});
       const planLesson=CoursePlanModel.parseQid(ref.qid)?.lessonId;
-      const planResult=store=>planLesson&&store.coursePlan?.plans[planLesson]?publicPlan(store.coursePlan,planLesson,Date.now()):null;
+      const planResult=store=>planLesson&&store.coursePlan?.plans[planLesson]?publicPlan(store.coursePlan,planLesson,Date.now(),store.studyPause):null;
       if (inc.id && Object.hasOwn(RECORDS.attemptEvents||{},inc.id)) {
         const event=RECORDS.attemptEvents[inc.id];
         if (event.qid !== ref.qid || (event.fingerprint && event.fingerprint !== attemptFingerprint(inc)) ||
@@ -2574,8 +2591,8 @@ const handler = async (req, res) => {
         const index = lessonIndexFor(id);
         const s = (RECORDS.vocabLesson || {})[id] || null;
         const rv = (RECORDS.vocabLessonReview || {})[id] || null;
-        return sendJSON(res, 200, { ok: true, lesson: lessonMeta(id), session: LessonVocab.publicSession(s),
-          reviewSession: LessonVocab.publicSession(rv),
+        return sendJSON(res, 200, { ok: true, lesson: lessonMeta(id), session: lessonPublicSession(s),
+          reviewSession: lessonPublicSession(rv),
           firstSession: sessionBrief(s),
           review: lessonReviewInfo(index, RECORDS.vocab),
           hardWords: lessonHardWords(index, s),           // 认读位：完成页“看卡最多的词”
@@ -2599,14 +2616,14 @@ const handler = async (req, res) => {
         const now = Date.now(), restart = inc.restart === true;
         const first = (RECORDS.vocabLesson || {})[id] || null;
         const review = (RECORDS.vocabLessonReview || {})[id] || null;
-        const dueNow = lessonReviewInfo(index, RECORDS.vocab).due;
+        const dueNow = lessonReviewInfo(index, RECORDS.vocab, now).due;
         const respond = (session, slot, extra = {}) => sendJSON(res, 200, { ok: true, lesson: lessonMeta(id), slot,
-          session: LessonVocab.publicSession(session), review: lessonReviewInfo(index, RECORDS.vocab),
+          session: lessonPublicSession(session), review: lessonReviewInfo(index, RECORDS.vocab),
           firstSession: sessionBrief((RECORDS.vocabLesson || {})[id] || null),
           hardWords: lessonHardWords(index, session), ...extra });
         if (!restart && !wantFirst && review && !review.completedAt) return respond(review, 'review', { resumed: true });
         if (!restart && !wantFirst && dueNow > 0) {
-          const fresh = LessonVocab.createReviewSession(index, RECORDS.vocab, now, randomUUID());
+          const fresh = LessonVocab.createReviewSession(index, RECORDS.vocab, now, randomUUID(), { studyPause: RECORDS.studyPause });
           if (fresh) {
             const next = JSON.parse(JSON.stringify(RECORDS));
             next.vocabLessonReview ||= {};
@@ -2654,7 +2671,7 @@ const handler = async (req, res) => {
         const prior = (session.events || {})[eventId];
         if (prior) {
           if (prior.key !== key || prior.action !== action) return sendJSON(res, 409, { error: 'event id reused with different payload' });
-          return sendJSON(res, 200, { ok: true, duplicate: true, slot, session: LessonVocab.publicSession(session), revision: RECORDS.revision });
+          return sendJSON(res, 200, { ok: true, duplicate: true, slot, session: lessonPublicSession(session), revision: RECORDS.revision });
         }
         // 全局事件账本已用过该 id（旧端点或上一轮课级）→ 拒绝，避免跨端点重放改调度
         if (Object.hasOwn(RECORDS.vocabEvents || {}, eventId)) return sendJSON(res, 409, { error: 'event id already used' });
@@ -2665,7 +2682,7 @@ const handler = async (req, res) => {
         const work = (slot === 'review' ? (next.vocabLessonReview || {}) : next.vocabLesson)[id];
         next.vocab ||= {};
         const result = LessonVocab.applyAction({
-          session: work, index, vocab: next.vocab, key, action, now,
+          session: work, index, vocab: next.vocab, key, action, now, studyPause: next.studyPause,
           nextExisting: (prev, at) => sm2Grade(3, prev, at)
         });
         if (result.wrote && !vocabStateValid(result.st)) return sendJSON(res, 409, { error: '调度结果异常，原记录已保留' });
@@ -2682,7 +2699,7 @@ const handler = async (req, res) => {
         next.saved_at = new Date(now).toISOString();
         try { recordsSave(next); } catch (e) { console.error('[lesson-vocab]', e.message); return sendJSON(res, 503, { error: 'records not persisted' }); }
         RECORDS = next;
-        return sendJSON(res, 200, { ok: true, duplicate: false, slot, session: LessonVocab.publicSession(work), st: result.st, wrote: result.wrote, vocabDays: next.vocabDays, review: lessonReviewInfo(index, next.vocab),
+        return sendJSON(res, 200, { ok: true, duplicate: false, slot, session: lessonPublicSession(work), st: result.st, wrote: result.wrote, vocabDays: next.vocabDays, review: lessonReviewInfo(index, next.vocab),
           firstSession: sessionBrief((next.vocabLesson || {})[id] || null), hardWords: lessonHardWords(index, work), revision: next.revision });
       } catch (e) { return sendJSON(res, e.status || 500, { error: e.message }); }
     }
